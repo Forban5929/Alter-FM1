@@ -101,7 +101,12 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
   - [x] 3a : ALTER + séquenceur jouables dans le navigateur (branche `etape-3a-navigateur`, attend l'écoute de Romain).
         Page : https://claude.ai/artifact/JpKofrvF7kb17ZmrJZmx8X (republier `build/emu/alter.html` avec ses fichiers).
         Encore l'interface Felucca ; réglages des cercles = valeurs par défaut (4/16, 3/16 rot 2, 2/16), pas de dé.
-  - [ ] 3b : vue PLAY (écran + mapping boutons à proposer en maquette avant de coder).
+  - [ ] 3b : vue PLAY. **Règle de Romain : une touche fait ce que dit son nom** (ne jamais détourner un libellé).
+        Mapping VALIDÉ (30/10) : HOME = vue PLAY ; EDIT = vue DEEP ; SEQ TENU = KNOB 1-4 → LEN HITS ROT PROB du
+        cercle choisi (lâché = macros MRPH SPRD HARM MODE) ; SELECT = choix du cercle ; SCL = gamme + note de base ;
+        ENV = enveloppe ; LFO = modulations ; FX = effets ; GLO = tempo / sync MIDI ; SAVE = preset ; PLAY = start/stop ;
+        ARP, REC = rien pour l'instant. CLAVIER = zone live : 3 touches MUTE (HITS GHOST ACCENT), 3 touches DÉ,
+        le reste = FILLS / VARIATIONS (à définir). LED des touches blanches (pas de couleur) → couleurs sur l'écran.
   - [ ] 3c : vue DEEP. Puis retirer l'interface Felucca.
 - [ ] Étape 4 (après le séquenceur) : tranche de console dédiée, ordre FIXE validé :
       son → **disto/fold → EQ 3 bandes → compresseur** → delay (echo, ping-pong, dub) → reverb.
