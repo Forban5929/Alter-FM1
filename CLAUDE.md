@@ -86,7 +86,7 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
 ## État d'avancement
 - [x] Dépôts vérifiés, vision et design validés
 - [x] Étape 1 : moteur ALTER en C + extraits audio (validé : « bon début »)
-- [x] Étape 2 : séquenceur 3 cercles + dé (branche `etape-2-sequenceur`, en attente d'écoute de Romain)
+- [x] Étape 2 : séquenceur 3 cercles + dé (validé par Romain, fusionné dans main)
 - [ ] Étape 3 : vues PLAY / DEEP dans l'émulateur navigateur (inscrire ALTER dans engines.c, core.h NENGINES,
       midi_control.c MIDI_CC_ENG ; installer Emscripten ; FAV_ENGINES=14 → pas de favoris pour l'index 14)
 - [ ] Étape 4 (après le séquenceur) : tranche de console dédiée, ordre FIXE validé :
