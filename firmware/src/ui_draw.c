@@ -11,6 +11,8 @@
  * free text (names) is ellipsised at its size. */
 static void draw_menu(void);
 static int name_on(void);                              /* NAME (ui_name.c) */
+static int alter_view(void);                           /* ALTER's PLAY view (alter_ui.c) */
+static void alter_draw(void);
 static uint64_t lock_held(void);                       /* parameter locks: the steps held on STEP (ui_input.c) */
 static void name_draw(void);
 #include "ui_help.c"                                   /* 1.5: HELP's hints (draw_foot, ui_layer.c draw_layer) */
@@ -1568,6 +1570,10 @@ static void ui_draw(void)
 }
 static void ui_draw_page(uint32_t counting)
 {
+    if (alter_view() && !counting) {                    /* ALTER's PLAY view (alter_ui.c) */
+        alter_draw();
+        return;
+    }
     if (ui.uboot) {
         draw_uboot();
         draw_head();

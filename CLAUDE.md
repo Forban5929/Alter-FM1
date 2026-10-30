@@ -60,18 +60,26 @@ Collision (Ableton), Euclidean Circles v2 (vpme.de), Sting 2 (M4L). Drums extern
 - Émulateur navigateur = le VRAI firmware en WebAssembly (écran 240×240, panneau simulé). Build FM-1 : `./build.sh` (Linux x86-64).
   Emscripten est bloqué dans la session cloud → on compile avec le clang du système : `tools/alter/wasm/build_emu.sh`
   (mini-libc maison `tools/alter/wasm/`, génère build/gen si absent, sortie build/emu/ + `alter.html` pour l'artifact).
-  Tests : `node web/emu/emu_test.mjs build/emu/felucca.wasm` (Felucca) et
-  `node tools/alter/alter_emu_test.mjs build/emu/felucca.wasm build/emu/alter_play.wav` (PLAY → les 3 cercles jouent ALTER).
-  Clavier de la page : touche `-` = PLAY ; `1`..`=` = FX…REC.
+  Tests : `node web/emu/emu_test.mjs build/emu/felucca.wasm` (Felucca ; 1 échec VOULU : « a key sounds », le clavier
+  est aux commandes live sur l'écran PLAY) et `node tools/alter/alter_emu_test.mjs build/emu/felucca.wasm build/emu/alter_play.wav`
+  (cercles, accents, touches muettes, ROLL, MUTE, SEQ+KNOB, DÉ, tous les fills, retour au motif).
+  Captures d'écran : `node tools/alter/alter_shot.mjs build/emu/felucca.wasm DOSSIER "b:PLAY w:500 K:10+ s:nom"` (.ppm).
+  Clavier de la page : `-` = PLAY, `0` = SEQ, `1`..`=` = FX…REC, ↑↓ = SELECT, Z.. = touches blanches.
 
 ## Code — dépôt https://github.com/Forban5929/alter-fm1 (branche `main`)
 Source de vérité = le dépôt GitHub (copies de secours dans le Projet, `claude/code/`).
 Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner, `git submodule update --init`.
 - `firmware/src/eng_alter.c` : le moteur, inscrit en DERNIER dans `engines.c` (`ENGI_ALTER` = NENGINES-1 dans core.h,
   1er dans ENGINE_ORDER, partie 1 au démarrage = ALTER THUD ; ENG_VCOST 330 ; MIDI CUT=HARM RES=SPRD ; pas de favoris).
-- `firmware/src/alter_play.c` (inclus en tête de seq.c, `alter_tick` appelé après click_tick) : relie alter_seq au
-  transport Felucca (PLAY, tempo, horloge MIDI) sur la partie 1 ; note d'un pas ; GLIDE seulement si le dé l'a tiré ;
-  offsets de timbre annulés exactement au pas suivant (les boutons restent la base).
+- `firmware/src/alter_play.c` (inclus en tête de seq.c, `alter_tick` appelé après click_tick, côté AUDIO) : relie
+  alter_seq au transport Felucca (PLAY, tempo, horloge MIDI) sur la partie 1 ; note d'un pas ; GLIDE seulement si le dé
+  l'a tiré ; offsets de timbre annulés au pas suivant. Les FILLS (alt_hold, bits AF_*) : rolls, ratchets, envois
+  DLY/REV/DESTROY sauvés-restaurés, densité, reverse, shift ; au relâchement chaque cercle revient où il aurait été.
+  Échange UI→audio sans conflit : compteurs écrits par l'UI seule (alt_knob_tot, alt_preset_cnt), alt_post + alt_post_cfg.
+- `firmware/src/alter_ui.c` (inclus dans ui_input.c après led_clear) : écran PLAY (alter_view = HOME de la partie 1 en
+  ALTER, aucun bouton Felucca tenu), alter_ui_input (appelé tôt dans ui_input ; rend la main à Felucca dès qu'un autre
+  bouton est pressé, jusqu'à 0,4 s après relâchement), alter_draw (2 moitiés 240×120, redessin si signature change),
+  alter_leds. Touche k = demi-tons au-dessus de F3 (table ALT_KEY). seq.c keyboard_block : alt_kb_own = clavier muet.
 - `tools/alter/alter_wav.c` : programme PC, rend 15 extraits WAV + compare le coût à ANALOG.
   Recréer : `python3 firmware/engines/tools/gen_engine_tables.py build/alter/fe_tables.h`
   puis `cc -std=c99 -O2 -I build/alter -o build/alter/alter_wav tools/alter/alter_wav.c -lm && build/alter/alter_wav build/alter/wav`
@@ -101,13 +109,20 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
   - [x] 3a : ALTER + séquenceur jouables dans le navigateur (branche `etape-3a-navigateur`, attend l'écoute de Romain).
         Page : https://claude.ai/artifact/JpKofrvF7kb17ZmrJZmx8X (republier `build/emu/alter.html` avec ses fichiers).
         Encore l'interface Felucca ; réglages des cercles = valeurs par défaut (4/16, 3/16 rot 2, 2/16), pas de dé.
-  - [ ] 3b : vue PLAY. **Règle de Romain : une touche fait ce que dit son nom** (ne jamais détourner un libellé).
+  - [x] 3b : vue PLAY codée, testée, publiée (même lien). Attend l'écoute de Romain. **Règle de Romain : une touche fait ce que dit son nom** (ne jamais détourner un libellé).
         Mapping VALIDÉ (30/10) : HOME = vue PLAY ; EDIT = vue DEEP ; SEQ TENU = KNOB 1-4 → LEN HITS ROT PROB du
         cercle choisi (lâché = macros MRPH SPRD HARM MODE) ; SELECT = choix du cercle ; SCL = gamme + note de base ;
         ENV = enveloppe ; LFO = modulations ; FX = effets ; GLO = tempo / sync MIDI ; SAVE = preset ; PLAY = start/stop ;
         ARP, REC = rien pour l'instant. CLAVIER = zone live : 3 touches MUTE (HITS GHOST ACCENT), 3 touches DÉ,
-        le reste = FILLS / VARIATIONS (à définir). LED des touches blanches (pas de couleur) → couleurs sur l'écran.
-  - [ ] 3c : vue DEEP. Puis retirer l'interface Felucca.
+        le reste = FILLS / VARIATIONS. LED des touches blanches (pas de couleur) → couleurs sur l'écran.
+        CLAVIER VALIDÉ (31/10) — NOIRES (groupes 3-2-3-2-1, tenir = actif) : ROLL 1/16, 1/32, triolet (ghost→accent) |
+        RATCHET x2, x3 | DUB DELAY, DUB REVERB, DESTROY (DIST+FOLD montent, assignable en DEEP) | DENSITÉ -, + | REVERSE
+        (motif à l'envers). BLANCHES par blocs ALLUMÉS séparés d'une touche ÉTEINTE : MUTE ×3 (appui) · DÉ ×3 (appui) ·
+        DÉCALAGE -1/+1 (tenir) · le reste libre. Écran PLAY = maquette validée (cercles concentriques, pas animés,
+        bas d'écran = 4 macros ; SEQ tenu = LEN HITS ROT PROB du cercle choisi, les autres cercles grisés).
+  - [ ] 3c : vue DEEP (EDIT ouvre encore la page EDIT de Felucca = les 8 réglages du son). Puis retirer l'interface
+        Felucca. Reste aussi : SCL → gamme/note de base des cercles (aujourd'hui = page SCL de Felucca), 5 blanches libres,
+        DESTROY assignable, verrous du dé et DOSE accessibles.
 - [ ] Étape 4 (après le séquenceur) : tranche de console dédiée, ordre FIXE validé :
       son → **disto/fold → EQ 3 bandes → compresseur** → delay (echo, ping-pong, dub) → reverb.
       Existant Felucca (vérifié dans fx.c) : DIST, INSERT (SOFT/HARD/FOLD/FUZZ/CRUSH…), delay MONO à 1 ligne avec

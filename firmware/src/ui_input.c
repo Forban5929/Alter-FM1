@@ -34,6 +34,7 @@ static void led_clear(uint8_t *nl, uint32_t id)
     if (q != 0xFF)
         nl[q >> 3] &= (uint8_t)~(1u << (q & 7u));
 }
+#include "alter_ui.c"                                   /* ALTER's PLAY view (alter_ui_input, alter_draw, alter_leds) */
 
 static const uint8_t FAM_BTN[FAM_COUNT] = {B_HOME, B_ENV, B_LFO, B_FX, B_SCL, B_EDIT, B_GLO, B_SAVE,
                                            B_ARP, B_SEQ, B_HOME};   /* MIXER: HOME's (1.2); REC is transport */
@@ -455,6 +456,7 @@ static void ui_leds(void)
     }
     if (song.playing || (seq_counting() && cin_pos < click_beat_len() / 4u))   /* counting in: green on each beat */
         nl[LED_PLAY_GREEN >> 3] |= (uint8_t)(1u << (LED_PLAY_GREEN & 7u));
+    alter_leds(nl, nd, nb, nm);                         /* ALTER's PLAY view: its keys (alter_ui.c) */
     fm1_led_dim_level(mode == LEDS_DIM_LO || inv == 1u);   /* (INV LO: the darker mid level, ~8 %; HI ~12.5 %) */
     for (c = 0; c < FM1_NCOL; c++) {
         fm1_led_dim[c] = nd[c];
@@ -1496,6 +1498,8 @@ static void ui_input(void)
     follow_poll();                                      /* (1.6, #242: SEQ's roll follows the play position) */
     if (scr_input(pressed, notes))                      /* MENU > SCREEN OFF: dark, or the wake gesture: swallowed */
         return;                                         /* (before the buttons' timers: no tap or hold after it) */
+    if (alter_ui_input(pressed))                        /* ALTER's PLAY view had it (alter_ui.c) */
+        return;
     if (mom.n && !mom_down()) {                         /* MOMENTARY: LFO let go (or the menu, a layer ..): back */
         mom_restore();
         ui_message("BACK");

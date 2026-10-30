@@ -51,6 +51,52 @@ out.length = 0; render(FS, true);
 const tail = out.slice(FS / 2).reduce((p, x) => Math.max(p, Math.abs(x)), 0);
 check(`PLAY again stops it (last half second peak ${tail.toFixed(4)})`, tail < 0.002);
 
+// ---- the PLAY view (alter_ui.c): its keys, SEQ + knobs
+const SEQB = 9, K = (n) => ex.web_keys(n);
+const onsets = (a) => {                                          // attacks: a jump in the signal, 30 ms apart at least
+  let n = 0, last = -1e9;
+  for (let i = 1; i < a.length; i++) if (Math.abs(a[i] - a[i - 1]) > 0.0015 && i - last > FS * 0.03) { n++; last = i; }
+  return n;
+};
+const bar = Math.round(step * 16), listen = (n) => { out.length = 0; render(n, true); return out.slice(); };
+K(1 << 26); const quiet = listen(FS / 2); K(0); render(FS / 2, false);
+check("a key on the PLAY view plays no note", quiet.reduce((p, x) => Math.max(p, Math.abs(x)), 0) < 0.001);
+ex.web_buttons(1 << PLAY); render(128, false); ex.web_buttons(0);
+render(bar, false);
+const base = onsets(listen(bar));
+check(`the circles play (${base} attacks in a bar: HITS 4 + GHOST 3)`, base >= 6 && base <= 8);
+K(1 << 3); const roll = onsets(listen(bar)); K(0);
+check(`ROLL 1/32 held: ${roll} attacks in a bar (~32)`, roll >= 26);
+render(bar, false);
+K(1); render(120, false); K(0); K(1 << 2); render(120, false); K(0);       // MUTE HITS, MUTE GHOST
+const muted = listen(bar).slice(FS / 4).reduce((p, x) => Math.max(p, Math.abs(x)), 0);
+check(`MUTE HITS + GHOST: silence (ACCENT never plays alone; peak ${muted.toFixed(4)})`, muted < 0.002);
+K(1); render(120, false); K(0); K(1 << 2); render(120, false); K(0);       // back on
+render(300, false); ex.web_buttons(1 << SEQB); render(200, false);
+for (let i = 0; i < 4; i++) { ex.web_enc(4, 1); render(30, false); }      // SEQ + KNOB 2: HITS 4 -> 8
+ex.web_buttons(0); render(bar * 2, false);
+const dense = onsets(listen(bar));
+check(`SEQ + KNOB 2: HITS 4 -> 8 from the next cycle (${dense} attacks in a bar)`, dense >= 8 && dense <= 10);
+K(1 << 7); render(120, false); K(0); render(bar * 2, false);               // DICE HITS: a draw
+check("DICE HITS: still playing after a new draw", onsets(listen(bar)) >= 8);
+{
+  const before = onsets(listen(bar));
+  const FILLS = { 1: "ROLL 1/16", 5: "ROLL 1/16T", 8: "RATCHET X2", 10: "RATCHET X3", 13: "DUB DELAY", 15: "DUB REVERB",
+                  17: "DESTROY", 20: "DENSITY -", 22: "DENSITY +", 25: "REVERSE", 14: "SHIFT -1", 16: "SHIFT +1" };
+  const got = {};
+  let worst = 0;
+  for (const [k, name] of Object.entries(FILLS)) {
+    K(1 << +k); const a = listen(bar); K(0); render(bar * 2, false);
+    got[name] = onsets(a);
+    worst = Math.max(worst, a.reduce((p, x) => Math.max(p, Math.abs(x)), 0));
+  }
+  console.log("alter: attacks in a bar held: " + Object.entries(got).map(([n, v]) => `${n} ${v}`).join(", "));
+  check(`every fill plays and none clips (peak ${worst.toFixed(3)})`, Object.values(got).every((v) => v > 0) && worst < 0.999);
+  check("RATCHET X2 / X3 add attacks", got["RATCHET X2"] > before && got["RATCHET X3"] > got["RATCHET X2"]);
+  check("DENSITY - < DENSITY +", got["DENSITY -"] < got["DENSITY +"]);
+  const after = onsets(listen(bar));
+  check(`let go: the pattern is back (${before} attacks before, ${after} after)`, after === before);
+}
 if (wavPath) {                                                  // 4 bars again from a fresh start, 16-bit mono
   ex.web_buttons(1 << PLAY); render(128, false); ex.web_buttons(0);
   out.length = 0; render(total + FS, true);
