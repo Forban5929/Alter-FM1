@@ -13,6 +13,7 @@
  * held length as TIE steps (rec_note, rec_hold, rec_release). With the ARP on, the notes the arp
  * plays are recorded, not the keys held (what plays back is what was heard). A key or MIDI note plays a
  * chord when the track's CHRD is on (chord.c): its notes go through the same input as so many keys. */
+#include "alter_play.c"     /* ALTER's three circles on part 1 (alter_tick, below after click_tick) */
 static const uint16_t SCALE_MASK[] = {
     0xFFF,                                   /* CHR */
     (1 << 0) | (1 << 2) | (1 << 4) | (1 << 5) | (1 << 7) | (1 << 9) | (1 << 11),   /* MAJ */
@@ -1457,6 +1458,7 @@ static void events_block(uint32_t n)
         cin_record();
     if (song.playing)
         click_tick(seq_n);
+    alter_tick(seq_n);
     for (i = 0; i < NPART; i++) {
         uint32_t arp_n = clock_mode ? midi_grid_advance(&midi_arp_grid[i], seq_n, (uint32_t)trk[i].p[P_ARATE]) : n;
         arp_step(&trk[i], arp_n, clock_mode && song.playing ? arp_n : n);

@@ -57,12 +57,21 @@ Collision (Ableton), Euclidean Circles v2 (vpme.de), Sting 2 (M4L). Drums extern
   hooks `desc`, `block`, `amp`, `post`. État voix `ph[3]` + `s[8]` ; plus → mémoire de piste `mem` (≤ ~12,9 Ko).
 - Tables : SINE[1025], pitch_inc(), SVF_G, TANH_Q15. Modèles physiques existants : `eng_phys.c`, `phys_dsp.c`.
 - CPU repère : ANALOG 8 voix = 17 %. Plaits est en float → à réécrire en entiers, modèle par modèle.
-- Émulateur navigateur : `web/emu/build.sh` (Emscripten). Build FM-1 : `./build.sh` (Linux x86-64).
+- Émulateur navigateur = le VRAI firmware en WebAssembly (écran 240×240, panneau simulé). Build FM-1 : `./build.sh` (Linux x86-64).
+  Emscripten est bloqué dans la session cloud → on compile avec le clang du système : `tools/alter/wasm/build_emu.sh`
+  (mini-libc maison `tools/alter/wasm/`, génère build/gen si absent, sortie build/emu/ + `alter.html` pour l'artifact).
+  Tests : `node web/emu/emu_test.mjs build/emu/felucca.wasm` (Felucca) et
+  `node tools/alter/alter_emu_test.mjs build/emu/felucca.wasm build/emu/alter_play.wav` (PLAY → les 3 cercles jouent ALTER).
+  Clavier de la page : touche `-` = PLAY ; `1`..`=` = FX…REC.
 
 ## Code — dépôt https://github.com/Forban5929/alter-fm1 (branche `main`)
 Source de vérité = le dépôt GitHub (copies de secours dans le Projet, `claude/code/`).
 Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner, `git submodule update --init`.
-- `firmware/src/eng_alter.c` : le moteur. Pas encore inscrit dans `engines.c`.
+- `firmware/src/eng_alter.c` : le moteur, inscrit en DERNIER dans `engines.c` (`ENGI_ALTER` = NENGINES-1 dans core.h,
+  1er dans ENGINE_ORDER, partie 1 au démarrage = ALTER THUD ; ENG_VCOST 330 ; MIDI CUT=HARM RES=SPRD ; pas de favoris).
+- `firmware/src/alter_play.c` (inclus en tête de seq.c, `alter_tick` appelé après click_tick) : relie alter_seq au
+  transport Felucca (PLAY, tempo, horloge MIDI) sur la partie 1 ; note d'un pas ; GLIDE seulement si le dé l'a tiré ;
+  offsets de timbre annulés exactement au pas suivant (les boutons restent la base).
 - `tools/alter/alter_wav.c` : programme PC, rend 15 extraits WAV + compare le coût à ANALOG.
   Recréer : `python3 firmware/engines/tools/gen_engine_tables.py build/alter/fe_tables.h`
   puis `cc -std=c99 -O2 -I build/alter -o build/alter/alter_wav tools/alter/alter_wav.c -lm && build/alter/alter_wav build/alter/wav`
@@ -87,8 +96,13 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
 - [x] Dépôts vérifiés, vision et design validés
 - [x] Étape 1 : moteur ALTER en C + extraits audio (validé : « bon début »)
 - [x] Étape 2 : séquenceur 3 cercles + dé (validé par Romain, fusionné dans main)
-- [ ] Étape 3 : vues PLAY / DEEP dans l'émulateur navigateur (inscrire ALTER dans engines.c, core.h NENGINES,
-      midi_control.c MIDI_CC_ENG ; installer Emscripten ; FAV_ENGINES=14 → pas de favoris pour l'index 14)
+- [ ] Étape 3 (choix validés 30/10 : vues SUR L'ÉCRAN FM-1 240×240, ALTER REMPLACE Felucca (comme SLOOP),
+      cercles CONCENTRIQUES HITS dehors → ACCENT dedans, livraison par morceaux) :
+  - [x] 3a : ALTER + séquenceur jouables dans le navigateur (branche `etape-3a-navigateur`, attend l'écoute de Romain).
+        Page : https://claude.ai/artifact/JpKofrvF7kb17ZmrJZmx8X (republier `build/emu/alter.html` avec ses fichiers).
+        Encore l'interface Felucca ; réglages des cercles = valeurs par défaut (4/16, 3/16 rot 2, 2/16), pas de dé.
+  - [ ] 3b : vue PLAY (écran + mapping boutons à proposer en maquette avant de coder).
+  - [ ] 3c : vue DEEP. Puis retirer l'interface Felucca.
 - [ ] Étape 4 (après le séquenceur) : tranche de console dédiée, ordre FIXE validé :
       son → **disto/fold → EQ 3 bandes → compresseur** → delay (echo, ping-pong, dub) → reverb.
       Existant Felucca (vérifié dans fx.c) : DIST, INSERT (SOFT/HARD/FOLD/FUZZ/CRUSH…), delay MONO à 1 ligne avec
@@ -100,6 +114,6 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
   dans main quand Romain a validé à l'écoute. Remote `upstream` = hugelton/Felucca, `origin` = le fork (récupérer ses correctifs).
 - Nos fichiers préfixés `alter_` dans `firmware/src/` (eng_alter.c, alter_seq.c, alter_ui.c, alter_fx.c),
   outil PC dans `tools/alter/`, docs dans `docs/alter/`, `CLAUDE.md` à la racine. Sous-modules inchangés.
-- Version navigateur publiée sur GitHub Pages par GitHub Actions (à mettre en place à l'étape 3).
+- Version navigateur : artifact claude.ai pour l'instant ; GitHub Pages plus tard (Romain devra activer Pages).
 - Issues GitHub = retours d'écoute de Romain ; un jalon (milestone) par étape.
 - La session cloud ne peut ni lister le compte ni créer de dépôt (proxy) : add_repo puis git push uniquement.
