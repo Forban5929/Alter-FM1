@@ -8,31 +8,24 @@
 ## Rôle de Claude
 Ingénieur DSP + développeur C embarqué.
 
-## Vision (validée le 30/10/2026)
-**Un instrument, pas une groovebox.** UN seul son à la fois, riche et complexe, joué par un séquenceur
-euclidien orienté live. En live : variations subtiles (rythme, ghost notes, motif), jamais de rupture.
-En sound design : le hasard peut être radical. Influences : Basimilus Iteritas Alter, Plaits (Mutable),
-Collision (Ableton), Euclidean Circles v2 (vpme.de), Sting 2 (M4L). Drums externes : Analog Rytm (sync MIDI clock).
-
-### Son
-- Modèles façon Plaits : chaque modèle a 4 macros communes (les 4 boutons du FM-1).
-- Ordre : 1) **ALTER** (Basimilus, spec ci-dessous) ; plus tard COLLIDE (mailloche+résonateurs),
-  STRING (corde inharmonique), PARTICLE/NOISE.
-- 2 voix internes : la queue du coup précédent continue sous le nouveau.
-- Effets : ceux de Felucca (DIST, INSERT FOLD, delay, reverb). Enveloppe : ADSR Felucca.
-
-### Séquenceur
-- **3 cercles euclidiens** jouant le même son : **HITS**, **GHOST** (doux), **ACCENT** (fort).
-  Par cercle : longueur, coups, rotation (longueurs différentes = polyrythmie).
-- Changement de rythme appliqué **au début du cycle suivant** (pas de rupture).
-- **Hasard (le dé)** : mode optionnel par cercle. Un appui = nouveau tirage, FIGÉ jusqu'au prochain appui.
-  Peut toucher : hauteur (dans une gamme), accents/intensité, glide/slide, timbre (macros)… tout,
-  avec un **verrou par paramètre** pour l'exclure du tirage.
-
-### Interface
-- Vue **PLAY** (live) : 4 macros, cercles animés, dé, mutes/fill ; macros assignables par preset.
-- Vue **DEEP** (sound design) : tous les réglages.
-- Minimaliste, coloré, une couleur par cercle.
+## Vision (30/10, revue le 31/10)
+**Un instrument indus / noise / texture**, joué par un séquenceur euclidien orienté live. En live : variations
+subtiles, jamais de rupture. En sound design : hasard radical possible. Influences : Basimilus Iteritas Alter, Plaits,
+Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MIDI clock).
+- **3 cercles = 3 voix indépendantes** (1 voix chacune), chacune SON moteur : **ALTER, PHYS, NOISE** seulement (les autres
+  moteurs Felucca retirés). Départ : cercle 1 ALTER, 2 PHYS, 3 NOISE. Presets indus/noise/texture créés par Claude
+  (~6 par moteur, Romain juge). Changer de son : **SELECT = cercle, PRESETS = tous les presets des 3 moteurs**.
+- Par cercle : LEN, HITS, ROT, PROB (cercle = déclenchements seulement). Changement de rythme au **cycle suivant**.
+- **Force par pas** (ghost ↔ accent) et **chance par pas** : dans l'onglet **SEQ** (vue LINÉAIRE classique, un cercle à la
+  fois, pages : FORCE avec rotation des accents/ghosts indépendante des coups ; CHANCE ; d'autres pages plus tard).
+  Édition : tenir une/des touches blanches (= pas 1..16) + tourner un KNOB.
+- **DÉ (par cercle) = un clic applique TOUT DE SUITE un nouveau tirage** : force (ghost/accent), hauteur (gamme), timbre,
+  glide. Pas de mode on/off. Verrous par paramètre (plus tard, vue DEEP).
+- **Fills = sur le cercle SÉLECTIONNÉ** (ROLL, RATCHET, DUB DELAY/REVERB, DESTROY, DENSITÉ, REVERSE).
+- **SHIFT −1/+1 = tourne le cercle sélectionné d'un pas par appui, gardé.**
+- LED clavier : utilisables **faibles au repos, fortes si engagées** (mute, fill tenu, flash du dé) ; sans fonction = noires.
+- ALGORITHM = KNOB 4 (MODE) pour l'instant ; servira plus tard à des variations de mode plus amples.
+- Vue **DEEP** (EDIT) : tous les réglages. Effets Felucca (DIST, INSERT FOLD, delay, reverb), ADSR Felucca.
 
 ## Spécification moteur ALTER
 6 oscillateurs à table d'onde.
@@ -115,14 +108,20 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         ENV = enveloppe ; LFO = modulations ; FX = effets ; GLO = tempo / sync MIDI ; SAVE = preset ; PLAY = start/stop ;
         ARP, REC = rien pour l'instant. CLAVIER = zone live : 3 touches MUTE (HITS GHOST ACCENT), 3 touches DÉ,
         le reste = FILLS / VARIATIONS. LED des touches blanches (pas de couleur) → couleurs sur l'écran.
-        CLAVIER VALIDÉ (31/10) — NOIRES (groupes 3-2-3-2-1, tenir = actif) : ROLL 1/16, 1/32, triolet (ghost→accent) |
+        (Ci-dessous = état codé en 3b, avant la nouvelle direction.) CLAVIER VALIDÉ (31/10) — NOIRES (groupes 3-2-3-2-1, tenir = actif) : ROLL 1/16, 1/32, triolet (ghost→accent) |
         RATCHET x2, x3 | DUB DELAY, DUB REVERB, DESTROY (DIST+FOLD montent, assignable en DEEP) | DENSITÉ -, + | REVERSE
         (motif à l'envers). BLANCHES par blocs ALLUMÉS séparés d'une touche ÉTEINTE : MUTE ×3 (appui) · DÉ ×3 (appui) ·
         DÉCALAGE -1/+1 (tenir) · le reste libre. Écran PLAY = maquette validée (cercles concentriques, pas animés,
         bas d'écran = 4 macros ; SEQ tenu = LEN HITS ROT PROB du cercle choisi, les autres cercles grisés).
-  - [ ] 3c : vue DEEP (EDIT ouvre encore la page EDIT de Felucca = les 8 réglages du son). Puis retirer l'interface
-        Felucca. Reste aussi : SCL → gamme/note de base des cercles (aujourd'hui = page SCL de Felucca), 5 blanches libres,
-        DESTROY assignable, verrous du dé et DOSE accessibles.
+  - [ ] **3d (PROCHAINE)** : passer à la nouvelle direction, en 3 morceaux validés à l'écoute :
+        3d-1 modèle 3 voix (parties 1-3 = ALTER/PHYS/NOISE, 1 voix ; alter_seq → 3 pistes euclidiennes indépendantes avec
+             force + chance par pas ; HOME = déclenchements seuls ; fills sur cercle sélectionné ; SHIFT gardé ; DÉ immédiat ;
+             LED faible/fort ; PRESETS par cercle sur les 3 moteurs). Réutiliser alter_play/alter_ui/alter_seq.
+        3d-2 onglet SEQ linéaire (SEQ = page, plus « SEQ tenu ») : pages FORCE (rotation accents/ghosts) et CHANCE.
+             → où vont alors LEN/HITS/ROT/PROB ? à proposer (ex. page RYTHME de l'onglet SEQ) AVANT de coder.
+        3d-3 presets indus/noise/texture (ALTER, PHYS, NOISE) + page d'écoute.
+  - [ ] 3c : vue DEEP (EDIT ouvre encore la page EDIT de Felucca). Puis retirer l'interface Felucca. Reste : SCL → gamme
+        des cercles, touches blanches libres, DESTROY assignable, verrous du dé, DOSE.
 - [ ] Étape 4 (après le séquenceur) : tranche de console dédiée, ordre FIXE validé :
       son → **disto/fold → EQ 3 bandes → compresseur** → delay (echo, ping-pong, dub) → reverb.
       Existant Felucca (vérifié dans fx.c) : DIST, INSERT (SOFT/HARD/FOLD/FUZZ/CRUSH…), delay MONO à 1 ligne avec
