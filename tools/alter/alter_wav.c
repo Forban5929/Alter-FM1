@@ -100,9 +100,15 @@ static void render_block(track_t *t, const engine_t *e, int32_t *out)
         if (!v->active)
             continue;
         a = env_tick(t, v);
-        base = pitch_inc((uint32_t)clamp(v->pitch16, 0, 2047));
+        if (v->gstep && v->pitch_cur != v->pitch16) {  /* a glide: toward the note by gstep a block */
+            int32_t d = v->pitch16 - v->pitch_cur;
+            v->pitch_cur += d > v->gstep ? v->gstep : d < -v->gstep ? -v->gstep : d;
+        } else {
+            v->pitch_cur = v->pitch16;
+        }
+        base = pitch_inc((uint32_t)clamp(v->pitch_cur, 0, 2047));
         memset(&m, 0, sizeof m);
-        m.pitch16 = v->pitch16;
+        m.pitch16 = v->pitch_cur;
         m.inc = base;
         m.amp0 = lastamp[k];
         m.amp1 = a;
@@ -275,6 +281,7 @@ static double cost(const engine_t *e, const int8_t *pe)
     return (double)(clock() - c0) * 1e9 / CLOCKS_PER_SEC / (nb * CTL * 2.0);
 }
 
+#ifndef ALTER_HOST_NO_MAIN
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : ".";
@@ -308,3 +315,4 @@ int main(int argc, char **argv)
     }
     return 0;
 }
+#endif

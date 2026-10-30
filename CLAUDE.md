@@ -72,12 +72,21 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
   64 bits seulement 1×/bloc (incréments). Presets : THUD, BELL, CLANG, SNAP, STAB, RUST.
 - Mesures (PC x86) : ALTER ≈ 1,7 à 2,3 × ANALOG par voix → estimé ~4-5 % CPU FM-1 par voix (≈10 % pour 2).
   NON vérifié sur pi32v2 (toolchain JieLi pas encore installée). Crêtes -2 à -5 dBFS, pas d'écrêtage, DC ≈ 0.
-- Page d'écoute publiée : https://claude.ai/artifact/BqNkjf2dYiPQFnkgco6zey
+- `firmware/src/alter_seq.c` : le séquenceur (étape 2), C pur, sans dépendance, appelé 1×/double-croche
+  (`as_init`, `as_set` = réglage appliqué au cycle suivant du cercle, `as_roll` = dé, `as_step` → `as_event_t`).
+  ACCENT ne joue jamais seul ; GHOST seulement là où HITS est vide ; PROB 0..127 ; 32 pas max ; DOSE par cercle ;
+  verrous AS_LK_PITCH/VEL/GLIDE/MRPH/SPRD/HARM/AMNT ; gammes OCT 5TH MPEN MIN PHRY DOR CHR. Le dé d'ACCENT
+  ne bouge que la force de l'accent. Offsets de timbre appliqués aux paramètres au déclenchement.
+- `tools/alter/alter_seq_test.c` : 9 tests (motifs, cycle suivant, dé figé, verrous, PROB, polyrythmie).
+  `cc -std=c99 -O2 -Wall -o build/alter/alter_seq_test tools/alter/alter_seq_test.c && build/alter/alter_seq_test`
+- `tools/alter/alter_seq_demo.c` : 8 démos du séquenceur (inclut alter_wav.c avec ALTER_HOST_NO_MAIN) + `rings.txt`.
+- `tools/alter/make_listen_page.py build/alter` : page d'écoute HTML (MP3 via ffmpeg depuis wav/ dans mp3/).
+- Page d'écoute publiée (23 extraits) : https://claude.ai/artifact/BqNkjf2dYiPQFnkgco6zey
 
 ## État d'avancement
 - [x] Dépôts vérifiés, vision et design validés
-- [x] Étape 1 : moteur ALTER en C + extraits audio (en attente du retour d'écoute de Romain)
-- [ ] Étape 2 : séquenceur 3 cercles + dé
+- [x] Étape 1 : moteur ALTER en C + extraits audio (validé : « bon début »)
+- [x] Étape 2 : séquenceur 3 cercles + dé (branche `etape-2-sequenceur`, en attente d'écoute de Romain)
 - [ ] Étape 3 : vues PLAY / DEEP dans l'émulateur navigateur (inscrire ALTER dans engines.c, core.h NENGINES,
       midi_control.c MIDI_CC_ENG ; installer Emscripten ; FAV_ENGINES=14 → pas de favoris pour l'index 14)
 - [ ] Étape 4 (après le séquenceur) : tranche de console dédiée, ordre FIXE validé :
