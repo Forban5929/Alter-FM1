@@ -134,6 +134,37 @@ check("DENSITY + tapped: 9 hits, kept", same(bar().steps, euclid(16, 9, 0)));
 tap(20); tap(20); bar();
 check("DENSITY - tapped twice: 7 hits", same(bar().steps, euclid(16, 7, 0)));
 tap(22); bar();
+// quick pages: a tap on ENV keeps the circles, KNOB 2 = DEC (shorter notes: less sound), ENV again closes it
+{
+  const B = (n) => { ex.web_buttons(1 << n); render(2000); ex.web_buttons(0); render(2000); };
+  const energy = (b) => b.audio.reduce((p, x) => p + Math.abs(x), 0);
+  bar(); const e0 = energy(bar());
+  B(2); enc(4, -30); B(2); bar();
+  const e1 = energy(bar());
+  check(`ENV tapped + KNOB 2 (DEC) down: shorter notes (energy ${e0.toFixed(0)} -> ${e1.toFixed(0)})`, e1 < e0 * 0.8);
+  enc(4, 3); bar();
+  check("ENV tapped again: closed (KNOB 2 = the sound's again, HITS unchanged)", same(bar().steps, euclid(16, 8, 0)));
+  B(2); enc(4, 27); B(2);
+  // OCT- + OCT+ held + FX: Felucca's own FX page (the circles' screen goes), HOME comes back
+  const px = () => { render(4000); return new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240)[13 * 240 + 14]; };
+  const home = px();
+  ex.web_buttons((1 << 12) | (1 << 13)); render(2000); ex.web_buttons((1 << 12) | (1 << 13) | 1); render(2000);
+  ex.web_buttons((1 << 12) | (1 << 13)); render(2000); ex.web_buttons(0); render(FS / 2);
+  const felucca = px();
+  B(6); render(FS / 2);
+  check(`OCT- + OCT+ + FX: Felucca's page (screen changed), HOME: the circles again`, felucca !== home && px() === home);
+  // OCT- + OCT+ + DICE 1: circle 1's LOCKS; F3 = RHYTHM locked; HOME; a roll keeps the rhythm
+  ex.web_buttons((1 << 12) | (1 << 13)); render(2000); tap(7); ex.web_buttons(0); render(2000);
+  tap(0); B(6);
+  tap(7); bar();
+  {
+    // (the draw still makes some hits ghosts, too soft to be heard here: no hit may fall outside the 8 steps)
+    const st = [...bar().steps, ...bar().steps], E8 = euclid(16, 8, 0);
+    check(`LOCKS: RHYTHM locked on circle 1, after DICE 1 every hit stays on its steps (${[...new Set(st)].join(",")})`,
+          st.length > 0 && st.every((x) => E8.includes(x)));
+  }
+  K(1 << 7); render(FS * 0.7); K(0); render(1200);
+}
 // a fill on another circle leaves this one alone: SELECT circle 2 (muted), RATCHET X3 held
 enc(0, 1);
 {

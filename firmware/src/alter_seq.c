@@ -15,7 +15,7 @@
  * never changes), a velocity spread, a glide, a length (1..4 steps: it rings on, or the next hit cuts it), an
  * envelope offset (the host moves decay and release) and four timbre offsets (the host maps them to its engine's
  * parameters). Kept until the next roll; as_clear forgets it (the clean pattern). DOSE (0..127) is how far a draw
- * reaches: low for small variations, high for sound design. A lock (AS_LK_*) keeps that part out of every draw.
+ * reaches: low for small variations, high for sound design. A circle's lock (AS_LK_*) keeps that part out of its draws.
  * DENSITY (as_density): +-1 HITS at once and kept (the keys are quantised to the grid: they act at the next step).
  *
  * Integers only, no allocation: as_step() runs once per sixteenth, in the audio interrupt if the host wants. */
@@ -57,13 +57,13 @@ typedef struct {
     int8_t env[AS_MAXLEN];          /* decay / release offset */
     int8_t dhits;                   /* HITS moved by .. */
     uint8_t drot;                   /* .. and ROT turned by (0..31) */
+    uint8_t locks;                  /* AS_LK_*: what this circle's draws leave alone */
     uint32_t seed;                  /* this circle's draws */
 } as_circ_t;
 
 typedef struct {
     as_circ_t c[AS_NCIRC];
     uint8_t scale;                  /* AS_SC_*, shared */
-    uint8_t locks;                  /* AS_LK_* */
     uint32_t rng;                   /* the PROB and CHANCE coins */
 } as_seq_t;
 
@@ -148,7 +148,7 @@ static int as_coin(uint32_t *s, int32_t n) { return (int32_t)(as_rand(s) % 1024u
 static void as_draw(as_seq_t *q, uint32_t i)
 {
     as_circ_t *c = &q->c[i];
-    int32_t d = c->next.dose, k, j, lk = q->locks;
+    int32_t d = c->next.dose, k, j, lk = c->locks;
     uint32_t *s = &c->seed;
     /* the rhythm: HITS moved by up to half the circle, ROT anywhere (each with a chance rising with DOSE) */
     c->dhits = 0;

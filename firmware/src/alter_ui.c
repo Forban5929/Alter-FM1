@@ -3,11 +3,16 @@
  * circle i plays part i (alter_play.c). Included in ui_input.c (after led_put); ui_input calls alter_ui_input first,
  * ui_draw_page alter_draw, ui_leds alter_leds. Every button does what its label says (Romain's rule):
  *   KNOB 1-4     the four main parameters of the chosen circle's engine (engine_t.knob)
- *   SEQ          KNOB 1-4 = LEN HITS ROT PROB of the chosen circle (from its next cycle); the others greyed. A tap
- *                keeps it open (another tap closes it); held 2 s or more it closes on release
- *   SELECT       the chosen circle (and Felucca's selected part: ENV, FX .. edit its sound)
+ *   SEQ ENV FX LFO EDIT SCL GLO   a quick page: the view stays, KNOB 1-4 become the page's four (ALT_QP: SEQ = LEN
+ *                HITS ROT PROB from the next cycle, the other circles greyed; ENV = ATK DEC SUS REL; FX = DIST INSERT
+ *                DELAY REVERB; LFO = RATE >PITCH >TIMBRE >LEVEL; EDIT = the engine's four others; SCL = SCALE ROOT
+ *                GLIDE DOSE; GLO = TEMPO LEVEL PAN SWING). A tap keeps it open (the same button again, or HOME, closes
+ *                it; another page button switches); held 2 s or more it closes on release
+ *   OCT- + OCT+ held, then a page button: Felucca's own page (HOME comes back); then DICE n: circle n's LOCKS page
+ *                (the white keys F3..E4 = RHYTHM PITCH GLIDE ENV TIMBRE FORCE VELOCITY, a tap locks / frees; HOME)
+ *   SELECT       the chosen circle (and Felucca's selected part: its pages edit its sound)
  *   PRESETS      the chosen circle's sound, through the presets of ALTER, PHYS and NOISE in a row
- *   ALGORITHM    KNOB 4         PLAY  start / stop      HOME, ENV, LFO, FX, GLO, SCL, EDIT, SAVE: Felucca's
+ *   ALGORITHM    the engine's KNOB 4     PLAY  start / stop      SAVE ARP REC: Felucca's
  * The keys (no notes here: alt_kb_own): the whites in lit blocks with a dark key between: MUTE 1 2 3 (a tap),
  * DICE 1 2 3 (a tap: a new draw at once; held 0.6 s: the clean pattern again), SHIFT -1 +1 (a tap: the chosen
  * circle turned a step, kept); the blacks in their groups 3-2-3-2-1, on the chosen circle: held ROLL 1/16 1/32
@@ -35,13 +40,35 @@ static const alt_key_t ALT_KEY[27] = {    /* k: semitones above F3 (whites 0 2 4
 };
 #define ALT_DIE_HOLD_MS 600u
 #define ALT_TAP_MS 150u                   /* a tapped key's bright LED */
-#define ALT_SEQ_HOLD_MS 2000u             /* SEQ held this long: it closes on release (shorter: it stays open) */
+#define ALT_PAGE_HOLD_MS 2000u            /* a page button held this long: it closes on release (shorter: stays open) */
+
+/* the quick pages: their buttons, names and four knobs (P_* of the chosen circle's part, or ALT_QK_* below;
+ * QK_ENG: the engine's own) */
+enum { QP_NONE, QP_SEQ, QP_ENV, QP_FX, QP_LFO, QP_EDIT, QP_SCL, QP_GLO, QP_N };
+enum { QK_SCALE = 200, QK_ROOT, QK_DOSE, QK_BPM, QK_SWING, QK_RHY, QK_ENG, QK_ENGX };
+static const uint8_t ALT_QP_BTN[QP_N] = {0, B_SEQ, B_ENV, B_FX, B_LFO, B_EDIT, B_SCL, B_GLO};
+static const char *const ALT_QP_NAME[QP_N] = {"", "RHYTHM", "ENV", "FX", "LFO", "EDIT", "SCALE", "GLOBAL"};
+static const uint8_t ALT_QP_K[QP_N][4] = {
+    {QK_ENG, QK_ENG, QK_ENG, QK_ENG},
+    {QK_RHY, QK_RHY, QK_RHY, QK_RHY},
+    {P_ATK, P_DEC, P_SUS, P_REL},
+    {P_DIST, P_IA, P_DLY, P_REV},
+    {P_LRATE, P_LD_PIT, P_LD_FLT, P_LD_AMP},
+    {QK_ENGX, QK_ENGX, QK_ENGX, QK_ENGX},
+    {QK_SCALE, QK_ROOT, P_GLIDE, QK_DOSE},
+    {QK_BPM, P_LEVEL, P_PAN, QK_SWING},
+};
+/* the LOCKS page: white key k (F3..E4) and the lock it toggles */
+static const uint8_t ALT_LK_KEY[7] = {0, 2, 4, 6, 7, 9, 11};
+static const uint8_t ALT_LK_BIT[7] = {AS_LK_RHYTHM, AS_LK_PITCH, AS_LK_GLIDE, AS_LK_ENV, AS_LK_TIMB, AS_LK_FORCE, AS_LK_VEL};
+static const char *const ALT_LK_NAME[7] = {"RHYTHM", "PITCH", "GLIDE", "ENVELOPE", "TIMBRE", "FORCE", "VELOCITY"};
 
 static struct {
     as_cfg_t cfg[AS_NCIRC];      /* the circles' settings as asked for (alt_post_cfg's source) */
     uint8_t ready, sel, drawn, die_clean_done, handed;   /* handed: a Felucca button is down (its release is Felucca's) */
-    uint8_t seq_lock, seq_was;   /* SEQ kept open; SEQ down at the last frame */
-    uint32_t seq_t0;             /* SEQ's press (fm1_ms) */
+    uint8_t qp, qp_was;          /* the quick page kept open (QP_*); the page buttons down at the last frame (bit QP_*) */
+    uint8_t lockc;               /* the LOCKS page open: circle + 1 */
+    uint32_t qp_t0[QP_N];        /* a page button's press (fm1_ms) */
     uint32_t keys;               /* the keys held at the last frame */
     uint32_t die_t0[AS_NCIRC];   /* a die key's press (fm1_ms | 1: never 0), 0 = up; compared signed (the | 1 may
                                   * put it 1 ms ahead) */
@@ -51,12 +78,20 @@ static struct {
     uint32_t sig, hits_seen[AS_NCIRC], flash_ms[AS_NCIRC], handed_ms;   /* handed_ms: when every Felucca button was up */
 } au;
 
+/* the buttons the view keeps: the page buttons, HOME, PLAY, OCT- OCT+ */
+static uint32_t alt_ours(void)
+{
+    static const uint8_t OURS[] = {B_SEQ, B_ENV, B_FX, B_LFO, B_EDIT, B_SCL, B_GLO, B_HOME, B_PLAY, B_OCTDN, B_OCTUP};
+    uint32_t i, m = 0;
+    for (i = 0; i < sizeof OURS; i++)
+        m |= 1u << panel.btn[OURS[i]];
+    return m;
+}
+
 static int alter_view(void)
 {
-    uint32_t mine = (1u << panel.btn[B_SEQ]) | (1u << panel.btn[B_PLAY]) | (1u << panel.btn[B_OCTDN]) |
-                    (1u << panel.btn[B_OCTUP]);
     return ui.home && !ui.menu && !ui.layer && !ui.confirm && !ui.uboot && !name_on() &&
-           !(fm1_in.buttons & ~mine);    /* (FX, GLO .. held: Felucca's layers) */
+           !(fm1_in.buttons & ~alt_ours());   /* (SAVE, ARP, REC held: Felucca's) */
 }
 
 static void alt_post_circle(uint32_t i)
@@ -145,6 +180,77 @@ static void alt_edit_circle(uint32_t i, int32_t s)
     alt_post_circle(au.sel);
 }
 
+/* the id knob i edits on quick page q (the chosen circle): P_*, or QK_* */
+static uint32_t alt_qk(uint32_t q, uint32_t i)
+{
+    const engine_t *e = ENGINES[eng_idx(trk[au.sel].eng_req)];
+    uint32_t id = ALT_QP_K[q][i];
+    if (id == QK_ENG)
+        return e->knob[i];
+    if (id == QK_ENGX) {                         /* the engine's E1..E8 its four knobs leave, in order */
+        uint32_t k, j, n = 0;
+        for (k = 0; k < 8u; k++) {
+            int used = 0;
+            for (j = 0; j < 4u; j++)
+                used |= e->knob[j] == P_E0 + k;
+            if (!used && n++ == i)
+                return P_E0 + k;
+        }
+        return P_E0 + 4u + i;
+    }
+    return id;
+}
+
+/* a knob of quick page q turned s detents */
+static void alt_turn(uint32_t q, uint32_t i, int32_t s)
+{
+    uint32_t id = alt_qk(q, i);
+    as_cfg_t *c = &au.cfg[au.sel];
+    switch (id) {
+    case QK_RHY:
+        alt_edit_circle(i, s);
+        return;
+    case QK_SCALE:
+        alt_seq.scale = (uint8_t)(((int32_t)alt_seq.scale + s + 16 * AS_NSCALE) % AS_NSCALE);
+        return;
+    case QK_ROOT:
+        c->root = (uint8_t)clamp((int32_t)c->root + s, 12, 96);
+        alt_post_circle(au.sel);
+        return;
+    case QK_DOSE:
+        c->dose = (uint8_t)clamp((int32_t)c->dose + s * 4, 0, 127);
+        alt_post_circle(au.sel);
+        return;
+    case QK_BPM:
+        song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + s, GP[G_BPM].min, GP[G_BPM].max);
+        return;
+    case QK_SWING:
+        song.g[G_SWING] = (int16_t)clamp(song.g[G_SWING] + s * 2, GP[G_SWING].min, GP[G_SWING].max);
+        return;
+    default: {
+        const param_desc_t *d = param_desc_of(eng_idx(trk[au.sel].eng_req), id);
+        uint8_t w = alt_qw, nx = (uint8_t)((w + 1u) % ALT_QN);
+        if (nx == alt_qr)                        /* (full: the turn is lost, the next one goes) */
+            return;
+        alt_q[w].c = au.sel;
+        alt_q[w].p = (uint8_t)id;
+        alt_q[w].d = (int8_t)clamp(d->fmt == F_ENUM ? s : s * 2, -100, 100);
+        alt_qw = nx;
+        return;
+    }
+    }
+}
+
+/* the quick page showing: a page button held, else the one kept open */
+static uint32_t alt_page(void)
+{
+    uint32_t q;
+    for (q = 1; q < QP_N; q++)
+        if ((fm1_in.buttons >> panel.btn[ALT_QP_BTN[q]]) & 1u)
+            return q;
+    return au.qp;
+}
+
 static void alt_select(uint32_t i)
 {
     au.sel = (uint8_t)(i % AS_NCIRC);
@@ -155,11 +261,21 @@ static void alt_select(uint32_t i)
 /* 1: the PLAY view had this frame's input (ui_input stops); 0: Felucca's (another page, or a button that opens one) */
 static int alter_ui_input(uint32_t pressed)
 {
-    static const uint8_t OURS[] = {B_SEQ, B_PLAY, B_OCTDN, B_OCTUP};
-    uint32_t keys = fm1_in.notes, down, k, i, ours = 0, seq;
+    uint32_t keys = fm1_in.notes, down, k, i, ours = alt_ours(), q, octs, both;
     int32_t s;
-    for (i = 0; i < sizeof OURS; i++)
-        ours |= 1u << panel.btn[OURS[i]];
+    both = (1u << panel.btn[B_OCTDN]) | (1u << panel.btn[B_OCTUP]);
+    octs = (fm1_in.buttons & both) == both;
+    if (octs && alter_view() && !au.handed)      /* OCT- + OCT+ + a page button: Felucca's own page */
+        for (q = 1; q < QP_N; q++)
+            if ((pressed >> panel.btn[ALT_QP_BTN[q]]) & 1u) {
+                au.handed = 1;
+                au.handed_ms = fm1_ms;
+                au.qp = QP_NONE;
+                au.qp_was = 0;
+                alt_hold = 0;
+                au.keys = keys;
+                return 0;
+            }
     if ((pressed | fm1_in.buttons) & ~ours) {    /* a Felucca button (a page, HOME, SAVE ..): Felucca's until every */
         au.handed = 1;                           /* one has been up 0.4 s (those that act on release, a tap told */
         au.handed_ms = fm1_ms;                   /* from a hold) */
@@ -184,28 +300,45 @@ static int alter_ui_input(uint32_t pressed)
         au.sel = alt_sel = song.sel;
     if ((pressed >> panel.btn[B_PLAY]) & 1u)
         transport_req = song.playing || seq_counting() ? 2u : 1u;
-    seq = (fm1_in.buttons >> panel.btn[B_SEQ]) & 1u;
-    if (seq && !au.seq_was)
-        au.seq_t0 = fm1_ms;
-    else if (!seq && au.seq_was)                 /* let go: a tap toggles it open / closed; a long hold closes it */
-        au.seq_lock = (int32_t)(fm1_ms - au.seq_t0) < (int32_t)ALT_SEQ_HOLD_MS ? (uint8_t)!au.seq_lock : 0u;
-    au.seq_was = (uint8_t)seq;
-    seq |= au.seq_lock;
-    for (i = 0; i < 4u; i++)
-        if ((s = panel_enc(EN_K1 + i)) != 0) {
-            if (seq)
-                alt_edit_circle(i, s);
-            else
-                alt_knob_tot[au.sel][i] += s;
+    if ((pressed >> panel.btn[B_HOME]) & 1u) {   /* HOME: the circles, no page */
+        au.qp = QP_NONE;
+        au.lockc = 0;
+    }
+    for (q = 1; q < QP_N; q++) {                 /* the page buttons: a tap keeps the page, a long hold does not */
+        uint32_t dn = (fm1_in.buttons >> panel.btn[ALT_QP_BTN[q]]) & 1u, was = (au.qp_was >> q) & 1u;
+        if (dn && !was) {
+            au.qp_t0[q] = fm1_ms;
+            au.lockc = 0;
+            alt_say(ALT_QP_NAME[q]);
+        } else if (!dn && was) {
+            if ((int32_t)(fm1_ms - au.qp_t0[q]) < (int32_t)ALT_PAGE_HOLD_MS)
+                au.qp = (uint8_t)(au.qp == q ? QP_NONE : q);
+            else if (au.qp == q)
+                au.qp = QP_NONE;
         }
-    if ((s = panel_enc(EN_SELECT)) != 0)
+        au.qp_was = (uint8_t)((au.qp_was & ~(1u << q)) | (dn << q));
+    }
+    q = alt_page();
+    for (i = 0; i < 4u; i++)
+        if ((s = panel_enc(EN_K1 + i)) != 0 && !au.lockc)
+            alt_turn(q, i, s);
+    if ((s = panel_enc(EN_SELECT)) != 0 && !au.lockc)
         alt_select((uint32_t)((int32_t)au.sel + s + 3 * 16));
-    if ((s = panel_enc(EN_ALGO)) != 0)
-        alt_knob_tot[au.sel][3] += s;
-    if ((s = panel_enc(EN_PRESET)) != 0)
+    if ((s = panel_enc(EN_ALGO)) != 0 && !au.lockc)
+        alt_turn(QP_NONE, 3, s);
+    if ((s = panel_enc(EN_PRESET)) != 0 && !au.lockc)
         alt_preset_step(au.sel, s);
-    /* the keys */
     down = keys & ~au.keys;
+    if (au.lockc) {                              /* the LOCKS page: the keys are its seven locks */
+        as_circ_t *lc = &alt_seq.c[au.lockc - 1u];
+        for (i = 0; i < 7u; i++)
+            if ((down >> ALT_LK_KEY[i]) & 1u)
+                lc->locks ^= ALT_LK_BIT[i];
+        alt_hold = 0;
+        au.keys = keys;
+        return 1;
+    }
+    /* the keys */
     for (k = 0; k < 27u; k++) {
         const alt_key_t *a = &ALT_KEY[k];
         uint32_t i2 = a->arg;
@@ -214,6 +347,13 @@ static int alter_ui_input(uint32_t pressed)
             if (a->kind == AK_MUTE) {
                 au.cfg[i2].mute ^= 1u;
                 alt_post_circle(i2);
+            } else if (a->kind == AK_DIE && octs) {   /* OCT- + OCT+ + DICE n: circle n's LOCKS */
+                au.lockc = (uint8_t)(i2 + 1u);
+                au.qp = QP_NONE;
+                alt_say("LOCKS");
+                au.keys = keys;
+                alt_hold = 0;
+                return 1;
             } else if (a->kind == AK_DIE) {
                 au.die_t0[i2] = fm1_ms | 1u;
                 au.die_clean_done &= (uint8_t)~(1u << i2);
@@ -268,6 +408,21 @@ static void alter_leds(uint8_t *nl, uint8_t *nd, uint8_t *nb, uint8_t *nm)
     for (k = 0; k < 27u; k++) {
         const alt_key_t *a = &ALT_KEY[k];
         int lit = 0, faint = 0;
+        if (au.lockc) {                          /* the LOCKS page: a lock lit, a free one faint */
+            uint32_t j;
+            for (j = 0; j < 7u; j++)
+                if (ALT_LK_KEY[j] == k) {
+                    lit = (alt_seq.c[au.lockc - 1u].locks & ALT_LK_BIT[j]) != 0;
+                    faint = !lit;
+                }
+            led_clear(nl, 14u + k);
+            led_clear(nd, 14u + k);
+            led_clear(nb, 14u + k);
+            led_clear(nm, 14u + k);
+            led_put(nl, 14u + k, lit);
+            led_put(nd, 14u + k, faint);
+            continue;
+        }
         if (a->kind == AK_MUTE)
             lit = au.cfg[a->arg].mute;
         else if (a->kind == AK_DIE || a->kind == AK_SHIFT || a->kind == AK_DENS)
@@ -328,15 +483,105 @@ static void alt_num(char *d, int32_t q, int pct)
     d[n] = 0;
 }
 
-static void alt_scene(int seq, uint32_t flash)
+/* knob i of quick page q as shown: its name, and its value as text (txt[0] set) or as a bar (*fill of 50 px);
+ * the return: a number the picture depends on */
+static int32_t alt_kv(uint32_t q, uint32_t i, const char **name, char *txt, int32_t *fill)
+{
+    static const char *const RHY[4] = {"LEN", "HITS", "ROT", "PROB"};
+    static const char *const NOTE[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+    const track_t *t = &trk[au.sel];
+    const as_cfg_t *c = &au.cfg[au.sel];
+    uint32_t id = alt_qk(q, i);
+    int32_t v;
+    txt[0] = 0;
+    *fill = -1;
+    switch (id) {
+    case QK_RHY:
+        *name = RHY[i];
+        v = i == 0u ? c->len : i == 1u ? c->hits : i == 2u ? c->rot : c->prob * 100 / 127;
+        alt_num(txt, v, i == 3u);
+        return v;
+    case QK_SCALE:
+        *name = "SCALE";
+        v = alt_seq.scale % AS_NSCALE;
+        { const char *n = AS_SCALE_NAME[v]; int32_t k = 0; while (n[k]) { txt[k] = n[k]; k++; } txt[k] = 0; }
+        return v;
+    case QK_ROOT: {
+        const char *n;
+        int32_t k = 0;
+        *name = "ROOT";
+        v = c->root;
+        n = NOTE[v % 12];
+        while (*n)
+            txt[k++] = *n++;
+        txt[k++] = (char)('0' + (v / 12 - 1) % 10);
+        txt[k] = 0;
+        return v;
+    }
+    case QK_DOSE:
+        *name = "DOSE";
+        v = c->dose;
+        *fill = v * 50 / 127;
+        return v;
+    case QK_BPM:
+        *name = "TEMPO";
+        v = song.g[G_BPM];
+        alt_num(txt, v, 0);
+        return v;
+    case QK_SWING:
+        *name = "SWING";
+        v = song.g[G_SWING];
+        alt_num(txt, v, 1);
+        return v;
+    default: {
+        const param_desc_t *d = track_desc(t, id);
+        int32_t span = d->max - d->min;
+        v = t->p[id];
+        if (alt_slot(id) >= 0)
+            v -= alt_applied[au.sel][alt_slot(id)];   /* (the base, without the die's offset) */
+        v = clamp(v, d->min, d->max);
+        *name = d->label;
+        if (d->fmt == F_ENUM && d->names) {
+            const char *n = d->names[v - d->min];
+            int32_t k = 0;
+            while (n[k] && k < 7) {
+                txt[k] = n[k];
+                k++;
+            }
+            txt[k] = 0;
+        } else
+            *fill = span > 0 ? (v - d->min) * 50 / span : 0;
+        return v;
+    }
+    }
+}
+
+static void alt_locks_scene(void)
+{
+    uint32_t c = au.lockc - 1u, i, lk = alt_seq.c[c].locks;
+    alt_disc(14, 13, 5, ALT_COL[c]);
+    cv_text(26, 2, &AF_M, "LOCKS", ALT_INK);
+    cv_text(8, 26, &AF_S, "WHITE KEYS F3..E4   HOME: BACK", ALT_DIM);
+    for (i = 0; i < 7u; i++) {
+        int32_t y = 52 + (int32_t)i * 24, on = (lk & ALT_LK_BIT[i]) != 0;
+        cv_rect(12, y + 2, 10, 10, on ? ALT_COL[c] : ALT_DARK);
+        cv_text(32, y, &AF_S, ALT_LK_NAME[i], on ? ALT_INK : ALT_DIM);
+        cv_text_r(228, y, &AF_S, on ? "LOCKED" : "FREE", on ? ALT_COL[c] : ALT_DIM, cv_bg);
+    }
+}
+
+static void alt_scene(uint32_t q, uint32_t flash)
 {
     const track_t *t = &trk[au.sel];
     const engine_t *e = ENGINES[eng_idx(t->eng_req)];
     char b[24];
     uint32_t i, j;
-    /* the head: the chosen circle, its sound, the transport */
-    b[0] = (char)('1' + au.sel), b[1] = ' ', b[2] = 0;
-    cv_text(8, 2, &AF_M, b, ALT_COL[au.sel]);
+    if (au.lockc) {
+        alt_locks_scene();
+        return;
+    }
+    /* the head: a point of the chosen circle's colour, its sound, the transport */
+    alt_disc(14, 13, 5, ALT_COL[au.sel]);
     cv_text(26, 2, &AF_M, t->preset < e->npresets ? e->presets[t->preset].name : e->name, ALT_INK);
     cv_text(8, 22, &AF_S, e->name, ALT_DIM);
     {
@@ -355,7 +600,7 @@ static void alt_scene(int seq, uint32_t flash)
     for (i = 0; i < AS_NCIRC; i++) {
         const as_circ_t *c = &alt_seq.c[i];
         uint32_t len = c->cfg.len ? c->cfg.len : 1u, now = (c->pos + len - 1u) % len;
-        int muted = au.cfg[i].mute, dim = seq && i != au.sel, chosen = i == au.sel;
+        int muted = au.cfg[i].mute, dim = q == QP_SEQ && i != au.sel, chosen = i == au.sel;
         uint16_t col = muted ? ALT_GREY : ALT_COL[i];
         int32_t r = ALT_R[i], x, y;
         if (dim)
@@ -391,44 +636,26 @@ static void alt_scene(int seq, uint32_t flash)
         cv_text(ALT_CX - w / 2, ALT_CY - 8, &AF_S, au.msg, ALT_INK);
     } else
         alt_disc(ALT_CX, ALT_CY, (flash >> au.sel) & 1u ? 9 : 3, (flash >> au.sel) & 1u ? ALT_COL[au.sel] : ALT_GREY);
-    /* the foot */
-    if (!seq) {
-        for (i = 0; i < 4u; i++) {
-            int32_t x = 8 + (int32_t)i * 58, p = e->knob[i], v = t->p[p];
-            const param_desc_t *d = track_desc(t, (uint32_t)p);
-            if (alt_slot((uint32_t)p) >= 0)
-                v -= alt_applied[au.sel][alt_slot((uint32_t)p)];   /* (the base, without the die's offset) */
-            cv_text(x, 206, &AF_S, d->label, ALT_DIM);
-            if (d->fmt == F_ENUM && d->names)
-                cv_text(x, 220, &AF_S, d->names[clamp(v, d->min, d->max) - d->min], ALT_INK);
-            else {
-                int32_t span = d->max - d->min;
-                cv_rect(x, 225, 50, 5, ALT_DARK);
-                cv_rect(x, 225, span > 0 ? (clamp(v, d->min, d->max) - d->min) * 50 / span : 0, 5, ALT_INK);
-            }
-        }
-    } else {
-        static const char *const N[4] = {"LEN", "HITS", "ROT", "PROB"};
-        const as_cfg_t *c = &au.cfg[au.sel];
-        int32_t v[4];
-        v[0] = c->len, v[1] = c->hits, v[2] = c->rot, v[3] = c->prob * 100 / 127;
-        b[0] = 'C', b[1] = 'I', b[2] = 'R', b[3] = 'C', b[4] = 'L', b[5] = 'E', b[6] = ' ', b[7] = (char)('1' + au.sel),
-        b[8] = 0;
-        cv_text(8, 196, &AF_S, b, ALT_COL[au.sel]);
-        cv_text_r(234, 196, &AF_S, alt_seq.c[au.sel].die ? "DICE ON" : "", ALT_DIM, cv_bg);
-        for (i = 0; i < 4u; i++) {
-            char d[6];
-            alt_num(d, v[i], i == 3u);
-            cv_text(8 + (int32_t)i * 58, 211, &AF_S, N[i], ALT_DIM);
-            cv_text(8 + (int32_t)i * 58, 225, &AF_S, d, ALT_INK);
-        }
+    /* the foot: the page's name, its four knobs */
+    if (q)
+        cv_text(8, 194, &AF_S, ALT_QP_NAME[q], ALT_COL[au.sel]);
+    for (i = 0; i < 4u; i++) {
+        int32_t x = 8 + (int32_t)i * 58, fill;
+        const char *name;
+        char txt[12];
+        alt_kv(q, i, &name, txt, &fill);
+        cv_text(x, 209, &AF_S, name, ALT_DIM);
+        if (fill >= 0) {
+            cv_rect(x, 227, 50, 5, ALT_DARK);
+            cv_rect(x, 227, fill, 5, ALT_INK);
+        } else
+            cv_text(x, 222, &AF_S, txt, ALT_INK);
     }
 }
 
 static void alter_draw(void)
 {
-    uint32_t sig = 0, i, h, flash = 0, seq = ((fm1_in.buttons >> panel.btn[B_SEQ]) & 1u) | au.seq_lock;
-    const track_t *t = &trk[au.sel];
+    uint32_t sig = 0, i, h, flash = 0, q = au.lockc ? 0u : alt_page();
     for (i = 0; i < AS_NCIRC; i++) {
         if ((h = alt_hits[i]) != au.hits_seen[i]) {
             au.hits_seen[i] = h;
@@ -441,10 +668,14 @@ static void alter_draw(void)
         sig = sig * 31u + alt_seq.c[i].pos + alt_seq.c[i].pat * 7u + (uint32_t)alt_seq.c[i].cfg.len * 131u +
               au.cfg[i].len + au.cfg[i].hits * 3u + au.cfg[i].rot * 5u + au.cfg[i].prob * 9u + au.cfg[i].mute * 11u +
               alt_seq.c[i].die * 13u + trk[i].eng_req * 17u;
-    for (i = 0; i < 8u; i++)
-        sig = sig * 31u + (uint32_t)t->p[P_E0 + i];
-    sig = sig * 31u + (uint32_t)t->p[P_REL];
-    sig = sig * 31u + seq + au.sel * 3u + flash * 5u + (uint32_t)song.playing * 7u + t->preset * 11u +
+    for (i = 0; i < 4u; i++) {
+        const char *nm;
+        char tx[12];
+        int32_t f;
+        sig = sig * 31u + (uint32_t)alt_kv(q, i, &nm, tx, &f);
+    }
+    sig = sig * 31u + q * 19u + au.lockc * 23u + alt_seq.c[au.lockc ? au.lockc - 1u : 0u].locks * 29u;
+    sig = sig * 31u + au.sel * 3u + flash * 5u + (uint32_t)song.playing * 7u + trk[au.sel].preset * 11u +
           (uint32_t)song.g[G_BPM] * 13u + (au.msg && fm1_ms - au.msg_ms < 900u ? (uint32_t)(uintptr_t)au.msg : 1u);
     ui.force = 1;                                /* (whatever comes after this view draws itself whole) */
     if (au.drawn && sig == au.sig)
@@ -454,7 +685,7 @@ static void alter_draw(void)
     for (i = 0; i < 2u; i++) {                   /* two halves: the canvas holds 240 x 124 */
         cv_begin(240, 120, RGB(0, 0, 0));
         cv_oy = -(int32_t)i * 120;
-        alt_scene((int)seq, flash);
+        alt_scene(q, flash);
         cv_oy = 0;
         cv_blit(0, i * 120u);
     }

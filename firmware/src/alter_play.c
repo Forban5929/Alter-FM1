@@ -18,7 +18,9 @@
  * accent, in place of its steps), RATCHET x2 x3 (each of its hits repeated within the step), DUB DELAY / DUB REVERB
  * / DESTROY (its part's send, or DIST + the FOLD insert, up while held, back on release: the tail rings on), REVERSE
  * (it walks back; on release it is where it would have been). Taps on the selected circle: SHIFT -1 +1 (turned a
- * step, kept), DENSITY - + (a hit less / more, kept). */
+ * step, kept), DENSITY - + (a hit less / more, kept). The knobs of every quick page reach a part's parameters
+ * through one queue (alt_q: the UI writes, this side reads; the die's offsets kept on top). SWING (song.g[G_SWING],
+ * 0..100) delays every other sixteenth by up to half a step. */
 
 #include "alter_seq.c"
 
@@ -37,7 +39,10 @@ static int16_t alt_applied[AS_NCIRC][ALT_NSLOT]; /* the die's offsets in each pa
 /* UI -> here */
 static volatile uint16_t alt_hold;               /* the fills held, bit AF_* */
 static volatile uint8_t alt_sel;                 /* the selected circle */
-static volatile int32_t alt_knob_tot[AS_NCIRC][4];   /* the knobs' sum of moves, per circle (seen: alt_knob_seen) */
+#define ALT_QN 32u
+typedef struct { uint8_t c, p; int8_t d; } alt_qe_t;
+static volatile alt_qe_t alt_q[ALT_QN];         /* a parameter moved: circle, P_*, by (the UI writes at alt_qw .. */
+static volatile uint8_t alt_qw, alt_qr;          /* .. this side reads at alt_qr) */
 static volatile int32_t alt_shift_tot[AS_NCIRC];     /* SHIFT taps, +-1 each */
 static volatile int32_t alt_dens_tot[AS_NCIRC];      /* DENSITY taps, +-1 each */
 static volatile uint32_t alt_roll_cnt[AS_NCIRC], alt_clear_cnt[AS_NCIRC];   /* DICE taps, DICE held */
@@ -49,7 +54,8 @@ static volatile uint8_t alt_kb_own;              /* the keys are the PLAY view's
 static volatile uint32_t alt_hits[AS_NCIRC];     /* notes played (the screen's flashes) */
 static volatile uint8_t alt_tgt;                 /* the circle the fills act on */
 
-static int32_t alt_knob_seen[AS_NCIRC][4], alt_shift_seen[AS_NCIRC], alt_dens_seen[AS_NCIRC];
+static int32_t alt_shift_seen[AS_NCIRC], alt_dens_seen[AS_NCIRC];
+static uint8_t alt_par;                          /* the sixteenth just played was an odd one (SWING) */
 static uint32_t alt_roll_seen[AS_NCIRC], alt_clear_seen[AS_NCIRC], alt_preset_seen[AS_NCIRC];
 static uint16_t alt_prev;                        /* alt_hold at the last block */
 static uint8_t alt_rev_pos;                      /* REVERSE: where the target was at the press .. */
@@ -144,21 +150,23 @@ static void alt_take(void)
 {
     uint32_t c, j, h = alt_hold, e = h ^ alt_prev;
     uint8_t post = alt_post;
+    while (alt_qr != alt_qw) {                   /* the knobs */
+        alt_qe_t q = alt_q[alt_qr];
+        track_t *t = &trk[q.c % AS_NCIRC];
+        if (q.p == P_IA && !t->p[P_ITYPE]) {     /* FX's INSERT from OFF: FOLD, full wet */
+            t->p[P_ITYPE] = 3;                   /* (params.c N_ITYPE) */
+            t->p[P_IMIX] = 127;
+        }
+        alt_move(q.c % AS_NCIRC, q.p, q.d);
+        alt_qr = (uint8_t)((alt_qr + 1u) % ALT_QN);
+    }
     for (c = 0; c < AS_NCIRC; c++) {
-        const track_t *t = &trk[c];
-        const engine_t *en = ENGINES[eng_idx(t->eng_req)];
         uint32_t pr = alt_preset_cnt[c], n;
         int32_t sh;
         if (pr != alt_preset_seen[c]) {          /* a preset: its values are the base, nothing applied on them */
             alt_preset_seen[c] = pr;
             for (j = 0; j < ALT_NSLOT; j++)
                 alt_applied[c][j] = 0;
-        }
-        for (j = 0; j < 4u; j++) {
-            int32_t tot = alt_knob_tot[c][j], d = tot - alt_knob_seen[c][j], p = en->knob[j];
-            alt_knob_seen[c][j] = tot;
-            if (d)
-                alt_move(c, (uint32_t)p, param_desc_of(eng_idx(t->eng_req), (uint32_t)p)->fmt == F_ENUM ? d : d * 2);
         }
         if ((sh = alt_shift_tot[c] - alt_shift_seen[c]) != 0) {
             alt_shift_seen[c] += sh;
@@ -282,10 +290,17 @@ static void alt_ratchets(uint32_t upto)
         }
 }
 
+/* the sixteenth playing's length (p: a straight one): SWING puts the odd ones late by up to half a step */
+static uint32_t alt_len(uint32_t p)
+{
+    uint32_t sw = (uint32_t)clamp(song.g[G_SWING], 0, 100) * p / 200u;
+    return alt_par ? p - sw : p + sw;
+}
+
 /* n samples on in this block (seq_n: Felucca's, so an external clock moves it too) */
 static void alter_tick(uint32_t n)
 {
-    uint32_t p = div_samples(2), h, c;           /* a sixteenth */
+    uint32_t p = div_samples(2), h, c, len;      /* a sixteenth */
     if (!alt_ready) {
         as_init(&alt_seq, 0xA17E5u);
         alt_ready = 1;
@@ -305,17 +320,22 @@ static void alter_tick(uint32_t n)
     if (!alt_run) {                              /* PLAY: every circle from its first step, at once */
         alt_run = 1;
         alt_pos = 0;
+        alt_par = 0;
         for (c = 0; c < AS_NCIRC; c++)
             alt_seq.c[c].pos = 0;
         alter_step();
         return;
     }
+    /* this sixteenth's length: SWING makes the even ones longer and the odd ones shorter by as much */
+    len = alt_len(p);
     alt_pos += n;
-    alt_ratchets(alt_pos < p ? alt_pos : p);
-    while (alt_pos >= p) {
-        alt_pos -= p;
+    alt_ratchets(alt_pos < len ? alt_pos : len);
+    while (alt_pos >= len) {
+        alt_pos -= len;
+        alt_par ^= 1u;
         alter_step();
         alt_ratchets(alt_pos);
+        len = alt_len(p);
     }
     if (h & AF_ROLLS) {
         uint32_t per = alt_roll_period(h, p);

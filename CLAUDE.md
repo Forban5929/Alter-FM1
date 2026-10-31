@@ -27,6 +27,13 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
 - **Fills = sur le cercle SÉLECTIONNÉ** (ROLL, RATCHET, DUB DELAY/REVERB, DESTROY, DENSITÉ, REVERSE).
 - **SHIFT −1/+1 = tourne le cercle sélectionné d'un pas par appui, gardé.** Écran : cercle choisi = anneau plein ; dé actif =
   petit triangle à gauche du cercle, à sa couleur.
+- **Boutons de page (31/10)** : APPUI COURT sur ENV/FX/LFO/EDIT/SCL/GLO/SEQ = reste sur les cercles, seuls les 4 KNOBS
+  changent (comme SEQ : 2e appui ou autre bouton = retour, tenu ≥ 2 s = se ferme au relâchement). ENV = ATK DEC SUS REL ·
+  FX = DIST, INSERT (fold), DELAY, REVERB · LFO = VITESSE, →HAUTEUR, →TIMBRE, →VOLUME · EDIT = les 4 autres réglages du
+  moteur · SCL = GAMME, NOTE DE BASE, GLIDE, DOSE · GLO = TEMPO, VOLUME, PAN, SWING. **OCT− + OCT+ tenus + bouton = vraie
+  page Felucca** (HOME pour sortir). **OCT− + OCT+ + DÉ n = page VERROUS du cercle n** (7 touches blanches = rythme,
+  hauteur, glide, enveloppe, timbre, force, vélocité ; HOME pour sortir). Verrous PAR CERCLE. En-tête : pointe de
+  couleur du cercle au lieu de son numéro.
 - LED clavier : utilisables **faibles au repos, fortes si engagées** (mute, fill tenu, flash du dé) ; sans fonction = noires.
 - ALGORITHM = KNOB 4 (MODE) pour l'instant ; servira plus tard à des variations de mode plus amples.
 - Vue **DEEP** (EDIT) : tous les réglages. Effets Felucca (DIST, INSERT FOLD, delay, reverb), ADSR Felucca.
@@ -59,7 +66,8 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
   (mini-libc maison `tools/alter/wasm/`, génère build/gen si absent, sortie build/emu/ + `alter.html` pour l'artifact).
   Tests : `node web/emu/emu_test.mjs build/emu/felucca.wasm` (Felucca ; 1 échec VOULU : « a key sounds », le clavier
   est aux commandes live sur l'écran PLAY) et `node tools/alter/alter_emu_test.mjs build/emu/felucca.wasm build/emu/alter_play.wav`
-  (chaque cercle seul, SEQ appui/tenu, SHIFT, DÉ via son triangle à l'écran, DENSITÉ, fills sur le cercle choisi, PRESETS).
+  (chaque cercle seul, SEQ appui/tenu, SHIFT, DÉ via son triangle à l'écran, DENSITÉ, fills sur le cercle choisi, PRESETS,
+  page ENV, OCT−+OCT+ + FX → Felucca puis HOME, VERROUS).
   Détecteur d'attaques = enveloppe (les traînes delay/reverb des presets ne retombent jamais à 0).
   Captures d'écran : `node tools/alter/alter_shot.mjs build/emu/felucca.wasm DOSSIER "b:PLAY w:500 K:10+ s:nom"` (.ppm).
   Clavier de la page : `-` = PLAY, `0` = SEQ, `1`..`=` = FX…REC, ↑↓ = SELECT, Z.. = touches blanches.
@@ -75,13 +83,16 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
   GLIDE seulement si le dé l'a tiré, offsets de timbre du dé sur 4 paramètres PAR MOTEUR (ALT_TIMB_*) annulés au pas
   suivant (alt_applied[3][10] : E1..E8, DEC, REL ; alt_slot/alt_offset). Par coup : longueur (alt_gate_left, un coup
   coupe le précédent), DEC/REL décalés, rafales/flam (alt_rat_*[3]). FILLS tenus (AF_*) sur UN cercle = alt_tgt.
-  Échange UI→audio sans conflit : compteurs écrits par l'UI seule (alt_knob_tot[3][4], alt_shift_tot, alt_dens_tot, alt_roll_cnt,
-  alt_clear_cnt, alt_preset_cnt), alt_sel, alt_post + alt_post_cfg.
+  Échange UI→audio sans conflit : file alt_q (cercle, P_*, delta : tous les KNOBS, UI écrit / audio lit), compteurs
+  écrits par l'UI seule (alt_shift_tot, alt_dens_tot, alt_roll_cnt, alt_clear_cnt, alt_preset_cnt), alt_sel, alt_post +
+  alt_post_cfg ; octets écrits par l'UI : alt_seq.scale, alt_seq.c[i].locks. SWING = song.g[G_SWING] (alt_len).
 - `firmware/src/alter_ui.c` (inclus dans ui_input.c) : vue PLAY = HOME (alter_view), rend la main à Felucca dès qu'un
   autre bouton est pressé (0,4 s après relâchement). KNOB 1-4 = engine_t.knob du moteur du cercle choisi ; SELECT =
   cercle + track_select (pages Felucca ENV/FX/EDIT suivent) ; PRESETS = presets ALTER+PHYS+NOISE à la suite
   (alt_preset_step, change de moteur si besoin) ; table ALT_KEY (touche k = demi-tons au-dessus de F3). Écran :
-  alter_draw (2 moitiés 240×120, redessin si signature change). Carré à droite du haut d'un cercle = dé actif.
+  alter_draw (2 moitiés 240×120, redessin si signature change). Pages rapides : table ALT_QP_K (QK_* = réglages
+  spéciaux : gamme, note, dose, tempo, swing, rythme, moteur), alt_page/alt_turn/alt_kv ; boutons de page = ceux de
+  la vue (alt_ours), OCT−+OCT+ + bouton → au.handed (Felucca). Page VERROUS : au.lockc, ALT_LK_KEY/BIT.
   Comparer des temps en SIGNÉ (`(int32_t)(fm1_ms - t0)`) : bug corrigé le 31/10 (die_t0 = fm1_ms|1).
 - `tools/alter/alter_wav.c` : programme PC, rend 15 extraits WAV + compare le coût à ANALOG.
   Recréer : `python3 firmware/engines/tools/gen_engine_tables.py build/alter/fe_tables.h`
@@ -97,8 +108,8 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
   `chance[]` (0..127). `as_set` = cycle suivant (mute, root tout de suite) ; `as_turn` = SHIFT immédiat gardé ;
   `as_roll` = dé IMMÉDIAT (dhits/drot, rat, flam, dchance, gate, env, force, hauteur, vél., glide, 4 timbres ;
   as_repat = motif joué) ; `as_clear` = motif propre ; `as_density` = ±1 HITS gardé ; `as_step(q, ev[3])`.
-  DOSE par défaut AS_DOSE_DEF = 100 (drastique). Gamme partagée (OCT 5TH MPEN MIN PHRY DOR CHR), verrous
-  AS_LK_PITCH/VEL/GLIDE/FORCE/TIMB/RHYTHM/ENV.
+  DOSE par défaut AS_DOSE_DEF = 100 (drastique). Gamme partagée (OCT 5TH MPEN MIN PHRY DOR CHR), verrous PAR CERCLE
+  (c->locks) AS_LK_PITCH/VEL/GLIDE/FORCE/TIMB/RHYTHM/ENV.
 - `tools/alter/alter_seq_test.c` : 28 contrôles (motifs, cycle suivant, mute, force+FROT, chance, dé drastique, verrous,
   SHIFT, DENSITÉ, polyrythmie). `cc -std=c99 -O2 -Wall -o build/alter/alter_seq_test tools/alter/alter_seq_test.c && build/alter/alter_seq_test`
 - (`alter_seq_demo.c` supprimé : ancien modèle. Nouvelles démos à faire en 3d-3.)
@@ -123,12 +134,13 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
   - [x] **3d-1 (branche `etape-3d`, 31/10) : 3 voix ALTER/PHYS/NOISE** codé, testé, publié (même lien que 3a).
         Choix validés : 3 MUTE + 3 DÉ (un par cercle) ; KNOB 1-4 = son du cercle choisi ; note de base par cercle
         (C2, C3, C4). 1er retour de Romain (31/10) appliqué le soir même (dé drastique, grille, DENSITÉ appui, SEQ
-        verrouillable, anneau du cercle choisi, triangle du dé). ATTEND SA 2e ÉCOUTE.
+        verrouillable, anneau du cercle choisi, triangle du dé), puis pages rapides + OCT−+OCT+ + VERROUS par cercle.
+        ATTEND SA 2e ÉCOUTE.
         Constat : NOISE METAL nettement plus doux que ALTER/PHYS dans le mélange → équilibrer en 3d-3.
-  - [ ] **3d-2 (PROCHAINE)** : onglet SEQ linéaire (SEQ = page, plus « SEQ tenu ») : pages FORCE (rotation
-        accents/ghosts = FROT, déjà dans alter_seq) et CHANCE (chance[] déjà là). Édition : tenir touche(s) blanche(s)
-        = pas 1..16 + KNOB. → QUESTION OUVERTE à poser AVANT de coder : où vont LEN/HITS/ROT/PROB (ex. page RYTHME
-        de l'onglet SEQ) ? Pas 17..32 quand LEN > 16 ?
+  - [ ] **3d-2 (PROCHAINE)** : édition par pas FORCE (rotation FROT, déjà dans alter_seq) et CHANCE (chance[] déjà là),
+        tenir touche(s) blanche(s) = pas 1..16 + KNOB. SEQ est maintenant une page rapide (LEN HITS ROT PROB). → QUESTION
+        À POSER AVANT DE CODER : comment ouvrir l'édition par pas sans casser les pages rapides (ex. OCT−+OCT+ + SEQ =
+        Felucca aujourd'hui) ? Pas 17..32 quand LEN > 16 ?
   - [ ] 3d-3 : presets indus/noise/texture (~6 par moteur ALTER, PHYS, NOISE, niveaux équilibrés) + page d'écoute.
   - [ ] 3c : vue DEEP (EDIT ouvre encore la page EDIT de Felucca). Puis retirer l'interface Felucca. Reste : SCL → gamme
         des cercles, touches blanches libres, DESTROY assignable, verrous du dé, DOSE.
