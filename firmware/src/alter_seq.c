@@ -9,11 +9,14 @@
  * independent of the hits) and a CHANCE (0..127). A step plays when it is a hit, the PROB coin and its CHANCE
  * coin both say so.
  *
- * The die (as_roll): AT ONCE a new draw for the circle, per step: a force move (-1 ghost-ward, +1 accent-ward),
- * a pitch (scale degrees above the circle's ROOT), a small velocity spread, a glide and four timbre offsets (the
- * host maps them to its engine's parameters). Kept until the next roll; as_clear forgets it (the clean pattern).
- * DOSE (0..127) is how far a draw reaches: low for small live variations, high for sound design. A lock
- * (AS_LK_*) keeps that part out of every draw.
+ * The die (as_roll): AT ONCE a new draw for the circle, drastic at the default DOSE. The rhythm: HITS and ROT
+ * moved (LEN kept), steps that skip (a lowered chance), bursts (1..3 repeats in the step) and flams (one quick
+ * repeat). Per hit: a force move, a pitch (scale degrees above the circle's ROOT, up to 3 octaves: the scale itself
+ * never changes), a velocity spread, a glide, a length (1..4 steps: it rings on, or the next hit cuts it), an
+ * envelope offset (the host moves decay and release) and four timbre offsets (the host maps them to its engine's
+ * parameters). Kept until the next roll; as_clear forgets it (the clean pattern). DOSE (0..127) is how far a draw
+ * reaches: low for small variations, high for sound design. A lock (AS_LK_*) keeps that part out of every draw.
+ * DENSITY (as_density): +-1 HITS at once and kept (the keys are quantised to the grid: they act at the next step).
  *
  * Integers only, no allocation: as_step() runs once per sixteenth, in the audio interrupt if the host wants. */
 
@@ -21,7 +24,9 @@
 #define AS_MAXLEN 32
 #define AS_NTIMB 4
 enum { AS_GHOST, AS_NORMAL, AS_ACCENT };
-enum { AS_LK_PITCH = 1, AS_LK_VEL = 2, AS_LK_GLIDE = 4, AS_LK_FORCE = 8, AS_LK_TIMB = 16 };
+enum { AS_LK_PITCH = 1, AS_LK_VEL = 2, AS_LK_GLIDE = 4, AS_LK_FORCE = 8, AS_LK_TIMB = 16, AS_LK_RHYTHM = 32,
+       AS_LK_ENV = 64 };
+#define AS_DOSE_DEF 100
 enum { AS_SC_OCT, AS_SC_5TH, AS_SC_MPEN, AS_SC_MIN, AS_SC_PHRY, AS_SC_DOR, AS_SC_CHR, AS_NSCALE };
 static const char *const AS_SCALE_NAME[AS_NSCALE] = {"OCT", "5TH", "MPEN", "MIN", "PHRY", "DOR", "CHR"};
 static const uint8_t AS_VEL[3] = {40, 96, 124};  /* ghost, normal, accent */
@@ -45,6 +50,13 @@ typedef struct {
     int8_t vel[AS_MAXLEN];          /* velocity offset */
     uint8_t glide[AS_MAXLEN];       /* 1 = slide into this step's note */
     int8_t timb[AS_MAXLEN][AS_NTIMB];
+    uint8_t rat[AS_MAXLEN];         /* repeats in the step: 0..3 */
+    uint8_t flam[AS_MAXLEN];        /* 1 = one quick repeat */
+    uint8_t dchance[AS_MAXLEN];     /* 127, or lower: the step skips now and then */
+    uint8_t gate[AS_MAXLEN];        /* the note's length in steps, 1..4 */
+    int8_t env[AS_MAXLEN];          /* decay / release offset */
+    int8_t dhits;                   /* HITS moved by .. */
+    uint8_t drot;                   /* .. and ROT turned by (0..31) */
     uint32_t seed;                  /* this circle's draws */
 } as_circ_t;
 
@@ -61,6 +73,9 @@ typedef struct {
     uint8_t glide;                  /* slide from the last note */
     uint8_t force;                  /* AS_GHOST .. AS_ACCENT (for the host and the screen) */
     int8_t timb[AS_NTIMB];          /* offsets for the host's four timbre parameters */
+    uint8_t rat, flam;              /* repeats in the step (0..3), a quick repeat */
+    uint8_t gate;                   /* the note's length in steps (1..4) */
+    int8_t env;                     /* decay / release offset */
 } as_event_t;
 
 /* the scales as semitones of each degree, ended by -1 */
@@ -82,17 +97,6 @@ static uint32_t as_rand(uint32_t *s)                     /* xorshift32 */
     x ^= x << 5;
     *s = x;
     return x;
-}
-
-/* a signed value in -r..r, narrowed toward 0 (the sum of two draws: small offsets are common) */
-static int32_t as_spread(uint32_t *s, int32_t r)
-{
-    int32_t a, b;
-    if (r <= 0)
-        return 0;
-    a = (int32_t)(as_rand(s) % (uint32_t)(2 * r + 1)) - r;
-    b = (int32_t)(as_rand(s) % (uint32_t)(2 * r + 1)) - r;
-    return (a + b) / 2;
 }
 
 /* the euclidean pattern: k hits on n steps, turned by r (step 0 is a hit at r = 0) */
@@ -131,35 +135,83 @@ static as_cfg_t as_clean(as_cfg_t c)
     return c;
 }
 
+/* a uniform value in -r..r */
+static int32_t as_uni(uint32_t *s, int32_t r)
+{
+    return r <= 0 ? 0 : (int32_t)(as_rand(s) % (uint32_t)(2 * r + 1)) - r;
+}
+
+/* 1 with a chance of n / 1024 */
+static int as_coin(uint32_t *s, int32_t n) { return (int32_t)(as_rand(s) % 1024u) < n; }
+
 /* a new draw of circle i, over all 32 steps (a longer LEN later finds them ready) */
 static void as_draw(as_seq_t *q, uint32_t i)
 {
     as_circ_t *c = &q->c[i];
-    int32_t d = c->next.dose, k, j;
+    int32_t d = c->next.dose, k, j, lk = q->locks;
     uint32_t *s = &c->seed;
-    for (k = 0; k < AS_MAXLEN; k++) {
-        /* force: moves one way or the other with a chance rising with DOSE (up to ~3 steps in 4) */
-        c->dforce[k] = 0;
-        if (!(q->locks & AS_LK_FORCE) && (int32_t)(as_rand(s) % 168u) < d + 20)
-            c->dforce[k] = (int8_t)(as_rand(s) & 1u ? 1 : -1);
-        /* pitch: on the root with a chance falling as DOSE rises; else up to 2 octaves of degrees */
-        c->pitch[k] = 0;
-        if (!(q->locks & AS_LK_PITCH) && (int32_t)(as_rand(s) % 128u) < d)
-            c->pitch[k] = (int8_t)(as_rand(s) % (uint32_t)(1 + d * 14 / 127));
-        c->vel[k] = (int8_t)(q->locks & AS_LK_VEL ? 0 : as_spread(s, 4 + d * 12 / 127));
-        c->glide[k] = (uint8_t)(!(q->locks & AS_LK_GLIDE) && (int32_t)(as_rand(s) % 256u) < d);
-        for (j = 0; j < AS_NTIMB; j++)
-            c->timb[k][j] = (int8_t)(q->locks & AS_LK_TIMB ? 0 : as_spread(s, d / 2));
+    /* the rhythm: HITS moved by up to half the circle, ROT anywhere (each with a chance rising with DOSE) */
+    c->dhits = 0;
+    c->drot = 0;
+    if (!(lk & AS_LK_RHYTHM)) {
+        if (as_coin(s, d * 8))
+            c->dhits = (int8_t)as_uni(s, 1 + d * 7 / 127);
+        if (as_coin(s, d * 7))
+            c->drot = (uint8_t)(as_rand(s) % AS_MAXLEN);
     }
+    for (k = 0; k < AS_MAXLEN; k++) {
+        c->dforce[k] = 0;
+        if (!(lk & AS_LK_FORCE) && as_coin(s, 120 + d * 6))
+            c->dforce[k] = (int8_t)(as_rand(s) & 1u ? 1 : -1);
+        c->pitch[k] = 0;                                /* up to 3 octaves of degrees, the root less often */
+        if (!(lk & AS_LK_PITCH) && as_coin(s, d * 7))
+            c->pitch[k] = (int8_t)(as_rand(s) % (uint32_t)(1 + d * 21 / 127));
+        c->vel[k] = (int8_t)(lk & AS_LK_VEL ? 0 : as_uni(s, 4 + d * 20 / 127));
+        c->glide[k] = (uint8_t)(!(lk & AS_LK_GLIDE) && as_coin(s, d * 3));
+        for (j = 0; j < AS_NTIMB; j++)
+            c->timb[k][j] = (int8_t)(lk & AS_LK_TIMB ? 0 : as_uni(s, d * 5 / 8));
+        c->rat[k] = 0;
+        c->flam[k] = 0;
+        c->dchance[k] = 127;
+        if (!(lk & AS_LK_RHYTHM)) {
+            if (as_coin(s, d * 2))
+                c->rat[k] = (uint8_t)(1u + as_rand(s) % 3u);
+            else if (as_coin(s, d * 2))
+                c->flam[k] = 1;
+            if (as_coin(s, d * 2))
+                c->dchance[k] = (uint8_t)(25u + as_rand(s) % 70u);
+        }
+        c->gate[k] = 1;
+        c->env[k] = 0;
+        if (!(lk & AS_LK_ENV)) {
+            if (as_coin(s, d * 3))
+                c->gate[k] = (uint8_t)(2u + as_rand(s) % 3u);
+            c->env[k] = (int8_t)as_uni(s, d * 50 / 127);
+        }
+    }
+}
+
+/* circle c's pattern as it plays: its settings, the draw's HITS and ROT on top */
+static void as_repat(as_circ_t *c)
+{
+    int32_t h = c->cfg.hits, r = c->cfg.rot;
+    if (c->die) {
+        h = h + c->dhits;
+        h = h < 0 ? 0 : h > c->cfg.len ? c->cfg.len : h;
+        if (c->cfg.hits && !h)
+            h = 1;                                      /* (a circle that plays keeps a hit) */
+        r += c->drot;
+    }
+    c->pat = as_euclid(c->cfg.len, (uint32_t)h, (uint32_t)r % c->cfg.len);
 }
 
 static void as_init(as_seq_t *q, uint32_t seed)
 {
     static const as_cfg_t DEF[AS_NCIRC] = {
         /* len hits rot prob frot dose mute root */
-        {16, 4, 0, 127, 0, 30, 0, 36},   /* ALTER: C2 */
-        {16, 3, 2, 127, 0, 30, 0, 48},   /* PHYS: C3 */
-        {16, 5, 1, 127, 0, 30, 0, 60},   /* NOISE: C4 */
+        {16, 4, 0, 127, 0, AS_DOSE_DEF, 0, 36},   /* ALTER: C2 */
+        {16, 3, 2, 127, 0, AS_DOSE_DEF, 0, 48},   /* PHYS: C3 */
+        {16, 5, 1, 127, 0, AS_DOSE_DEF, 0, 60},   /* NOISE: C4 */
     };
     uint32_t i, k;
     for (i = 0; i < sizeof *q; i++)
@@ -169,7 +221,7 @@ static void as_init(as_seq_t *q, uint32_t seed)
     for (i = 0; i < AS_NCIRC; i++) {
         as_circ_t *c = &q->c[i];
         c->cfg = c->next = DEF[i];
-        c->pat = as_euclid(c->cfg.len, c->cfg.hits, c->cfg.rot);
+        as_repat(c);
         c->seed = seed * 2654435761u + i * 40503u + 1u;
         for (k = 0; k < AS_MAXLEN; k++) {
             c->force[k] = AS_NORMAL;
@@ -198,7 +250,22 @@ static void as_turn(as_seq_t *q, uint32_t i, int32_t d)
     c = &q->c[i];
     c->cfg.rot = (uint8_t)(((int32_t)c->cfg.rot + d + 4 * AS_MAXLEN) % c->cfg.len);
     c->next.rot = (uint8_t)(((int32_t)c->next.rot + d + 4 * AS_MAXLEN) % c->next.len);
-    c->pat = as_euclid(c->cfg.len, c->cfg.hits, c->cfg.rot);
+    as_repat(c);
+}
+
+/* DENSITY: circle i's HITS +-d at once, kept (the waiting settings too) */
+static void as_density(as_seq_t *q, uint32_t i, int32_t d)
+{
+    as_circ_t *c;
+    int32_t h;
+    if (i >= AS_NCIRC)
+        return;
+    c = &q->c[i];
+    h = (int32_t)c->cfg.hits + d;
+    c->cfg.hits = (uint8_t)(h < 0 ? 0 : h > c->cfg.len ? c->cfg.len : h);
+    h = (int32_t)c->next.hits + d;
+    c->next.hits = (uint8_t)(h < 0 ? 0 : h > c->next.len ? c->next.len : h);
+    as_repat(c);
 }
 
 /* the die of circle i: a new draw, at once, kept until the next roll */
@@ -207,14 +274,17 @@ static void as_roll(as_seq_t *q, uint32_t i)
     if (i < AS_NCIRC) {
         as_draw(q, i);
         q->c[i].die = 1;
+        as_repat(&q->c[i]);
     }
 }
 
 /* the clean pattern again: the draw forgotten */
 static void as_clear(as_seq_t *q, uint32_t i)
 {
-    if (i < AS_NCIRC)
+    if (i < AS_NCIRC) {
         q->c[i].die = 0;
+        as_repat(&q->c[i]);
+    }
 }
 
 /* a scale degree above a root as a note, carried into the octaves above */
@@ -249,12 +319,17 @@ static void as_step(as_seq_t *q, as_event_t ev[AS_NCIRC])
         uint32_t k, on;
         if (c->pos == 0) {                              /* a new cycle: what was asked for starts now */
             c->cfg = c->next;
-            c->pat = as_euclid(c->cfg.len, c->cfg.hits, c->cfg.rot);
+            as_repat(c);
         }
         k = c->pos;
-        on = !c->cfg.mute && (c->pat >> k & 1u) &&
-             (c->cfg.prob >= 127 || (int32_t)(as_rand(&q->rng) % 127u) < c->cfg.prob) &&
-             (c->chance[k] >= 127 || (int32_t)(as_rand(&q->rng) % 127u) < c->chance[k]);
+        {
+            uint32_t ch = c->chance[k];
+            if (c->die && c->dchance[k] < ch)
+                ch = c->dchance[k];
+            on = !c->cfg.mute && (c->pat >> k & 1u) &&
+                 (c->cfg.prob >= 127 || (int32_t)(as_rand(&q->rng) % 127u) < c->cfg.prob) &&
+                 (ch >= 127 || as_rand(&q->rng) % 127u < ch);
+        }
         c->pos = (uint8_t)((c->pos + 1u) % c->cfg.len);
         for (j = 0; j < sizeof *e; j++)
             ((uint8_t *)e)[j] = 0;
@@ -265,7 +340,12 @@ static void as_step(as_seq_t *q, as_event_t ev[AS_NCIRC])
             int32_t vel = AS_VEL[f], deg = 0;
             e->on = 1;
             e->force = (uint8_t)f;
+            e->gate = 1;
             if (c->die) {
+                e->rat = c->rat[k];
+                e->flam = c->flam[k];
+                e->gate = c->gate[k];
+                e->env = c->env[k];
                 deg = c->pitch[k];
                 vel += c->vel[k];
                 e->glide = c->glide[k];

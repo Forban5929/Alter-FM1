@@ -3,19 +3,22 @@
  * circle i plays part i (alter_play.c). Included in ui_input.c (after led_put); ui_input calls alter_ui_input first,
  * ui_draw_page alter_draw, ui_leds alter_leds. Every button does what its label says (Romain's rule):
  *   KNOB 1-4     the four main parameters of the chosen circle's engine (engine_t.knob)
- *   SEQ held     KNOB 1-4 = LEN HITS ROT PROB of the chosen circle (from its next cycle); the others greyed
+ *   SEQ          KNOB 1-4 = LEN HITS ROT PROB of the chosen circle (from its next cycle); the others greyed. A tap
+ *                keeps it open (another tap closes it); held 2 s or more it closes on release
  *   SELECT       the chosen circle (and Felucca's selected part: ENV, FX .. edit its sound)
  *   PRESETS      the chosen circle's sound, through the presets of ALTER, PHYS and NOISE in a row
  *   ALGORITHM    KNOB 4         PLAY  start / stop      HOME, ENV, LFO, FX, GLO, SCL, EDIT, SAVE: Felucca's
  * The keys (no notes here: alt_kb_own): the whites in lit blocks with a dark key between: MUTE 1 2 3 (a tap),
  * DICE 1 2 3 (a tap: a new draw at once; held 0.6 s: the clean pattern again), SHIFT -1 +1 (a tap: the chosen
- * circle turned a step, kept); the blacks in their groups 3-2-3-2-1, held, on the chosen circle: ROLL 1/16 1/32
- * triplet | RATCHET x2 x3 | DUB DELAY, DUB REVERB, DESTROY | DENSITY - + | REVERSE. LEDs: the keys that act faint,
- * bright when engaged (a circle muted, a fill held, a die or shift just tapped); the others dark.
- * The screen: three concentric circles (circle 1 outside), each a voice's hits, lit as they play; the chosen
+ * circle turned a step, kept); the blacks in their groups 3-2-3-2-1, on the chosen circle: held ROLL 1/16 1/32
+ * triplet | RATCHET x2 x3 | DUB DELAY, DUB REVERB, DESTROY | tapped DENSITY - + (a hit less / more, kept) | held
+ * REVERSE. All on the grid (alter_play.c). LEDs: the keys that act faint, bright when engaged (a circle muted, a
+ * fill held, a tap just made); the others dark.
+ * The screen: three concentric circles (circle 1 outside), each a voice's hits, lit as they play; the chosen one a
+ * solid ring, the others dotted; a draw on: a small triangle at the circle's left, its colour; the chosen
  * circle's sound at the top, its knobs (or its rhythm, SEQ held) at the bottom. Drawn only when something changed. */
 
-enum { AK_NONE, AK_MUTE, AK_DIE, AK_SHIFT, AK_FILL };
+enum { AK_NONE, AK_MUTE, AK_DIE, AK_SHIFT, AK_DENS, AK_FILL };
 typedef struct {
     uint8_t kind, arg;
     const char *name;
@@ -27,15 +30,18 @@ static const alt_key_t ALT_KEY[27] = {    /* k: semitones above F3 (whites 0 2 4
     [1] = {AK_FILL, AF_ROLL16, "ROLL 1/16"}, [3] = {AK_FILL, AF_ROLL32, "ROLL 1/32"}, [5] = {AK_FILL, AF_ROLLT, "ROLL 1/16T"},
     [8] = {AK_FILL, AF_RAT2, "RATCHET X2"}, [10] = {AK_FILL, AF_RAT3, "RATCHET X3"},
     [13] = {AK_FILL, AF_DLY, "DUB DELAY"}, [15] = {AK_FILL, AF_REV, "DUB REVERB"}, [17] = {AK_FILL, AF_DESTROY, "DESTROY"},
-    [20] = {AK_FILL, AF_DENSM, "DENSITY -"}, [22] = {AK_FILL, AF_DENSP, "DENSITY +"},
+    [20] = {AK_DENS, 0, "DENSITY -"}, [22] = {AK_DENS, 1, "DENSITY +"},
     [25] = {AK_FILL, AF_REVERSE, "REVERSE"},
 };
 #define ALT_DIE_HOLD_MS 600u
 #define ALT_TAP_MS 150u                   /* a tapped key's bright LED */
+#define ALT_SEQ_HOLD_MS 2000u             /* SEQ held this long: it closes on release (shorter: it stays open) */
 
 static struct {
     as_cfg_t cfg[AS_NCIRC];      /* the circles' settings as asked for (alt_post_cfg's source) */
     uint8_t ready, sel, drawn, die_clean_done, handed;   /* handed: a Felucca button is down (its release is Felucca's) */
+    uint8_t seq_lock, seq_was;   /* SEQ kept open; SEQ down at the last frame */
+    uint32_t seq_t0;             /* SEQ's press (fm1_ms) */
     uint32_t keys;               /* the keys held at the last frame */
     uint32_t die_t0[AS_NCIRC];   /* a die key's press (fm1_ms | 1: never 0), 0 = up; compared signed (the | 1 may
                                   * put it 1 ms ahead) */
@@ -105,9 +111,10 @@ static void alt_preset_step(uint32_t c, int32_t s)
         set_engine_of(t, e);                     /* (the IRQ off inside: the engine and its values together) */
     fm1_irq_off();                               /* (the ISR's offsets and the preset's values together) */
     apply_preset_to(t, pi);
-    for (j = 0; j < 8u; j++)
+    for (j = 0; j < ALT_NSLOT; j++)
         alt_applied[c][j] = 0;
     alt_note[c] = 0;                             /* (apply_preset_to released what sounded) */
+    alt_gate_left[c] = 0;
     fm1_irq_on();
     alt_preset_cnt[c]++;
     alt_say(ENGINES[e]->presets[t->preset].name);
@@ -178,6 +185,12 @@ static int alter_ui_input(uint32_t pressed)
     if ((pressed >> panel.btn[B_PLAY]) & 1u)
         transport_req = song.playing || seq_counting() ? 2u : 1u;
     seq = (fm1_in.buttons >> panel.btn[B_SEQ]) & 1u;
+    if (seq && !au.seq_was)
+        au.seq_t0 = fm1_ms;
+    else if (!seq && au.seq_was)                 /* let go: a tap toggles it open / closed; a long hold closes it */
+        au.seq_lock = (int32_t)(fm1_ms - au.seq_t0) < (int32_t)ALT_SEQ_HOLD_MS ? (uint8_t)!au.seq_lock : 0u;
+    au.seq_was = (uint8_t)seq;
+    seq |= au.seq_lock;
     for (i = 0; i < 4u; i++)
         if ((s = panel_enc(EN_K1 + i)) != 0) {
             if (seq)
@@ -204,6 +217,11 @@ static int alter_ui_input(uint32_t pressed)
             } else if (a->kind == AK_DIE) {
                 au.die_t0[i2] = fm1_ms | 1u;
                 au.die_clean_done &= (uint8_t)~(1u << i2);
+            } else if (a->kind == AK_DENS) {
+                int32_t d = i2 ? 1 : -1;
+                alt_dens_tot[au.sel] += d;
+                au.cfg[au.sel].hits = (uint8_t)clamp((int32_t)au.cfg[au.sel].hits + d, 0, au.cfg[au.sel].len);
+                au.tap_ms[k] = fm1_ms | 1u;
             } else if (a->kind == AK_SHIFT) {
                 int32_t d = i2 ? 1 : -1;
                 alt_shift_tot[au.sel] += d;
@@ -252,7 +270,7 @@ static void alter_leds(uint8_t *nl, uint8_t *nd, uint8_t *nb, uint8_t *nm)
         int lit = 0, faint = 0;
         if (a->kind == AK_MUTE)
             lit = au.cfg[a->arg].mute;
-        else if (a->kind == AK_DIE || a->kind == AK_SHIFT)
+        else if (a->kind == AK_DIE || a->kind == AK_SHIFT || a->kind == AK_DENS)
             lit = (int)((fm1_in.notes >> k) & 1u) || (au.tap_ms[k] && (int32_t)(fm1_ms - au.tap_ms[k]) < (int32_t)ALT_TAP_MS);
         else if (a->kind == AK_FILL)
             lit = (int)((fm1_in.notes >> k) & 1u);
@@ -342,10 +360,16 @@ static void alt_scene(int seq, uint32_t flash)
         int32_t r = ALT_R[i], x, y;
         if (dim)
             col = alt_fade(col, 30);
-        for (j = 0; j < 96u; j++) {              /* the ring: brighter for the chosen circle */
-            alt_at(j * (0xFFFFFFFFu / 96u), r, &x, &y);
-            cv_pset(x, y, alt_fade(col, chosen ? 70 : 30));
-        }
+        if (chosen) {                            /* the ring: solid, full colour for the chosen circle, dotted else */
+            for (j = 0; j < 360u; j++) {
+                alt_at(j * (0xFFFFFFFFu / 360u), r, &x, &y);
+                cv_rect(x, y, 2, 2, col);
+            }
+        } else
+            for (j = 0; j < 96u; j++) {
+                alt_at(j * (0xFFFFFFFFu / 96u), r, &x, &y);
+                cv_pset(x, y, alt_fade(col, 30));
+            }
         for (j = 0; j < len; j++) {              /* the steps */
             int on = (int)((c->pat >> j) & 1u), here = song.playing && j == now;
             alt_at((uint32_t)(((uint64_t)j << 32) / len), r, &x, &y);
@@ -353,9 +377,11 @@ static void alt_scene(int seq, uint32_t flash)
                 alt_disc(x, y, (flash >> i) & 1u ? 7 : 5, on ? ALT_INK : ALT_DIM);
             alt_disc(x, y, on ? 4 : 1, on ? col : ALT_GREY);
         }
-        if (c->die) {                            /* a draw on: a small square at the top of its ring */
-            alt_at(0, r, &x, &y);
-            cv_rect(x + 7, y - 3, 6, 6, col);
+        if (c->die) {                            /* a draw on: a small triangle at the circle's left, pointing in */
+            int32_t k2;
+            alt_at(0xC0000000u, r, &x, &y);
+            for (k2 = 0; k2 < 7; k2++)
+                cv_rect(x - 16 + k2, y - (6 - k2), 1, 2 * (6 - k2) + 1, ALT_COL[i]);
         }
     }
     /* the middle: the key held or tapped, else the chosen circle's flash */
@@ -370,8 +396,8 @@ static void alt_scene(int seq, uint32_t flash)
         for (i = 0; i < 4u; i++) {
             int32_t x = 8 + (int32_t)i * 58, p = e->knob[i], v = t->p[p];
             const param_desc_t *d = track_desc(t, (uint32_t)p);
-            if (p >= P_E0 && p < P_E0 + 8)
-                v -= alt_applied[au.sel][p - P_E0];   /* (the base, without the die's offset) */
+            if (alt_slot((uint32_t)p) >= 0)
+                v -= alt_applied[au.sel][alt_slot((uint32_t)p)];   /* (the base, without the die's offset) */
             cv_text(x, 206, &AF_S, d->label, ALT_DIM);
             if (d->fmt == F_ENUM && d->names)
                 cv_text(x, 220, &AF_S, d->names[clamp(v, d->min, d->max) - d->min], ALT_INK);
@@ -401,7 +427,7 @@ static void alt_scene(int seq, uint32_t flash)
 
 static void alter_draw(void)
 {
-    uint32_t sig = 0, i, h, flash = 0, seq = (fm1_in.buttons >> panel.btn[B_SEQ]) & 1u;
+    uint32_t sig = 0, i, h, flash = 0, seq = ((fm1_in.buttons >> panel.btn[B_SEQ]) & 1u) | au.seq_lock;
     const track_t *t = &trk[au.sel];
     for (i = 0; i < AS_NCIRC; i++) {
         if ((h = alt_hits[i]) != au.hits_seen[i]) {

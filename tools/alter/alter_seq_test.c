@@ -109,8 +109,9 @@ int main(void)
         int same = 1;
         run(&q, 0, 16, a);
         run(&q, 0, 16, b);
-        for (s = 0; s < 16; s++)
-            same &= a[s].note == b[s].note && a[s].vel == b[s].vel && a[s].on == b[s].on;
+        for (s = 0; s < 16; s++)                       /* (skipping steps differ: compare where both play) */
+            if (a[s].on && b[s].on)
+                same &= a[s].note == b[s].note && a[s].vel == b[s].vel;
         check("DICE: the draw is kept, cycle after cycle", same);
     }
     as_clear(&q, 0);
@@ -146,11 +147,11 @@ int main(void)
         for (s = 0; s < 16; s++)
             if (e[s].on)
                 n++, root += e[s].note == 36;
-        check("DOSE 10: most notes on the root", n == 16 && root >= 12);
+        check("DOSE 10: most notes on the root", n >= 12 && root >= n * 3 / 4);
     }
     /* 10. locks */
     as_init(&q, 5);
-    q.locks = AS_LK_PITCH | AS_LK_FORCE;
+    q.locks = AS_LK_PITCH | AS_LK_FORCE | AS_LK_RHYTHM;
     q.c[0].next.dose = 127;
     q.c[0].next.hits = 16;
     run(&q, 0, 16, 0);
@@ -160,7 +161,7 @@ int main(void)
         int ok = 1;
         for (s = 0; s < 16; s++)
             ok &= e[s].note == 36 && e[s].force == AS_NORMAL;
-        check("locks PITCH + FORCE: root and normal force through a full draw", ok);
+        check("locks PITCH + FORCE + RHYTHM: 16 hits, root, normal force", ok);
     }
     /* 11. SHIFT turns the pattern at once and keeps it */
     as_init(&q, 1);
@@ -183,6 +184,42 @@ int main(void)
         m = run(&q, 2, 20, 0);
         check("LEN 5 HITS 2: repeats every 5 steps", (m & 31) == as_euclid(5, 2, 0) && (m >> 5 & 31) == (m & 31) &&
                                                          (m >> 15 & 31) == (m & 31));
+    }
+    /* 13. the default die is drastic: over a few rolls the rhythm moves, notes leave the root, lengths vary */
+    {
+        uint32_t moved = 0, off_root = 0, hits = 0, long_ = 0, burst = 0, r;
+        as_init(&q, 21);
+        for (r = 0; r < 8; r++) {
+            uint32_t m;
+            as_roll(&q, 0);
+            m = pat16(run(&q, 0, 16, e));
+            moved += q.c[0].pat != as_euclid(16, 4, 0);
+            for (s = 0; s < 16; s++)
+                if (e[s].on) {
+                    hits++;
+                    off_root += e[s].note != 36;
+                    long_ += e[s].gate > 1;
+                    burst += e[s].rat || e[s].flam;
+                }
+            (void)m;
+        }
+        printf("  8 rolls: rhythm moved %u, hits %u, off the root %u, long %u, bursts %u\n", moved, hits, off_root, long_, burst);
+        check("default DICE: the rhythm moves in most rolls", moved >= 5);
+        check("default DICE: most notes leave the root", off_root * 2 > hits);
+        check("default DICE: some long notes and some bursts", long_ > 0 && burst > 0);
+        as_clear(&q, 0);
+        check("held: the clean 4/16 again", pat16(run(&q, 0, 16, 0)) == as_euclid(16, 4, 0));
+    }
+    /* 14. DENSITY: +1 at once and kept, -1 back */
+    as_init(&q, 1);
+    run(&q, 0, 3, 0);
+    as_density(&q, 0, 1);
+    {
+        uint64_t m = run(&q, 0, 13, 0) << 3;
+        check("DENSITY +1: 5/16 from the next step", ((m | (as_euclid(16, 5, 0) & 7)) & 0xFFFF) == as_euclid(16, 5, 0));
+        check("DENSITY +1: kept next cycle", pat16(run(&q, 0, 16, 0)) == as_euclid(16, 5, 0));
+        as_density(&q, 0, -1);
+        check("DENSITY -1: 4/16 again", pat16(run(&q, 0, 16, 0)) == as_euclid(16, 4, 0));
     }
     printf(fails ? "%d FAILED\n" : "all ok\n", fails);
     return fails != 0;

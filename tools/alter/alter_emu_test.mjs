@@ -76,10 +76,18 @@ const s3 = bar();
 check(`circle 3 alone (NOISE): 5/16 turned by 1 ${s3.steps.join(",")}`, same(s3.steps, C3));
 tap(0); tap(4);                                                 // circle 1 alone again (selected: circle 1)
 // SEQ + KNOB 2: HITS 4 -> 8, from the next cycle
-ex.web_buttons(1 << SEQB); render(2000); enc(4, 4); ex.web_buttons(0);
+// SEQ: a tap keeps the rhythm view open (KNOB 2 = HITS), a second tap closes it (KNOB 2 = the sound again)
+ex.web_buttons(1 << SEQB); render(2000); ex.web_buttons(0); render(2000);
+enc(4, 4);
+ex.web_buttons(1 << SEQB); render(2000); ex.web_buttons(0); render(2000);
 bar();
 const h8 = bar();
-check(`SEQ + KNOB 2: circle 1 HITS 4 -> 8 ${h8.steps.join(",")}`, same(h8.steps, euclid(16, 8, 0)));
+check(`SEQ tapped (kept open) + KNOB 2: circle 1 HITS 4 -> 8 ${h8.steps.join(",")}`, same(h8.steps, euclid(16, 8, 0)));
+enc(4, 2); bar();
+check("SEQ tapped again: closed (KNOB 2 moves the sound, not HITS)", same(bar().steps, euclid(16, 8, 0)));
+ex.web_buttons(1 << SEQB); render(FS * 2.2); ex.web_buttons(0); render(2000);
+enc(4, 2); bar();
+check("SEQ held 2.2 s: closes on release (HITS untouched after)", same(bar().steps, euclid(16, 8, 0)));
 // SHIFT +1: turned a step at once, kept
 tap(16);
 bar();
@@ -88,14 +96,14 @@ check(`SHIFT +1: turned by 1 and kept ${sh.steps.join(",")}`, same(sh.steps, euc
 tap(14);
 bar();
 check("SHIFT -1: back", same(bar().steps, euclid(16, 8, 0)));
-// (the sound alone cannot tell: THUD's noise burst differs at every hit) the die's mark on the screen, a square at
-// the top right of circle 1 (alter_ui.c alt_scene: ALT_CX 120, ALT_CY 116, radius 80)
-const mark = () => { render(4000); const v = new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240)[36 * 240 + 130]; return v !== 0; };
-// DICE 1: a draw at once (the hits stay: the die moves force, pitch, timbre), held 0.6 s: clean
+// the die's mark on the screen, a triangle at the left of circle 1 (alter_ui.c alt_scene: ALT_CX 120, ALT_CY 116,
+// radius 80: x 24..30)
+const mark = () => { render(4000); const v = new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240)[116 * 240 + 26]; return v !== 0; };
+// DICE 1: a draw at once (drastic: rhythm, bursts, pitch, lengths, envelope, timbre), held 0.6 s: clean
 check("no draw at first (no mark)", !mark());
 tap(7);
 const d1 = bar();
-check(`DICE 1: the circle still plays its 8 hits after a draw (${d1.steps.length})`, same(d1.steps, euclid(16, 8, 0)));
+check(`DICE 1: the circle plays a new rhythm (${d1.steps.join(",")})`, d1.steps.length > 0 && !same(d1.steps, euclid(16, 8, 0)));
 check("DICE 1: a draw is on (its mark on the screen)", mark());
 K(1 << 7); render(FS * 0.7); K(0); render(1200);
 check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().steps, euclid(16, 8, 0)));
@@ -103,7 +111,7 @@ check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().
 {
   const before = bar().steps.length;
   const FILLS = { 1: "ROLL 1/16", 3: "ROLL 1/32", 5: "ROLL 1/16T", 8: "RATCHET X2", 10: "RATCHET X3", 13: "DUB DELAY",
-                  15: "DUB REVERB", 17: "DESTROY", 20: "DENSITY -", 22: "DENSITY +", 25: "REVERSE" };
+                  15: "DUB REVERB", 17: "DESTROY", 25: "REVERSE" };
   const got = {}, n = {};
   let worst = 0;
   for (const [k, name] of Object.entries(FILLS)) {
@@ -117,9 +125,15 @@ check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().
   check(`every fill plays and none clips (peak ${worst.toFixed(3)})`, Object.values(n).every((v) => v > 0) && worst < 0.999);
   check("ROLL 1/32 ~ 32 attacks", n["ROLL 1/32"] >= 26);
   check("RATCHET X2 / X3 add attacks", n["RATCHET X2"] > before && n["RATCHET X3"] > n["RATCHET X2"]);
-  check("DENSITY - < DENSITY +", got["DENSITY -"] < got["DENSITY +"]);
+
   check(`let go: the pattern is back`, same(bar().steps, euclid(16, 8, 0)));
 }
+// DENSITY: taps, kept
+tap(22); bar();
+check("DENSITY + tapped: 9 hits, kept", same(bar().steps, euclid(16, 9, 0)));
+tap(20); tap(20); bar();
+check("DENSITY - tapped twice: 7 hits", same(bar().steps, euclid(16, 7, 0)));
+tap(22); bar();
 // a fill on another circle leaves this one alone: SELECT circle 2 (muted), RATCHET X3 held
 enc(0, 1);
 {
