@@ -552,7 +552,14 @@ static void alt_seq_input(uint32_t keys)
             else if (i == 0u) {                  /* steps held: KNOB 1 their value (a single one: no RANGE) */
                 alt_lane_turn(s);
                 alt_seq.c[au.sel % AS_NCIRC].rmask[au.lane % LN_N] &= (uint16_t)~au.step_down;
-            } else if (i >= 2u)                  /* KNOB 3 / 4 the bottom / top of their RANGE (KNOB 2: nothing yet) */
+            } else if (i == 1u) {                /* KNOB 2: their condition, 1 cycle in N (ALWAYS 1/2 1/3 1/4 1/8) */
+                as_circ_t *sc = &alt_seq.c[au.sel % AS_NCIRC];
+                uint32_t k2;
+                for (k2 = 0; k2 < AS_NLANE; k2++)
+                    if ((au.step_down >> k2) & 1u)
+                        sc->scond[k2] = (uint8_t)clamp((int32_t)sc->scond[k2] + (s > 0 ? 1 : -1), 0, AS_NCD - 1);
+                au.step_turned = 1;
+            } else                               /* KNOB 3 / 4 the bottom / top of their RANGE */
                 alt_lane_range(i - 2u, s);
         }
     alt_hold = 0;
@@ -671,6 +678,8 @@ static void alt_chaos(void)
             uint32_t pick = 0;
             for (k = 0; k < AS_NLR; k++)
                 sc->rmask[k] = 0;                /* (no RANGE: CHAOS draws single values) */
+            for (k = 0; k < AS_NLANE; k++)
+                sc->scond[k] = 0;                /* (nor conditions) */
             for (k = 0; k < 6u; k++)
                 if (alt_cr(100u) < 40u)
                     pick |= 1u << k;
@@ -1566,6 +1575,10 @@ static void alt_seq_scene(void)
             int32_t bh = v * (h - 2) / 127;
             cv_rect(bx + 2, y0 + h - bh, w - 4, bh ? bh : 1, bc);
         }
+        if (sc->scond[k] % AS_NCD) {             /* a condition: its N above the step */
+            char cn[2] = {(char)('0' + AS_CD_N[sc->scond[k] % AS_NCD]), 0};
+            cv_text(bx + (w - text_w(&AF_S, cn)) / 2, y0 - 15, &AF_S, cn, ALT_DIM);
+        }
         if (held)                                /* held: a white frame */
             cv_rect(bx + 1, y0 - 2, w - 2, 2, ALT_INK), cv_rect(bx + 1, y0 + h + 1, w - 2, 2, ALT_INK);
         cv_rect(bx + 2, y0 + h + 6, w - 4, 3, here ? ALT_INK : on ? alt_fade(col, 60) : ALT_DARK);   /* hit, playhead */
@@ -1597,7 +1610,9 @@ static void alt_seq_scene(void)
                 x2 = cv_text(x2, 178, &AF_S, b, ALT_INK) + 2;
             }
             if (rg)
-                cv_text(x2 + 6, 178, &AF_S, "RANDOM", ALT_DIM);
+                x2 = cv_text(x2 + 6, 178, &AF_S, "RANDOM", ALT_DIM);
+            if (sc->scond[k0] % AS_NCD)          /* its condition */
+                cv_text(x2 + 8, 178, &AF_S, AS_CD_NAME[sc->scond[k0] % AS_NCD], ALT_INK);
         }
     }
     for (i = 0; i < 4u; i++) {                   /* the engine's four knobs */
@@ -1621,6 +1636,8 @@ static uint32_t alt_seq_sig(void)
     for (k = 0; k < 16u; k++)
         sg = sg * 31u + (uint32_t)(uint8_t)sc->rlo[au.lane % LN_N][k] * 7u + (uint32_t)(uint8_t)sc->rhi[au.lane % LN_N][k];
     sg = sg * 31u + sc->rmask[au.lane % LN_N];
+    for (k = 0; k < 16u; k++)
+        sg = sg * 31u + sc->scond[k];
     for (k = 0; k < 4u; k++) {
         const char *nm;
         char tx[12];

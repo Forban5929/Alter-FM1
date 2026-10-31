@@ -553,7 +553,7 @@ static void alter_tick_(uint32_t n)
         alt_gl_n = 0;                            /* the LFOs from bar 1 */
         alt_gl_tick(0, p);
         for (c = 0; c < AS_NCIRC; c++)
-            alt_seq.c[c].pos = 0;
+            alt_seq.c[c].pos = 0, alt_seq.c[c].cyc = 0xFFFFu;   /* (the first cycle: 0, conditions from it) */
         alter_step();
         return;
     }

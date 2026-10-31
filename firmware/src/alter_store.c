@@ -173,6 +173,8 @@ static void alt_rhy_put(uint32_t c, const alt_rhy_t *r)
     }
     for (k = 0; k < AS_NLR; k++)
         sc->rmask[k] = 0;                        /* (the RANGEs are not stored yet: a load clears them) */
+    for (k = 0; k < AS_NLANE; k++)
+        sc->scond[k] = 0;                        /* (nor the conditions) */
     alt_post_now |= (uint8_t)(1u << c);
     alt_post_circle(c);
     alt_clear_cnt[c]++;
