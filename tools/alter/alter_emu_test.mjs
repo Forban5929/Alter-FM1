@@ -181,57 +181,46 @@ tap(22); bar();
         drone > 2 * perc && drone > free);
   check("modes keep the rhythm (FREE again: 8 hits)", same(bar().steps, euclid(16, 8, 0)));
 }
-// LFO tapped twice: the MATRIX page (tabs LFO 1 2 3, GLOBAL; ALGORITHM the tab, SELECT the row, KNOB 1-3)
+// LFO tapped twice: the LFO page. Tabs LFO 1 2 3, GLOBAL (each K1 WAVE K2 RATE K3 DEPTH K4 DEST), MTX (the chosen
+// circle's matrix: SELECT the slot, K1 SRC K2 DEST K3 AMT); ALGORITHM the tab
 {
   const B = (n) => { ex.web_buttons(1 << n); render(2000); ex.web_buttons(0); render(2000); };
   const top = () => { render(4000); return Array.from(new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240).slice(0, 240 * 24)).join(); };
   // the loudness of each 16th of a bar (its first 60 ms)
   const steps = (b) => Array.from({ length: 16 }, (_, k) => peak(b.audio.slice(k * STEP, k * STEP + 2600)));
+  const swell = (l) => Math.max(l[14] / Math.max(l[0], 1e-4), l[0] / Math.max(l[14], 1e-4));
   const circles = top();
   B(3); B(3);
-  const mat = top();
-  check("LFO, LFO: the MATRIX page (the screen's top changes)", mat !== circles);
-  enc(1, 3);                                                    // the GLOBAL tab
-  enc(3, 3);                                                    // row 0: WAVE SQR (RATE 1 BAR: high 8 sixteenths, low 8)
-  enc(0, 1); enc(4, 9); enc(5, 63);                             // slots 1 and 2: PROB, +63 each (the low half: none)
-  enc(0, 1); enc(4, 9); enc(5, 63); enc(0, -1);
+  check("LFO, LFO: the LFO page (the screen's top changes)", top() !== circles);
+  enc(3, 3); enc(4, 2); enc(5, 63); enc(6, 9);                  // LFO 1: SQR, 1 BAR, +63, PROB
   bar();
   const pr = [...bar().steps, ...bar().steps];
-  check(`GLOBAL SQR 1 BAR -> PROB: hits in the first half of the bar only (${[...new Set(pr)].join(",")})`,
-        pr.length >= 4 && pr.every((x) => x < 8));
-  enc(0, 1); enc(5, -63); enc(0, -1);                          // slot 2 off
-  enc(4, -5); enc(0, -1); enc(3, 3);                            // slot 1: LEVEL; row 0: RAMP+ (1 BAR)
+  check(`LFO 1 SQR 1 BAR -> PROB: circle 1 plays in one half of the bar only (${[...new Set(pr)].join(",")})`,
+        pr.length >= 4 && (pr.every((x) => x < 8) || pr.every((x) => x >= 8)));
+  enc(3, -1); enc(6, -5);                                       // SAW, LEVEL
   bar();
   const lv = steps(bar());
-  check(`GLOBAL RAMP+ 1 BAR -> LEVEL: the bar swells (step 0 ${lv[0].toFixed(3)}, step 14 ${lv[14].toFixed(3)})`,
-        lv[14] > 3 * lv[0] && lv[14] > 0.02);
-  enc(0, 1); enc(5, -63);                                       // the GLOBAL off again
-  enc(1, -3); enc(0, 1);                                        // tab LFO 1, slot 1: POS -> AMP +63
+  check(`LFO 1 SAW 1 BAR -> LEVEL: the bar swells or fades (step 0 ${lv[0].toFixed(3)}, step 14 ${lv[14].toFixed(3)})`,
+        swell(lv) > 3);
+  enc(1, 3); enc(3, 6); enc(5, 1); enc(6, 4);                   // GLOBAL: RAMP+, 1 BAR, +1, LEVEL: it leads
+  bar();
+  const gl = bar(), gs = steps(gl);
+  check(`the GLOBAL leads on LEVEL: LFO 1's swell gone (step 0 ${gs[0].toFixed(3)}, step 14 ${gs[14].toFixed(3)}; ${gl.steps.join(",")})`,
+        swell(gs) < 1.6 && same(gl.steps, euclid(16, 8, 0)));
+  enc(5, 62);                                                   // GLOBAL depth +63: the ramp swells the bar
+  bar();
+  const gr = steps(bar());
+  check(`GLOBAL RAMP+ 1 BAR -> LEVEL: the bar swells (step 0 ${gr[0].toFixed(3)}, step 14 ${gr[14].toFixed(3)})`,
+        gr[14] > 3 * gr[0] && gr[14] > 0.02);
+  enc(5, -63); enc(6, -4);                                      // the GLOBAL off
+  enc(1, -3); enc(5, -63); enc(6, -4); enc(3, -2);              // LFO 1 off (SIN, no depth, no DEST)
+  enc(1, 4);                                                    // MTX: slot 1 POS -> AMP +63
   enc(3, 11); enc(4, 4); enc(5, 63);
   bar();
   const ps = steps(bar());
-  check(`LFO 1 slot 1, POS -> AMP: circle 1 swells across its cycle (step 0 ${ps[0].toFixed(3)}, step 14 ${ps[14].toFixed(3)})`,
+  check(`MTX slot 1, POS -> AMP: circle 1 swells across its cycle (step 0 ${ps[0].toFixed(3)}, step 14 ${ps[14].toFixed(3)})`,
         ps[14] > 3 * ps[0] && ps[14] > 0.02);
   enc(5, -63);
-  // the GLOBAL leads: circle 1's own LFO (SQR, restarted at each hit: always the same value) closes its AMP; a
-  // GLOBAL slot on LEVEL, however small, takes AMP from it: the hits are back
-  enc(0, -1); enc(3, 3); enc(0, 1);                             // row 0: WAVE SQR
-  enc(3, -10); enc(5, 63);                                      // slot 1: LFO -> AMP (kept) +63
-  bar();
-  const pa = bar().peak;
-  enc(5, -127); bar();                                          // (one of +63 / -64 closes it)
-  const pb = bar().peak;
-  if (pa < pb) { enc(5, 127); bar(); }
-  const shut = bar().peak;
-  console.log(`alter: (circle LFO -> AMP: +63 peak ${pa.toFixed(3)}, -64 peak ${pb.toFixed(3)})`);
-  enc(1, 3); enc(5, 1);                                         // GLOBAL slot 1 (LEVEL, kept): +1
-  bar();
-  const led = bar();
-  check(`the GLOBAL leads: circle 1's LFO shuts it (peak ${shut.toFixed(3)}), a GLOBAL LEVEL slot frees it (peak ${led.peak.toFixed(3)}: ${led.steps.join(",")})`,
-        shut < 0.4 * led.peak && same(led.steps, euclid(16, 8, 0)));
-  enc(5, -1); enc(1, -3);                                       // all off again: GLOBAL slot, circle slot, WAVE
-  enc(5, 127); enc(5, -64);
-  enc(0, -1); enc(3, -3);
   B(3);
   check("LFO again: back to the circles", top() === circles);
   bar();

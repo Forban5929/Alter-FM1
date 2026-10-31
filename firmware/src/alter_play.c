@@ -259,10 +259,13 @@ static uint32_t alt_roll_period(uint32_t h, uint32_t p)
 /* the GLOBAL LFO (alter_lfo.c) after n samples more: its phase on the sixteenths' grid (p samples each), counted
  * from PLAY (stopped, it runs on at the tempo) */
 static uint32_t alt_gl_n, alt_gl_cyc, alt_gl_rnd;
+/* a circle LFO's cycle for each P_LSYNC (params.c N_LSYNC: OFF 4BAR 2BAR 1/1 1/2 1/4 1/8 8T 1/16 16T 1/32), in sixths of
+ * a sixteenth: counted in whole steps, as the circles are (div_samples' own note values drift from them) */
+static const uint16_t ALT_SYNC_6TH[11] = {96, 384, 192, 96, 48, 24, 12, 8, 6, 4, 3};
 static int32_t alt_gl_old, alt_gl_new;           /* S&H / SLEW: the cycle before's value, this one's */
 static void alt_gl_tick(uint32_t n, uint32_t p)
 {
-    uint32_t per = p * GL_RATE_STEPS[alt_gl.rate % GL_NRATE], pos, ph, cyc;
+    uint32_t per = p * GL_RATE_6TH[alt_gl.rate % GL_NRATE] / 6u, pos, ph, cyc;
     int32_t u, v;
     if (!per)
         return;
@@ -292,6 +295,20 @@ static void alt_gl_tick(uint32_t n, uint32_t p)
     default: v = 32767 - u; break;
     }
     alt_gl_val = clamp(v, -32767, 32767);
+    alt_gl_ph = ph;
+    for (cyc = 0; cyc < AS_NCIRC; cyc++) {       /* the circles' LFOs on the same grid: their phase from PLAY too */
+        track_t *t = &trk[cyc];
+        uint32_t cp;
+        if (!t->p[P_LSYNC] || !t->p[P_LTRIG])
+            continue;
+        cp = p * ALT_SYNC_6TH[(uint32_t)t->p[P_LSYNC] % NELEM(ALT_SYNC_6TH)] / 6u;   /* (on the steps' own grid) */
+        if (cp) {                                /* (and its value now: the matrix reads it before the render) */
+            t->lfo_ph = (uint32_t)(((uint64_t)(alt_gl_n % cp) << 32) / cp);
+            t->lfo_val = lfo_wave(t, t->lfo_ph);
+            if (t->p[P_LPOL])
+                t->lfo_val = (t->lfo_val + 32768) >> 1;
+        }
+    }
 }
 
 /* each circle's POS (alter_lfo.c): its step sounding and the time into it, over its length */
@@ -309,7 +326,13 @@ static void alter_step(void)
 {
     as_event_t ev[AS_NCIRC];
     uint32_t c, j, h = alt_hold;
-    alt_seq.pmod = (int16_t)alt_gl_prob();       /* the GLOBAL on PROB */
+    for (c = 0; c < AS_NCIRC; c++)               /* the LFOs on PROB */
+    {                                            /* (each LFO where it is now: its phase, not its last block's value) */
+        int32_t x = lfo_wave(&trk[c], trk[c].lfo_ph);
+        if (trk[c].p[P_LPOL])
+            x = (x + 32768) >> 1;
+        alt_seq.pmod[c] = (int16_t)alt_prob_of(c, x);
+    }
     as_step(&alt_seq, ev);
     alt_gstep++;
     if ((h >> AF_REVERSE) & 1u) {                /* back two: the next step is the one before this one */
@@ -423,10 +446,12 @@ static void alter_tick_(uint32_t n)
         alt_pos = 0;
         alt_par = 0;
         alt_gstep = 0;
-        alt_gl_n = 0;                            /* the GLOBAL from bar 1 */
+        alt_gl_n = 0;                            /* the LFOs from bar 1 */
         alt_gl_cyc = 0;
-        for (c = 0; c < AS_NCIRC; c++)
+        for (c = 0; c < AS_NCIRC; c++) {
             alt_seq.c[c].pos = 0;
+            trk[c].lfo_ph = 0;
+        }
         alter_step();
         return;
     }

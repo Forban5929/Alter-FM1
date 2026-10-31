@@ -183,27 +183,25 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         force 2 bits, chance 4 bits par pas), alt_rhy_get/put (pattern), alt_new_scene, alt_row_load/save, banques en
         RAM alt_bank_s/alt_bank_p + flash objets 3 et 4 (magie ATLS/ATLP), chargées au démarrage (alt_banks_load).
         Scènes d'usine : champ `dly` (envoi delay, 0 = celui du son). Écran : 2 onglets, 5 lignes, cadenas = usine.
-  - [x] **3e LFO (31/10, codé, testé, publié ; ATTEND L'ÉCOUTE)**. Choix de Romain : 1 LFO par cercle (celui de Felucca) +
-        **1 LFO GLOBAL** (toujours les 3 cercles ; formes SIN TRI SAW SQR S&H SLEW RAMP+ RAMP- ; vitesse 1/16..8 MESURES
-        comptée depuis PLAY ; 4 cases destination + quantité : PITCH SHAPE FILT LEVEL DIST DELAY REVRB PAN PROB). Le
-        GLOBAL **prend le dessus** : sur une destination qu'il vise, la route LFO DEST du cercle (P_LD_*) et ses cases
-        de matrice à source LFO/S&H/SLEW sont ignorées. **LFO 2e appui = page MATRICE** (onglets LFO 1 2 3 · GLOBAL ;
-        ALGORITHM onglet, SELECT ligne ; ligne 0 = WAVE RATE SYNC du LFO ; lignes 1-4 = cases : K1 source, K2
-        destination avec liste déroulante 1,2 s, K3 quantité ; LFO, HOME ou autre bouton de page = sortie). Nouvelles
-        sources de matrice **POS** (rampe sur le cycle du cercle) et **FORCE** (dernier coup : ghost 0, normal 0,5,
-        accent 1). Scènes : + WAVE SYNC LD_SHP + 4 cases (2 octets chacune) par cercle + le GLOBAL (banque 3780/3840 o ;
-        la taille a changé → les slots USER enregistrés avant sont effacés au 1er démarrage). Scènes d'usine / NEW =
-        GLOBAL éteint. Code : `alter_lfo.c` (inclus par mod.c : GLOBAL alt_gl, alt_gl_val, alt_msrc[3][2] POS/FORCE,
-        alt_gl_take = masque MD_*, alt_gl_prob) ; mod.c : MS_POS MS_FORCE, mod_global + mod_keep (MOD_NKEEP 12) ;
-        alter_play.c : alt_gl_tick (par bloc, sur la grille), alt_pos_src APRÈS les pas (alter_tick → alter_tick_),
-        FORCE au coup, alt_seq.pmod (PROB) ; alter_ui.c : alt_matrix_input / alt_matrix_scene, alt_qpush.
-        Tests (alter_emu_test) : MATRICE s'ouvre, GLOBAL SQR → PROB, RAMP+ → LEVEL, POS → AMP, le GLOBAL prend le dessus.
-        Idées pas faites : DÉ/CHAOS qui tirent le LFO, source GLOBAL dans les matrices des cercles.
-        Retour 31/10 appliqué : page rapide LFO nommée « LFO n » (= LFO du CERCLE CHOISI) ; MATRICE : noms de sources
-        plus clairs (ALT_SRC_NAME) + une ligne qui explique la source de la case choisie (ALT_SRC_ABOUT), toutes gardées ;
-        **barre qui ondule** en bas de l'écran cercles : trait couleur du cercle = valeur en direct quand un LFO / la
-        matrice / le GLOBAL la bouge (mod.c mod_show → alter_ui.c alt_live ; FILTRE = E3 des 3 moteurs, FORME = E1
-        ALTER / E2 NOISE, AMP sur LEVEL).
+  - [x] **3e LFO (31/10, refait après retour de Romain ; codé, testé, publié ; ATTEND L'ÉCOUTE)**. Structure validée :
+        **chaque LFO = classique K1 WAVE · K2 RATE (divisions du tempo, calées sur PLAY et la grille des pas) · K3 DEPTH
+        · K4 DEST (1 seule)** ; DEST = même liste pour tout : OFF PITCH SHAPE FILTER LEVEL DIST DELAY REVERB PAN PROB.
+        **Appui court LFO** = page rapide du LFO **du cercle choisi** (écrit « LFO n »), ces 4 réglages. **LFO encore** =
+        page LFO, onglets **LFO 1 · LFO 2 · LFO 3 · GLOBAL · | MTX** (ALGORITHM = onglet) : onglet LFO = titre, forme
+        dessinée avec un point qui la parcourt, 4 réglages, liste déroulante pour DEST ; MTX = les 4 cases Felucca du
+        cercle choisi (SELECT case, K1 SRC K2 DEST K3 AMT, phrase qui explique la source ; toutes les sources gardées,
+        noms clairs ALT_SRC_NAME + POS + FORCE). LFO d'un cercle = LFO Felucca de sa partie (WAVE = P_LWAVE SIN TRI SAW
+        SQR S&H, RATE = P_LSYNC 1/32..4 BAR, TRIG FREE, phase recalée chaque bloc sur alt_gl_n en pas entiers
+        ALT_SYNC_6TH, lfo_val recalculé avant la matrice) + DEST/DEPTH à nous (alt_cl[3]). GLOBAL = alt_gl (formes + SLEW
+        RAMP+ RAMP-, RATE 1/32..8 BAR GL_RATE_6TH, 1 DEST = slot 0 ; les slots 1-3 restent dans le code, inutilisés).
+        Le GLOBAL **prend le dessus** sur une DEST (DEST du cercle, P_LD_*, cases MTX à source LFO/S&H/SLEW). PROB :
+        alt_seq.pmod[3] (alt_prob_of, valeur du LFO à sa phase). P_LD_* mis à 0 (DEST à nous) ; changer de son garde le
+        LFO du cercle. voice.c : FADE 0 = pas de fondu (avant : 1 bloc de LFO à 0 à chaque note). Scènes : ldst
+        (ancien rsv) + ldepth (ancien lshp), taille inchangée. CHAOS tire WAVE RATE DEST (timbre/mix) DEPTH ±40.
+        Code : `alter_lfo.c` (inclus par mod.c), mod.c mod_global (GLOBAL + LFO du cercle) / mod_show, alter_play.c
+        alt_gl_tick, alter_ui.c alt_lfo_val/text/turn, alt_mtx_*, alt_lfo_tab, alt_mtx_tab. **Barre qui ondule** en bas
+        de l'écran cercles (alt_live). Tests : LFO 1 SQR→PROB, SAW→LEVEL, le GLOBAL prend le dessus, RAMP+→LEVEL,
+        MTX POS→AMP. Idées pas faites : DÉ qui tire le LFO, source GLOBAL dans MTX.
   - [ ] 3c : vue DEEP (EDIT ouvre encore la page EDIT de Felucca). Puis retirer l'interface Felucca. Reste : SCL → gamme
         des cercles, touches blanches libres, DESTROY assignable, verrous du dé, DOSE.
 - [ ] Étape 4 (après le séquenceur) : tranche de console dédiée, ordre FIXE validé :

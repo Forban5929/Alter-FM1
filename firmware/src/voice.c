@@ -413,7 +413,7 @@ static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
     if (!any) {                                        /* fresh phrase: LFO retrigger (TRIG NOTE) and fade */
         if (!t->p[P_LTRIG])
             t->lfo_ph = (uint32_t)t->p[P_LPHASE] << 25;
-        t->lfo_fade = 0;
+        t->lfo_fade = t->p[P_LFADE] ? 0 : 32767;      /* (ALTER: FADE 0 is no fade, from the note's first block) */
     }
     if (mode == V_POLY) {
         voice_t *v = voice_alloc(t, note);

@@ -3,7 +3,7 @@
  *   NEW (load only: a blank scene, or an empty pattern), 4 factory ones (protected), 16 USER slots.
  * A SCENE is everything: per circle its sound (engine, E1..E8, ADSR, sends, insert, level, pan, glide, LFO), envelope
  * mode, locks and rhythm (LEN HITS ROT PROB FROT, DOSE, ROOT, CHORD, each step's force and chance), its LFO's
- * WAVE SYNC SHP and its four matrix slots; and the scale, tempo, swing and the GLOBAL LFO (alter_lfo.c). A PATTERN is the rhythm only (per circle LEN HITS ROT PROB FROT, force and chance per step):
+ * WAVE RATE DEPTH DEST and its four matrix slots; and the scale, tempo, swing and the GLOBAL LFO (alter_lfo.c). A PATTERN is the rhythm only (per circle LEN HITS ROT PROB FROT, force and chance per step):
  * loading one leaves the sounds, notes and everything else as they are.
  * The USER slots live in RAM (alt_bank_s, alt_bank_p) and on the flash, in Felucca's project objects 3 and 4
  * (storage.c OBJ_PROJECT0 + 2 / + 3; an own magic tells ours from a Felucca project saved there). Packed small: a
@@ -31,12 +31,12 @@ typedef struct {                 /* a circle's rhythm */
 } alt_rhy_t;
 
 typedef struct {                 /* a circle in a scene */
-    uint8_t eng, pre, mode, locks, dose, root, chord, rsv;
+    uint8_t eng, pre, mode, locks, dose, root, chord, ldst;   /* ldst: its LFO's DEST (alter_lfo.c GD_*) */
     int8_t e[8];
     int8_t p[ALT_NSP];
     alt_rhy_t r;
-    uint8_t lwave, lsync;                        /* its LFO's WAVE, SYNC, DEST SHP */
-    int8_t lshp;
+    uint8_t lwave, lsync;                        /* its LFO's WAVE, RATE (P_LSYNC), DEPTH */
+    int8_t ldepth;
     uint8_t m[2 * NMSLOT];                       /* the matrix slots: SRC (4 bits) DST (5) AMT + 64 (7), 2 bytes each */
 } alt_scirc_t;
 
@@ -138,7 +138,7 @@ static void alt_scene_get(alt_scene_rec_t *s)
         o->dose = au.cfg[c].dose;
         o->root = au.cfg[c].root;
         o->chord = au.cfg[c].chord;
-        o->rsv = 0;
+        o->ldst = alt_cl[c].dst;
         for (k = 0; k < 8u; k++)
             o->e[k] = (int8_t)clamp(alt_base(c, P_E0 + k), -128, 127);
         for (k = 0; k < ALT_NSP; k++)
@@ -146,7 +146,7 @@ static void alt_scene_get(alt_scene_rec_t *s)
         alt_rhy_get(c, &o->r);
         o->lwave = (uint8_t)t->p[P_LWAVE];
         o->lsync = (uint8_t)t->p[P_LSYNC];
-        o->lshp = (int8_t)t->p[P_LD_SHP];
+        o->ldepth = alt_cl[c].depth;
         for (k = 0; k < NMSLOT; k++) {
             uint32_t w = ((uint32_t)t->p[P_M1SRC + 3u * k] & 15u) | ((uint32_t)t->p[P_M1DST + 3u * k] & 31u) << 4 |
                          ((uint32_t)(t->p[P_M1AMT + 3u * k] + 64) & 127u) << 9;
@@ -181,7 +181,10 @@ static void alt_scene_put(const alt_scene_rec_t *s)
             t->p[ALT_SP[k]] = o->p[k];
         t->p[P_LWAVE] = (int16_t)clamp(o->lwave, TP[P_LWAVE].min, TP[P_LWAVE].max);
         t->p[P_LSYNC] = (int16_t)clamp(o->lsync, TP[P_LSYNC].min, TP[P_LSYNC].max);
-        t->p[P_LD_SHP] = o->lshp;
+        t->p[P_LTRIG] = 1;                       /* (FREE: the LFO runs on the tempo, not from each note) */
+        t->p[P_LD_PIT] = t->p[P_LD_FLT] = t->p[P_LD_SHP] = t->p[P_LD_AMP] = 0;   /* (the DEST is ours: alt_cl) */
+        alt_cl[c].dst = (uint8_t)(o->ldst % GD_N);
+        alt_cl[c].depth = (int8_t)clamp(o->ldepth, -64, 63);
         for (k = 0; k < NMSLOT; k++) {
             uint32_t w = o->m[2u * k] | (uint32_t)o->m[2u * k + 1u] << 8;
             t->p[P_M1SRC + 3u * k] = (int16_t)((w & 15u) < MS_N ? w & 15u : 0u);
@@ -229,6 +232,7 @@ static void alt_load_scene(uint32_t n)
         cf->mute = 0;
         cf->dose = AS_DOSE_DEF;
         alt_seq.c[c].locks = 0;
+        alt_lfo_default(c);
         alt_rhy_plain(&r, sc->c[c].len, sc->c[c].hits, sc->c[c].rot, sc->c[c].prob);
         alt_rhy_put(c, &r);
     }
@@ -253,6 +257,7 @@ static void alt_new_scene(void)
         au.cfg[c].mute = 0;
         au.cfg[c].dose = AS_DOSE_DEF;
         alt_seq.c[c].locks = 0;
+        alt_lfo_default(c);
         alt_rhy_plain(&r, 16, 0, 0, 127);
         alt_rhy_put(c, &r);
     }
