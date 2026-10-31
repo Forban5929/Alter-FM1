@@ -234,11 +234,11 @@ static void alt_qpush(uint32_t c, uint32_t id, int32_t d);
 /* ---- the ENV page, by the chosen circle's mode (alter_lfo.c AE_*; FREE: the sound's ADSR) ------------------------ */
 static const char *const ALT_ENV_NAME[AM_N][4] = {
     {"ATK", "DEC", "SUS", "REL"}, {"ATTACK", "HOLD", "DECAY", "PUNCH"}, {"LENGTH", "SUSTAIN", "PLUCK", "CHORD"},
-    {"SWELL", "BODY", "TAIL", "BREATH"},
+    {"SWELL", "BODY", "TAIL", "OPEN"},
 };
 static const int8_t ALT_ENV_K[AM_N][4] = {       /* each knob's setting (AE_*), -1: the sound's own / the chord */
     {-1, -1, -1, -1}, {AE_PATK, AE_PHOLD, AE_PDEC, AE_PPUNCH}, {AE_SLEN, AE_SSUS, AE_SPLUCK, -1},
-    {AE_DSWELL, AE_DBODY, AE_DTAIL, AE_DBREATH},
+    {AE_DSWELL, AE_DBODY, AE_DTAIL, AE_DOPEN},
 };
 /* the LFO destinations (bit GD_*) that move knob i of the ENV page in mode m */
 static uint32_t alt_env_gd(uint32_t m, uint32_t i)
@@ -258,8 +258,6 @@ static void alt_env_turn(uint32_t i, int32_t s)
     int32_t k = ALT_ENV_K[m][i & 3u];
     if (m == AM_FREE) {
         alt_qpush(c, P_ATK + i, s * 2);
-    } else if (k == AE_DBREATH) {
-        alt_envp[c][k] = (uint8_t)clamp((int32_t)alt_envp[c][k] + (s > 0 ? 1 : -1), 0, AE_NBREATH - 1);
     } else if (k >= 0) {
         alt_envp[c][k] = (uint8_t)clamp((int32_t)alt_envp[c][k] + s * 2, 0, 127);
     } else {                                     /* STAB's CHORD */
@@ -832,9 +830,7 @@ static int32_t alt_kv(uint32_t q, uint32_t i, const char **name, char *txt, int3
             *fill = v * 50 / 127;
             return v;
         }
-        if (k == AE_DBREATH)
-            n = AE_BREATH_NAME[(v = alt_envp[c][k] % AE_NBREATH)];
-        else if (k < 0)
+        if (k < 0)
             n = AS_CHORD_NAME[(v = c_chord_of(c))];
         if (n) {
             int32_t j = 0;

@@ -214,17 +214,14 @@ static __attribute__((noinline)) void mod_global(const track_t *t, modw_t *mw, i
     for (k = 0; k < 4u; k++)
         if (((take >> LD[k][0]) & 1u) && t->p[LD[k][1]])
             mod_keep(t, mw, off, LD[k][1], -t->p[LD[k][1]]);
-    if (alt_env_mod(c = (uint32_t)(t - trk))) {      /* the envelope mode's own: PUNCH, PLUCK, BREATH */
+    if (alt_env_mod(c = (uint32_t)(t - trk))) {      /* the envelope mode's own: PUNCH, PLUCK, OPEN */
         const volatile uint8_t *e = alt_envp[c];
         if (alt_ems[c] == 1)                            /* PUNCH: up to 2 octaves above, diving */
             mw->pit += (int32_t)(((int64_t)alt_punch_lvl[c] * (e[AE_PPUNCH] * 384 / 127)) >> 15);
-        else if (alt_ems[c] == 2) {                     /* PLUCK: the envelope opens the timbre (per voice) */
+        else {                                          /* PLUCK / OPEN: the envelope opens the timbre (per voice) */
             mw->vsrc[mw->nv] = MS_ENV;
             mw->vdst[mw->nv] = MD_CUT;
-            mw->vamt[mw->nv++] = (int8_t)(e[AE_SPLUCK] / 2);
-        } else {                                        /* BREATH: the level down to half and back */
-            mw->amp = 1;
-            mod_voice_add(MS_LFO, MD_AMP, alt_breath_val[c], 32, &mw->pit, &mw->cut, &mw->shp, &mw->gain);
+            mw->vamt[mw->nv++] = (int8_t)(e[alt_ems[c] == 2 ? AE_SPLUCK : AE_DOPEN] / 2);
         }
     }
 }

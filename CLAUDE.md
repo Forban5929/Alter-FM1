@@ -210,15 +210,18 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         PUNCH** (AD + hold façon Rytm : SUS 127, alt_hold_smp lâche la note après HOLD 0..500 ms, DECAY = release ;
         PUNCH = la hauteur plonge, jusqu'à 2 oct., ~23 ms) · **STAB = LENGTH (decay = release, plafonné) SUSTAIN PLUCK
         (l'enveloppe ouvre le FILTER, terme par voix MS_ENV→MD_CUT) CHORD** (gate ≤ 2 pas) · **DRONE = SWELL (jamais
-        court) BODY (sustain, decay fixe dedans) TAIL (jamais court) BREATH** (OFF 1 2 4 8 BAR : volume ↓ moitié, sinus
-        calé). Réglages 0..127 → temps Felucca (ms = 10000^(v/127)) via alt_map dans alt_env_apply (alter_play.c), à
+        court) BODY (sustain, decay fixe dedans) TAIL (min ~290 ms) OPEN** (l'enveloppe ouvre le FILTER, comme PLUCK ;
+        BREATH retiré : doublon des LFO). **DRONE lie les notes** : une note (+ accord) qui sonne déjà n'est jamais
+        rejouée (alt_same ; plus de re-pincement PHYS ni de clic ALTER), pas de rafales/flams du dé ; **PHYS MODAL/STRNG
+        passe à l'archet** en DRONE (BOW = E7 → 80 si < 60, retiré hors DRONE ; MEMB/SYMP : E7 = BEND/BUZZ, pas
+        d'archet). STAB LENGTH : 1er quart retiré (alt_map 48..86). Réglages 0..127 → temps Felucca (ms = 10000^(v/127)) via alt_map dans alt_env_apply (alter_play.c), à
         chaque coup. Données : alter_lfo.c AE_* / alt_envp[3][11] / AE_DEF, alt_ems (miroir des modes), alt_punch_lvl,
         alt_breath_val ; mod.c mod_global les applique (alt_env_mod). **Nouvelles DEST LFO : LENGTH ATTACK DECAY SUS/REL**
         (GD_ELEN.. ; lues à chaque coup, alt_env_lfo ; sens selon le mode, alt_env_gd). **Petite vague de couleur à côté
         du nom** d'un knob qu'un LFO bouge sans barre visible (PROB, réglages d'enveloppe : alt_knob_lfo) ; la barre ne
         pulse plus (zone de plage seule). Scènes USER : réglages d'enveloppe gardés dans l'objet 4 (alt_bank_p.envok/env :
         la banque de scènes est pleine) → **patterns USER d'avant effacés** ; scènes d'usine / NEW = AE_DEF.
-        Tests : PERC HOLD, STAB LENGTH, LFO SQR → LENGTH en PERC.
+        Tests : PERC HOLD, STAB LENGTH, LFO SQR → LENGTH en PERC, DRONE sans re-frappe (sauts < ×1,5 par 50 ms).
   - [ ] 3c : vue DEEP (EDIT ouvre encore la page EDIT de Felucca). Puis retirer l'interface Felucca. Reste : SCL → gamme
         des cercles, touches blanches libres, DESTROY assignable, verrous du dé, DOSE.
 - [ ] Étape 4 (après le séquenceur) : tranche de console dédiée, ordre FIXE validé :

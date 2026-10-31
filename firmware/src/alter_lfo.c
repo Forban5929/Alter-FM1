@@ -206,17 +206,15 @@ static uint32_t alt_lfo_k(const track_t *t, uint32_t k, int32_t *a, int32_t *x, 
 /* ---- the envelope modes' own settings (alter_play.c AM_*: FREE PERC STAB DRONE), per circle, 0..127 each --------
  * PERC  ATTACK (short) HOLD DECAY PUNCH: an AD with a hold, after the Analog Rytm; PUNCH dives the pitch at each hit
  * STAB  LENGTH (decay and release together, never long) SUSTAIN PLUCK (the timbre opens at the hit) + the CHORD
- * DRONE SWELL (never short) BODY (the sustain the decay falls into) TAIL (never short) BREATH (the level breathes:
- *       OFF 1 2 4 8 BAR) */
-enum { AE_PATK, AE_PHOLD, AE_PDEC, AE_PPUNCH, AE_SLEN, AE_SSUS, AE_SPLUCK, AE_DSWELL, AE_DBODY, AE_DTAIL, AE_DBREATH,
+ * DRONE SWELL (never short) BODY (the sustain the decay falls into) TAIL (never too short) OPEN (the timbre opens with
+ *       the swell). A note still sounding is never played again (alter_play.c): no restrike, no click; PHYS's MODAL and
+ *       STRNG are bowed (BOW) instead of struck */
+enum { AE_PATK, AE_PHOLD, AE_PDEC, AE_PPUNCH, AE_SLEN, AE_SSUS, AE_SPLUCK, AE_DSWELL, AE_DBODY, AE_DTAIL, AE_DOPEN,
        AE_N };
-#define AE_NBREATH 5
-static const uint8_t AE_DEF[AE_N] = {10, 20, 60, 0, 50, 25, 30, 70, 90, 80, 0};
-static const char *const AE_BREATH_NAME[AE_NBREATH] = {"OFF", "1 BAR", "2 BAR", "4 BAR", "8 BAR"};
+static const uint8_t AE_DEF[AE_N] = {10, 20, 60, 0, 50, 25, 30, 70, 90, 80, 40};
 static volatile uint8_t alt_envp[3][AE_N];       /* UI: each circle's */
 static volatile uint8_t alt_ems[3];              /* here: each circle's mode (alter_play.c mirrors alt_emode) */
 static int32_t alt_punch_lvl[3];                 /* here: PUNCH's dive now, Q15 (1 at a hit, falling) */
-static int32_t alt_breath_val[3];                /* here: BREATH's LFO now, Q15 */
 
 static void alt_env_default(uint32_t c)
 {
@@ -225,11 +223,11 @@ static void alt_env_default(uint32_t c)
         alt_envp[c % 3u][k] = AE_DEF[k];
 }
 
-/* the mode adds to part t's block (mod.c mod_global): 1 when PUNCH, PLUCK or BREATH is on */
+/* the mode adds to part t's block (mod.c mod_global): 1 when PUNCH, PLUCK or OPEN is on */
 static int alt_env_mod(uint32_t c)
 {
     if (c >= 3u)
         return 0;
     return (alt_ems[c] == 1 && alt_envp[c][AE_PPUNCH] && alt_punch_lvl[c] > 64) ||
-           (alt_ems[c] == 2 && alt_envp[c][AE_SPLUCK]) || (alt_ems[c] == 3 && alt_envp[c][AE_DBREATH]);
+           (alt_ems[c] == 2 && alt_envp[c][AE_SPLUCK]) || (alt_ems[c] == 3 && alt_envp[c][AE_DOPEN]);
 }

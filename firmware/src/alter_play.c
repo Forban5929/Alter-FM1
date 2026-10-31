@@ -155,6 +155,17 @@ static void alt_on(uint32_t c, uint32_t note, uint32_t vel, int glide, const uin
     }
 }
 
+/* part c sounds exactly these notes now (the hit's, its chord's: as alt_on keeps them) */
+static int alt_same(uint32_t c, uint32_t note, const uint8_t *ch)
+{
+    uint8_t want[3] = {(uint8_t)note, 0, 0};
+    uint32_t k, n = 1;
+    for (k = 0; k < 2u; k++)
+        if (ch[k] && ch[k] != note)
+            want[n++] = ch[k];
+    return alt_note[c][0] && alt_note[c][0] == want[0] && alt_note[c][1] == want[1] && alt_note[c][2] == want[2];
+}
+
 /* a parameter of part c moved by d (a knob), its die offset kept on top */
 static void alt_move(uint32_t c, uint32_t p, int32_t d)
 {
@@ -284,12 +295,10 @@ static void alt_gl_tick(uint32_t n, uint32_t p)
     alt_lfo_p = p;
     alt_gl_val = alt_lfo_at(alt_gl.wave, alt_gl.rate, 9u, alt_gl_n, p, &alt_gl_ph);
     for (c = 0; c < AS_NCIRC; c++) {
-        uint32_t b = alt_envp[c][AE_DBREATH] % AE_NBREATH;
         for (j = 0; j < CL_N; j++)
             alt_cl_val[c][j] = alt_lfo_at(alt_cl[c][j].wave, alt_cl[c][j].rate, c * 3u + j, alt_gl_n, p, 0);
         alt_ems[c] = alt_emode[c];
         alt_punch_lvl[c] -= alt_punch_lvl[c] >> 5;   /* PUNCH: ~23 ms */
-        alt_breath_val[c] = b ? alt_lfo_at(GW_SIN, GL_RATE_DEF + b - 1u, 20u + c, alt_gl_n, p, 0) : 0;
         if (alt_hold_smp[c] > 0 && (alt_hold_smp[c] -= (int32_t)n) <= 0) {   /* PERC's HOLD over: let it go */
             alt_hold_smp[c] = 0;
             alt_off(c);
@@ -322,6 +331,8 @@ static void alt_env_apply(uint32_t c, uint32_t m, int32_t die)
     track_t *t = &trk[c];
     int32_t tg[4], j, la = alt_env_lfo(c, GD_EATK), ld = alt_env_lfo(c, GD_EDEC), ls = alt_env_lfo(c, GD_ESUS),
             ll = alt_env_lfo(c, GD_ELEN);
+    if (ENGINES[eng_idx(t->eng_req)] == &ENG_PHYS && m != AM_DRONE)
+        alt_offset(c, P_E6, 0);                  /* (the drone's bow off again) */
     if (m == AM_FREE) {                          /* the sound's own ADSR, the die on DEC REL, the LFOs on all */
         tg[0] = la;
         tg[1] = die + ld + ll;
@@ -337,7 +348,7 @@ static void alt_env_apply(uint32_t c, uint32_t m, int32_t die)
         tg[2] = 127;
         tg[3] = alt_map(alt_env_k(c, AE_PDEC, ls + ll + die / 2), 24, 100);
     } else if (m == AM_STAB) {                   /* short, LENGTH both decay and release (never long), SUSTAIN */
-        int32_t len = alt_map(alt_env_k(c, AE_SLEN, ld + ll + die / 2), 36, 86);
+        int32_t len = alt_map(alt_env_k(c, AE_SLEN, ld + ll + die / 2), 48, 86);   /* (never too short) */
         tg[0] = alt_map(clamp(la, 0, 127), 2, 24);
         tg[1] = len;
         tg[2] = alt_map(alt_env_k(c, AE_SSUS, ls), 0, 110);
@@ -346,7 +357,11 @@ static void alt_env_apply(uint32_t c, uint32_t m, int32_t die)
         tg[0] = alt_map(alt_env_k(c, AE_DSWELL, la), 68, 112);
         tg[1] = 84;
         tg[2] = alt_map(alt_env_k(c, AE_DBODY, ld), 36, 127);
-        tg[3] = alt_map(alt_env_k(c, AE_DTAIL, ls + ll + die / 2), 84, 120);
+        tg[3] = alt_map(alt_env_k(c, AE_DTAIL, ls + ll + die / 2), 78, 120);
+    }
+    if (ENGINES[eng_idx(t->eng_req)] == &ENG_PHYS) {   /* DRONE: PHYS's MODAL / STRNG bowed, not struck (BOW, E7) */
+        int32_t model = t->p[P_E0] - alt_applied[c][0], bow = t->p[P_E6] - alt_applied[c][6];
+        alt_offset(c, P_E6, m == AM_DRONE && model <= 1 && bow < 60 ? 80 - bow : 0);
     }
     for (j = 0; j < 4; j++) {
         int32_t base = t->p[EP[j]] - alt_applied[c][alt_slot(EP[j])];
@@ -396,10 +411,13 @@ static void alter_step(void)
                 gate = gate > 2u ? 2u : gate;
             else if (m == AM_DRONE)
                 gate = 255u;                     /* DRONE: until the next hit */
-            alt_on(c, v->note, v->vel, v->glide, v->chord);
+            if (m == AM_DRONE && alt_same(c, v->note, v->chord))
+                alt_hits[c]++;                   /* DRONE: the same notes still sound: tied, never struck again */
+            else
+                alt_on(c, v->note, v->vel, v->glide, v->chord);
             alt_gate_left[c] = (uint8_t)(gate > 1u ? gate - 1u : 0u);
         }
-        rep = v->rat;                            /* repeats: the die's burst, or a held RATCHET, the more */
+        rep = alt_emode[c] == AM_DRONE ? 0u : v->rat;   /* repeats: the die's burst (not in a drone), or a RATCHET */
         if (fill) {
             uint32_t f = (h >> AF_RAT3) & 1u ? 2u : (h >> AF_RAT2) & 1u ? 1u : 0u;
             rep = f > rep ? f : rep;
@@ -411,7 +429,7 @@ static void alter_step(void)
         if (rep) {
             alt_rat_left[c] = (uint8_t)rep;
             alt_rat_dt[c] = div_samples(2) / (rep + 1u);
-        } else if (v->flam) {
+        } else if (v->flam && alt_emode[c] != AM_DRONE) {
             alt_rat_left[c] = 1;
             alt_rat_dt[c] = ALT_FLAM_SAMPLES;
         }
