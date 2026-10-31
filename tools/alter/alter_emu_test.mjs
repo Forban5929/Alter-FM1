@@ -181,6 +181,31 @@ tap(22); bar();
         drone > 2 * perc && drone > free);
   check("modes keep the rhythm (FREE again: 8 hits)", same(bar().steps, euclid(16, 8, 0)));
 }
+// the envelope modes' own knobs (ENV page by the circle's mode): PERC HOLD, STAB LENGTH; an LFO on LENGTH
+{
+  const B = (n) => { ex.web_buttons(1 << n); render(2000); ex.web_buttons(0); render(2000); };
+  const energy = (a) => a.reduce((p, x) => p + Math.abs(x), 0);
+  enc(1, 1); B(2);                                              // PERC, its ENV page (ATTACK HOLD DECAY PUNCH)
+  bar(); const h0 = energy(bar().audio);
+  enc(4, 40); bar(); const h1 = energy(bar().audio);            // HOLD up
+  check(`PERC: HOLD up holds the hits longer (energy ${h0.toFixed(0)} -> ${h1.toFixed(0)})`, h1 > 1.5 * h0);
+  enc(4, -40); B(2);
+  enc(1, 1); B(2);                                              // STAB (LENGTH SUSTAIN PLUCK CHORD)
+  bar(); const s0 = energy(bar().audio);
+  enc(3, 30); bar(); const s1 = energy(bar().audio);            // LENGTH up
+  check(`STAB: LENGTH up rings longer (energy ${s0.toFixed(0)} -> ${s1.toFixed(0)})`, s1 > 1.3 * s0);
+  enc(3, -30); B(2);
+  enc(1, -1);                                                   // PERC again: LFO 1 SQR 1 BAR -> LENGTH +63
+  B(3); B(3); enc(3, 3); enc(4, 2); enc(5, 63); enc(6, 10);
+  bar();
+  const lb = bar().audio, e1 = energy(lb.slice(0, 8 * STEP)), e2 = energy(lb.slice(8 * STEP));
+  check(`LFO 1 SQR -> LENGTH (PERC): one half of the bar rings longer (${e1.toFixed(0)} / ${e2.toFixed(0)})`,
+        Math.max(e1, e2) > 1.5 * Math.min(e1, e2));
+  enc(5, -63); enc(6, -10); enc(3, -3); enc(4, -2); B(3);
+  enc(1, -1);                                                   // FREE again
+  bar();
+  check("modes and LFO off: 8 hits as before", same(bar().steps, euclid(16, 8, 0)));
+}
 // LFO tapped twice: the LFO page. Tabs LFO 1 2 3 (the chosen circle's three), GLOBAL (each K1 WAVE K2 RATE K3 DEPTH
 // K4 DEST), MTX (the chosen circle's matrix: SELECT the slot, K1 SRC K2 DEST K3 AMT); ALGORITHM the tab
 {

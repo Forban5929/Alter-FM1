@@ -31,9 +31,7 @@ enum { AF_ROLL16, AF_ROLL32, AF_ROLLT, AF_RAT2, AF_RAT3, AF_DLY, AF_REV, AF_DEST
  * (the sound's own nudges it a quarter of the way, the die's offset a third as far) and the notes' length */
 enum { AM_FREE, AM_PERC, AM_STAB, AM_DRONE, AM_N };
 static const char *const ALT_MODE_NAME[AM_N] = {"FREE", "PERC", "STAB", "DRONE"};
-static const uint8_t ALT_MODE_ENV[AM_N][4] = {   /* ATK DEC SUS REL */
-    {0, 0, 0, 0}, {0, 42, 0, 34}, {0, 62, 56, 46}, {78, 110, 127, 104},
-};
+_Static_assert(AM_PERC == 1 && AM_STAB == 2 && AM_DRONE == 3, "alter_lfo.c alt_env_mod reads the modes as 1 2 3");
 #define ALT_FLAM_SAMPLES 1100u                   /* ~25 ms */
 
 static as_seq_t alt_seq;
@@ -42,6 +40,7 @@ static uint8_t alt_run, alt_ready;               /* transport was running; alt_s
 static uint8_t alt_note[AS_NCIRC][3];            /* each part's sounding notes: the hit's and its chord's (0 = none) */
 static uint8_t alt_gate_left[AS_NCIRC];          /* steps the note still rings */
 static int16_t alt_applied[AS_NCIRC][ALT_NSLOT]; /* the die's offsets in each part now (alt_slot) */
+static int32_t alt_hold_smp[AS_NCIRC];           /* PERC: samples the hit is held before its decay (0 = none) */
 
 /* UI -> here */
 static volatile uint16_t alt_hold;               /* the fills held, bit AF_* */
@@ -115,6 +114,19 @@ static void alt_off(uint32_t c)
         }
 }
 
+/* the LFOs' offset now on circle c's envelope setting g (GD_ELEN .. GD_ESUS), in 0..127 units (alter_lfo.c) */
+static int32_t alt_env_lfo(uint32_t c, uint32_t g)
+{
+    uint32_t j;
+    int32_t o = 0;
+    if (alt_gl_has(g))
+        o += (((alt_gl_val * alt_gl.amt[0]) >> 6) * 127) >> 15;
+    for (j = 0; j < CL_N; j++)
+        if (alt_cl_on(c, j) == g)
+            o += (((alt_cl_val[c][j] * alt_cl[c][j].depth) >> 6) * 127) >> 15;
+    return o;
+}
+
 /* part c's note (and its chord's: ch[0], ch[1], 0 = none; a chord softer and never gliding) */
 static void alt_on(uint32_t c, uint32_t note, uint32_t vel, int glide, const uint8_t *ch)
 {
@@ -135,6 +147,12 @@ static void alt_on(uint32_t c, uint32_t note, uint32_t vel, int glide, const uin
     t->p[P_GLIDE] = g;
     t->p[P_VOICE] = vm;
     alt_hits[c]++;
+    if (alt_emode[c] == AM_PERC) {               /* PERC: held HOLD (0 .. 500 ms), then let go (its DECAY), PUNCH */
+        uint32_t h = alt_envp[c][AE_PHOLD] + (uint32_t)clamp(alt_env_lfo(c, GD_EDEC) + alt_env_lfo(c, GD_ELEN), -127, 127);
+        h = h > 127u ? (h > 1000u ? 0u : 127u) : h;
+        alt_hold_smp[c] = (int32_t)(h * h * (FS / 2u) / 16129u) + 1;
+        alt_punch_lvl[c] = 32767;
+    }
 }
 
 /* a parameter of part c moved by d (a knob), its die offset kept on top */
@@ -265,9 +283,18 @@ static void alt_gl_tick(uint32_t n, uint32_t p)
     alt_gl_n += n;
     alt_lfo_p = p;
     alt_gl_val = alt_lfo_at(alt_gl.wave, alt_gl.rate, 9u, alt_gl_n, p, &alt_gl_ph);
-    for (c = 0; c < AS_NCIRC; c++)
+    for (c = 0; c < AS_NCIRC; c++) {
+        uint32_t b = alt_envp[c][AE_DBREATH] % AE_NBREATH;
         for (j = 0; j < CL_N; j++)
             alt_cl_val[c][j] = alt_lfo_at(alt_cl[c][j].wave, alt_cl[c][j].rate, c * 3u + j, alt_gl_n, p, 0);
+        alt_ems[c] = alt_emode[c];
+        alt_punch_lvl[c] -= alt_punch_lvl[c] >> 5;   /* PUNCH: ~23 ms */
+        alt_breath_val[c] = b ? alt_lfo_at(GW_SIN, GL_RATE_DEF + b - 1u, 20u + c, alt_gl_n, p, 0) : 0;
+        if (alt_hold_smp[c] > 0 && (alt_hold_smp[c] -= (int32_t)n) <= 0) {   /* PERC's HOLD over: let it go */
+            alt_hold_smp[c] = 0;
+            alt_off(c);
+        }
+    }
 }
 
 /* each circle's POS (alter_lfo.c): its step sounding and the time into it, over its length */
@@ -278,6 +305,52 @@ static void alt_pos_src(uint32_t p)
         const as_circ_t *cc = &alt_seq.c[c];
         uint32_t len = cc->cfg.len ? cc->cfg.len : 1u, now = (cc->pos + len - 1u) % len;
         alt_msrc[c][0] = (int16_t)(alt_run ? (now * 32768u + f) / len : 0u);
+    }
+}
+
+/* circle c's ADSR for a hit in mode m (die: the die's envelope offset): FREE the sound's own (+ the LFOs on it); the
+ * others from their own settings (alter_lfo.c alt_envp), in 0..127 units before the times they map to (P_ATK ..: ms
+ * = 10000 ^ (v / 127): 0 = 1 ms, 64 = 100 ms, 96 = 1 s, 127 = 10 s) */
+static int32_t alt_env_k(uint32_t c, uint32_t k, int32_t add)   /* a mode setting, the LFOs and the die on it */
+{
+    return clamp((int32_t)alt_envp[c][k] + add, 0, 127);
+}
+static int32_t alt_map(int32_t v, int32_t lo, int32_t hi) { return lo + v * (hi - lo) / 127; }
+static void alt_env_apply(uint32_t c, uint32_t m, int32_t die)
+{
+    static const uint8_t EP[4] = {P_ATK, P_DEC, P_SUS, P_REL};
+    track_t *t = &trk[c];
+    int32_t tg[4], j, la = alt_env_lfo(c, GD_EATK), ld = alt_env_lfo(c, GD_EDEC), ls = alt_env_lfo(c, GD_ESUS),
+            ll = alt_env_lfo(c, GD_ELEN);
+    if (m == AM_FREE) {                          /* the sound's own ADSR, the die on DEC REL, the LFOs on all */
+        tg[0] = la;
+        tg[1] = die + ld + ll;
+        tg[2] = ls;
+        tg[3] = die + ls + ll;
+        for (j = 0; j < 4; j++)
+            alt_offset(c, EP[j], tg[j]);
+        return;
+    }
+    if (m == AM_PERC) {                          /* ATTACK short, held full, DECAY on the release (alt_tick lets go) */
+        tg[0] = alt_map(alt_env_k(c, AE_PATK, la), 0, 40);
+        tg[1] = 0;
+        tg[2] = 127;
+        tg[3] = alt_map(alt_env_k(c, AE_PDEC, ls + ll + die / 2), 24, 100);
+    } else if (m == AM_STAB) {                   /* short, LENGTH both decay and release (never long), SUSTAIN */
+        int32_t len = alt_map(alt_env_k(c, AE_SLEN, ld + ll + die / 2), 36, 86);
+        tg[0] = alt_map(clamp(la, 0, 127), 2, 24);
+        tg[1] = len;
+        tg[2] = alt_map(alt_env_k(c, AE_SSUS, ls), 0, 110);
+        tg[3] = len;
+    } else {                                     /* DRONE: SWELL never short, the decay into BODY, TAIL never short */
+        tg[0] = alt_map(alt_env_k(c, AE_DSWELL, la), 68, 112);
+        tg[1] = 84;
+        tg[2] = alt_map(alt_env_k(c, AE_DBODY, ld), 36, 127);
+        tg[3] = alt_map(alt_env_k(c, AE_DTAIL, ls + ll + die / 2), 84, 120);
+    }
+    for (j = 0; j < 4; j++) {
+        int32_t base = t->p[EP[j]] - alt_applied[c][alt_slot(EP[j])];
+        alt_offset(c, EP[j], tg[j] - base);
     }
 }
 
@@ -316,22 +389,13 @@ static void alter_step(void)
                 alt_offset(c, tp[j], v->timb[j]);
         {
             uint32_t m = alt_emode[c] % AM_N, gate = v->gate;
-            if (m == AM_FREE) {
-                alt_offset(c, P_ATK, 0);
-                alt_offset(c, P_SUS, 0);
-                alt_offset(c, P_DEC, v->env);
-                alt_offset(c, P_REL, v->env);
-            } else {                             /* the mode's ADSR, nudged by the sound's own and the die */
-                static const uint8_t EP[4] = {P_ATK, P_DEC, P_SUS, P_REL};
-                for (j = 0; j < 4u; j++) {
-                    int32_t base = t->p[EP[j]] - alt_applied[c][alt_slot(EP[j])], tg = ALT_MODE_ENV[m][j];
-                    tg += (base - tg) / 4;
-                    if (j == 1u || j == 3u)
-                        tg += v->env / 3;
-                    alt_offset(c, EP[j], tg - base);
-                }
-                gate = m == AM_PERC ? 1u : m == AM_STAB ? (gate > 2u ? 2u : gate) : 255u;   /* DRONE: until the next hit */
-            }
+            alt_env_apply(c, m, v->env);
+            if (m == AM_PERC)
+                gate = 255u;                     /* (its HOLD lets it go, alt_tick) */
+            else if (m == AM_STAB)
+                gate = gate > 2u ? 2u : gate;
+            else if (m == AM_DRONE)
+                gate = 255u;                     /* DRONE: until the next hit */
             alt_on(c, v->note, v->vel, v->glide, v->chord);
             alt_gate_left[c] = (uint8_t)(gate > 1u ? gate - 1u : 0u);
         }

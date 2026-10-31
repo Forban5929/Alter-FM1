@@ -78,8 +78,8 @@ typedef struct {                 /* a part's, while mix_part renders it (one per
     uint8_t nv, nk;              /* voice terms, per-block parameters held */
     int32_t pit, cut, shp, gain; /* per voice, from the per-track sources (gain Q15) */
     int32_t ldep;                /* DEPTH: the track LFO's gain (Q15; 32767 = none, track_render leaves it alone) */
-    uint8_t vsrc[NMSLOT], vdst[NMSLOT];
-    int8_t vamt[NMSLOT];
+    uint8_t vsrc[NMSLOT + 1], vdst[NMSLOT + 1];   /* (+1: ALTER's STAB PLUCK, alter_lfo.c) */
+    int8_t vamt[NMSLOT + 1];
     uint8_t kid[MOD_NKEEP];      /* per-block: the parameter, its stored value */
     int16_t keep[MOD_NKEEP];
 } modw_t;
@@ -198,7 +198,7 @@ static void mod_keep(const track_t *t, modw_t *mw, int32_t *off, uint32_t id, in
 static __attribute__((noinline)) void mod_global(const track_t *t, modw_t *mw, int32_t *off, uint32_t take)
 {
     static const uint8_t LD[4][2] = {{MD_PITCH, P_LD_PIT}, {MD_CUT, P_LD_FLT}, {MD_SHP, P_LD_SHP}, {MD_AMP, P_LD_AMP}};
-    uint32_t k, d, s;
+    uint32_t k, d, s, c;
     int32_t a, x;
     for (k = 0; k <= CL_N; k++) {
         if (!(d = alt_lfo_k(t, k, &a, &x, &s)))
@@ -214,6 +214,19 @@ static __attribute__((noinline)) void mod_global(const track_t *t, modw_t *mw, i
     for (k = 0; k < 4u; k++)
         if (((take >> LD[k][0]) & 1u) && t->p[LD[k][1]])
             mod_keep(t, mw, off, LD[k][1], -t->p[LD[k][1]]);
+    if (alt_env_mod(c = (uint32_t)(t - trk))) {      /* the envelope mode's own: PUNCH, PLUCK, BREATH */
+        const volatile uint8_t *e = alt_envp[c];
+        if (alt_ems[c] == 1)                            /* PUNCH: up to 2 octaves above, diving */
+            mw->pit += (int32_t)(((int64_t)alt_punch_lvl[c] * (e[AE_PPUNCH] * 384 / 127)) >> 15);
+        else if (alt_ems[c] == 2) {                     /* PLUCK: the envelope opens the timbre (per voice) */
+            mw->vsrc[mw->nv] = MS_ENV;
+            mw->vdst[mw->nv] = MD_CUT;
+            mw->vamt[mw->nv++] = (int8_t)(e[AE_SPLUCK] / 2);
+        } else {                                        /* BREATH: the level down to half and back */
+            mw->amp = 1;
+            mod_voice_add(MS_LFO, MD_AMP, alt_breath_val[c], 32, &mw->pit, &mw->cut, &mw->shp, &mw->gain);
+        }
+    }
 }
 
 /* before a part's block (fx.c mix_part): the per-track offsets, the per-block destinations into t->p.
@@ -223,7 +236,7 @@ static __attribute__((noinline)) int mod_begin(track_t *t)
     const int16_t *p = t->p;
     int32_t lfo, off[MOD_NKEEP];
     uint32_t k, j, ci = (uint32_t)(t - trk), take = ci < 3u ? alt_gl_take() : 0u;   /* (ALTER: what the GLOBAL leads) */
-    int alt = ci < 3u && (take || alt_cl_any(ci));     /* (ALTER: its LFOs act) */
+    int alt = ci < 3u && (take || alt_cl_any(ci) || alt_env_mod(ci));   /* (ALTER: its LFOs, its mode act) */
     modw_t *mw = &MOD(t);
     mw->on = 0;
     for (k = 0; k < NMSLOT; k++)                        /* (VEL and TIME: at the notes, not here) */

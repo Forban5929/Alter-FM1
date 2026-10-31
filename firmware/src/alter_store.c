@@ -6,7 +6,8 @@
  * three LFOs (WAVE RATE DEPTH DEST) and its four matrix slots; and the scale, tempo, swing and the GLOBAL LFO (alter_lfo.c). A PATTERN is the rhythm only (per circle LEN HITS ROT PROB FROT, force and chance per step):
  * loading one leaves the sounds, notes and everything else as they are.
  * The USER slots live in RAM (alt_bank_s, alt_bank_p) and on the flash, in Felucca's project objects 3 and 4
- * (storage.c OBJ_PROJECT0 + 2 / + 3; an own magic tells ours from a Felucca project saved there). Packed small: a
+ * (storage.c OBJ_PROJECT0 + 2 / + 3; an own magic tells ours from a Felucca project saved there). A USER scene's
+ * envelope modes' settings (alter_lfo.c AE_*) are kept with the patterns, in object 4 (alt_bank_p.env). Packed small: a
  * step's force in 2 bits, its chance in 4 (16 levels). */
 
 #define ALT_NUSER 16
@@ -52,7 +53,12 @@ typedef struct {
 } alt_pat_rec_t;
 
 static struct { uint32_t magic; alt_scene_rec_t s[ALT_NUSER]; } alt_bank_s;
-static struct { uint32_t magic; alt_pat_rec_t p[ALT_NUSER]; } alt_bank_p;
+static struct {
+    uint32_t magic;
+    alt_pat_rec_t p[ALT_NUSER];
+    uint8_t envok[ALT_NUSER];                    /* (the USER scenes' envelope modes' settings live here, object 4: the */
+    uint8_t env[ALT_NUSER][AS_NCIRC][AE_N];      /* scenes' own object is full; 0: a scene stored before them) */
+} alt_bank_p;
 _Static_assert(sizeof alt_bank_s <= 3840u && sizeof alt_bank_p <= 3840u, "ALTER's banks fit a storage object");
 
 /* the factory patterns: per circle LEN HITS ROT PROB */
@@ -229,6 +235,7 @@ static void alt_load_scene(uint32_t n)
         cf->mute = 0;
         cf->dose = AS_DOSE_DEF;
         alt_seq.c[c].locks = 0;
+        alt_env_default(c);
         alt_rhy_plain(&r, sc->c[c].len, sc->c[c].hits, sc->c[c].rot, sc->c[c].prob);
         alt_rhy_put(c, &r);
     }
@@ -253,6 +260,7 @@ static void alt_new_scene(void)
         au.cfg[c].mute = 0;
         au.cfg[c].dose = AS_DOSE_DEF;
         alt_seq.c[c].locks = 0;
+        alt_env_default(c);
         alt_rhy_plain(&r, 16, 0, 0, 127);
         alt_rhy_put(c, &r);
     }
@@ -313,9 +321,13 @@ static int alt_row_load(uint32_t t, uint32_t i)
             alt_new_scene();
         else if (i <= ALT_NFACT)
             alt_load_scene(i - 1u);
-        else if (alt_bank_s.s[i - 1u - ALT_NFACT].used)
-            alt_scene_put(&alt_bank_s.s[i - 1u - ALT_NFACT]);
-        else
+        else if (alt_bank_s.s[i - 1u - ALT_NFACT].used) {
+            uint32_t u = i - 1u - ALT_NFACT, k;
+            alt_scene_put(&alt_bank_s.s[u]);
+            for (c = 0; c < AS_NCIRC; c++)       /* its envelope modes' settings (or the defaults: stored before them) */
+                for (k = 0; k < AE_N; k++)
+                    alt_envp[c][k] = alt_bank_p.envok[u] ? alt_bank_p.env[u][c][k] : AE_DEF[k];
+        } else
             return 0;
         return 1;
     }
@@ -343,8 +355,14 @@ static int alt_row_save(uint32_t t, uint32_t i)
         return 0;
     u = i - 1u - ALT_NFACT;
     if (t == 0) {
+        uint32_t k;
         alt_scene_get(&alt_bank_s.s[u]);
-        return st_save(ALT_OBJ_SCENES, &alt_bank_s, sizeof alt_bank_s) == 0 ? 1 : -1;
+        alt_bank_p.envok[u] = 1;
+        for (c = 0; c < AS_NCIRC; c++)
+            for (k = 0; k < AE_N; k++)
+                alt_bank_p.env[u][c][k] = alt_envp[c][k];
+        return st_save(ALT_OBJ_SCENES, &alt_bank_s, sizeof alt_bank_s) == 0 &&
+               st_save(ALT_OBJ_PATS, &alt_bank_p, sizeof alt_bank_p) == 0 ? 1 : -1;
     }
     alt_bank_p.p[u].used = 1;
     for (c = 0; c < AS_NCIRC; c++)

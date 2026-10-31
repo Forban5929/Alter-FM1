@@ -202,9 +202,23 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         LFO. Scènes : 3 octets par LFO (WAVE|RATE<<3, DEST, DEPTH) + GLOBAL 4 octets ; P_LRATE/LD_* sortis d'ALT_SP
         (banque 3780 o) → **slots USER d'avant effacés**. CHAOS tire le LFO 1 de chaque cercle. voice.c : FADE 0 = sans
         fondu. Écran cercles : une valeur bougée par un LFO = **zone fixe dans la couleur du cercle choisi** (plage min↔max, mod_show ext ±1) +
-        **barre blanche qui pulse doucement** (5 nuances selon la position) — plus de trait qui saute (alt_live / alt_live_bar). Page LFO : la
+        barre blanche fixe — plus de trait qui saute ni de pulsation (alt_live / alt_live_bar). Page LFO : la
         vague dessinée **suit DEPTH** (taille, retournée si négatif) sur sa forme pleine en pointillé gris. Tests : LFO 1 SQR→PROB, SAW→LEVEL, le GLOBAL
         prend le dessus, RAMP+→LEVEL, LFO 2 SQR -64→PROB (autre moitié), MTX POS→AMP. Idée pas faite : DÉ qui tire les LFO.
+  - [x] **3f ENVELOPPES PAR MODE (31/10, codé, testé, publié ; ATTEND L'ÉCOUTE)**. Choix de Romain : page ENV = 4 knobs
+        selon le mode du cercle (ALGORITHM) : FREE = ATK DEC SUS REL (ADSR du son) · **PERC = ATTACK (courte) HOLD DECAY
+        PUNCH** (AD + hold façon Rytm : SUS 127, alt_hold_smp lâche la note après HOLD 0..500 ms, DECAY = release ;
+        PUNCH = la hauteur plonge, jusqu'à 2 oct., ~23 ms) · **STAB = LENGTH (decay = release, plafonné) SUSTAIN PLUCK
+        (l'enveloppe ouvre le FILTER, terme par voix MS_ENV→MD_CUT) CHORD** (gate ≤ 2 pas) · **DRONE = SWELL (jamais
+        court) BODY (sustain, decay fixe dedans) TAIL (jamais court) BREATH** (OFF 1 2 4 8 BAR : volume ↓ moitié, sinus
+        calé). Réglages 0..127 → temps Felucca (ms = 10000^(v/127)) via alt_map dans alt_env_apply (alter_play.c), à
+        chaque coup. Données : alter_lfo.c AE_* / alt_envp[3][11] / AE_DEF, alt_ems (miroir des modes), alt_punch_lvl,
+        alt_breath_val ; mod.c mod_global les applique (alt_env_mod). **Nouvelles DEST LFO : LENGTH ATTACK DECAY SUS/REL**
+        (GD_ELEN.. ; lues à chaque coup, alt_env_lfo ; sens selon le mode, alt_env_gd). **Petite vague de couleur à côté
+        du nom** d'un knob qu'un LFO bouge sans barre visible (PROB, réglages d'enveloppe : alt_knob_lfo) ; la barre ne
+        pulse plus (zone de plage seule). Scènes USER : réglages d'enveloppe gardés dans l'objet 4 (alt_bank_p.envok/env :
+        la banque de scènes est pleine) → **patterns USER d'avant effacés** ; scènes d'usine / NEW = AE_DEF.
+        Tests : PERC HOLD, STAB LENGTH, LFO SQR → LENGTH en PERC.
   - [ ] 3c : vue DEEP (EDIT ouvre encore la page EDIT de Felucca). Puis retirer l'interface Felucca. Reste : SCL → gamme
         des cercles, touches blanches libres, DESTROY assignable, verrous du dé, DOSE.
 - [ ] Étape 4 (après le séquenceur) : tranche de console dédiée, ordre FIXE validé :

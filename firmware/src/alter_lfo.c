@@ -17,12 +17,13 @@
  *   FORCE: the force of circle i's last hit, 0 ghost, 0.5 normal, 1 accent (held until the next hit). */
 
 enum { GW_SIN, GW_TRI, GW_SAW, GW_SQR, GW_SH, GW_SLEW, GW_RUP, GW_RDN, GW_N };
-enum { GD_OFF, GD_PITCH, GD_SHAPE, GD_FILT, GD_LEVEL, GD_DIST, GD_DLY, GD_REV, GD_PAN, GD_PROB, GD_N };
+enum { GD_OFF, GD_PITCH, GD_SHAPE, GD_FILT, GD_LEVEL, GD_DIST, GD_DLY, GD_REV, GD_PAN, GD_PROB, GD_ELEN, GD_EATK,
+       GD_EDEC, GD_ESUS, GD_N };   /* (GD_E*: the envelope, by the circle's mode: at each hit, alter_play.c) */
 #define GL_NSLOT 4
 #define CL_N 3                                   /* LFOs a circle */
 static const char *const GL_WAVE_NAME[GW_N] = {"SIN", "TRI", "SAW", "SQR", "S&H", "SLEW", "RAMP+", "RAMP-"};
 static const char *const GL_DST_NAME[GD_N] = {"OFF", "PITCH", "SHAPE", "FILTER", "LEVEL", "DIST", "DELAY", "REVERB",
-                                              "PAN", "PROB"};
+                                              "PAN", "PROB", "LENGTH", "ATTACK", "DECAY", "SUS/REL"};
 /* the RATEs, fast to slow: a cycle in sixths of a sixteenth */
 #define GL_NRATE 11
 #define GL_RATE_DEF 7                            /* 1 bar */
@@ -32,7 +33,8 @@ static const char *const GL_RATE_NAME[GL_NRATE] = {"1/32", "1/16T", "1/16", "1/8
                                                    "2 BAR", "4 BAR", "8 BAR"};
 static const uint16_t GL_RATE_6TH[GL_NRATE] = {3, 4, 6, 8, 12, 24, 48, 96, 192, 384, 768};
 /* a destination's matrix destination (GD_PROB: none, alter_play.c) */
-static const uint8_t GL_MD[GD_N] = {MD_OFF, MD_PITCH, MD_SHP, MD_CUT, MD_AMP, MD_DIST, MD_DLY, MD_REV, MD_PAN, MD_OFF};
+static const uint8_t GL_MD[GD_N] = {MD_OFF, MD_PITCH, MD_SHP, MD_CUT, MD_AMP, MD_DIST, MD_DLY, MD_REV, MD_PAN, MD_OFF, MD_OFF,
+                                    MD_OFF, MD_OFF, MD_OFF};
 
 typedef struct {
     uint8_t wave, rate;                          /* GW_*, 0 .. GL_NRATE - 1 */
@@ -198,4 +200,36 @@ static uint32_t alt_lfo_k(const track_t *t, uint32_t k, int32_t *a, int32_t *x, 
     }
     *s = alt_wave_uni(w) ? MS_ENV : MS_LFO;
     return g < GD_N ? GL_MD[g] : 0u;
+}
+
+
+/* ---- the envelope modes' own settings (alter_play.c AM_*: FREE PERC STAB DRONE), per circle, 0..127 each --------
+ * PERC  ATTACK (short) HOLD DECAY PUNCH: an AD with a hold, after the Analog Rytm; PUNCH dives the pitch at each hit
+ * STAB  LENGTH (decay and release together, never long) SUSTAIN PLUCK (the timbre opens at the hit) + the CHORD
+ * DRONE SWELL (never short) BODY (the sustain the decay falls into) TAIL (never short) BREATH (the level breathes:
+ *       OFF 1 2 4 8 BAR) */
+enum { AE_PATK, AE_PHOLD, AE_PDEC, AE_PPUNCH, AE_SLEN, AE_SSUS, AE_SPLUCK, AE_DSWELL, AE_DBODY, AE_DTAIL, AE_DBREATH,
+       AE_N };
+#define AE_NBREATH 5
+static const uint8_t AE_DEF[AE_N] = {10, 20, 60, 0, 50, 25, 30, 70, 90, 80, 0};
+static const char *const AE_BREATH_NAME[AE_NBREATH] = {"OFF", "1 BAR", "2 BAR", "4 BAR", "8 BAR"};
+static volatile uint8_t alt_envp[3][AE_N];       /* UI: each circle's */
+static volatile uint8_t alt_ems[3];              /* here: each circle's mode (alter_play.c mirrors alt_emode) */
+static int32_t alt_punch_lvl[3];                 /* here: PUNCH's dive now, Q15 (1 at a hit, falling) */
+static int32_t alt_breath_val[3];                /* here: BREATH's LFO now, Q15 */
+
+static void alt_env_default(uint32_t c)
+{
+    uint32_t k;
+    for (k = 0; k < AE_N; k++)
+        alt_envp[c % 3u][k] = AE_DEF[k];
+}
+
+/* the mode adds to part t's block (mod.c mod_global): 1 when PUNCH, PLUCK or BREATH is on */
+static int alt_env_mod(uint32_t c)
+{
+    if (c >= 3u)
+        return 0;
+    return (alt_ems[c] == 1 && alt_envp[c][AE_PPUNCH] && alt_punch_lvl[c] > 64) ||
+           (alt_ems[c] == 2 && alt_envp[c][AE_SPLUCK]) || (alt_ems[c] == 3 && alt_envp[c][AE_DBREATH]);
 }

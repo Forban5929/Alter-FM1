@@ -57,13 +57,13 @@ static const alt_key_t ALT_KEY[27] = {    /* k: semitones above F3 (whites 0 2 4
  * QK_ENG: the engine's own) */
 enum { QP_NONE, QP_SEQ, QP_ENV, QP_FX, QP_LFO, QP_EDIT, QP_SCL, QP_GLO, QP_N };
 enum { QK_SCALE = 200, QK_ROOT, QK_DOSE, QK_BPM, QK_SWING, QK_RHY, QK_ENG, QK_ENGX, QK_CHORD, QK_LWAVE, QK_LRATE,
-       QK_LDEPTH, QK_LDEST };
+       QK_LDEPTH, QK_LDEST, QK_ENV };
 static const uint8_t ALT_QP_BTN[QP_N] = {0, B_SEQ, B_ENV, B_FX, B_LFO, B_EDIT, B_SCL, B_GLO};
 static const char *const ALT_QP_NAME[QP_N] = {"", "RHYTHM", "ENV", "FX", "LFO", "EDIT", "SCALE", "GLOBAL"};
 static const uint8_t ALT_QP_K[QP_N][4] = {
     {QK_ENG, QK_ENG, QK_ENG, QK_ENG},
     {QK_RHY, QK_RHY, QK_RHY, QK_RHY},
-    {P_ATK, P_DEC, P_SUS, P_REL},
+    {QK_ENV, QK_ENV, QK_ENV, QK_ENV},          /* (by the circle's mode: alt_env_*) */
     {P_DIST, P_IA, P_DLY, P_REV},
     {QK_LWAVE, QK_LRATE, QK_LDEPTH, QK_LDEST},
     {QK_ENGX, QK_ENGX, QK_ENGX, QK_ENGX},
@@ -100,6 +100,9 @@ static struct {
 /* quick page q's name (LFO: the chosen circle's LFO 1) */
 static const char *alt_qp_name(uint32_t q)
 {
+    static const char *const ENV[AM_N] = {"ENV FREE", "ENV PERC", "ENV STAB", "ENV DRONE"};
+    if (q == QP_ENV)                             /* (the chosen circle's mode: its own four) */
+        return ENV[alt_emode[au.sel % AS_NCIRC] % AM_N];
     return q == QP_LFO ? "LFO 1" : ALT_QP_NAME[q % QP_N];   /* (LFO 1 of the chosen circle: drawn in its colour) */
 }
 
@@ -226,6 +229,45 @@ static uint32_t alt_qk(uint32_t q, uint32_t i)
 }
 
 static void alt_lfo_turn(uint32_t tb, uint32_t i, int32_t s);   /* (the LFOs, below) */
+static void alt_qpush(uint32_t c, uint32_t id, int32_t d);
+
+/* ---- the ENV page, by the chosen circle's mode (alter_lfo.c AE_*; FREE: the sound's ADSR) ------------------------ */
+static const char *const ALT_ENV_NAME[AM_N][4] = {
+    {"ATK", "DEC", "SUS", "REL"}, {"ATTACK", "HOLD", "DECAY", "PUNCH"}, {"LENGTH", "SUSTAIN", "PLUCK", "CHORD"},
+    {"SWELL", "BODY", "TAIL", "BREATH"},
+};
+static const int8_t ALT_ENV_K[AM_N][4] = {       /* each knob's setting (AE_*), -1: the sound's own / the chord */
+    {-1, -1, -1, -1}, {AE_PATK, AE_PHOLD, AE_PDEC, AE_PPUNCH}, {AE_SLEN, AE_SSUS, AE_SPLUCK, -1},
+    {AE_DSWELL, AE_DBODY, AE_DTAIL, AE_DBREATH},
+};
+/* the LFO destinations (bit GD_*) that move knob i of the ENV page in mode m */
+static uint32_t alt_env_gd(uint32_t m, uint32_t i)
+{
+    static const uint16_t G[AM_N][4] = {
+        {1u << GD_EATK, 1u << GD_EDEC | 1u << GD_ELEN, 1u << GD_ESUS, 1u << GD_ESUS | 1u << GD_ELEN},
+        {1u << GD_EATK, 1u << GD_EDEC | 1u << GD_ELEN, 1u << GD_ESUS | 1u << GD_ELEN, 0},
+        {1u << GD_EDEC | 1u << GD_ELEN, 1u << GD_ESUS, 0, 0},
+        {1u << GD_EATK, 1u << GD_EDEC, 1u << GD_ESUS | 1u << GD_ELEN, 0},
+    };
+    return G[m % AM_N][i & 3u];
+}
+
+static void alt_env_turn(uint32_t i, int32_t s)
+{
+    uint32_t c = au.sel % AS_NCIRC, m = alt_emode[c] % AM_N;
+    int32_t k = ALT_ENV_K[m][i & 3u];
+    if (m == AM_FREE) {
+        alt_qpush(c, P_ATK + i, s * 2);
+    } else if (k == AE_DBREATH) {
+        alt_envp[c][k] = (uint8_t)clamp((int32_t)alt_envp[c][k] + (s > 0 ? 1 : -1), 0, AE_NBREATH - 1);
+    } else if (k >= 0) {
+        alt_envp[c][k] = (uint8_t)clamp((int32_t)alt_envp[c][k] + s * 2, 0, 127);
+    } else {                                     /* STAB's CHORD */
+        as_cfg_t *cf = &au.cfg[c];
+        cf->chord = (uint8_t)clamp((int32_t)cf->chord + (s > 0 ? 1 : -1), 0, AS_NCHORD - 1);
+        alt_post_circle(c);
+    }
+}
 static void alt_select(uint32_t i);
 
 /* a knob of quick page q turned s detents */
@@ -236,6 +278,9 @@ static void alt_turn(uint32_t q, uint32_t i, int32_t s)
     switch (id) {
     case QK_RHY:
         alt_edit_circle(i, s);
+        return;
+    case QK_ENV:
+        alt_env_turn(i, s);
         return;
     case QK_LWAVE: case QK_LRATE: case QK_LDEPTH: case QK_LDEST:
         alt_lfo_turn(0, id - QK_LWAVE, s);    /* (the chosen circle's LFO 1) */
@@ -765,6 +810,7 @@ static void alt_num(char *d, int32_t q, int pct)
 
 /* knob i of quick page q as shown: its name, and its value as text (txt[0] set) or as a bar (*fill of 50 px);
  * the return: a number the picture depends on */
+static uint32_t c_chord_of(uint32_t c) { return au.cfg[c % AS_NCIRC].chord % AS_NCHORD; }
 static int32_t alt_kv(uint32_t q, uint32_t i, const char **name, char *txt, int32_t *fill)
 {
     static const char *const RHY[4] = {"LEN", "HITS", "ROT", "PROB"};
@@ -776,6 +822,33 @@ static int32_t alt_kv(uint32_t q, uint32_t i, const char **name, char *txt, int3
     txt[0] = 0;
     *fill = -1;
     switch (id) {
+    case QK_ENV: {
+        uint32_t c = au.sel % AS_NCIRC, m = alt_emode[c] % AM_N;
+        int32_t k = ALT_ENV_K[m][i & 3u];
+        const char *n = 0;
+        *name = ALT_ENV_NAME[m][i & 3u];
+        if (m == AM_FREE) {
+            v = clamp(t->p[P_ATK + i] - alt_applied[c][alt_slot(P_ATK + i)], 0, 127);
+            *fill = v * 50 / 127;
+            return v;
+        }
+        if (k == AE_DBREATH)
+            n = AE_BREATH_NAME[(v = alt_envp[c][k] % AE_NBREATH)];
+        else if (k < 0)
+            n = AS_CHORD_NAME[(v = c_chord_of(c))];
+        if (n) {
+            int32_t j = 0;
+            while (n[j] && j < 7) {
+                txt[j] = n[j];
+                j++;
+            }
+            txt[j] = 0;
+            return v + 300;
+        }
+        v = alt_envp[c][k];
+        *fill = v * 50 / 127;
+        return v;
+    }
     case QK_RHY:
         *name = RHY[i];
         v = i == 0u ? c->len : i == 1u ? c->hits : i == 2u ? c->rot : c->prob * 100 / 127;
@@ -880,17 +953,45 @@ static int32_t alt_live(uint32_t q, uint32_t i, int32_t fill, int ext)
     return (v - d->min) * 50 / span;
 }
 
-/* the moved knob's bar: lo .. hi the range its LFOs reach (a zone in the chosen circle's colour, fixed), its fill
- * brighter as far as the value now sits up that range (a slow, soft pulse) */
-static void alt_live_bar(uint32_t q, uint32_t i, int32_t fill, int32_t *lo, int32_t *hi, int32_t *pct)
+/* the moved knob's bar: lo .. hi the range its LFOs reach (a zone in the chosen circle's colour, fixed); *on 1 when
+ * something moves it (else lo, hi -1) */
+static void alt_live_bar(uint32_t q, uint32_t i, int32_t fill, int32_t *lo, int32_t *hi, int32_t *on)
 {
-    int32_t a = alt_live(q, i, fill, 1), b = alt_live(q, i, fill, -1), now = alt_live(q, i, fill, 0);
-    *lo = *hi = *pct = -1;
-    if (now < 0)
+    int32_t a = alt_live(q, i, fill, 1), b = alt_live(q, i, fill, -1);
+    *lo = *hi = *on = -1;
+    if (a < 0 || b < 0)
         return;
     *lo = a < b ? a : b;
     *hi = a < b ? b : a;
-    *pct = *hi > *lo ? (now - *lo) * 4 / (*hi - *lo) * 25 : 50;   /* (five shades: few redraws) */
+    *on = 1;
+}
+
+/* an LFO (the chosen circle's three, the GLOBAL) moves knob i of quick page q in a way its bar cannot show (PROB, the
+ * envelope's settings, read at each hit): its colour's small wave goes by its name */
+static int alt_knob_lfo(uint32_t q, uint32_t i)
+{
+    uint32_t id = alt_qk(q, i), m = 0, g, j, c = au.sel % AS_NCIRC;
+    if (id == QK_RHY && i == 3u)
+        m = 1u << GD_PROB;
+    else if (id == QK_ENV)
+        m = alt_env_gd(alt_emode[c], i);
+    for (g = 1; m && g < GD_N; g++)
+        if ((m >> g) & 1u) {
+            if (alt_gl_has(g))
+                return 1;
+            for (j = 0; j < CL_N; j++)
+                if (alt_cl_on(c, j) == g)
+                    return 1;
+        }
+    return 0;
+}
+
+/* the small wave: 10 x 5 px at x, y */
+static void alt_mini_wave(int32_t x, int32_t y, uint16_t col)
+{
+    int32_t k;
+    for (k = 0; k < 10; k++)
+        cv_rect(x + k, y + 2 - ((sine_i((uint32_t)k * 0x1999999Au) * 2) >> 15), 1, 2, col);
 }
 
 static void alt_locks_scene(void)
@@ -1248,11 +1349,13 @@ static void alt_scene(uint32_t q, uint32_t flash)
         if (fill >= 0)
             alt_live_bar(q, i, fill, &lo, &hi, &pct);
         cv_text(x, 209, &AF_S, name, ALT_DIM);
+        if (pct < 0 && alt_knob_lfo(q, i))       /* an LFO on it the bar cannot show: a small wave by its name */
+            alt_mini_wave(x + text_w(&AF_S, name) + 4, 213, ALT_COL[au.sel]);
         if (fill >= 0) {
             cv_rect(x, 227, 50, 5, ALT_DARK);
-            if (pct >= 0) {                      /* an LFO moves it: the range it reaches, the fill's soft tint */
-                cv_rect(x + lo, 226, (hi > lo ? hi - lo : 1) + 1, 7, ALT_COL[au.sel]);   /* (its colour, full) */
-                cv_rect(x, 228, fill, 3, ux_mix(ALT_DIM, ALT_INK, 40 + pct * 60 / 100));
+            if (pct >= 0) {                      /* an LFO moves it: the range it reaches, in the circle's colour */
+                cv_rect(x + lo, 226, (hi > lo ? hi - lo : 1) + 1, 7, ALT_COL[au.sel]);
+                cv_rect(x, 228, fill, 3, ALT_INK);
             } else
                 cv_rect(x, 227, fill, 5, ALT_INK);
         } else
@@ -1283,8 +1386,9 @@ static void alter_draw(void)
         if (f >= 0 && !au.mat_open && !au.scene_open && !au.lockc) {
             int32_t lo, hi, pc;
             alt_live_bar(q, i, f, &lo, &hi, &pc);
-            sig = sig * 31u + (uint32_t)(lo * 977 + hi * 31 + pc + 7);   /* (the range, the tint's shade) */
+            sig = sig * 31u + (uint32_t)(lo * 977 + hi * 31 + 7);   /* (the range) */
         }
+        sig = sig * 31u + (uint32_t)alt_knob_lfo(q, i);
     }
     sig = sig * 31u + alt_emode[au.sel] * 37u + alt_seq.scale * 41u + au.scene_open * 43u + au.row[au.tab] * 47u + au.tab * 59u +
           au.pre[au.sel] * 53u;
