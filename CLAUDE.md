@@ -199,6 +199,11 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         FORCE au coup, alt_seq.pmod (PROB) ; alter_ui.c : alt_matrix_input / alt_matrix_scene, alt_qpush.
         Tests (alter_emu_test) : MATRICE s'ouvre, GLOBAL SQR → PROB, RAMP+ → LEVEL, POS → AMP, le GLOBAL prend le dessus.
         Idées pas faites : DÉ/CHAOS qui tirent le LFO, source GLOBAL dans les matrices des cercles.
+        Retour 31/10 appliqué : page rapide LFO nommée « LFO n » (= LFO du CERCLE CHOISI) ; MATRICE : noms de sources
+        plus clairs (ALT_SRC_NAME) + une ligne qui explique la source de la case choisie (ALT_SRC_ABOUT), toutes gardées ;
+        **barre qui ondule** en bas de l'écran cercles : trait couleur du cercle = valeur en direct quand un LFO / la
+        matrice / le GLOBAL la bouge (mod.c mod_show → alter_ui.c alt_live ; FILTRE = E3 des 3 moteurs, FORME = E1
+        ALTER / E2 NOISE, AMP sur LEVEL).
   - [ ] 3c : vue DEEP (EDIT ouvre encore la page EDIT de Felucca). Puis retirer l'interface Felucca. Reste : SCL → gamme
         des cercles, touches blanches libres, DESTROY assignable, verrous du dé, DOSE.
 - [ ] Étape 4 (après le séquenceur) : tranche de console dédiée, ordre FIXE validé :

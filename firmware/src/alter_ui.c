@@ -96,6 +96,16 @@ static struct {
     uint32_t sig, hits_seen[AS_NCIRC], flash_ms[AS_NCIRC], handed_ms;   /* handed_ms: when every Felucca button was up */
 } au;
 
+/* quick page q's name: LFO says whose ("LFO 1": the chosen circle's own) */
+static const char *alt_qp_name(uint32_t q)
+{
+    static char lb[6] = "LFO 1";
+    if (q != QP_LFO)
+        return ALT_QP_NAME[q % QP_N];
+    lb[4] = (char)('1' + au.sel % AS_NCIRC);
+    return lb;
+}
+
 /* the buttons the view keeps: the page buttons, HOME, PLAY, OCT- OCT+ */
 static uint32_t alt_ours(void)
 {
@@ -514,7 +524,7 @@ static int alter_ui_input(uint32_t pressed)
         if (dn && !was) {
             au.qp_t0[q] = fm1_ms;
             au.lockc = 0;
-            alt_say(ALT_QP_NAME[q]);
+            alt_say(alt_qp_name(q));
         } else if (!dn && was) {
             if ((int32_t)(fm1_ms - au.qp_t0[q]) < (int32_t)ALT_PAGE_HOLD_MS && q == QP_LFO && au.qp == QP_LFO) {
                 au.qp = QP_NONE;                 /* LFO tapped on its page: the MATRIX */
@@ -778,6 +788,31 @@ static int32_t alt_kv(uint32_t q, uint32_t i, const char **name, char *txt, int3
     }
 }
 
+/* knob i of quick page q (its bar at fill of 50 px): where the LFOs and the matrix have it now, on the same scale,
+ * or -1 when nothing moves it (mod.c mod_show) */
+static int32_t alt_live(uint32_t q, uint32_t i, int32_t fill)
+{
+    const track_t *t = &trk[au.sel];
+    uint32_t id = alt_qk(q, i);
+    const param_desc_t *d;
+    int32_t g, off, span, v;
+    int on;
+    if (id >= P_COUNT)
+        return -1;
+    off = mod_show(t, id, &g, &on);
+    if (!on)
+        return -1;
+    d = track_desc(t, id);
+    span = d->max - d->min;
+    if (span <= 0)
+        return -1;
+    v = d->min + fill * span / 50;
+    v = clamp(v + off, d->min, d->max);
+    if (g < 32767)
+        v = d->min + (int32_t)(((int64_t)(v - d->min) * g) >> 15);
+    return (v - d->min) * 50 / span;
+}
+
 static void alt_locks_scene(void)
 {
     uint32_t c = au.lockc - 1u, i, lk = alt_seq.c[c].locks;
@@ -823,6 +858,26 @@ static void alt_scenes_scene(void)
     }
 }
 
+/* the MATRIX page's own words for the sources (mod.c MS_*) and what each one is */
+static const char *const ALT_SRC_NAME[MS_N] = {"OFF", "LFO", "ENV", "VELO", "NOTE", "RANDOM", "MODWHL", "AFTTCH",
+                                               "EXPR", "LFO S&H", "LFO SLW", "POS", "FORCE"};
+static const char *const ALT_SRC_ABOUT[MS_N] = {
+    "NO SOURCE: THIS SLOT RESTS",
+    "THIS CIRCLE'S LFO (THE ROW ABOVE)",
+    "THE NOTE'S ENVELOPE, UP THEN DOWN",
+    "HOW HARD THE HIT IS (FORCE, DIE)",
+    "THE NOTE: HIGHER NOTES, MORE",
+    "A NEW RANDOM VALUE AT EACH HIT",
+    "MIDI MOD WHEEL (CC 1)",
+    "MIDI AFTERTOUCH",
+    "MIDI EXPRESSION (CC 11)",
+    "RANDOM STEPS, ONE PER LFO CYCLE",
+    "RANDOM GLIDES, ONE PER LFO CYCLE",
+    "A RAMP ACROSS THE CIRCLE'S CYCLE",
+    "GHOST LOW, NORMAL HALF, ACCENT FULL",
+};
+_Static_assert(NELEM(ALT_SRC_NAME) == MS_N && NELEM(ALT_SRC_ABOUT) == MS_N, "a name and a line per source");
+
 /* the name of value v of knob i (0..2) on row r of tab tb (the GLOBAL's or the circle's); amount: *num set */
 static const char *alt_mat_name(uint32_t tb, uint32_t r, uint32_t i, int32_t v, char *buf)
 {
@@ -837,7 +892,7 @@ static const char *alt_mat_name(uint32_t tb, uint32_t r, uint32_t i, int32_t v, 
         if (r == 0 && i == 2)
             return N_LSYNC[clamp(v, 0, (int32_t)NELEM(N_LSYNC) - 1)];
         if (r && i == 0)
-            return N_MSRC[clamp(v, 0, MS_N - 1)];
+            return ALT_SRC_NAME[clamp(v, 0, MS_N - 1)];
         if (r && i == 1)
             return mod_dst_name(&trk[tb], v);
     }
@@ -926,7 +981,11 @@ static void alt_matrix_scene(void)
             alt_num(b0, v2, 0);
             cv_text_r(234, y + 7, &AF_S, b0, vc, on ? ALT_DARK : cv_bg);
             if (led)                             /* the GLOBAL leads there */
-                cv_text_on(24, y + 20, &AF_S, "GLOBAL LEADS", ALT_GREY, rb);
+                cv_text_on(24, y + 20, &AF_S, "GLOBAL LEADS: THIS SLOT RESTS", ALT_GREY, rb);
+            else if (on && tb < AS_NCIRC)        /* the chosen slot: what its source is */
+                cv_text_on(24, y + 20, &AF_S, ALT_SRC_ABOUT[clamp(v0, 0, MS_N - 1)], ALT_GREY, rb);
+            else if (on)
+                cv_text_on(24, y + 20, &AF_S, "MOVES THE THREE CIRCLES TOGETHER", ALT_GREY, rb);
         }
     }
     cv_text(8, 216, &AF_S, row ? (tb == AS_NCIRC ? "K2 DEST  K3 AMOUNT" : "K1 SRC  K2 DEST  K3 AMOUNT")
@@ -1030,16 +1089,23 @@ static void alt_scene(uint32_t q, uint32_t flash)
         alt_disc(ALT_CX, ALT_CY, (flash >> au.sel) & 1u ? 9 : 3, (flash >> au.sel) & 1u ? ALT_COL[au.sel] : ALT_GREY);
     /* the foot: the page's name, its four knobs */
     if (q)
-        cv_text(8, 194, &AF_S, ALT_QP_NAME[q], ALT_COL[au.sel]);
+        cv_text(8, 194, &AF_S, alt_qp_name(q), ALT_COL[au.sel]);
     for (i = 0; i < 4u; i++) {
         int32_t x = 8 + (int32_t)i * 58, fill;
         const char *name;
         char txt[12];
+        int32_t live;
         alt_kv(q, i, &name, txt, &fill);
+        live = fill >= 0 ? alt_live(q, i, fill) : -1;
         cv_text(x, 209, &AF_S, name, ALT_DIM);
         if (fill >= 0) {
             cv_rect(x, 227, 50, 5, ALT_DARK);
             cv_rect(x, 227, fill, 5, ALT_INK);
+            if (live >= 0) {                     /* an LFO moves it: where it is now, in the circle's colour */
+                int32_t a = live < fill ? live : fill, w = live < fill ? fill - live : live - fill;
+                cv_rect(x + a, 228, w, 3, alt_fade(ALT_COL[au.sel], 60));
+                cv_rect(x + (live > 48 ? 48 : live), 224, 2, 11, ALT_COL[au.sel]);
+            }
         } else
             cv_text(x, 222, &AF_S, txt, ALT_INK);
     }
@@ -1065,6 +1131,8 @@ static void alter_draw(void)
         char tx[12];
         int32_t f;
         sig = sig * 31u + (uint32_t)alt_kv(q, i, &nm, tx, &f);
+        if (f >= 0 && !au.mat_open && !au.scene_open && !au.lockc)
+            sig = sig * 31u + (uint32_t)(alt_live(q, i, f) + 7);   /* (a moving bar redraws) */
     }
     sig = sig * 31u + alt_emode[au.sel] * 37u + alt_seq.scale * 41u + au.scene_open * 43u + au.row[au.tab] * 47u + au.tab * 59u +
           au.pre[au.sel] * 53u;

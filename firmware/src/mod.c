@@ -314,6 +314,73 @@ static __attribute__((noinline)) void mod_voice(track_t *t, voice_t *v, vmod_t *
     }
 }
 
+/* ALTER (alter_ui.c, the main loop): how far the LFOs and the matrix move parameter id of part t right now, in its
+ * own units, as the audio side would this block (the GLOBAL leading where it does); LEVEL: *gain (Q15) of the AMP
+ * routings instead. *on: something moves it. The engines' FILTER is E3 (ALTER HARM, PHYS BRIT, NOISE FREQ), their
+ * SHAPE E1 on ALTER (MRPH), E2 on NOISE (COLR). Only to draw it */
+static int32_t mod_show(const track_t *t, uint32_t id, int32_t *gain, int *on)
+{
+    const int16_t *p = t->p;
+    const engine_t *e = ENGINES[t->engine];
+    uint32_t take = (uint32_t)(t - trk) < 3u ? alt_gl_take() : 0u, k, cutid, shpid;
+    int32_t lfo = mulq15(t->lfo_val, t->lfo_fade), cut = 0, shp = 0, g = 32767, off = 0, dg = mod_depth(t, lfo);
+    int cuton = 0, shpon = 0, ampon = 0;
+    *on = 0;
+    *gain = 32767;
+    if (dg < 32767)
+        lfo = mulq15(lfo, dg);
+    if (p[P_LD_FLT] && !((take >> MD_CUT) & 1u))
+        cut += (lfo * p[P_LD_FLT]) >> 7, cuton = 1;
+    if (p[P_LD_SHP] && !((take >> MD_SHP) & 1u))
+        shp += (lfo * p[P_LD_SHP]) >> 7, shpon = 1;
+    if (p[P_LD_AMP] && !((take >> MD_AMP) & 1u)) {
+        g = mulq15(g, 32767 - mulq15(p[P_LPOL] ? lfo : (lfo + 32768) >> 1, p[P_LD_AMP] * 258));
+        ampon = 1;
+    }
+    for (k = 0; k < NMSLOT + GL_NSLOT; k++) {
+        uint32_t s, d;
+        int32_t a, x;
+        if (k < NMSLOT) {                               /* the part's slots */
+            s = (uint32_t)p[P_M1SRC + 3u * k];
+            d = (uint32_t)p[P_M1DST + 3u * k];
+            a = p[P_M1AMT + 3u * k];
+            if (!s || !d || !a || s >= MS_N || d >= MD_DEPTH)
+                continue;
+            if (((take >> d) & 1u) && (s == MS_LFO || s == MS_SH || s == MS_SLEW))
+                continue;
+            x = mod_tsrc(t, s, lfo);
+            if (s == MS_LFO && p[P_LPOL])
+                s = MS_ENV;
+        } else {                                        /* the GLOBAL's */
+            uint32_t gd = alt_gl.dst[k - NMSLOT];
+            if (!take || gd >= GD_N || !(d = GL_MD[gd]) || !(a = alt_gl.amt[k - NMSLOT]))
+                continue;
+            x = alt_gl_val;
+            s = alt_gl_uni() ? MS_ENV : MS_LFO;
+        }
+        if (d == MD_CUT)
+            cut += (x * a) >> 7, cuton = 1;
+        else if (d == MD_SHP)
+            shp += (x * a) >> 7, shpon = 1;
+        else if (d == MD_AMP)
+            g = mulq15(g, mod_gain(s, x, a)), ampon = 1;
+        else if (d > MD_AMP && mod_param(d) == id) {
+            const param_desc_t *pd = id >= P_E0 ? &e->edit[id - P_E0] : &TP[id];
+            off += (((x * a) >> 6) * (pd->max - pd->min)) >> 15;
+            *on = 1;
+        }
+    }
+    cutid = e == &ENG_ALTER || e == &ENG_PHYS || e == &ENG_NOISE ? P_E2 : 0u;
+    shpid = e == &ENG_ALTER ? P_E0 : e == &ENG_NOISE ? P_E1 : 0u;
+    if (cutid && id == cutid && cuton)
+        off += cut >> 8, *on = 1;
+    if (shpid && id == shpid && shpon)
+        off += shp >> 8, *on = 1;
+    if (id == P_LEVEL && ampon)
+        *gain = g, *on = 1;
+    return off;
+}
+
 /* 1.5.6 (#213): a slot on destination d (VEL, TIME) is active (not inlined: its loop stays off the ISRs' own) */
 static __attribute__((noinline)) int mod_has(const track_t *t, uint32_t d)
 {
