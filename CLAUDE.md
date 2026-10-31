@@ -211,8 +211,11 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         PUNCH = la hauteur plonge, jusqu'à 2 oct., ~23 ms) · **STAB = LENGTH (decay = release, plafonné) SUSTAIN PLUCK
         (l'enveloppe ouvre le FILTER, terme par voix MS_ENV→MD_CUT) CHORD** (gate ≤ 2 pas) · **DRONE = SWELL (jamais
         court) BODY (sustain, decay fixe dedans) TAIL (min ~290 ms) OPEN** (l'enveloppe ouvre le FILTER, comme PLUCK ;
-        BREATH retiré : doublon des LFO). **DRONE lie les notes** : une note (+ accord) qui sonne déjà n'est jamais
-        rejouée (alt_same ; plus de re-pincement PHYS ni de clic ALTER), pas de rafales/flams du dé ; **PHYS MODAL/STRNG
+        BREATH retiré : doublon des LFO). **DRONE en couches** (retour Romain : chaque trigger rejoue) : chaque coup =
+        nouvelle couche (alt_on_drone, alt_no_reuse → voice_alloc ne réutilise pas la voix de la même note), **2 couches
+        max**, la 3e fait relâcher la plus ancienne (son TAIL) ; avec ACCORD (3 voix ALTER/PHYS) = fondu enchaîné
+        (l'ancien relâché, ses voices reprises au besoin) ; eng_alter : une voix qui sonne encore reprise garde phases,
+        pas de sweep ni de burst (sinon clic) ; alt_off relâche aussi les couches ; pas de rafales/flams du dé ; **PHYS MODAL/STRNG
         passe à l'archet** en DRONE (BOW = E7 → 80 si < 60, retiré hors DRONE ; MEMB/SYMP : E7 = BEND/BUZZ, pas
         d'archet). STAB LENGTH : 1er quart retiré (alt_map 48..86). Réglages 0..127 → temps Felucca (ms = 10000^(v/127)) via alt_map dans alt_env_apply (alter_play.c), à
         chaque coup. Données : alter_lfo.c AE_* / alt_envp[3][11] / AE_DEF, alt_ems (miroir des modes), alt_punch_lvl,
@@ -221,7 +224,7 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         du nom** d'un knob qu'un LFO bouge sans barre visible (PROB, réglages d'enveloppe : alt_knob_lfo) ; la barre ne
         pulse plus (zone de plage seule). Scènes USER : réglages d'enveloppe gardés dans l'objet 4 (alt_bank_p.envok/env :
         la banque de scènes est pleine) → **patterns USER d'avant effacés** ; scènes d'usine / NEW = AE_DEF.
-        Tests : PERC HOLD, STAB LENGTH, LFO SQR → LENGTH en PERC, DRONE sans re-frappe (sauts < ×1,5 par 50 ms).
+        Tests : PERC HOLD, STAB LENGTH, LFO SQR → LENGTH en PERC, DRONE en couches sans attaque dure (sauts < ×1,5 par 50 ms).
   - [ ] 3c : vue DEEP (EDIT ouvre encore la page EDIT de Felucca). Puis retirer l'interface Felucca. Reste : SCL → gamme
         des cercles, touches blanches libres, DESTROY assignable, verrous du dé, DOSE.
 - [ ] Étape 4 (après le séquenceur) : tranche de console dédiée, ordre FIXE validé :

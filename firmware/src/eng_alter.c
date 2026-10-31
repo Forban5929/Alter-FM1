@@ -94,6 +94,12 @@ static void alt_note_on(track_t *t, voice_t *v)
     int32_t a = t->p[P_E4], nz = t->p[P_E5];
     if (!S)
         return;
+    if (v->env_out > 512) {                             /* a voice still sounding taken again (a DRONE's layers): */
+        for (k = 0; k < ALT_NOSC; k++)                  /* its phases and decays kept, no sweep, no burst (a click) */
+            S->env[k] = S->env[k] > 32768 ? S->env[k] : 32768;
+        S->glide = 0;
+        return;
+    }
     for (k = 0; k < ALT_NOSC; k++) {
         S->ph[k] = 0;                                   /* all in phase: a hard, repeatable attack */
         S->env[k] = 65536;

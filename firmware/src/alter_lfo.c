@@ -207,8 +207,8 @@ static uint32_t alt_lfo_k(const track_t *t, uint32_t k, int32_t *a, int32_t *x, 
  * PERC  ATTACK (short) HOLD DECAY PUNCH: an AD with a hold, after the Analog Rytm; PUNCH dives the pitch at each hit
  * STAB  LENGTH (decay and release together, never long) SUSTAIN PLUCK (the timbre opens at the hit) + the CHORD
  * DRONE SWELL (never short) BODY (the sustain the decay falls into) TAIL (never too short) OPEN (the timbre opens with
- *       the swell). A note still sounding is never played again (alter_play.c): no restrike, no click; PHYS's MODAL and
- *       STRNG are bowed (BOW) instead of struck */
+ *       the swell). Each hit a new layer (alter_play.c alt_on_drone): two at most, the oldest fades out on its TAIL;
+ *       a chord crossfades (the engines' voices: 3). PHYS's MODAL and STRNG are bowed (BOW) instead of struck */
 enum { AE_PATK, AE_PHOLD, AE_PDEC, AE_PPUNCH, AE_SLEN, AE_SSUS, AE_SPLUCK, AE_DSWELL, AE_DBODY, AE_DTAIL, AE_DOPEN,
        AE_N };
 static const uint8_t AE_DEF[AE_N] = {10, 20, 60, 0, 50, 25, 30, 70, 90, 80, 40};
@@ -231,3 +231,6 @@ static int alt_env_mod(uint32_t c)
     return (alt_ems[c] == 1 && alt_envp[c][AE_PPUNCH] && alt_punch_lvl[c] > 64) ||
            (alt_ems[c] == 2 && alt_envp[c][AE_SPLUCK]) || (alt_ems[c] == 3 && alt_envp[c][AE_DOPEN]);
 }
+
+static volatile uint8_t alt_no_reuse;            /* here: a note-on starts a new voice even if its note sounds (voice.c
+                                                  * voice_alloc: the DRONE's layers) */

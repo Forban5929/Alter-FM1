@@ -207,7 +207,7 @@ tap(22); bar();
   const dr = [...bar().audio, ...bar().audio], fr = [];
   for (let k = 0; k + 2205 <= dr.length; k += 2205) fr.push(peak(dr.slice(k, k + 2205)));
   const jump = Math.max(...fr.slice(1).map((x, i) => x / Math.max(fr[i], 1e-3)));
-  check(`DRONE: no restrike on the circle's hits (largest jump between 50 ms frames x${jump.toFixed(2)})`, jump < 1.5);
+  check(`DRONE: each hit a soft new layer, no hard attack (largest jump between 50 ms frames x${jump.toFixed(2)})`, jump < 1.5);
   enc(1, -3);                                                   // FREE again
   bar();
   check("modes and LFO off: 8 hits as before", same(bar().steps, euclid(16, 8, 0)));

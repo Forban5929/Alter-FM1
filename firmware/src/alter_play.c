@@ -104,6 +104,20 @@ static void alt_offset(uint32_t c, uint32_t p, int32_t o)
     *ap = (int16_t)(v - base);
 }
 
+static uint8_t alt_lay[AS_NCIRC][2];             /* DRONE: the layers sounding (bit i: part voice i), oldest first .. */
+static uint8_t alt_nlay[AS_NCIRC];               /* .. and how many */
+
+/* part c's voices in mask m let go (their release) */
+static void alt_release(uint32_t c, uint32_t m)
+{
+    uint32_t i;
+    for (i = 0; i < NVOICE; i++)
+        if (((m >> i) & 1u) && trk[c].v[i].active && trk[c].v[i].gate) {
+            trk[c].v[i].gate = 0;
+            trk[c].v[i].stage = 3;
+        }
+}
+
 static void alt_off(uint32_t c)
 {
     uint32_t k;
@@ -112,6 +126,9 @@ static void alt_off(uint32_t c)
             trk_note_off(&trk[c], alt_note[c][k]);
             alt_note[c][k] = 0;
         }
+    if (alt_nlay[c])                             /* (a drone's layers, whatever their notes) */
+        alt_release(c, alt_lay[c][0] | alt_lay[c][1]);
+    alt_nlay[c] = 0;
 }
 
 /* the LFOs' offset now on circle c's envelope setting g (GD_ELEN .. GD_ESUS), in 0..127 units (alter_lfo.c) */
@@ -155,15 +172,56 @@ static void alt_on(uint32_t c, uint32_t note, uint32_t vel, int glide, const uin
     }
 }
 
-/* part c sounds exactly these notes now (the hit's, its chord's: as alt_on keeps them) */
-static int alt_same(uint32_t c, uint32_t note, const uint8_t *ch)
+/* DRONE: part c's hit as a new layer over the one before (its SWELL: no restrike of a voice that sounds). Two layers
+ * at most: the oldest lets go (its TAIL) as the third comes; and the one before too when both would not fit the
+ * engine's voices (a chord: they crossfade) */
+static uint32_t alt_popc(uint32_t m)
 {
-    uint8_t want[3] = {(uint8_t)note, 0, 0};
-    uint32_t k, n = 1;
-    for (k = 0; k < 2u; k++)
+    uint32_t n = 0;
+    for (; m; m &= m - 1u)
+        n++;
+    return n;
+}
+static void alt_on_drone(uint32_t c, uint32_t note, uint32_t vel, const uint8_t *ch)
+{
+    track_t *t = &trk[c];
+    uint8_t nn[3] = {(uint8_t)note, 0, 0};
+    uint32_t k, n = 1, i, mask = 0, poly = trk_nvoice(t);
+    int16_t vm = t->p[P_VOICE], g = t->p[P_GLIDE];
+    for (k = 0; ch && k < 2u; k++)
         if (ch[k] && ch[k] != note)
-            want[n++] = ch[k];
-    return alt_note[c][0] && alt_note[c][0] == want[0] && alt_note[c][1] == want[1] && alt_note[c][2] == want[2];
+            nn[n++] = ch[k];
+    for (k = 0; k < 3u; k++)                     /* (the notes before: not let go by note, their layers are) */
+        alt_note[c][k] = 0;
+    if (alt_nlay[c] == 2u) {                     /* a third: the oldest fades out */
+        alt_release(c, alt_lay[c][0]);
+        alt_lay[c][0] = alt_lay[c][1];
+        alt_nlay[c] = 1;
+    }
+    if (alt_nlay[c] == 1u && alt_popc(alt_lay[c][0]) + n > poly) {   /* no room for both: a crossfade */
+        alt_release(c, alt_lay[c][0]);
+        alt_nlay[c] = 0;
+    }
+    t->p[P_VOICE] = V_POLY;
+    t->p[P_GLIDE] = 0;
+    alt_no_reuse = 1;
+    for (k = 0; k < n; k++) {
+        uint32_t best = NVOICE;
+        trk_note_on(t, nn[k], k ? vel * 7u / 8u : vel);
+        for (i = 0; i < poly; i++)               /* the voice it took: the newest held on that note */
+            if (t->v[i].gate && t->v[i].note == nn[k] && (best == NVOICE || t->v[i].age > t->v[best].age))
+                best = i;
+        if (best < NVOICE)
+            mask |= 1u << best;
+        alt_note[c][k] = nn[k];
+    }
+    alt_no_reuse = 0;
+    t->p[P_VOICE] = vm;
+    t->p[P_GLIDE] = g;
+    for (k = 0; k < alt_nlay[c]; k++)            /* (a voice taken back from an older layer is the new one's now) */
+        alt_lay[c][k] &= (uint8_t)~mask;
+    alt_lay[c][alt_nlay[c]++] = (uint8_t)mask;
+    alt_hits[c]++;
 }
 
 /* a parameter of part c moved by d (a knob), its die offset kept on top */
@@ -411,8 +469,8 @@ static void alter_step(void)
                 gate = gate > 2u ? 2u : gate;
             else if (m == AM_DRONE)
                 gate = 255u;                     /* DRONE: until the next hit */
-            if (m == AM_DRONE && alt_same(c, v->note, v->chord))
-                alt_hits[c]++;                   /* DRONE: the same notes still sound: tied, never struck again */
+            if (m == AM_DRONE)
+                alt_on_drone(c, v->note, v->vel, v->chord);   /* DRONE: a new layer, the oldest fading out */
             else
                 alt_on(c, v->note, v->vel, v->glide, v->chord);
             alt_gate_left[c] = (uint8_t)(gate > 1u ? gate - 1u : 0u);

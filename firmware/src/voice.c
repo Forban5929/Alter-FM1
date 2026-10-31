@@ -223,7 +223,7 @@ static voice_t *voice_alloc(track_t *t, uint32_t note)
             return voice_reuse(t, v);
     }
     for (i = 0; i < np; i++) {
-        if (t->v[i].active && t->v[i].note == note)
+        if (t->v[i].active && t->v[i].note == note && !alt_no_reuse)   /* (ALTER's DRONE layers: alter_lfo.c) */
             return voice_reuse(t, &t->v[i]);
         nfree += !t->v[i].active;
     }
