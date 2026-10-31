@@ -461,6 +461,37 @@ static void alt_lane_turn(int32_t s)
     au.step_turned = 1;
 }
 
+/* lane ln's bounds and a knob detent's size */
+static void alt_lane_lim(uint32_t ln, int32_t *lo, int32_t *hi, int32_t *st)
+{
+    *lo = ln == LN_VELO ? 1 : ln == LN_PITCH ? -7 : 0;
+    *hi = ln == LN_PITCH ? 7 : ln == LN_RATCH ? 3 : 127;
+    *st = ln == LN_VELO ? 4 : ln == LN_PITCH || ln == LN_RATCH ? 1 : 8;
+}
+
+/* KNOB 3 (b = 0) / KNOB 4 (b = 1) with steps held: the bottom / top of their RANGE (from their value at first); each
+ * pass then plays a new value between the two (alter_seq.c as_rng). KNOB 1 gives them a single value again */
+static void alt_lane_range(uint32_t b, int32_t s)
+{
+    as_circ_t *sc = &alt_seq.c[au.sel % AS_NCIRC];
+    uint32_t k, ln = au.lane % LN_N;
+    int32_t lo, hi, st;
+    alt_lane_lim(ln, &lo, &hi, &st);
+    for (k = 0; k < AS_NLANE; k++) {
+        int8_t *p;
+        if (!((au.step_down >> k) & 1u))
+            continue;
+        if (!((sc->rmask[ln] >> k) & 1u)) {
+            int32_t v = alt_lane_val(au.sel % AS_NCIRC, ln, k);
+            sc->rlo[ln][k] = sc->rhi[ln][k] = (int8_t)v;
+        }
+        p = b ? &sc->rhi[ln][k] : &sc->rlo[ln][k];
+        *p = (int8_t)clamp((int32_t)*p + (st == 1 ? (s > 0 ? 1 : -1) : s * st), lo, hi);
+        sc->rmask[ln] |= (uint16_t)(1u << k);
+    }
+    au.step_turned = 1;
+}
+
 /* SEQ held: ALGORITHM picks the chosen circle's engine (from its next cycle) */
 static void alt_seq_type(int32_t s)
 {
@@ -516,10 +547,13 @@ static void alt_seq_input(uint32_t keys)
     }
     for (i = 0; i < 4u; i++)
         if ((s = panel_enc(EN_K1 + i)) != 0) {
-            if (au.step_down)
-                alt_lane_turn(s);                /* steps held: their lane */
-            else
-                alt_edit_circle(i, s);           /* else the engine's four */
+            if (!au.step_down)
+                alt_edit_circle(i, s);           /* no step held: the rhythm's four */
+            else if (i == 0u) {                  /* steps held: KNOB 1 their value (a single one: no RANGE) */
+                alt_lane_turn(s);
+                alt_seq.c[au.sel % AS_NCIRC].rmask[au.lane % LN_N] &= (uint16_t)~au.step_down;
+            } else if (i >= 2u)                  /* KNOB 3 / 4 the bottom / top of their RANGE (KNOB 2: nothing yet) */
+                alt_lane_range(i - 2u, s);
         }
     alt_hold = 0;
 }
@@ -635,6 +669,8 @@ static void alt_chaos(void)
                                                   * DELAY and REVERB 40 % of the bar at most) */
             as_circ_t *sc = &alt_seq.c[c];
             uint32_t pick = 0;
+            for (k = 0; k < AS_NLR; k++)
+                sc->rmask[k] = 0;                /* (no RANGE: CHAOS draws single values) */
             for (k = 0; k < 6u; k++)
                 if (alt_cr(100u) < 40u)
                     pick |= 1u << k;
@@ -1506,7 +1542,20 @@ static void alt_seq_scene(void)
             cv_rect(bx + 2, y0 + h - 2, w - 4, 2, ALT_DARK);
             continue;
         }
-        if (ln == LN_PITCH) {
+        if ((sc->rmask[ln] >> k) & 1u) {         /* a RANGE: a band from its bottom to its top, the bar's colour faded */
+            int32_t lo, hi, st, a2 = sc->rlo[ln][k], b2 = sc->rhi[ln][k], y1, y2;
+            alt_lane_lim(ln, &lo, &hi, &st);
+            if (a2 > b2) {
+                int32_t t = a2;
+                a2 = b2;
+                b2 = t;
+            }
+            y1 = y0 + h - 2 - (b2 - lo) * (h - 4) / (hi - lo);
+            y2 = y0 + h - 2 - (a2 - lo) * (h - 4) / (hi - lo);
+            cv_rect(bx + 2, y1, w - 4, y2 - y1 + 2, alt_fade(bc, 45));
+            cv_rect(bx + 2, y1, w - 4, 2, bc);
+            cv_rect(bx + 2, y2, w - 4, 2, bc);
+        } else if (ln == LN_PITCH) {
             int32_t bh = (v < 0 ? -v : v) * (h / 2 - 2) / 7;
             cv_rect(bx + 2, v >= 0 ? mid - bh : mid, w - 4, bh ? bh : 1, bc);
         } else if (ln == LN_RATCH) {             /* x1 .. x4: one block per hit in the step */
@@ -1524,20 +1573,31 @@ static void alt_seq_scene(void)
     {
         char b[8];
         int32_t v = au.step_down ? alt_lane_val(c, ln, (uint32_t)__builtin_ctz(au.step_down)) : 0;
-        if (au.step_down) {                      /* the held step's value */
-            if (ln == LN_PITCH) {
-                int32_t q = v < 0 ? -v : v;
-                b[0] = v < 0 ? '-' : '+';
-                b[1] = (char)('0' + q);
-                b[2] = 0;
-            } else if (ln == LN_RATCH) {
-                b[0] = 'X';
-                b[1] = (char)('1' + v);
-                b[2] = 0;
-            } else
-                alt_num(b, v * 100 / 127, 1);
-            cv_text(8, 178, &AF_S, ALT_LANE_NAME[ln], ALT_DIM);
-            cv_text(8 + text_w(&AF_S, ALT_LANE_NAME[ln]) + 6, 178, &AF_S, b, ALT_INK);
+        if (au.step_down) {                      /* the held step's value, or its RANGE (bottom .. top) */
+            uint32_t k0 = (uint32_t)__builtin_ctz(au.step_down), rg = (sc->rmask[ln] >> k0) & 1u, j2;
+            int32_t vv[2], x2 = 8;
+            vv[0] = rg ? sc->rlo[ln][k0] : v;
+            vv[1] = rg ? sc->rhi[ln][k0] : v;
+            x2 = cv_text(x2, 178, &AF_S, ALT_LANE_NAME[ln], ALT_DIM) + 6;   /* (cv_text: the x after the text) */
+            for (j2 = 0; j2 < (rg ? 2u : 1u); j2++) {
+                int32_t w2 = vv[j2];
+                if (ln == LN_PITCH) {
+                    int32_t q = w2 < 0 ? -w2 : w2;
+                    b[0] = w2 < 0 ? '-' : '+';
+                    b[1] = (char)('0' + q);
+                    b[2] = 0;
+                } else if (ln == LN_RATCH) {
+                    b[0] = 'X';
+                    b[1] = (char)('1' + w2);
+                    b[2] = 0;
+                } else
+                    alt_num(b, w2 * 100 / 127, 1);
+                if (j2)
+                    x2 = cv_text(x2, 178, &AF_S, "..", ALT_DIM) + 2;
+                x2 = cv_text(x2, 178, &AF_S, b, ALT_INK) + 2;
+            }
+            if (rg)
+                cv_text(x2 + 6, 178, &AF_S, "RANDOM", ALT_DIM);
         }
     }
     for (i = 0; i < 4u; i++) {                   /* the engine's four knobs */
@@ -1558,6 +1618,9 @@ static uint32_t alt_seq_sig(void)
     sg = sg * 31u + sc->pat + sc->pos * 977u + au.cfg[c].len * 3u + (uint32_t)song.playing;
     for (k = 0; k < 16u; k++)
         sg = sg * 31u + (uint32_t)alt_lane_val(c, au.lane, k);
+    for (k = 0; k < 16u; k++)
+        sg = sg * 31u + (uint32_t)(uint8_t)sc->rlo[au.lane % LN_N][k] * 7u + (uint32_t)(uint8_t)sc->rhi[au.lane % LN_N][k];
+    sg = sg * 31u + sc->rmask[au.lane % LN_N];
     for (k = 0; k < 4u; k++) {
         const char *nm;
         char tx[12];

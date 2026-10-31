@@ -243,6 +243,11 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         **LED** du menu SEQ : pas joué + pas tenus allumés (la lumière avance), coups à mi-niveau (nm), autres faibles ;
         couloir affiché allumé sur sa touche noire. **ROLLS** (choix Romain) : 1/8T · 1/16 · BUILD UP (4 croches, 8 doubles,
         puis triples croches tant qu'on tient, de plus en plus fort ; AF_ROLLT8/AF_ROLL16/AF_BUILD). CHAOS tire aussi RATCH.
+        **PLAGES (01/11, choix Romain)** : pas tenus + **KNOB 1 = valeur** (efface la plage), **KNOB 2 = rien**, **KNOB 3 /
+        KNOB 4 = bas / haut d'une PLAGE** : chaque passage tire une valeur au hasard dedans (alter_seq.c rmask[AS_NLR]/
+        rlo/rhi, as_rng ; VELO avec FROT). Écran : bande pâle entre les deux points + « 41%..82% RANDOM ». CHAOS et un
+        chargement effacent les plages. **Plages PAS ENCORE sauvegardées** dans les scènes/patterns (pas de place dans les
+        objets 2-4 : 324 o/scène). Test : CHANCE 0..100 % sur le pas 1 → joué 6/10 mesures, KNOB 1 le rend.
   - [x] **3h PAGE FX + MASTER (31/10, codé, testé, publié ; ATTEND L'ÉCOUTE)**. Choix de Romain : **FX tenu 0,5 s = page FX**
         (reste ouverte ; FX tapé ou HOME = sortie ; FX tapé court = page rapide d'avant) ; **delay et reverb PARTAGÉS** (1 seul
         de chaque dans Felucca) + envoi par cercle ; master **simple + presets** ; ducking = **temps OU cercle**. Le clavier

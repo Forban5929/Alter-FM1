@@ -39,6 +39,7 @@ static const uint8_t AS_VEL[3] = {40, 96, 124};  /* ghost, normal, accent (the V
 enum { AS_T_EUCLID, AS_T_TURING, AS_NTYPE };
 static const char *const AS_TYPE_NAME[AS_NTYPE] = {"EUCLID", "TURING"};
 #define AS_THIST 2                        /* TURING: the patterns kept to go back to */
+#define AS_NLR 6                          /* the lanes with a RANGE: VELO CHANCE DELAY REVERB PITCH RATCH */
 #define AS_NLANE 16                       /* the lanes' steps (VELO CHANCE DELAY REVERB PITCH): a longer circle repeats them */
 /* chords: a hit's degree, then these degrees above it in the scale (0 = none) */
 enum { AS_CH_OFF, AS_CH_TRI, AS_CH_SUS, AS_CH_OPEN, AS_NCHORD };
@@ -66,6 +67,8 @@ typedef struct {
     uint8_t srev[AS_NLANE];         /* .. and into the reverb */
     int8_t spitch[AS_NLANE];        /* scale degrees above the hit's own, -7..7 */
     uint8_t srat[AS_NLANE];         /* RATCH: the hit repeated in its step, 0..3 (x1 .. x4) */
+    uint16_t rmask[AS_NLR];         /* RANGE (the SEQ menu's KNOB 3 / 4): bit l = lane step l draws in rlo..rhi at each pass */
+    int8_t rlo[AS_NLR][AS_NLANE], rhi[AS_NLR][AS_NLANE];
     uint16_t treg;                  /* TURING: its pattern now (mutated as a cycle starts) .. */
     uint16_t tback[AS_THIST], tfwd[AS_THIST];   /* .. the ones before (PREV) and after (NEXT, back again) */
     uint8_t nback, nfwd;
@@ -371,6 +374,22 @@ static int32_t as_svel(const as_circ_t *c, uint32_t k)
     return v < 1 ? 1 : v > 127 ? 127 : v;
 }
 
+/* lane ln's step l as it plays now: its value v, or (a RANGE on it) a new draw between its two points */
+static int32_t as_rng(as_seq_t *q, const as_circ_t *c, uint32_t ln, uint32_t l, int32_t v)
+{
+    int32_t lo, hi;
+    if (!((c->rmask[ln] >> l) & 1u))
+        return v;
+    lo = c->rlo[ln][l];
+    hi = c->rhi[ln][l];
+    if (lo > hi) {
+        int32_t t = lo;
+        lo = hi;
+        hi = t;
+    }
+    return lo + (int32_t)(as_rand(&q->rng) % (uint32_t)(hi - lo + 1));
+}
+
 /* .. as a force (ghost < 64, accent >= 112) */
 static uint32_t as_force(const as_circ_t *c, uint32_t k)
 {
@@ -463,7 +482,7 @@ static void as_step(as_seq_t *q, as_event_t ev[AS_NCIRC])
         }
         k = c->pos;
         {
-            uint32_t ch = c->chance[k];
+            uint32_t ch = (uint32_t)as_rng(q, c, 1u, k % AS_NLANE, c->chance[k]);
             int32_t prob = (int32_t)c->cfg.prob + q->pmod[i];
             if (c->die && c->dchance[k] < ch)
                 ch = c->dchance[k];
@@ -478,13 +497,18 @@ static void as_step(as_seq_t *q, as_event_t ev[AS_NCIRC])
             continue;
         {
             uint32_t f = as_force(c, k), l = k % AS_NLANE;
-            int32_t vel = as_svel(c, k), deg = c->spitch[l];
+            int32_t vel = as_svel(c, k), deg = (int32_t)as_rng(q, c, 4u, l, c->spitch[l]);
+            uint32_t len2 = c->cfg.len ? c->cfg.len : 1u, vi = ((k + len2 - c->cfg.frot % len2) % len2) % AS_NLANE;
+            if ((c->rmask[0] >> vi) & 1u) {             /* VELO with a RANGE: a new velocity each pass */
+                vel = as_rng(q, c, 0u, vi, c->svel[vi]) + (c->die ? c->dforce[k] * 30 : 0);
+                vel = vel < 1 ? 1 : vel > 127 ? 127 : vel;
+            }
             e->on = 1;
             e->force = (uint8_t)f;
             e->gate = 1;
-            e->dly = c->sdly[l];
-            e->rev = c->srev[l];
-            e->rat = c->srat[l];                        /* (the RATCH lane; a draw's burst may go further) */
+            e->dly = (uint8_t)as_rng(q, c, 2u, l, c->sdly[l]);
+            e->rev = (uint8_t)as_rng(q, c, 3u, l, c->srev[l]);
+            e->rat = (uint8_t)as_rng(q, c, 5u, l, c->srat[l]);   /* (the RATCH lane; a draw's burst may go further) */
             if (c->cfg.type == AS_T_TURING)
                 deg += as_tpitch(c, k);
             if (c->die) {

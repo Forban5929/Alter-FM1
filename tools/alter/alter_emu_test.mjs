@@ -179,6 +179,15 @@ check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().
     const a1 = attacks(bar().audio, FS * 0.012).length;
     seqTap(FS * 0.7); K(1 << 0); render(1500); enc(3, -5); K(0); render(1500); seqTap(2000); bar();
     check(`SEQ RATCH lane: step 1 at x4 adds attacks (${a0} -> ${a1})`, a1 >= a0 + 2);
+    // a RANGE: CHANCE lane (black key 3), step 1 held + KNOB 3 down: its chance drawn in 0 .. 100 % at each pass
+    seqTap(FS * 0.7); K(1 << 3); render(1500); K(0); render(1500);
+    K(1 << 0); render(1500); enc(5, -20); K(0); render(1500); seqTap(2000); bar();
+    let played = 0;
+    for (let b = 0; b < 10; b++) if (bar().steps.includes(0)) played++;
+    seqTap(FS * 0.7); K(1 << 0); render(1500); enc(3, 20); K(0); render(1500); seqTap(2000); bar();   // (KNOB 1: no range, 100 %)
+    const back = bar().steps.includes(0);
+    check(`SEQ RANGE: CHANCE 0..100 % on step 1 plays it in some bars only (${played}/10), KNOB 1 gives it back`,
+          played > 0 && played < 10 && back);
   }
   check("RATCHET X2 / X3 add attacks", n["RATCHET X2"] > before && n["RATCHET X3"] > n["RATCHET X2"]);
 

@@ -171,6 +171,8 @@ static void alt_rhy_put(uint32_t c, const alt_rhy_t *r)
         sc->spitch[k] = (int8_t)(((r->pitch[k >> 1] >> ((k & 1u) * 4u)) & 15) - 8);
         sc->srat[k] = 0;                         /* (the RATCH lane: its own bytes, alt_rat_put) */
     }
+    for (k = 0; k < AS_NLR; k++)
+        sc->rmask[k] = 0;                        /* (the RANGEs are not stored yet: a load clears them) */
     alt_post_now |= (uint8_t)(1u << c);
     alt_post_circle(c);
     alt_clear_cnt[c]++;
