@@ -31,10 +31,10 @@ static const uint8_t ALT_SP[] = {P_ATK, P_DEC, P_SUS, P_REL, P_DIST, P_CHOR, P_D
 typedef struct {                 /* a circle's rhythm */
     uint8_t len, hits, rot, prob, frot;
     uint8_t type, tlock, tdens, trange;          /* its engine (alter_seq.c AS_T_*), TURING's settings */
-    uint8_t steps[2];                            /* STEP: its steps (bit i) */
     uint8_t vel[AS_NLANE / 2];                   /* the lanes, 4 bits a step: VELO (x 127 / 15, 0 = 1) .. */
     uint8_t chance[AS_MAXLEN / 2];               /* .. CHANCE, 32 steps (x 127 / 15) .. */
-    uint8_t send[AS_NLANE / 2];                  /* .. SEND (x 127 / 15) .. */
+    uint8_t dly[AS_NLANE / 2];                   /* .. DELAY (x 127 / 15) .. */
+    uint8_t rev[AS_NLANE / 2];                   /* .. REVERB (x 127 / 15) .. */
     uint8_t pitch[AS_NLANE / 2];                 /* .. PITCH (-7..7 + 8) */
 } alt_rhy_t;
 
@@ -90,13 +90,12 @@ static void alt_rhy_get(uint32_t c, alt_rhy_t *r)
     uint32_t k;
     r->len = cf->len, r->hits = cf->hits, r->rot = cf->rot, r->prob = cf->prob, r->frot = cf->frot;
     r->type = cf->type, r->tlock = cf->tlock, r->tdens = cf->tdens, r->trange = cf->trange;
-    r->steps[0] = (uint8_t)sc->steps;
-    r->steps[1] = (uint8_t)(sc->steps >> 8);
     for (k = 0; k < AS_MAXLEN / 2u; k++)
         r->chance[k] = (uint8_t)(alt_q4(sc->chance[2u * k]) | alt_q4(sc->chance[2u * k + 1u]) << 4);
     for (k = 0; k < AS_NLANE / 2u; k++) {
         r->vel[k] = (uint8_t)(alt_q4(sc->svel[2u * k]) | alt_q4(sc->svel[2u * k + 1u]) << 4);
-        r->send[k] = (uint8_t)(alt_q4(sc->ssend[2u * k]) | alt_q4(sc->ssend[2u * k + 1u]) << 4);
+        r->dly[k] = (uint8_t)(alt_q4(sc->sdly[2u * k]) | alt_q4(sc->sdly[2u * k + 1u]) << 4);
+        r->rev[k] = (uint8_t)(alt_q4(sc->srev[2u * k]) | alt_q4(sc->srev[2u * k + 1u]) << 4);
         r->pitch[k] = (uint8_t)(((sc->spitch[2u * k] + 8) & 15) | ((sc->spitch[2u * k + 1u] + 8) & 15) << 4);
     }
 }
@@ -110,13 +109,13 @@ static void alt_rhy_put(uint32_t c, const alt_rhy_t *r)
     cf->len = r->len ? r->len : 16u;
     cf->hits = r->hits, cf->rot = r->rot, cf->prob = r->prob, cf->frot = r->frot;
     cf->type = (uint8_t)(r->type % AS_NTYPE), cf->tlock = r->tlock, cf->tdens = r->tdens, cf->trange = r->trange;
-    sc->steps = (uint16_t)(r->steps[0] | r->steps[1] << 8);
     for (k = 0; k < AS_MAXLEN; k++)
         sc->chance[k] = (uint8_t)alt_u4(r->chance[k >> 1] >> ((k & 1u) * 4u));
     for (k = 0; k < AS_NLANE; k++) {
         uint32_t v = alt_u4(r->vel[k >> 1] >> ((k & 1u) * 4u));
         sc->svel[k] = (uint8_t)(v ? v : 1u);
-        sc->ssend[k] = (uint8_t)alt_u4(r->send[k >> 1] >> ((k & 1u) * 4u));
+        sc->sdly[k] = (uint8_t)alt_u4(r->dly[k >> 1] >> ((k & 1u) * 4u));
+        sc->srev[k] = (uint8_t)alt_u4(r->rev[k >> 1] >> ((k & 1u) * 4u));
         sc->spitch[k] = (int8_t)(((r->pitch[k >> 1] >> ((k & 1u) * 4u)) & 15) - 8);
     }
     alt_post_now |= (uint8_t)(1u << c);
@@ -132,7 +131,6 @@ static void alt_rhy_plain(alt_rhy_t *r, uint32_t len, uint32_t hits, uint32_t ro
         ((uint8_t *)r)[k] = 0;
     r->len = (uint8_t)len, r->hits = (uint8_t)hits, r->rot = (uint8_t)rot, r->prob = (uint8_t)prob;
     r->type = AS_T_EUCLID, r->tlock = 100, r->tdens = 64, r->trange = 4;
-    r->steps[0] = 0x11, r->steps[1] = 0x11;      /* (STEP: the four beats to start from) */
     for (k = 0; k < AS_MAXLEN / 2u; k++)
         r->chance[k] = 0xFF;
     for (k = 0; k < AS_NLANE / 2u; k++) {

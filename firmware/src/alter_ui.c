@@ -33,7 +33,7 @@
  * solid ring, the others dotted; a draw on: a small triangle at the circle's left, its colour; the chosen
  * circle's sound at the top, its knobs (or its rhythm, SEQ held) at the bottom. Drawn only when something changed. */
 
-enum { AK_NONE, AK_MUTE, AK_DIE, AK_SHIFT, AK_DENS, AK_FILL };
+enum { AK_NONE, AK_MUTE, AK_DIE, AK_SHIFT, AK_DENS, AK_FILL, AK_TLOCK };
 typedef struct {
     uint8_t kind, arg;
     const char *name;
@@ -41,7 +41,8 @@ typedef struct {
 static const alt_key_t ALT_KEY[27] = {    /* k: semitones above F3 (whites 0 2 4 6 7 9 11 12 14 16 18 19 ..) */
     [0] = {AK_MUTE, 0, "MUTE 1"}, [2] = {AK_MUTE, 1, "MUTE 2"}, [4] = {AK_MUTE, 2, "MUTE 3"},
     [7] = {AK_DIE, 0, "DICE 1"}, [9] = {AK_DIE, 1, "DICE 2"}, [11] = {AK_DIE, 2, "DICE 3"},
-    [14] = {AK_SHIFT, 0, "SHIFT -1"}, [16] = {AK_SHIFT, 1, "SHIFT +1"},
+    [14] = {AK_SHIFT, 0, "SHIFT -1"}, [16] = {AK_SHIFT, 1, "SHIFT +1"},   /* (TURING: PREV, NEXT) */
+    [18] = {AK_TLOCK, 0, "LOCK"},                                           /* (TURING only: frozen / free) */
     [1] = {AK_FILL, AF_ROLL16, "ROLL 1/16"}, [3] = {AK_FILL, AF_ROLL32, "ROLL 1/32"}, [5] = {AK_FILL, AF_ROLLT, "ROLL 1/16T"},
     [8] = {AK_FILL, AF_RAT2, "RATCHET X2"}, [10] = {AK_FILL, AF_RAT3, "RATCHET X3"},
     [13] = {AK_FILL, AF_DLY, "DUB DELAY"}, [15] = {AK_FILL, AF_REV, "DUB REVERB"}, [17] = {AK_FILL, AF_DESTROY, "DESTROY"},
@@ -84,7 +85,7 @@ static struct {
                                  * (0 the LFO, 1..4 the slots); the knob whose list drops down (1..3), shown since dd_ms */
     uint32_t dd_ms;
     uint8_t seq_open, seq_hold, lane, step_turned;   /* the SEQ menu (SEQ held 0.5 s): open; opened by this hold; its
-                                 * lane (VELO CHANCE SEND PITCH); a knob turned while steps were held (no toggle) */
+                                 * lane (VELO CHANCE DELAY REVERB PITCH); a knob turned while steps were held (no toggle) */
     uint16_t step_down;          /* the step keys (white keys) held: bit = step */
     uint8_t scene_open, tab, row[2], save_done;   /* the SAVE page open; its tab (0 SCENES 1 PATTERNS), each tab's row;
                                                  * a long hold has stored (its release loads nothing) */
@@ -104,7 +105,7 @@ static struct {
 static const char *alt_qp_name(uint32_t q)
 {
     static const char *const ENV[AM_N] = {"ENV FREE", "ENV PERC", "ENV STAB", "ENV DRONE"};
-    static const char *const RHY[AS_NTYPE] = {"SEQ EUCLID", "SEQ STEP", "SEQ TURING"};
+    static const char *const RHY[AS_NTYPE] = {"EUCLID", "TURING"};
     if (q == QP_ENV)                             /* (the chosen circle's mode: its own four) */
         return ENV[alt_emode[au.sel % AS_NCIRC] % AM_N];
     if (q == QP_SEQ)                             /* (the chosen circle's engine) */
@@ -191,21 +192,12 @@ static void alt_preset_step(uint32_t c, int32_t s)
 /* SEQ held: knob i of the chosen circle, s detents */
 /* the rhythm's four knobs, by the circle's engine (alter_seq.c AS_T_*) */
 static const char *const ALT_RHY_NAME[AS_NTYPE][4] = {
-    {"LEN", "HITS", "ROT", "PROB"}, {"LEN", "FILL", "ROT", "PROB"}, {"LEN", "LOCK", "DENS", "RANGE"},
+    {"LEN", "HITS", "ROT", "PROB"}, {"LEN", "LOCK", "DENS", "RANGE"},
 };
-static uint32_t alt_popc16(uint32_t m)
-{
-    uint32_t n = 0;
-    for (m &= 0xFFFFu; m; m &= m - 1u)
-        n++;
-    return n;
-}
-
-/* SEQ: knob i of the chosen circle's rhythm, s detents (LEN HITS ROT PROB / LEN FILL ROT PROB / LEN LOCK DENS RANGE) */
+/* SEQ: knob i of the chosen circle's rhythm, s detents (LEN HITS ROT PROB / LEN LOCK DENS RANGE) */
 static void alt_edit_circle(uint32_t i, int32_t s)
 {
     as_cfg_t *c = &au.cfg[au.sel];
-    as_circ_t *sc = &alt_seq.c[au.sel];
     uint32_t t = c->type % AS_NTYPE, mx = t == AS_T_EUCLID ? AS_MAXLEN : 16u;
     if (i == 0) {
         c->len = (uint8_t)clamp((int32_t)c->len + s, 1, (int32_t)mx);
@@ -219,9 +211,6 @@ static void alt_edit_circle(uint32_t i, int32_t s)
         c->rot = (uint8_t)(((int32_t)c->rot + s + 4 * AS_MAXLEN) % c->len);
     } else if (t == AS_T_EUCLID) {
         c->hits = (uint8_t)clamp((int32_t)c->hits + s, 0, c->len);
-    } else if (t == AS_T_STEP) {                  /* FILL: the steps spread evenly, as many as asked (a start to edit) */
-        int32_t n = clamp((int32_t)alt_popc16(sc->steps & ((1u << c->len) - 1u)) + (s > 0 ? 1 : -1), 0, c->len);
-        sc->steps = (uint16_t)as_euclid(c->len, (uint32_t)n, 0);
     } else if (i == 1u) {
         c->tlock = (uint8_t)clamp((int32_t)c->tlock + s * 4, 0, 127);
     } else if (i == 2u) {
@@ -425,10 +414,10 @@ static void alt_mtx_turn(uint32_t i, int32_t s)
     }
 }
 
-/* ---- the SEQ menu: the chosen circle's steps, its lanes (VELO CHANCE SEND PITCH), its engine -------------------- */
+/* ---- the SEQ menu: the chosen circle's steps, its lanes (VELO CHANCE DELAY REVERB PITCH), its engine ------------- */
 #define ALT_SEQ_HOLD_MS 500u                     /* SEQ held this long: the menu */
-enum { LN_VELO, LN_CHANCE, LN_SEND, LN_PITCH, LN_N };
-static const char *const ALT_LANE_NAME[LN_N] = {"VELO", "CHANCE", "SEND", "PITCH"};
+enum { LN_VELO, LN_CHANCE, LN_DLY, LN_REV, LN_PITCH, LN_N };
+static const char *const ALT_LANE_NAME[LN_N] = {"VELO", "CHANCE", "DELAY", "REVERB", "PITCH"};
 static const uint8_t ALT_WHITE[16] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26};   /* step i's key */
 
 /* lane ln's value at step k of circle c: 0..127 (PITCH: -7..7) */
@@ -436,7 +425,8 @@ static int32_t alt_lane_val(uint32_t c, uint32_t ln, uint32_t k)
 {
     const as_circ_t *sc = &alt_seq.c[c % AS_NCIRC];
     k %= AS_NLANE;
-    return ln == LN_VELO ? sc->svel[k] : ln == LN_CHANCE ? sc->chance[k] : ln == LN_SEND ? sc->ssend[k] : sc->spitch[k];
+    return ln == LN_VELO ? sc->svel[k] : ln == LN_CHANCE ? sc->chance[k] : ln == LN_DLY ? sc->sdly[k] :
+           ln == LN_REV ? sc->srev[k] : sc->spitch[k];
 }
 
 /* the held steps' lane value moved by s (written here: the audio side reads the bytes) */
@@ -454,8 +444,10 @@ static void alt_lane_turn(int32_t s)
             sc->chance[k] = (uint8_t)v;
             if (k + AS_NLANE < AS_MAXLEN)        /* (a 32-step circle repeats the lane) */
                 sc->chance[k + AS_NLANE] = (uint8_t)v;
-        } else if (au.lane == LN_SEND)
-            sc->ssend[k] = (uint8_t)clamp((int32_t)sc->ssend[k] + s * 8, 0, 127);
+        } else if (au.lane == LN_DLY)
+            sc->sdly[k] = (uint8_t)clamp((int32_t)sc->sdly[k] + s * 8, 0, 127);
+        else if (au.lane == LN_REV)
+            sc->srev[k] = (uint8_t)clamp((int32_t)sc->srev[k] + s * 8, 0, 127);
         else
             sc->spitch[k] = (int8_t)clamp((int32_t)sc->spitch[k] + (s > 0 ? 1 : -1), -7, 7);
     }
@@ -476,7 +468,7 @@ static void alt_seq_type(int32_t s)
 /* the SEQ menu has this frame: the step keys, the lanes, the knobs (no fills here) */
 static void alt_seq_input(uint32_t keys)
 {
-    uint32_t down = keys & ~au.keys, up = au.keys & ~keys, k, i, c = au.sel % AS_NCIRC;
+    uint32_t down = keys & ~au.keys, up = au.keys & ~keys, k, i;
     int32_t s;
     if ((s = panel_enc(EN_ALGO)) != 0)
         au.lane = (uint8_t)clamp((int32_t)au.lane + (s > 0 ? 1 : -1), 0, LN_N - 1);
@@ -493,8 +485,6 @@ static void alt_seq_input(uint32_t keys)
             au.step_down |= (uint16_t)(1u << k);
         } else if ((up >> key) & 1u) {
             au.step_down &= (uint16_t)~(1u << k);
-            if (!au.step_turned && au.cfg[c].type == AS_T_STEP && k < au.cfg[c].len)   /* a tap: the step on / off */
-                alt_seq.c[c].steps ^= (uint16_t)(1u << k);
         }
     }
     for (i = 0; i < 4u; i++)
@@ -795,8 +785,9 @@ static int alter_ui_input(uint32_t pressed)
     for (k = 0; k < 27u; k++) {
         const alt_key_t *a = &ALT_KEY[k];
         uint32_t i2 = a->arg;
-        if ((down >> k) & 1u && a->kind) {
-            alt_say(a->name);
+        int tur = au.cfg[au.sel].type == AS_T_TURING;
+        if ((down >> k) & 1u && a->kind && (a->kind != AK_TLOCK || tur)) {
+            alt_say(a->kind == AK_SHIFT && tur ? (i2 ? "NEXT" : "PREV") : a->name);
             if (a->kind == AK_MUTE) {
                 au.cfg[i2].mute ^= 1u;
                 alt_post_circle(i2);
@@ -821,9 +812,13 @@ static int alter_ui_input(uint32_t pressed)
                 au.tap_ms[k] = fm1_ms | 1u;
             } else if (a->kind == AK_SHIFT) {
                 int32_t d = i2 ? 1 : -1;
-                alt_shift_tot[au.sel] += d;
-                au.cfg[au.sel].rot = (uint8_t)(((int32_t)au.cfg[au.sel].rot + d + 4 * AS_MAXLEN) % au.cfg[au.sel].len);
+                alt_shift_tot[au.sel] += d;      /* (TURING: the audio side takes it as NEXT / PREV) */
+                if (!tur)
+                    au.cfg[au.sel].rot = (uint8_t)(((int32_t)au.cfg[au.sel].rot + d + 4 * AS_MAXLEN) % au.cfg[au.sel].len);
                 au.tap_ms[k] = fm1_ms | 1u;
+            } else if (a->kind == AK_TLOCK) {    /* TURING: frozen, or back to its LOCK knob */
+                alt_seq.c[au.sel].tfreeze ^= 1u;
+                alt_say(alt_seq.c[au.sel].tfreeze ? "LOCKED" : "FREE");
             }
         }
         if (a->kind != AK_DIE)
@@ -901,7 +896,9 @@ static void alter_leds(uint8_t *nl, uint8_t *nd, uint8_t *nb, uint8_t *nm)
             lit = (int)((fm1_in.notes >> k) & 1u) || (au.tap_ms[k] && (int32_t)(fm1_ms - au.tap_ms[k]) < (int32_t)ALT_TAP_MS);
         else if (a->kind == AK_FILL)
             lit = (int)((fm1_in.notes >> k) & 1u);
-        faint = a->kind && !lit;
+        else if (a->kind == AK_TLOCK)            /* (dark unless the chosen circle is TURING) */
+            lit = au.cfg[au.sel].type == AS_T_TURING && alt_seq.c[au.sel].tfreeze;
+        faint = a->kind && !lit && (a->kind != AK_TLOCK || au.cfg[au.sel].type == AS_T_TURING);
         led_clear(nl, 14u + k);
         led_clear(nd, 14u + k);
         led_clear(nb, 14u + k);
@@ -1001,7 +998,7 @@ static int32_t alt_kv(uint32_t q, uint32_t i, const char **name, char *txt, int3
         else if (ty == AS_T_TURING)
             v = i == 1u ? c->tlock * 100 / 127 : i == 2u ? c->tdens * 100 / 127 : c->trange;
         else if (i == 1u)
-            v = ty == AS_T_STEP ? (int32_t)alt_popc16(alt_seq.c[au.sel].steps & ((1u << c->len) - 1u)) : c->hits;
+            v = c->hits;
         else
             v = i == 2u ? c->rot : c->prob * 100 / 127;
         alt_num(txt, v, (ty == AS_T_TURING && (i == 1u || i == 2u)) || (ty != AS_T_TURING && i == 3u));
@@ -1405,11 +1402,18 @@ static void alt_seq_scene(void)
         if (i == cf->type)
             cv_rect(x + 54 + (int32_t)i * 58, 21, tw, 2, col);
     }
-    for (i = 0; i < LN_N; i++) {                 /* the lanes (ALGORITHM) */
-        int32_t lx = 8 + (int32_t)i * 58, tw = text_w(&AF_S, ALT_LANE_NAME[i]);
-        cv_text(lx, 32, &AF_S, ALT_LANE_NAME[i], i == ln ? ALT_INK : ALT_GREY);
-        if (i == ln)
-            cv_rect(lx, 47, tw, 2, col);
+    {                                            /* the lanes (ALGORITHM), spread over the width */
+        int32_t tot = 0, lx = 8, gap;
+        for (i = 0; i < LN_N; i++)
+            tot += text_w(&AF_S, ALT_LANE_NAME[i]);
+        gap = (224 - tot) / (LN_N - 1);
+        for (i = 0; i < LN_N; i++) {
+            int32_t tw = text_w(&AF_S, ALT_LANE_NAME[i]);
+            cv_text(lx, 32, &AF_S, ALT_LANE_NAME[i], i == ln ? ALT_INK : ALT_GREY);
+            if (i == ln)
+                cv_rect(lx, 47, tw, 2, col);
+            lx += tw + gap;
+        }
     }
     if (ln == LN_PITCH)
         cv_rect(x, mid, 224, 1, ALT_DARK);
@@ -1443,11 +1447,10 @@ static void alt_seq_scene(void)
                 b[2] = 0;
             } else
                 alt_num(b, v * 100 / 127, 1);
-            cv_text_r(234, 32, &AF_S, b, ALT_INK, cv_bg);
+            cv_text(8, 178, &AF_S, ALT_LANE_NAME[ln], ALT_DIM);
+            cv_text(8 + text_w(&AF_S, ALT_LANE_NAME[ln]) + 6, 178, &AF_S, b, ALT_INK);
         }
     }
-    cv_text(8, 178, &AF_S, cf->type == AS_T_STEP ? "TAP STEP: ON/OFF  HOLD + KNOB: LANE" : "HOLD STEP + KNOB: LANE",
-            ALT_DIM);
     for (i = 0; i < 4u; i++) {                   /* the engine's four knobs */
         int32_t kx = 8 + (int32_t)i * 58, fill;
         const char *name;

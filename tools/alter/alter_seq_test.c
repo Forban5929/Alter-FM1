@@ -232,33 +232,25 @@ int main(void)
         check("CHORD TRIAD on C2: C2 + Eb2 + G2", ev[0].on && ev[0].note == 36 && ev[0].chord[0] == 39 &&
                                                     ev[0].chord[1] == 43);
     }
-    /* STEP: the steps set by hand, at once; TURING: LOCK 127 keeps its pattern, LOCK 0 renews it; lanes */
+    /* lanes, TURING: LOCK 127 keeps its pattern, LOCK 0 renews it, the LOCK key freezes it; NEXT / PREV */
     {
         as_seq_t r;
         as_event_t k8[16];
         as_cfg_t c;
-        uint32_t a, b2, n, same = 1;
+        uint32_t a, b2, n, same = 1, x;
         as_init(&r, 7);
+        r.c[0].sdly[0] = 100;
+        r.c[0].spitch[0] = 2;
+        run(&r, 0, 16, 0);
+        run(&r, 0, 16, k8);
+        check("lanes: step 1 throws DELAY 100, plays 2 degrees up (Eb2 in minor)", k8[0].on && k8[0].dly == 100 &&
+              k8[0].note == 39);
         c = r.c[0].next;
-        c.type = AS_T_STEP;
-        c.len = 8;
-        as_set(&r, 0, c);
-        r.c[0].steps = 0x05u;                        /* steps 1 and 3 */
-        r.c[0].ssend[2] = 100;
-        r.c[0].spitch[2] = 2;
-        run(&r, 0, 16, 0);                           /* (the old cycle ends) */
-        a = (uint32_t)run(&r, 0, 8, k8);
-        check("STEP: steps 1 and 3 of 8 play, the others not", a == 0x05u);
-        check("lanes: step 3 throws SEND 100, plays 2 degrees up (Eb2 in minor)", k8[2].send == 100 && k8[2].note == 39 &&
-              k8[0].note == 36);
-        r.c[0].steps = 0x80u;                        /* changed: from the next step */
-        check("STEP: a new step plays from the next step (step 8 only)", (uint32_t)run(&r, 0, 8, 0) == 0x80u);
         c.type = AS_T_TURING;
-        c.len = 16;
         c.tlock = 127;
         c.tdens = 64;
         as_set(&r, 0, c);
-        run(&r, 0, 8, 0);
+        run(&r, 0, 16, 0);
         a = (uint32_t)run(&r, 0, 16, 0);
         b2 = (uint32_t)run(&r, 0, 16, 0);
         check("TURING LOCK 127: the same pattern cycle after cycle", a == b2 && a);
@@ -268,6 +260,17 @@ int main(void)
         for (n = 0; n < 4u && same; n++)
             same = (uint32_t)run(&r, 0, 16, 0) == a;
         check("TURING LOCK 0: the pattern changes", !same);
+        r.c[0].tfreeze = 1;
+        a = (uint32_t)run(&r, 0, 16, 0);
+        check("TURING, the LOCK key: frozen even at LOCK 0", (uint32_t)run(&r, 0, 16, 0) == a &&
+              (uint32_t)run(&r, 0, 16, 0) == a);
+        x = r.c[0].treg;
+        as_tnext(&r, 0);
+        b2 = r.c[0].treg;
+        as_tprev(&r, 0);
+        check("TURING NEXT: a new pattern; PREV: the one before again", b2 != x && r.c[0].treg == x);
+        as_tnext(&r, 0);
+        check("TURING NEXT after PREV: forward to the one undone", r.c[0].treg == b2);
     }
 
     printf(fails ? "%d FAILED\n" : "all ok\n", fails);

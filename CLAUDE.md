@@ -222,23 +222,19 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         pulse plus (zone de plage seule). Scènes USER : réglages d'enveloppe gardés dans l'objet 4 (alt_bank_p.envok/env :
         la banque de scènes est pleine) → **patterns USER d'avant effacés** ; scènes d'usine / NEW = AE_DEF.
         Tests : PERC HOLD, STAB LENGTH, LFO SQR → LENGTH en PERC, DRONE en couches sans attaque dure (sauts < ×1,5 par 50 ms).
-  - [x] **3g MENU SEQ (31/10, codé, testé, publié ; ATTEND L'ÉCOUTE)**. Choix de Romain : **SEQ tenu 0,5 s = menu SEQ**
-        (reste ouvert ; SEQ tapé ou HOME = sortie ; appui court = page rapide des 4 réglages du rythme) ; **SEQ tenu +
-        ALGORITHM = moteur du cercle choisi : EUCLID · STEP · TURING** (cycle suivant ; marche aussi hors menu). Knobs par
-        moteur : EUCLID LEN HITS ROT PROB · STEP LEN FILL (pas répartis, point de départ) ROT PROB · TURING LEN LOCK (127 =
-        figé) DENS RANGE (pas de gamme). STEP/TURING : LEN 1..16. **Couloirs façon XO** sur 16 pas : ALGORITHM = VELO ·
-        CHANCE · SEND · PITCH ; touches blanches = pas 1..16 (STEP : tap = on/off, au pas suivant) ; **tenir des pas + un
-        KNOB = leur valeur** ; barres par pas (couleur = coup, gris = pas de coup), cadre blanc = tenu, trait = tête de
-        lecture ; LED blanches = pas (allumé = coup). Code : alter_seq.c AS_T_*, as_cfg_t type/tlock/tdens/trange,
-        as_circ_t svel[16] (remplace force[] : ghost < 64, accent ≥ 112 ; FROT tourne VELO ; dé ±30), ssend[16], spitch[16]
-        (-7..7 degrés ; as_note gère les degrés négatifs), steps (écrit par l'UI, lu à chaque pas), treg (TURING : bits
-        remplacés au début du cycle avec chance 127-LOCK, 1 avec DENS ; hauteur = 4 bits lus × RANGE/15), ev.send ;
-        alter_play.c : SEND → offsets P_DLY (+send) et P_REV (+send/2) par coup (slots 12-13, ALT_NSLOT 14) ;
-        alter_ui.c : alt_seq_input / alt_seq_scene / alt_seq_sig, ALT_WHITE, ALT_RHY_NAME, alt_lane_turn, alt_seq_type.
-        Stockage : alt_rhy_t (type, TURING, steps, couloirs 4 bits) ; **rythmes des scènes USER dans l'objet 2**
-        (OBJ_PROJECT0+1, Felucca projet 2, magie ATLR, alt_bank_r) → **scènes et patterns USER d'avant effacés**.
-        Tests : alter_seq_test (STEP, couloirs SEND/PITCH, TURING figé / qui mute) + alter_emu_test (menu, STEP tap,
-        VELO, TURING, retour EUCLID). P-lock façon Elektron : pas fait (idée gardée).
+  - [x] **3g MENU SEQ (31/10, 2e version après retour de Romain ; codé, testé, publié ; ATTEND L'ÉCOUTE)**.
+        **SEQ tenu 0,5 s = menu SEQ** (reste ouvert ; SEQ tapé ou HOME = sortie ; appui court = page rapide des 4 réglages
+        du rythme, nommée EUCLID / TURING sans « SEQ ») ; **SEQ tenu + ALGORITHM = moteur du cercle : EUCLID · TURING**
+        (STEP retiré : « contre-productif » ; la vue linéaire sert seulement au détail par pas). Knobs : EUCLID LEN HITS ROT
+        PROB · TURING LEN(1..16) LOCK (127 = figé) DENS RANGE. **Couloirs** sur 16 pas : ALGORITHM = VELO · CHANCE · DELAY ·
+        REVERB · PITCH ; tenir des pas (touches blanches) + un KNOB = leur valeur (affichée en bas) ; pas de texte d'aide.
+        **TURING en jeu** (cercle choisi en TURING) : SHIFT −1 = motif PRÉCÉDENT, SHIFT +1 = motif SUIVANT (nouveau, ou
+        celui annulé par PREV), touche blanche 18 = **LOCK** (figé / rendu au knob LOCK ; LED allumée = figé, noire en
+        EUCLID) ; 2 motifs gardés de chaque côté. ROLL etc. inchangés.
+        Code : alter_seq.c AS_T_EUCLID/TURING, as_tnext/as_tprev (tback/tfwd, AS_THIST 2), tfreeze (écrit par l'UI),
+        svel/sdly/srev/spitch, ev.dly/ev.rev ; alter_play.c : SHIFT (alt_shift_tot) = NEXT/PREV si TURING ; offsets P_DLY
+        (+dly) P_REV (+rev) par coup ; alter_ui.c : AK_TLOCK, LN_*, alt_seq_input/scene/sig. Stockage alt_rhy_t (couloirs
+        4 bits, objet 2 pour les scènes USER) → **slots USER d'avant effacés** (taille changée). P-lock : pas fait.
   - [ ] 3c : vue DEEP (EDIT ouvre encore la page EDIT de Felucca). Puis retirer l'interface Felucca. Reste : SCL → gamme
         des cercles, touches blanches libres, DESTROY assignable, verrous du dé, DOSE.
 - [ ] Étape 4 (après le séquenceur) : tranche de console dédiée, ordre FIXE validé :
