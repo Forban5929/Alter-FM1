@@ -146,7 +146,13 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         tenir touche(s) blanche(s) = pas 1..16 + KNOB. SEQ est maintenant une page rapide (LEN HITS ROT PROB). → QUESTION
         À POSER AVANT DE CODER : comment ouvrir l'édition par pas sans casser les pages rapides (ex. OCT−+OCT+ + SEQ =
         Felucca aujourd'hui) ? Pas 17..32 quand LEN > 16 ?
-  - [ ] 3d-3 : presets indus/noise/texture (~6 par moteur ALTER, PHYS, NOISE, niveaux équilibrés) + page d'écoute.
+  - [ ] **3d-3 (EN COURS, 31/10)** : SCÈNES + presets. Choix validés : **SAVE (appui court) = page SCÈNES** (PRESETS
+        choisit, SAVE charge, HOME annule ; les vraies pages SAVE de Felucca via OCT−+OCT+ + SAVE). Scènes de départ :
+        TECHNO (texture, stab, perc), HOUSE (perc, accord, drone), AMBIENT (drone, drone, texture) ; une scène règle les 3
+        cercles (moteur, preset, mode, rythme, note, accord) + gamme + TEMPO. **ACCORD par cercle** (3 notes de la gamme
+        par coup, réglable dans SCL ; le dé bouge l'accord entier). **Presets indus/noise/texture ~6 par moteur** dans
+        une table À NOUS (alter, pas les tables Felucca : NOISE est dans le sous-module), niveaux équilibrés. Page
+        d'écoute : chaque preset + chaque scène, rendus par le VRAI firmware (émulateur).
   - [ ] 3c : vue DEEP (EDIT ouvre encore la page EDIT de Felucca). Puis retirer l'interface Felucca. Reste : SCL → gamme
         des cercles, touches blanches libres, DESTROY assignable, verrous du dé, DOSE.
 - [ ] Étape 4 (après le séquenceur) : tranche de console dédiée, ordre FIXE validé :
