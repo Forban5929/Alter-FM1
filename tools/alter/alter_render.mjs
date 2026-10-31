@@ -9,7 +9,7 @@ import fs from "node:fs";
 const [wasmPath, out] = process.argv.slice(2);
 const FS = 44100, wasm = fs.readFileSync(wasmPath);
 const src = fs.readFileSync(new URL("../../firmware/src/alter_sounds.c", import.meta.url), "utf8");
-const sounds = [...src.matchAll(/^\s*\{"([A-Z]+)", ([012]), \{/gm)].map((m) => ({ name: m[1], eng: +m[2] }));
+const sounds = [...src.matchAll(/^\s*\{"([A-Z ]+)", ([012]), \{/gm)].map((m) => ({ name: m[1], eng: +m[2] }));   // (a name may have a space: OPEN HAT)
 const scenes = [...src.matchAll(/^\s*\{"([A-Z]+)", "([^"]+)", (\d+),/gm)].map((m) => ({ name: m[1], about: m[2], bpm: +m[3] }));
 const ENG = ["ALTER", "PHYS", "NOISE"];
 fs.mkdirSync(`${out}/wav`, { recursive: true });
@@ -62,7 +62,7 @@ for (let i = 0; i < sounds.length; i++) {
   play(ex, render);
   const bar = Math.round(FS * 2), a = render(bar * 4 + FS);
   const st = stats(a[0].slice(0, bar * 4), bar);
-  const name = `sound_${String(i + 1).padStart(2, "0")}_${ENG[sounds[i].eng]}_${sounds[i].name}`;
+  const name = `sound_${String(i + 1).padStart(2, "0")}_${ENG[sounds[i].eng]}_${sounds[i].name.replace(/ /g, "_")}`;
   wav(`${out}/wav/${name}.wav`, a);
   rows.push({ name, ...st });
 }

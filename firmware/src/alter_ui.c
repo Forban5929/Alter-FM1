@@ -22,7 +22,7 @@
  *                point (alter_sounds.c ALT_SCENE). The first scene is loaded at power-on
  *   ALGORITHM    the chosen circle's envelope mode: FREE PERC STAB DRONE (alter_play.c AM_*)
  *   DICE 1 + 2 + 3 together: CHAOS, everything drawn to the extreme on the three circles: engine, preset, the
- *                engine's eight, the effects, its LFO (WAVE RATE DEPTH DEST), the rhythm (at once), the die (DOSE 127), the scale and roots;
+ *                engine's eight, the effects (sends 33 %, DIST and INSERT 10 % at most), its LFO (WAVE RATE DEPTH DEST), the rhythm (at once), the die (DOSE 127), the scale and roots;
  *                not the tempo, not the modes, not the mutes. For good: no undo
  *   PLAY  start / stop      ARP REC: nothing yet (REC stays disarmed: no count-in, no click)
  * The keys (no notes here: alt_kb_own): the whites in lit blocks with a dark key between: MUTE 1 2 3 (a tap),
@@ -572,7 +572,7 @@ static int16_t alt_crange(const param_desc_t *d, int32_t div)   /* anywhere in d
 static void alt_chaos(void)
 {
     static const uint8_t FXP[6] = {P_DIST, P_ITYPE, P_IA, P_IMIX, P_DLY, P_REV};
-    static const uint8_t LDST[6] = {GD_SHAPE, GD_FILT, GD_LEVEL, GD_DIST, GD_DLY, GD_PAN};
+    static const uint8_t LDST[6] = {GD_SHAPE, GD_FILT, GD_LEVEL, GD_PAN, GD_SHAPE, GD_FILT};   /* (not DIST nor the sends) */
     uint32_t c, k;
     alt_crng ^= fm1_ms * 0x9E3779B9u;
     alt_seq.scale = (uint8_t)alt_cr(AS_NSCALE);
@@ -585,8 +585,10 @@ static void alt_chaos(void)
         fm1_irq_off();
         for (k = 0; k < 8u; k++)                 /* the engine's eight, anywhere */
             t->p[P_E0 + k] = alt_crange(&en->edit[k], 1);
-        for (k = 0; k < sizeof FXP; k++)         /* the effects and LFO */
-            t->p[FXP[k]] = alt_crange(param_desc_of(e, FXP[k]), 1);
+        for (k = 0; k < sizeof FXP; k++)         /* the effects, kept low (Romain: DIST and INSERT 10 % at most, */
+            t->p[FXP[k]] = FXP[k] == P_ITYPE ? (int16_t)alt_cr(IT_CRUSH + 1u)   /* the sends 33 %) */
+                         : (int16_t)alt_cr(FXP[k] == P_DLY || FXP[k] == P_REV ? 43u : 14u);
+        afx_edit |= (uint8_t)(1u << c);          /* (the FX page shows its DIST changed: SOUND *) */
         alt_cl[c][0].wave = (uint8_t)alt_cr(GW_N);   /* its LFO 1: any wave and rate, a DEST of the timbre or the mix */
         alt_cl[c][0].rate = (uint8_t)alt_cr(GL_NRATE);
         alt_cl[c][0].dst = LDST[alt_cr(6u)];

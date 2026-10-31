@@ -11,10 +11,10 @@ D = sys.argv[1] if len(sys.argv) > 1 else "build/alter"
 SCENES = [
     ("scene_1_TECHNO", "TECHNO", "132 BPM · phrygien", "PERC · STAB · TEXTURE",
      "THUD en PERC sur les noires, STAB en accord (triade) sur 3 coups décalés, CRUSH en texture sur 11 pas sur 16 avec un peu de hasard."),
-    ("scene_2_HOUSE", "HOUSE", "124 BPM · dorien · swing", "KICK · STABS · DRONE",
-     "THUD sur les 4 temps, STAB en triade sur les contretemps envoyé dans un dub delay, SITAR en drone discret. Swing léger."),
-    ("scene_3_AMBIENT", "AMBIENT", "80 BPM · mineur", "DRONE · DRONE · TEXTURE",
-     "RUST et SCRAPE (accord ouvert) en DRONE sur des cercles de 32 et 24 pas qui se croisent, RAIN en texture."),
+    ("scene_2_HOUSE", "HOUSE", "122 BPM · dorien · swing léger", "KICK · ACCORDS · OPEN HAT",
+     "Deep house : THUD sur les 4 temps, WARM en accords mineurs chauds sur les contretemps, OPEN HAT entre les kicks."),
+    ("scene_3_AMBIENT", "AMBIENT", "70 BPM · mineur", "NAPPE · NAPPE · PLUIE",
+     "Deux nappes douces PAD (cercles de 32 et 24 pas, une quinte d'écart) qui se fondent, une pluie RAIN très discrète."),
     ("scene_4_INDUS", "INDUS", "128 BPM · phrygien", "MÉTAL · BRUIT · GONG",
      "ANVIL en PERC, METAL (registre à décalage) en PERC sur 7 pas, GONG qui sonne librement."),
 ]
@@ -26,6 +26,8 @@ SOUNDS = {
         ("PIPES", "Harmoniques pures et longues, presque un orgue frappé ; joue bien en accord."),
         ("RUST", "Drone métallique tenu qui dérive lentement."),
         ("GRIND", "Texture saturée : tout au maximum, modulation forte, dérive."),
+        ("WARM", "Accord doux et chaud, légèrement désaccordé : les accords de la deep house."),
+        ("PAD", "Nappe lente et sombre qui respire : pour les drones paisibles."),
     ],
     "PHYS": [
         ("TOMS", "Peau de tambour frappée, la hauteur chute juste après le coup."),
@@ -43,6 +45,7 @@ SOUNDS = {
         ("RAIN", "Crépitements filtrés par une résonance : pluie, gouttes."),
         ("WIND", "Bruit coloré lent qui dérive : vent, souffle."),
         ("ARCADE", "Registre court cadencé au-dessus de la note : buzz de console 8 bits."),
+        ("OPEN HAT", "Charleston ouverte : le bruit aigu qui sonne plus longtemps."),
     ],
 }
 ENG_ABOUT = {

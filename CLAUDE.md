@@ -250,8 +250,14 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         le kick du Rytm via MIDI clock) ou CIRC n (baisse les 2 autres), am_hit/am_clock appelés par alter_play.c).
         `alter_fxpage.c` (inclus dans alter_ui.c : afp_input/afp_scene/afp_sig, état afp et afx_sel/afx_edit dans alter_fx.c).
         Scènes USER : effets (delay, reverb, master, presets, INSERT B/C) dans l'objet 2 (alt_bank_r.fx, ancienne taille
-        encore lue : **slots USER gardés**). Scènes d'usine : champs dpre/rpre/mpre (TECHNO ECHO/HALL/FLAT, HOUSE
-        ECHO/HALL/DUCK C1, AMBIENT SPACE/CAVE/FLAT, INDUS TAPE/METAL/LOUD) ; changer de son remet sa DIST à SOUND.
+        encore lue : **slots USER gardés**). Changer de son remet sa DIST à SOUND.
+        **Retour Romain (31/10 soir)** : « effets trop présents, grooves perdus » → scènes d'usine = effets d'ORIGINE
+        (dpre/rpre/mpre tous 0 = ECHO/HALL/FLAT ; Romain ajoute les effets lui-même). **CHAOS** : envois DLY/REV ≤ 33 %
+        (0..42), DIST/INSERT A/MIX ≤ 10 % (0..13), type d'insert OFF..CRUSH, LFO 1 jamais vers DIST ni les envois.
+        TECHNO = « parfait » (ne pas toucher) ; INDUS redevenue celle d'avant. **HOUSE refaite en DEEP** (122 BPM DOR swing 8 :
+        THUD 4/16, WARM triade 3/16 rot 3, OPEN HAT 4/16 rot 2) ; **AMBIENT refaite en nappes douces** (70 BPM MIN : 2 × PAD
+        en DRONE, 32 pas accord OPEN + 24 pas rot 12 une quinte plus haut, RAIN discrète). 3 sons ajoutés EN FIN de ALT_PRE
+        (WARM, PAD, OPEN HAT : les numéros des sons des scènes USER ne bougent pas). alter_render.mjs accepte les noms à espace.
         Test : `node tools/alter/alter_fx_test.mjs build/emu/felucca.wasm` (page, EQ par bande, COMP, CLIP, DUCK, scène).
         ⚠ Le son du navigateur a ~0,3 s de retard sur les réglages : attendre ≥ 1 s avant de mesurer.
         Police AF_L : « Z » ajouté (tools/gen_aa_font.py ; supprimer build/gen pour régénérer).
