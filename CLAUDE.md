@@ -183,6 +183,15 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         force 2 bits, chance 4 bits par pas), alt_rhy_get/put (pattern), alt_new_scene, alt_row_load/save, banques en
         RAM alt_bank_s/alt_bank_p + flash objets 3 et 4 (magie ATLS/ATLP), chargées au démarrage (alt_banks_load).
         Scènes d'usine : champ `dly` (envoi delay, 0 = celui du son). Écran : 2 onglets, 5 lignes, cadenas = usine.
+  - [ ] **3e LFO (choix validés 31/10, PAS codé)**. Existant Felucca vérifié (mod.c, voice.c) : 1 LFO par partie
+        (SIN TRI SAW SQR S&H, RATE PHASE FADE SYNC TRIG POL, dest. fixes PIT FLT SHP AMP ; sur ALTER FLT=HARM, SHP=MORPH),
+        calculé 1×/bloc (coût CPU minime, pas de vitesse audio) + MATRICE 4 cases/partie (P_M1SRC..P_M4AMT ; sources
+        LFO ENV VEL KEY RAND MODW AT EXPR S&H SLEW ; dest. PITCH CUT SHP AMP PAN DIST CHO DLY REV RATE VIB E1..E8 DEPTH
+        VEL TIME). Choix de Romain : **1 LFO par cercle + 1 LFO GLOBAL** (à nous, synchro tempo, peut bouger les 3 voix) ;
+        **LFO 2e appui = page MATRICE** (1er appui = page rapide actuelle, 3e = retour) ; **nouvelles sources : POSITION
+        dans le cycle du cercle (rampe sur LEN) et FORCE du pas**. Réglages du LFO global dans NOS scènes (ne pas
+        allonger P_COUNT : casse les sauvegardes Felucca). À demander avant de coder : formes/destinations du global,
+        comment choisir source/dest/quantité avec 4 knobs.
   - [ ] 3c : vue DEEP (EDIT ouvre encore la page EDIT de Felucca). Puis retirer l'interface Felucca. Reste : SCL → gamme
         des cercles, touches blanches libres, DESTROY assignable, verrous du dé, DOSE.
 - [ ] Étape 4 (après le séquenceur) : tranche de console dédiée, ordre FIXE validé :
