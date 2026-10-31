@@ -164,6 +164,7 @@ static void alt_on(uint32_t c, uint32_t note, uint32_t vel, int glide, const uin
     t->p[P_GLIDE] = g;
     t->p[P_VOICE] = vm;
     alt_hits[c]++;
+    am_hit(c);                                   /* (the MASTER's duck: alter_fx.c) */
     if (alt_emode[c] == AM_PERC) {               /* PERC: held HOLD (0 .. 500 ms), then let go (its DECAY), PUNCH */
         uint32_t h = alt_envp[c][AE_PHOLD] + (uint32_t)clamp(alt_env_lfo(c, GD_EDEC) + alt_env_lfo(c, GD_ELEN), -127, 127);
         h = h > 127u ? (h > 1000u ? 0u : 127u) : h;
@@ -222,6 +223,7 @@ static void alt_on_drone(uint32_t c, uint32_t note, uint32_t vel, const uint8_t 
         alt_lay[c][k] &= (uint8_t)~mask;
     alt_lay[c][alt_nlay[c]++] = (uint8_t)mask;
     alt_hits[c]++;
+    am_hit(c);                                   /* (the MASTER's duck: alter_fx.c) */
 }
 
 /* a parameter of part c moved by d (a knob), its die offset kept on top */
@@ -580,5 +582,6 @@ static void alter_tick_(uint32_t n)
 static void alter_tick(uint32_t n)
 {
     alter_tick_(n);
+    am_clock(alt_gstep, alt_pos, div_samples(2), alt_run && song.playing);   /* (the duck's beat: alter_fx.c) */
     alt_pos_src(div_samples(2));                 /* (after the steps: a cycle's first hit hears POS 0) */
 }

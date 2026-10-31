@@ -59,7 +59,53 @@ typedef struct {
 } alt_pat_rec_t;
 
 static struct { uint32_t magic; alt_scene_rec_t s[ALT_NUSER]; } alt_bank_s;
-static struct { uint32_t magic; alt_rhy_t r[ALT_NUSER][AS_NCIRC]; } alt_bank_r;   /* the USER scenes' rhythms (object 2) */
+#define ALT_FXREC 32u                            /* a USER scene's effects (alt_fx_get) */
+static struct {
+    uint32_t magic;
+    alt_rhy_t r[ALT_NUSER][AS_NCIRC];            /* the USER scenes' rhythms (object 2) .. */
+    uint8_t fxok[ALT_NUSER];                     /* .. and their effects (the FX page; 0: stored before it) */
+    uint8_t fx[ALT_NUSER][ALT_FXREC];
+} alt_bank_r;
+#define ALT_BANK_R_OLD (4u + sizeof(alt_rhy_t) * ALT_NUSER * AS_NCIRC)   /* (before the effects: still read) */
+static void afp_dly_apply(uint32_t i);           /* (alter_fxpage.c) */
+static void afp_rev_apply(uint32_t i);
+static void afp_mst_apply(uint32_t i);
+
+/* the effects in a USER scene: the shared DELAY and REVERB, the MASTER, the presets in use, each circle's INSERT B C
+ * (its DIST, TYPE, A, MIX are with its sound: ALT_SP) */
+static const uint8_t ALT_FXG[7] = {G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX, G_RTYPE, G_RSIZE, G_RDAMP};
+static void alt_fx_get(uint8_t *b)
+{
+    uint32_t k;
+    for (k = 0; k < 7u; k++)
+        b[k] = (uint8_t)song.g[ALT_FXG[k]];
+    for (k = 0; k < AMX_N; k++)
+        b[7u + k] = amx[k];
+    for (k = 0; k < AFX_NS; k++)
+        b[15u + k] = afx_sel[k];
+    b[21] = afx_edit;
+    for (k = 0; k < AS_NCIRC; k++) {
+        b[22u + 2u * k] = (uint8_t)trk[k].p[P_IB];
+        b[23u + 2u * k] = (uint8_t)trk[k].p[P_IC];
+    }
+}
+static void alt_fx_put(const uint8_t *b)
+{
+    uint32_t k;
+    for (k = 0; k < 7u; k++)
+        song.g[ALT_FXG[k]] = b[k];
+    for (k = 0; k < AMX_N; k++)
+        amx[k] = b[7u + k];
+    for (k = 0; k < AFX_NS; k++)
+        afx_sel[k] = b[15u + k];
+    afx_edit = b[21];
+    fm1_irq_off();
+    for (k = 0; k < AS_NCIRC; k++) {
+        trk[k].p[P_IB] = b[22u + 2u * k];
+        trk[k].p[P_IC] = b[23u + 2u * k];
+    }
+    fm1_irq_on();
+}
 static struct {
     uint32_t magic;
     alt_pat_rec_t p[ALT_NUSER];
@@ -242,6 +288,9 @@ static void alt_load_scene(uint32_t n)
     song.g[G_BPM] = sc->bpm;
     song.g[G_SWING] = sc->swing;
     alt_seq.scale = sc->scale;
+    afp_dly_apply(sc->dpre);                     /* the FX page's shared ones (each circle's DIST: its sound's) */
+    afp_rev_apply(sc->rpre);
+    afp_mst_apply(sc->mpre);
     alt_gl_reset();
     for (c = 0; c < AS_NCIRC; c++) {
         as_cfg_t *cf = &au.cfg[c];
@@ -271,6 +320,9 @@ static void alt_new_scene(void)
     song.g[G_BPM] = 120;
     song.g[G_SWING] = 0;
     alt_seq.scale = AS_SC_MIN;
+    afp_dly_apply(0);                            /* ECHO, HALL, FLAT */
+    afp_rev_apply(0);
+    afp_mst_apply(0);
     alt_gl_reset();
     for (c = 0; c < AS_NCIRC; c++) {
         alt_rhy_t r;
@@ -296,8 +348,16 @@ static void alt_banks_load(void)
             ((uint8_t *)&alt_bank_s)[i] = 0;
         alt_bank_s.magic = ALT_MAGIC_S;
     }
-    if (st_load(ALT_OBJ_SRHY, &alt_bank_r, sizeof alt_bank_r) != (int)sizeof alt_bank_r || alt_bank_r.magic != ALT_MAGIC_R ||
-        alt_bank_s.magic != ALT_MAGIC_S) {       /* (no rhythms for the scenes: the scenes go too) */
+    {
+        int n = st_load(ALT_OBJ_SRHY, &alt_bank_r, sizeof alt_bank_r);
+        uint32_t i;
+        if (n == (int)ALT_BANK_R_OLD)            /* (stored before the effects: no effects) */
+            for (i = 0; i < ALT_NUSER; i++)
+                alt_bank_r.fxok[i] = 0;
+        else if (n != (int)sizeof alt_bank_r)
+            alt_bank_r.magic = 0;
+    }
+    if (alt_bank_r.magic != ALT_MAGIC_R || alt_bank_s.magic != ALT_MAGIC_S) {   /* (no rhythms for the scenes: the scenes go too) */
         uint32_t i;
         for (i = 0; i < sizeof alt_bank_r; i++)
             ((uint8_t *)&alt_bank_r)[i] = 0;
@@ -357,6 +417,8 @@ static int alt_row_load(uint32_t t, uint32_t i)
             for (c = 0; c < AS_NCIRC; c++)       /* its envelope modes' settings (or the defaults: stored before them) */
                 for (k = 0; k < AE_N; k++)
                     alt_envp[c][k] = alt_bank_p.envok[u] ? alt_bank_p.env[u][c][k] : AE_DEF[k];
+            if (alt_bank_r.fxok[u])              /* its effects (stored before them: as they are) */
+                alt_fx_put(alt_bank_r.fx[u]);
         } else
             return 0;
         return 1;
@@ -388,6 +450,8 @@ static int alt_row_save(uint32_t t, uint32_t i)
         uint32_t k;
         alt_scene_get(&alt_bank_s.s[u], alt_bank_r.r[u]);
         alt_bank_p.envok[u] = 1;
+        alt_bank_r.fxok[u] = 1;
+        alt_fx_get(alt_bank_r.fx[u]);
         for (c = 0; c < AS_NCIRC; c++)
             for (k = 0; k < AE_N; k++)
                 alt_bank_p.env[u][c][k] = alt_envp[c][k];

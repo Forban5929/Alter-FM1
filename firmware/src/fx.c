@@ -806,6 +806,7 @@ static __attribute__((noinline)) void track_insert(track_t *t, int32_t *b, uint3
 
 /* one block of the whole mix (shared with hostsim.c): events -> each part (with its modulation matrix)
  * -> dist -> INSERT -> SLICER -> level / pan / sends -> buses -> master; out: stereo Q15 */
+#include "alter_fx.c"                                   /* ALTER: the FX page's presets, the MASTER block, the duck */
 static void events_block(uint32_t n);                    /* seq.c */
 #if FELUCCA_CPU2
 static int32_t wet[CTL];                                 /* (the dry mix and the sends: mx[0], above) */
@@ -917,7 +918,7 @@ static void mix_part(track_t *t, uint32_t n SM_DECL)
     }
     if (!T_SPREAD(t)) {                                /* (the mix's values read after the calls: none is held over
                                                          * them, no spill in the loop: the ISR's cost as before 1.5) */
-        int32_t lvl = LEVEL_Q12[t->p[P_LEVEL] & 127], pan = t->p[P_PAN];
+        int32_t lvl = (LEVEL_Q12[t->p[P_LEVEL] & 127] * AM_DG(t)) >> 15, pan = t->p[P_PAN];   /* (ALTER's duck) */
         int32_t gl = 4096 - (pan > 0 ? pan * 64 : 0), gr = 4096 + (pan < 0 ? pan * 64 : 0);
         int32_t c = t->p[P_CHOR] * 258, d = t->p[P_DLY] * 258, r = t->p[P_REV] * 258, pk = t->peak;
         int32_t xmax = c > d ? c : d;
@@ -1041,6 +1042,7 @@ static void mix_block(int32_t *out, uint32_t n)
     for (i = 0; i < n; i++)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
     events_block(n);
+    am_duck_block(n);                                   /* ALTER: the duck's gains (alter_fx.c) */
     perf = perf_begin(n);                               /* the FX hold layer at work (perform.c) */
 #if FELUCCA_CPU2
     uint32_t m = C1_ON() ? C1_SPLIT() & ((1u << NPART) - 1u) : 0u;
@@ -1073,6 +1075,8 @@ static void mix_block(int32_t *out, uint32_t n)
     fx_buses(send_c, send_d, send_r, wet, n);
     if (hl.side)
         rev_side_mix(mix_l, mix_r, n);                  /* HALL: stereo */
+    if (am_on())
+        am_master(mix_l, mix_r, wet, n);                /* ALTER's MASTER block (alter_fx.c): wet folded in */
     if (scope_mix)
         scope_take_mix(n);
     if (perf) {

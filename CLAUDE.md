@@ -235,13 +235,34 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         svel/sdly/srev/spitch, ev.dly/ev.rev ; alter_play.c : SHIFT (alt_shift_tot) = NEXT/PREV si TURING ; offsets P_DLY
         (+dly) P_REV (+rev) par coup ; alter_ui.c : AK_TLOCK, LN_*, alt_seq_input/scene/sig. Stockage alt_rhy_t (couloirs
         4 bits, objet 2 pour les scènes USER) → **slots USER d'avant effacés** (taille changée). P-lock : pas fait.
+  - [x] **3h PAGE FX + MASTER (31/10, codé, testé, publié ; ATTEND L'ÉCOUTE)**. Choix de Romain : **FX tenu 0,5 s = page FX**
+        (reste ouverte ; FX tapé ou HOME = sortie ; FX tapé court = page rapide d'avant) ; **delay et reverb PARTAGÉS** (1 seul
+        de chaque dans Felucca) + envoi par cercle ; master **simple + presets** ; ducking = **temps OU cercle**. Le clavier
+        joue pendant la page (mutes, dés, fills). Onglets (ALGORITHM) : **DIST** (cercle choisi : DRIVE TYPE AMOUNT MIX ;
+        SOUND WARM CRUNCH FOLD FUZZ SCREAM BITS DESTROY, niveaux mesurés ±3 dB) · **DELAY** (TIME FEEDBK COLOR SEND ; ECHO SLAP
+        DUB DUB LONG TAPE TRIPLET 16TH DOT SPACE) · **REVERB** (TYPE SIZE DAMP SEND ; HALL ROOM BIG ROOM METAL SPRING DARK
+        SPRING BRIGHT HALL CAVE) · **MASTER** (SELECT = rangée : LOW MID HIGH COMP | DUCK SRC SHAPE CLIP ; FLAT LIVE GLUE LOUD
+        PUMP 1/4 PUMP 1/8 DUCK C1 DARK ; vu-mètres COMP et DUCK). PRESETS = preset de l'onglet ; un knob tourné = nom avec *.
+        Code : `alter_fx.c` (inclus dans fx.c : tables de presets, amx[8] écrit par l'UI, am_master = EQ isolateur
+        Linkwitz-Riley 24 dB/oct 250 Hz / 2,5 kHz (64 = plat, 0 = coupé, 127 = +6 dB) → COMP 4:1 (gain toutes les 8
+        éch., attaque immédiate, ~190 ms) → CLIP (tanh à mi-échelle, sous le limiteur) ; à FLAT rien ne tourne = son
+        identique à avant ; duck = am_dg[3] sur LEVEL dans mix_part, SRC 1/4 1/8 1/2 (grille, baisse les 3 cercles, suit
+        le kick du Rytm via MIDI clock) ou CIRC n (baisse les 2 autres), am_hit/am_clock appelés par alter_play.c).
+        `alter_fxpage.c` (inclus dans alter_ui.c : afp_input/afp_scene/afp_sig, état afp et afx_sel/afx_edit dans alter_fx.c).
+        Scènes USER : effets (delay, reverb, master, presets, INSERT B/C) dans l'objet 2 (alt_bank_r.fx, ancienne taille
+        encore lue : **slots USER gardés**). Scènes d'usine : champs dpre/rpre/mpre (TECHNO ECHO/HALL/FLAT, HOUSE
+        ECHO/HALL/DUCK C1, AMBIENT SPACE/CAVE/FLAT, INDUS TAPE/METAL/LOUD) ; changer de son remet sa DIST à SOUND.
+        Test : `node tools/alter/alter_fx_test.mjs build/emu/felucca.wasm` (page, EQ par bande, COMP, CLIP, DUCK, scène).
+        ⚠ Le son du navigateur a ~0,3 s de retard sur les réglages : attendre ≥ 1 s avant de mesurer.
+        Police AF_L : « Z » ajouté (tools/gen_aa_font.py ; supprimer build/gen pour régénérer).
+        Pas fait : delay ping-pong stéréo (le delay Felucca est mono), EQ/compresseur PAR piste (étape 4).
   - [ ] 3c : vue DEEP (EDIT ouvre encore la page EDIT de Felucca). Puis retirer l'interface Felucca. Reste : SCL → gamme
         des cercles, touches blanches libres, DESTROY assignable, verrous du dé, DOSE.
-- [ ] Étape 4 (après le séquenceur) : tranche de console dédiée, ordre FIXE validé :
-      son → **disto/fold → EQ 3 bandes → compresseur** → delay (echo, ping-pong, dub) → reverb.
+- [ ] Étape 4 (après le séquenceur) : tranche de console PAR PISTE, ordre FIXE validé :
+      son → **disto/fold → EQ 3 bandes → compresseur** → delay (echo, ping-pong, dub) → reverb. (Master fait en 3h.)
       Existant Felucca (vérifié dans fx.c) : DIST, INSERT (SOFT/HARD/FOLD/FUZZ/CRUSH…), delay MONO à 1 ligne avec
       retour filtré (base possible pour le dub), reverb HALL/ROOM/SPRING, limiteur master.
-      À créer : EQ 3 bandes, compresseur, delay ping-pong (stéréo). Coût CPU à mesurer.
+      À créer : EQ 3 bandes et compresseur par piste (réutiliser alter_fx.c), delay ping-pong (stéréo). Coût CPU à mesurer.
 ## GitHub (créé le 30/10/2026)
 - Compte : **Forban5929**. Dépôt : **fork PUBLIC de hugelton/Felucca nommé `alter-fm1`**.
 - Branches : `main` = version ALTER qui marche ; une branche par étape (`etape-2-sequenceur`…) fusionnée

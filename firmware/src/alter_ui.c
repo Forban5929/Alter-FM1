@@ -12,6 +12,8 @@
  *                slots) and GLOBAL (alter_lfo.c); ALGORITHM the tab, SELECT the row, KNOB 1 SOURCE (row 0: WAVE),
  *                KNOB 2 DESTINATION (a list drops down; row 0: RATE), KNOB 3 AMOUNT (row 0: SYNC); LFO, HOME or
  *                another page button leaves
+ *   FX held 0.5 s  the FX page (alter_fxpage.c): DIST (per circle), DELAY, REVERB (shared, each circle's send) and
+ *                MASTER (EQ, COMP, DUCK, CLIP: alter_fx.c), PRESETS a preset; the keys play on. FX tapped or HOME leaves
  *   OCT- + OCT+ held, then a page button: Felucca's own page (HOME comes back); then DICE n: circle n's LOCKS page
  *                (the white keys F3..E4 = RHYTHM PITCH GLIDE ENV TIMBRE FORCE VELOCITY, a tap locks / frees; HOME)
  *   SELECT       the chosen circle (and Felucca's selected part: its pages edit its sound)
@@ -176,6 +178,8 @@ static void alt_load_sound(uint32_t c, uint32_t i)
     alt_note[c][0] = alt_note[c][1] = alt_note[c][2] = 0;   /* (apply_preset_to released what sounded) */
     alt_gate_left[c] = 0;
     fm1_irq_on();
+    afx_sel[c] = 0;                              /* (its DIST: the sound's own again, alter_fx.c) */
+    afx_edit &= (uint8_t)~(1u << c);
     alt_preset_cnt[c]++;
 }
 
@@ -616,6 +620,8 @@ static void alt_select(uint32_t i)
 }
 
 /* 1: the PLAY view had this frame's input (ui_input stops); 0: Felucca's (another page, or a button that opens one) */
+static void afp_input(void);                     /* the FX page (alter_fxpage.c, with the screen below) */
+#define ALT_FX_HOLD_MS 500u                       /* FX held this long: the FX page */
 static int alter_ui_input(uint32_t pressed)
 {
     uint32_t keys = fm1_in.notes, down, k, i, ours = alt_ours(), q, octs, both;
@@ -632,6 +638,7 @@ static int alter_ui_input(uint32_t pressed)
                 au.scene_open = 0;
                 au.mat_open = 0;
                 au.seq_open = 0;
+                afp.open = 0;
                 alt_hold = 0;
                 au.keys = keys;
                 return 0;
@@ -670,6 +677,7 @@ static int alter_ui_input(uint32_t pressed)
         au.scene_open = 0;
         au.mat_open = 0;
         au.seq_open = 0;
+        afp.open = 0;
     }
     if (((pressed >> panel.btn[B_SAVE]) & 1u) && !au.scene_open) {   /* SAVE: the SAVE page (its press opens it) */
         au.scene_open = 1;
@@ -678,6 +686,7 @@ static int alter_ui_input(uint32_t pressed)
         au.lockc = 0;
         au.mat_open = 0;
         au.seq_open = 0;
+        afp.open = 0;
     } else if (au.scene_open) {                  /* on it: a tap loads, held 1 s stores */
         uint32_t dn = (fm1_in.buttons >> panel.btn[B_SAVE]) & 1u, t = au.tab, r = au.row[t];
         if (((pressed >> panel.btn[B_SAVE]) & 1u)) {
@@ -719,6 +728,23 @@ static int alter_ui_input(uint32_t pressed)
         uint32_t dn = (fm1_in.buttons >> panel.btn[ALT_QP_BTN[q]]) & 1u, was = (au.qp_was >> q) & 1u;
         if (dn && !was && q != QP_SEQ && au.seq_open)
             au.seq_open = 0;                     /* (another page: the SEQ menu closes) */
+        if (dn && !was && q != QP_FX && afp.open)
+            afp.open = 0;                        /* (another page: the FX page closes) */
+        if (q == QP_FX && dn && was && !afp.open &&
+            (int32_t)(fm1_ms - au.qp_t0[q]) >= (int32_t)ALT_FX_HOLD_MS) {   /* FX held 0.5 s: the FX page */
+            afp.open = 1;
+            afp.hold = 1;
+            au.qp = QP_NONE;
+            au.seq_open = 0;
+            alt_say("FX");
+        }
+        if (q == QP_FX && !dn && was && (afp.hold || afp.open)) {   /* its release: the page stays (a hold), or */
+            if (!afp.hold)                       /* closes (a tap on it) */
+                afp.open = 0;
+            afp.hold = 0;
+            au.qp_was &= (uint8_t)~(1u << q);
+            continue;
+        }
         if (q == QP_SEQ && dn && was && !au.seq_open &&
             (int32_t)(fm1_ms - au.qp_t0[q]) >= (int32_t)ALT_SEQ_HOLD_MS) {   /* SEQ held 0.5 s: the menu */
             au.seq_open = 1;
@@ -760,6 +786,8 @@ static int alter_ui_input(uint32_t pressed)
         return 1;
     }
     q = alt_page();
+    if (afp.open)                                /* the FX page: its encoders (the keys play on: mutes, dice, fills) */
+        afp_input();
     for (i = 0; i < 4u; i++)
         if ((s = panel_enc(EN_K1 + i)) != 0 && !au.lockc)
             alt_turn(q, i, s);
@@ -1504,6 +1532,8 @@ static void alt_matrix_scene(void)
         alt_lfo_tab(tb, col);
 }
 
+#include "alter_fxpage.c"
+
 static void alt_scene(uint32_t q, uint32_t flash)
 {
     const track_t *t = &trk[au.sel];
@@ -1524,6 +1554,10 @@ static void alt_scene(uint32_t q, uint32_t flash)
     }
     if (au.seq_open) {
         alt_seq_scene();
+        return;
+    }
+    if (afp.open) {
+        afp_scene();
         return;
     }
     /* the head: a point of the chosen circle's colour, its sound, the transport */
@@ -1639,7 +1673,8 @@ static void alter_draw(void)
     }
     sig = sig * 31u + alt_emode[au.sel] * 37u + alt_seq.scale * 41u + au.scene_open * 43u + au.row[au.tab] * 47u + au.tab * 59u +
           au.pre[au.sel] * 53u;
-    sig = sig * 31u + (au.mat_open ? alt_mat_sig() * 2u + 1u : 0u) + (au.seq_open ? alt_seq_sig() * 4u + 3u : 0u);
+    sig = sig * 31u + (au.mat_open ? alt_mat_sig() * 2u + 1u : 0u) + (au.seq_open ? alt_seq_sig() * 4u + 3u : 0u) +
+          (afp.open ? afp_sig() * 8u + 5u : 0u);
     sig = sig * 31u + q * 19u + au.lockc * 23u + alt_seq.c[au.lockc ? au.lockc - 1u : 0u].locks * 29u;
     sig = sig * 31u + au.sel * 3u + flash * 5u + (uint32_t)song.playing * 7u + trk[au.sel].preset * 11u +
           (uint32_t)song.g[G_BPM] * 13u + (au.msg && fm1_ms - au.msg_ms < 1500u ? (uint32_t)(uintptr_t)au.msg + (fm1_ms - au.msg_ms < 900u) : 1u);
@@ -1659,7 +1694,8 @@ static void alter_draw(void)
 
 /* the browser build's hooks (web/emu/felucca_web.c web_alter): op 0 circle a's sound b, 1 scene a, 2 mute circle a
  * (b = 0 / 1), 3 circle a's envelope mode b, 4 tempo a, 5 circle a's mode: its sound's own, 6 Felucca's phrase b on
- * part a (as its own SAVE page would: the test that ALTER keeps Felucca's sequencer quiet) */
+ * part a (as its own SAVE page would: the test that ALTER keeps Felucca's sequencer quiet), 7 the FX page's preset b
+ * of slot a (alter_fx.c AFX_S_*: 0..2 a circle's DIST), 8 MASTER setting a (amx) to b */
 static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
 {
     if (!au.ready)
@@ -1672,6 +1708,11 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
     case 4: song.g[G_BPM] = (int16_t)clamp((int32_t)a, 40, 240); break;
     case 5: alt_emode[a % AS_NCIRC] = (uint8_t)(ALT_PRE[au.pre[a % AS_NCIRC]].mode % AM_N); break;
     case 6: pat_load(&trk[a % NPART], b); break;   /* (a test: Felucca's own phrase b on part a) */
+    case 7:                                      /* the FX page's preset b of slot a (0..2 a circle's DIST, 3 DELAY, 4 REVERB, 5 MASTER) */
+        if (a < AS_NCIRC) afp_dist_apply(a, b); else if (a == AFX_S_DLY) afp_dly_apply(b);
+        else if (a == AFX_S_REV) afp_rev_apply(b); else afp_mst_apply(b);
+        break;
+    case 8: amx[a % AMX_N] = (uint8_t)b; break;  /* (a test: MASTER setting a) */
     default: break;
     }
 }
