@@ -142,7 +142,7 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
   - [x] 3b : vue PLAY (cercles concentriques). **Règle de Romain : une touche fait ce que dit son nom.**
         Boutons : HOME = PLAY ; EDIT = DEEP ; SEQ tenu = KNOB 1-4 → LEN HITS ROT PROB ; SELECT = cercle ; SCL = gamme +
         note de base ; ENV, LFO, FX, GLO (tempo/sync), SAVE ; PLAY = start/stop ; ARP, REC = rien pour l'instant.
-        Clavier : NOIRES tenues (groupes 3-2-3-2-1) ROLL 1/16 1/32 triolet | RATCHET x2 x3 | DUB DELAY, DUB REVERB,
+        Clavier : NOIRES tenues (groupes 3-2-3-2-1) ROLL 1/8T 1/16 BUILD UP | RATCHET x2 x3 | DUB DELAY, DUB REVERB,
         DESTROY | DENSITÉ -, + (appui) | REVERSE. BLANCHES (blocs allumés séparés d'une éteinte) MUTE 1 2 3 · DÉ 1 2 3 ·
         SHIFT -1 +1 · le reste libre.
   - [x] **3d-1 (branche `etape-3d`, 31/10) : 3 voix ALTER/PHYS/NOISE** codé, testé, publié (même lien que 3a).
@@ -235,6 +235,14 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         svel/sdly/srev/spitch, ev.dly/ev.rev ; alter_play.c : SHIFT (alt_shift_tot) = NEXT/PREV si TURING ; offsets P_DLY
         (+dly) P_REV (+rev) par coup ; alter_ui.c : AK_TLOCK, LN_*, alt_seq_input/scene/sig. Stockage alt_rhy_t (couloirs
         4 bits, objet 2 pour les scènes USER) → **slots USER d'avant effacés** (taille changée). P-lock : pas fait.
+        **01/11** : couloir **RATCH** (×1..×4 par pas : alter_seq.c srat → ev.rat, le dé peut aller plus loin ; onglets
+        courts ALT_LANE_TAB VELO CHNC DLY REV PITCH RATCH). Stocké À PART (2 bits/pas, alt_rat_get/put) : alt_bank_r.rat
+        (scènes USER) et alt_bank_p.prat (patterns USER) ; anciennes tailles encore lues (ALT_BANK_R_OLD/_FX, ALT_BANK_P_OLD)
+        → **slots USER gardés** ; le dump AMBIENT ne contient pas de RATCH (zéro). **Touches noires dans le menu SEQ** =
+        raccourcis (ALT_SEQ_BK : 1 VELO, 3 CHNC, 5 DLY, 8 REV, 10 PITCH, 13 RATCH, 15 EUCLID/TURING, 20 cercle −, 22 cercle +).
+        **LED** du menu SEQ : pas joué + pas tenus allumés (la lumière avance), coups à mi-niveau (nm), autres faibles ;
+        couloir affiché allumé sur sa touche noire. **ROLLS** (choix Romain) : 1/8T · 1/16 · BUILD UP (4 croches, 8 doubles,
+        puis triples croches tant qu'on tient, de plus en plus fort ; AF_ROLLT8/AF_ROLL16/AF_BUILD). CHAOS tire aussi RATCH.
   - [x] **3h PAGE FX + MASTER (31/10, codé, testé, publié ; ATTEND L'ÉCOUTE)**. Choix de Romain : **FX tenu 0,5 s = page FX**
         (reste ouverte ; FX tapé ou HOME = sortie ; FX tapé court = page rapide d'avant) ; **delay et reverb PARTAGÉS** (1 seul
         de chaque dans Felucca) + envoi par cercle ; master **simple + presets** ; ducking = **temps OU cercle**. Le clavier

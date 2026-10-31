@@ -65,6 +65,7 @@ typedef struct {
     uint8_t sdly[AS_NLANE];         /* the hit thrown into the delay, 0..127 (added to the host's DELAY send) .. */
     uint8_t srev[AS_NLANE];         /* .. and into the reverb */
     int8_t spitch[AS_NLANE];        /* scale degrees above the hit's own, -7..7 */
+    uint8_t srat[AS_NLANE];         /* RATCH: the hit repeated in its step, 0..3 (x1 .. x4) */
     uint16_t treg;                  /* TURING: its pattern now (mutated as a cycle starts) .. */
     uint16_t tback[AS_THIST], tfwd[AS_THIST];   /* .. the ones before (PREV) and after (NEXT, back again) */
     uint8_t nback, nfwd;
@@ -483,10 +484,12 @@ static void as_step(as_seq_t *q, as_event_t ev[AS_NCIRC])
             e->gate = 1;
             e->dly = c->sdly[l];
             e->rev = c->srev[l];
+            e->rat = c->srat[l];                        /* (the RATCH lane; a draw's burst may go further) */
             if (c->cfg.type == AS_T_TURING)
                 deg += as_tpitch(c, k);
             if (c->die) {
-                e->rat = c->rat[k];
+                if (c->rat[k] > e->rat)
+                    e->rat = c->rat[k];
                 e->flam = c->flam[k];
                 e->gate = c->gate[k];
                 e->env = c->env[k];

@@ -24,8 +24,8 @@
 
 #include "alter_seq.c"
 
-enum { AF_ROLL16, AF_ROLL32, AF_ROLLT, AF_RAT2, AF_RAT3, AF_DLY, AF_REV, AF_DESTROY, AF_REVERSE, AF_N };
-#define AF_ROLLS ((1u << AF_ROLL16) | (1u << AF_ROLL32) | (1u << AF_ROLLT))
+enum { AF_ROLLT8, AF_ROLL16, AF_BUILD, AF_RAT2, AF_RAT3, AF_DLY, AF_REV, AF_DESTROY, AF_REVERSE, AF_N };
+#define AF_ROLLS ((1u << AF_ROLLT8) | (1u << AF_ROLL16) | (1u << AF_BUILD))
 #define ALT_NSLOT 14                             /* the offsets: E1..E8, DEC, REL, ATK, SUS, the DELAY and REVERB lanes */
 /* the envelope modes (ALGORITHM, per circle): FREE the sound's own ADSR; PERC, STAB, DRONE an ADSR of their own
  * (the sound's own nudges it a quarter of the way, the die's offset a third as far) and the notes' length */
@@ -340,12 +340,14 @@ static void alt_take(void)
     }
 }
 
+/* a roll's step (p: a sixteenth): 1/8 triplet, 1/16, or BUILD UP: 4 eighths, 8 sixteenths, then thirty-seconds (each
+ * stage two beats long, so it stays on the grid), louder and louder (alt_roll_n: the notes so far) */
 static uint32_t alt_roll_period(uint32_t h, uint32_t p)
 {
-    if ((h >> AF_ROLL32) & 1u)
-        return p / 2u;
-    if ((h >> AF_ROLLT) & 1u)
-        return p * 2u / 3u;
+    if ((h >> AF_BUILD) & 1u)
+        return alt_roll_n < 4u ? 2u * p : alt_roll_n < 12u ? p : p / 2u;
+    if ((h >> AF_ROLLT8) & 1u)
+        return p * 4u / 3u;
     return p;
 }
 
@@ -567,11 +569,11 @@ static void alter_tick_(uint32_t n)
         len = alt_len(p);
     }
     if (h & AF_ROLLS) {
-        uint32_t per = alt_roll_period(h, p);
         const as_circ_t *r = &alt_seq.c[alt_tgt];
         alt_roll_pos += (int32_t)n;
-        while (alt_roll_pos >= (int32_t)per) {
-            uint32_t v = 40u + alt_roll_n * 6u;
+        while (alt_roll_pos >= (int32_t)alt_roll_period(h, p)) {   /* (BUILD UP: the step shrinks as it goes) */
+            uint32_t per = alt_roll_period(h, p);
+            uint32_t v = (h >> AF_BUILD) & 1u ? 30u + alt_roll_n * 3u : 40u + alt_roll_n * 6u;
             alt_roll_pos -= (int32_t)per;
             alt_on(alt_tgt, as_note(&alt_seq, r->cfg.root, 0), v > 124u ? 124u : v, 0, 0);
             alt_roll_n++;

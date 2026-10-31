@@ -154,7 +154,7 @@ check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().
 // the fills: on the selected circle (1)
 {
   const before = bar().steps.length;
-  const FILLS = { 1: "ROLL 1/16", 3: "ROLL 1/32", 5: "ROLL 1/16T", 8: "RATCHET X2", 10: "RATCHET X3", 13: "DUB DELAY",
+  const FILLS = { 1: "ROLL 1/8T", 3: "ROLL 1/16", 5: "BUILD UP", 8: "RATCHET X2", 10: "RATCHET X3", 13: "DUB DELAY",
                   15: "DUB REVERB", 17: "DESTROY", 25: "REVERSE" };
   const got = {}, n = {};
   let worst = 0;
@@ -167,7 +167,19 @@ check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().
   }
   console.log("alter: attacks in a bar held: " + Object.entries(n).map(([k, v]) => `${k} ${v}`).join(", "));
   check(`every fill plays and none clips (peak ${worst.toFixed(3)})`, Object.values(n).every((v) => v > 0) && worst < 0.999);
-  check("ROLL 1/32 ~ 32 attacks", n["ROLL 1/32"] >= 26);
+  check(`ROLL 1/16 ~ 16 attacks, 1/8T ~ 12, BUILD UP faster than 1/8T (${n["ROLL 1/16"]} ${n["ROLL 1/8T"]} ${n["BUILD UP"]})`,
+        n["ROLL 1/16"] >= 14 && n["ROLL 1/8T"] >= 9 && n["ROLL 1/8T"] <= 14 && n["BUILD UP"] > n["ROLL 1/8T"]);
+  // the SEQ menu's RATCH lane: black key 13 = RATCH, step 1 held + KNOB 1 up: that hit plays x4
+  {
+    const seqTap = (hold) => { ex.web_buttons(1 << SEQB); render(hold); ex.web_buttons(0); render(2000); };
+    const a0 = attacks(bar().audio, FS * 0.012).length;
+    seqTap(FS * 0.7); K(1 << 13); render(1500); K(0); render(1500);
+    K(1 << 0); render(1500); enc(3, 5); K(0); render(1500);
+    seqTap(2000); bar();
+    const a1 = attacks(bar().audio, FS * 0.012).length;
+    seqTap(FS * 0.7); K(1 << 0); render(1500); enc(3, -5); K(0); render(1500); seqTap(2000); bar();
+    check(`SEQ RATCH lane: step 1 at x4 adds attacks (${a0} -> ${a1})`, a1 >= a0 + 2);
+  }
   check("RATCHET X2 / X3 add attacks", n["RATCHET X2"] > before && n["RATCHET X3"] > n["RATCHET X2"]);
 
   check(`let go: the pattern is back`, same(bar().steps, euclid(16, 8, 0)));

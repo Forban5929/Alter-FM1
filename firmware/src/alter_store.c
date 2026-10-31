@@ -63,10 +63,12 @@ static struct { uint32_t magic; alt_scene_rec_t s[ALT_NUSER]; } alt_bank_s;
 static struct {
     uint32_t magic;
     alt_rhy_t r[ALT_NUSER][AS_NCIRC];            /* the USER scenes' rhythms (object 2) .. */
-    uint8_t fxok[ALT_NUSER];                     /* .. and their effects (the FX page; 0: stored before it) */
+    uint8_t fxok[ALT_NUSER];                     /* .. and their effects (the FX page; 0: stored before it) .. */
     uint8_t fx[ALT_NUSER][ALT_FXREC];
+    uint8_t rat[ALT_NUSER][AS_NCIRC][AS_NLANE / 4];   /* .. and their RATCH lanes, 2 bits a step (0: stored before it) */
 } alt_bank_r;
 #define ALT_BANK_R_OLD (4u + sizeof(alt_rhy_t) * ALT_NUSER * AS_NCIRC)   /* (before the effects: still read) */
+#define ALT_BANK_R_FX (ALT_BANK_R_OLD + ALT_NUSER * (1u + ALT_FXREC))     /* (before the RATCH lane: still read) */
 _Static_assert(sizeof ALT_USER_AMBIENT == sizeof(alt_scene_rec_t) + sizeof(alt_rhy_t) * AS_NCIRC + 2u + ALT_FXREC +
                AS_NCIRC * AE_N, "a USER scene kept as a factory one matches the records (else: re-extract it)");
 static void afp_dly_apply(uint32_t i);           /* (alter_fxpage.c) */
@@ -113,7 +115,9 @@ static struct {
     alt_pat_rec_t p[ALT_NUSER];
     uint8_t envok[ALT_NUSER];                    /* (the USER scenes' envelope modes' settings live here, object 4: the */
     uint8_t env[ALT_NUSER][AS_NCIRC][AE_N];      /* scenes' own object is full; 0: a scene stored before them) */
+    uint8_t prat[ALT_NUSER][AS_NCIRC][AS_NLANE / 4];   /* the USER patterns' RATCH lanes, 2 bits a step */
 } alt_bank_p;
+#define ALT_BANK_P_OLD (sizeof alt_bank_p - sizeof alt_bank_p.prat)   /* (before the RATCH lane: still read) */
 _Static_assert(sizeof alt_bank_s <= 3840u && sizeof alt_bank_p <= 3840u && sizeof alt_bank_r <= 3840u,
                "ALTER's banks fit a storage object");
 
@@ -165,10 +169,27 @@ static void alt_rhy_put(uint32_t c, const alt_rhy_t *r)
         sc->sdly[k] = (uint8_t)alt_u4(r->dly[k >> 1] >> ((k & 1u) * 4u));
         sc->srev[k] = (uint8_t)alt_u4(r->rev[k >> 1] >> ((k & 1u) * 4u));
         sc->spitch[k] = (int8_t)(((r->pitch[k >> 1] >> ((k & 1u) * 4u)) & 15) - 8);
+        sc->srat[k] = 0;                         /* (the RATCH lane: its own bytes, alt_rat_put) */
     }
     alt_post_now |= (uint8_t)(1u << c);
     alt_post_circle(c);
     alt_clear_cnt[c]++;
+}
+
+/* circle c's RATCH lane in 4 bytes (2 bits a step), and back */
+static void alt_rat_get(uint32_t c, uint8_t *b)
+{
+    uint32_t k;
+    for (k = 0; k < AS_NLANE / 4u; k++)
+        b[k] = 0;
+    for (k = 0; k < AS_NLANE; k++)
+        b[k >> 2] |= (uint8_t)((alt_seq.c[c].srat[k] & 3u) << ((k & 3u) * 2u));
+}
+static void alt_rat_put(uint32_t c, const uint8_t *b)
+{
+    uint32_t k;
+    for (k = 0; k < AS_NLANE; k++)
+        alt_seq.c[c].srat[k] = (uint8_t)((b[k >> 2] >> ((k & 3u) * 2u)) & 3u);
 }
 
 /* a plain rhythm: LEN HITS ROT PROB, every step normal and sure */
@@ -377,10 +398,10 @@ static void alt_banks_load(void)
     {
         int n = st_load(ALT_OBJ_SRHY, &alt_bank_r, sizeof alt_bank_r);
         uint32_t i;
-        if (n == (int)ALT_BANK_R_OLD)            /* (stored before the effects: no effects) */
-            for (i = 0; i < ALT_NUSER; i++)
-                alt_bank_r.fxok[i] = 0;
-        else if (n != (int)sizeof alt_bank_r)
+        if (n == (int)ALT_BANK_R_OLD || n == (int)ALT_BANK_R_FX) {   /* (stored before the effects or the RATCH lane) */
+            for (i = (uint32_t)n; i < sizeof alt_bank_r; i++)
+                ((uint8_t *)&alt_bank_r)[i] = 0;
+        } else if (n != (int)sizeof alt_bank_r)
             alt_bank_r.magic = 0;
     }
     if (alt_bank_r.magic != ALT_MAGIC_R || alt_bank_s.magic != ALT_MAGIC_S) {   /* (no rhythms for the scenes: the scenes go too) */
@@ -391,7 +412,16 @@ static void alt_banks_load(void)
         for (i = 0; i < ALT_NUSER; i++)
             alt_bank_s.s[i].used = 0;
     }
-    if (st_load(ALT_OBJ_PATS, &alt_bank_p, sizeof alt_bank_p) != (int)sizeof alt_bank_p || alt_bank_p.magic != ALT_MAGIC_P) {
+    {
+        int n = st_load(ALT_OBJ_PATS, &alt_bank_p, sizeof alt_bank_p);
+        uint32_t i;
+        if (n == (int)ALT_BANK_P_OLD)            /* (stored before the RATCH lane) */
+            for (i = (uint32_t)n; i < sizeof alt_bank_p; i++)
+                ((uint8_t *)&alt_bank_p)[i] = 0;
+        else if (n != (int)sizeof alt_bank_p)
+            alt_bank_p.magic = 0;
+    }
+    if (alt_bank_p.magic != ALT_MAGIC_P) {
         uint32_t i;
         for (i = 0; i < sizeof alt_bank_p; i++)
             ((uint8_t *)&alt_bank_p)[i] = 0;
@@ -445,6 +475,8 @@ static int alt_row_load(uint32_t t, uint32_t i)
                     alt_envp[c][k] = alt_bank_p.envok[u] ? alt_bank_p.env[u][c][k] : AE_DEF[k];
             if (alt_bank_r.fxok[u])              /* its effects (stored before them: as they are) */
                 alt_fx_put(alt_bank_r.fx[u]);
+            for (c = 0; c < AS_NCIRC; c++)       /* its RATCH lanes */
+                alt_rat_put(c, alt_bank_r.rat[u][c]);
         } else
             return 0;
         return 1;
@@ -461,6 +493,8 @@ static int alt_row_load(uint32_t t, uint32_t i)
         else
             return 0;
         alt_rhy_put(c, &r);
+        if (i > ALT_NFACT)
+            alt_rat_put(c, alt_bank_p.prat[i - 1u - ALT_NFACT][c]);
     }
     return 1;
 }
@@ -479,6 +513,8 @@ static int alt_row_save(uint32_t t, uint32_t i)
         alt_bank_r.fxok[u] = 1;
         alt_fx_get(alt_bank_r.fx[u]);
         for (c = 0; c < AS_NCIRC; c++)
+            alt_rat_get(c, alt_bank_r.rat[u][c]);
+        for (c = 0; c < AS_NCIRC; c++)
             for (k = 0; k < AE_N; k++)
                 alt_bank_p.env[u][c][k] = alt_envp[c][k];
         return st_save(ALT_OBJ_SCENES, &alt_bank_s, sizeof alt_bank_s) == 0 &&
@@ -486,7 +522,9 @@ static int alt_row_save(uint32_t t, uint32_t i)
                st_save(ALT_OBJ_PATS, &alt_bank_p, sizeof alt_bank_p) == 0 ? 1 : -1;
     }
     alt_bank_p.p[u].used = 1;
-    for (c = 0; c < AS_NCIRC; c++)
+    for (c = 0; c < AS_NCIRC; c++) {
         alt_rhy_get(c, &alt_bank_p.p[u].c[c]);
+        alt_rat_get(c, alt_bank_p.prat[u][c]);
+    }
     return st_save(ALT_OBJ_PATS, &alt_bank_p, sizeof alt_bank_p) == 0 ? 1 : -1;
 }

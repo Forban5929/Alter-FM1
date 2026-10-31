@@ -22,7 +22,7 @@
  *                point (alter_sounds.c ALT_SCENE). The first scene is loaded at power-on
  *   ALGORITHM    the chosen circle's envelope mode: FREE PERC STAB DRONE (alter_play.c AM_*)
  *   DICE 1 + 2 + 3 together: CHAOS, everything drawn to the extreme on the three circles: engine, preset, the
- *                engine's eight, the effects (sends 33 %, DIST and INSERT 10 % at most), the SEQ lanes (each 40 %), its LFO (WAVE RATE DEPTH DEST), the rhythm (at once), the die (DOSE 127), the scale and roots;
+ *                engine's eight, the effects (sends 33 %, DIST and INSERT 10 % at most), the SEQ lanes (each 40 %, RATCH too), its LFO (WAVE RATE DEPTH DEST), the rhythm (at once), the die (DOSE 127), the scale and roots;
  *                not the tempo, not the modes, not the mutes. For good: no undo
  *   PLAY  start / stop      ARP REC: nothing yet (REC stays disarmed: no count-in, no click)
  * The keys (no notes here: alt_kb_own): the whites in lit blocks with a dark key between: MUTE 1 2 3 (a tap),
@@ -45,7 +45,7 @@ static const alt_key_t ALT_KEY[27] = {    /* k: semitones above F3 (whites 0 2 4
     [7] = {AK_DIE, 0, "DICE 1"}, [9] = {AK_DIE, 1, "DICE 2"}, [11] = {AK_DIE, 2, "DICE 3"},
     [14] = {AK_SHIFT, 0, "SHIFT -1"}, [16] = {AK_SHIFT, 1, "SHIFT +1"},   /* (TURING: PREV, NEXT) */
     [18] = {AK_TLOCK, 0, "LOCK"},                                           /* (TURING only: frozen / free) */
-    [1] = {AK_FILL, AF_ROLL16, "ROLL 1/16"}, [3] = {AK_FILL, AF_ROLL32, "ROLL 1/32"}, [5] = {AK_FILL, AF_ROLLT, "ROLL 1/16T"},
+    [1] = {AK_FILL, AF_ROLLT8, "ROLL 1/8T"}, [3] = {AK_FILL, AF_ROLL16, "ROLL 1/16"}, [5] = {AK_FILL, AF_BUILD, "BUILD UP"},
     [8] = {AK_FILL, AF_RAT2, "RATCHET X2"}, [10] = {AK_FILL, AF_RAT3, "RATCHET X3"},
     [13] = {AK_FILL, AF_DLY, "DUB DELAY"}, [15] = {AK_FILL, AF_REV, "DUB REVERB"}, [17] = {AK_FILL, AF_DESTROY, "DESTROY"},
     [20] = {AK_DENS, 0, "DENSITY -"}, [22] = {AK_DENS, 1, "DENSITY +"},
@@ -420,8 +420,9 @@ static void alt_mtx_turn(uint32_t i, int32_t s)
 
 /* ---- the SEQ menu: the chosen circle's steps, its lanes (VELO CHANCE DELAY REVERB PITCH), its engine ------------- */
 #define ALT_SEQ_HOLD_MS 500u                     /* SEQ held this long: the menu */
-enum { LN_VELO, LN_CHANCE, LN_DLY, LN_REV, LN_PITCH, LN_N };
-static const char *const ALT_LANE_NAME[LN_N] = {"VELO", "CHANCE", "DELAY", "REVERB", "PITCH"};
+enum { LN_VELO, LN_CHANCE, LN_DLY, LN_REV, LN_PITCH, LN_RATCH, LN_N };
+static const char *const ALT_LANE_NAME[LN_N] = {"VELO", "CHANCE", "DELAY", "REVERB", "PITCH", "RATCH"};
+static const char *const ALT_LANE_TAB[LN_N] = {"VELO", "CHNC", "DLY", "REV", "PITCH", "RATCH"};   /* (the tabs: six fit) */
 static const uint8_t ALT_WHITE[16] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26};   /* step i's key */
 
 /* lane ln's value at step k of circle c: 0..127 (PITCH: -7..7) */
@@ -430,7 +431,7 @@ static int32_t alt_lane_val(uint32_t c, uint32_t ln, uint32_t k)
     const as_circ_t *sc = &alt_seq.c[c % AS_NCIRC];
     k %= AS_NLANE;
     return ln == LN_VELO ? sc->svel[k] : ln == LN_CHANCE ? sc->chance[k] : ln == LN_DLY ? sc->sdly[k] :
-           ln == LN_REV ? sc->srev[k] : sc->spitch[k];
+           ln == LN_REV ? sc->srev[k] : ln == LN_RATCH ? sc->srat[k] : sc->spitch[k];
 }
 
 /* the held steps' lane value moved by s (written here: the audio side reads the bytes) */
@@ -452,6 +453,8 @@ static void alt_lane_turn(int32_t s)
             sc->sdly[k] = (uint8_t)clamp((int32_t)sc->sdly[k] + s * 8, 0, 127);
         else if (au.lane == LN_REV)
             sc->srev[k] = (uint8_t)clamp((int32_t)sc->srev[k] + s * 8, 0, 127);
+        else if (au.lane == LN_RATCH)            /* x1 .. x4 */
+            sc->srat[k] = (uint8_t)clamp((int32_t)sc->srat[k] + (s > 0 ? 1 : -1), 0, 3);
         else
             sc->spitch[k] = (int8_t)clamp((int32_t)sc->spitch[k] + (s > 0 ? 1 : -1), -7, 7);
     }
@@ -469,6 +472,13 @@ static void alt_seq_type(int32_t s)
     alt_say(AS_TYPE_NAME[c->type]);
 }
 
+/* the SEQ menu's black keys (Romain, 01/11): a lane each, then EUCLID / TURING, the circle before, the circle after */
+enum { ASK_LANE = 0, ASK_TYPE = 100, ASK_PREV, ASK_NEXT, ASK_NONE = 255 };
+static const uint8_t ALT_SEQ_BK[27] = {
+    [0 ... 26] = ASK_NONE,
+    [1] = LN_VELO, [3] = LN_CHANCE, [5] = LN_DLY, [8] = LN_REV, [10] = LN_PITCH, [13] = LN_RATCH,
+    [15] = ASK_TYPE, [20] = ASK_PREV, [22] = ASK_NEXT,
+};
 /* the SEQ menu has this frame: the step keys, the lanes, the knobs (no fills here) */
 static void alt_seq_input(uint32_t keys)
 {
@@ -481,6 +491,19 @@ static void alt_seq_input(uint32_t keys)
         au.step_down = 0;
     }
     (void)panel_enc(EN_PRESET);
+    for (k = 0; k < 27u; k++)                    /* the black keys: shortcuts */
+        if ((down >> k) & 1u && ALT_SEQ_BK[k] != ASK_NONE) {
+            uint32_t b = ALT_SEQ_BK[k];
+            if (b < LN_N) {
+                au.lane = (uint8_t)b;
+                alt_say(ALT_LANE_NAME[b]);
+            } else if (b == ASK_TYPE)
+                alt_seq_type(au.cfg[au.sel % AS_NCIRC].type == AS_T_EUCLID ? 1 : -1);
+            else {
+                alt_select((uint32_t)((int32_t)au.sel + (b == ASK_NEXT ? 1 : -1) + 3 * 16));
+                au.step_down = 0;
+            }
+        }
     for (k = 0; k < 16u; k++) {
         uint32_t key = ALT_WHITE[k];
         if ((down >> key) & 1u) {
@@ -612,7 +635,7 @@ static void alt_chaos(void)
                                                   * DELAY and REVERB 40 % of the bar at most) */
             as_circ_t *sc = &alt_seq.c[c];
             uint32_t pick = 0;
-            for (k = 0; k < 5u; k++)
+            for (k = 0; k < 6u; k++)
                 if (alt_cr(100u) < 40u)
                     pick |= 1u << k;
             for (k = 0; k < AS_NLANE; k++) {
@@ -622,6 +645,7 @@ static void alt_chaos(void)
                 sc->sdly[k] = (pick & 4u) && alt_cr(2u) ? (uint8_t)alt_cr(52u) : 0u;   /* (0..51: 40 %) */
                 sc->srev[k] = (pick & 8u) && alt_cr(2u) ? (uint8_t)alt_cr(52u) : 0u;
                 sc->spitch[k] = (int8_t)((pick & 16u) && alt_cr(2u) ? (int32_t)alt_cr(15u) - 7 : 0);
+                sc->srat[k] = (uint8_t)((pick & 32u) && !alt_cr(4u) ? 1u + alt_cr(2u) : 0u);   /* (RATCH: x2 x3, rarely) */
             }
         }
         alt_post_now |= (uint8_t)(1u << c);
@@ -907,18 +931,28 @@ static void alter_leds(uint8_t *nl, uint8_t *nd, uint8_t *nb, uint8_t *nm)
     for (k = 0; k < 27u; k++) {
         const alt_key_t *a = &ALT_KEY[k];
         int lit = 0, faint = 0;
-        if (au.seq_open) {                       /* the SEQ menu: the white keys are the steps: a hit lit, else faint */
-            uint32_t j, c = au.sel % AS_NCIRC, n = au.cfg[c].len < 16u ? au.cfg[c].len : 16u;
+        if (au.seq_open) {                       /* the SEQ menu: the white keys are the steps (a hit half lit, the
+                                                  * others faint, the step playing and the held ones lit: the light moves
+                                                  * along); the black keys its shortcuts (the lane shown lit) */
+            uint32_t j, c = au.sel % AS_NCIRC, n = au.cfg[c].len < 16u ? au.cfg[c].len : 16u, mid = 0;
+            const as_circ_t *sc = &alt_seq.c[c];
+            uint32_t now = sc->cfg.len ? (sc->pos + sc->cfg.len - 1u) % sc->cfg.len : 0u;
             for (j = 0; j < 16u; j++)
                 if (ALT_WHITE[j] == k && j < n) {
-                    lit = (int)((alt_seq.c[c].pat >> j) & 1u) || (int)((au.step_down >> j) & 1u);
-                    faint = !lit;
+                    lit = (int)((au.step_down >> j) & 1u) || (song.playing && now % 16u == j);
+                    mid = !lit && ((sc->pat >> j) & 1u);
+                    faint = !lit && !mid;
                 }
+            if (ALT_SEQ_BK[k] != ASK_NONE) {
+                lit = ALT_SEQ_BK[k] == au.lane || (int)((fm1_in.notes >> k) & 1u);
+                faint = !lit;
+            }
             led_clear(nl, 14u + k);
             led_clear(nd, 14u + k);
             led_clear(nb, 14u + k);
             led_clear(nm, 14u + k);
             led_put(nl, 14u + k, lit);
+            led_put(nm, 14u + k, (int)mid);
             led_put(nd, 14u + k, faint);
             continue;
         }
@@ -1452,11 +1486,11 @@ static void alt_seq_scene(void)
     {                                            /* the lanes (ALGORITHM), spread over the width */
         int32_t tot = 0, lx = 8, gap;
         for (i = 0; i < LN_N; i++)
-            tot += text_w(&AF_S, ALT_LANE_NAME[i]);
+            tot += text_w(&AF_S, ALT_LANE_TAB[i]);
         gap = (224 - tot) / (LN_N - 1);
         for (i = 0; i < LN_N; i++) {
-            int32_t tw = text_w(&AF_S, ALT_LANE_NAME[i]);
-            cv_text(lx, 32, &AF_S, ALT_LANE_NAME[i], i == ln ? ALT_INK : ALT_GREY);
+            int32_t tw = text_w(&AF_S, ALT_LANE_TAB[i]);
+            cv_text(lx, 32, &AF_S, ALT_LANE_TAB[i], i == ln ? ALT_INK : ALT_GREY);
             if (i == ln)
                 cv_rect(lx, 47, tw, 2, col);
             lx += tw + gap;
@@ -1475,6 +1509,10 @@ static void alt_seq_scene(void)
         if (ln == LN_PITCH) {
             int32_t bh = (v < 0 ? -v : v) * (h / 2 - 2) / 7;
             cv_rect(bx + 2, v >= 0 ? mid - bh : mid, w - 4, bh ? bh : 1, bc);
+        } else if (ln == LN_RATCH) {             /* x1 .. x4: one block per hit in the step */
+            int32_t j2, bhh = (h - 6) / 4;
+            for (j2 = 0; j2 <= v; j2++)
+                cv_rect(bx + 2, y0 + h - (j2 + 1) * (bhh + 2), w - 4, bhh, bc);
         } else {
             int32_t bh = v * (h - 2) / 127;
             cv_rect(bx + 2, y0 + h - bh, w - 4, bh ? bh : 1, bc);
@@ -1491,6 +1529,10 @@ static void alt_seq_scene(void)
                 int32_t q = v < 0 ? -v : v;
                 b[0] = v < 0 ? '-' : '+';
                 b[1] = (char)('0' + q);
+                b[2] = 0;
+            } else if (ln == LN_RATCH) {
+                b[0] = 'X';
+                b[1] = (char)('1' + v);
                 b[2] = 0;
             } else
                 alt_num(b, v * 100 / 127, 1);
