@@ -78,6 +78,8 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
   Détecteur d'attaques = enveloppe (les traînes delay/reverb des presets ne retombent jamais à 0).
   Captures d'écran : `node tools/alter/alter_shot.mjs build/emu/felucca.wasm DOSSIER "b:PLAY w:500 K:10+ s:nom"` (.ppm).
   Clavier de la page : `-` = PLAY, `0` = SEQ, `1`..`=` = FX…REC, ↑↓ = SELECT, Z.. = touches blanches.
+  `tools/alter/wasm/alter_page.py` : texte d'aide de la page entre apostrophes Python → écrire ’ (pas ') dans le texte,
+  sinon build_emu.sh s'arrête APRÈS avoir fait le .wasm (alter.html pas mis à jour).
 
 ## Code — dépôt https://github.com/Forban5929/alter-fm1 (branche `main`)
 Source de vérité = le dépôt GitHub (copies de secours dans le Projet, `claude/code/`).
@@ -199,7 +201,9 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         1..3 LFO du cercle) dans mod_global et mod_show. PROB : alt_seq.pmod[3] = alt_prob_of. Changer de son garde les
         LFO. Scènes : 3 octets par LFO (WAVE|RATE<<3, DEST, DEPTH) + GLOBAL 4 octets ; P_LRATE/LD_* sortis d'ALT_SP
         (banque 3780 o) → **slots USER d'avant effacés**. CHAOS tire le LFO 1 de chaque cercle. voice.c : FADE 0 = sans
-        fondu. **Barre qui ondule** en bas de l'écran cercles (alt_live). Tests : LFO 1 SQR→PROB, SAW→LEVEL, le GLOBAL
+        fondu. Écran cercles : une valeur bougée par un LFO = **zone teintée fixe** (plage min↔max, mod_show ext ±1) + **teinte
+        douce de la barre** (5 nuances selon la position) — plus de trait qui saute (alt_live / alt_live_bar). Page LFO : la
+        vague dessinée **suit DEPTH** (taille, retournée si négatif) sur sa forme pleine en pointillé gris. Tests : LFO 1 SQR→PROB, SAW→LEVEL, le GLOBAL
         prend le dessus, RAMP+→LEVEL, LFO 2 SQR -64→PROB (autre moitié), MTX POS→AMP. Idée pas faite : DÉ qui tire les LFO.
   - [ ] 3c : vue DEEP (EDIT ouvre encore la page EDIT de Felucca). Puis retirer l'interface Felucca. Reste : SCL → gamme
         des cercles, touches blanches libres, DESTROY assignable, verrous du dé, DOSE.

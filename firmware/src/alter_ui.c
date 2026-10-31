@@ -855,9 +855,9 @@ static int32_t alt_kv(uint32_t q, uint32_t i, const char **name, char *txt, int3
     }
 }
 
-/* knob i of quick page q (its bar at fill of 50 px): where the LFOs and the matrix have it now, on the same scale,
- * or -1 when nothing moves it (mod.c mod_show) */
-static int32_t alt_live(uint32_t q, uint32_t i, int32_t fill)
+/* knob i of quick page q (its bar at fill of 50 px): where the LFOs and the matrix have it, on the same scale: ext 0
+ * now, +1 / -1 at the LFOs' two ends (mod.c mod_show); -1 when nothing moves it */
+static int32_t alt_live(uint32_t q, uint32_t i, int32_t fill, int ext)
 {
     const track_t *t = &trk[au.sel];
     uint32_t id = alt_qk(q, i);
@@ -866,7 +866,7 @@ static int32_t alt_live(uint32_t q, uint32_t i, int32_t fill)
     int on;
     if (id >= P_COUNT)
         return -1;
-    off = mod_show(t, id, &g, &on);
+    off = mod_show(t, id, &g, &on, ext);
     if (!on)
         return -1;
     d = track_desc(t, id);
@@ -878,6 +878,19 @@ static int32_t alt_live(uint32_t q, uint32_t i, int32_t fill)
     if (g < 32767)
         v = d->min + (int32_t)(((int64_t)(v - d->min) * g) >> 15);
     return (v - d->min) * 50 / span;
+}
+
+/* the moved knob's bar: lo .. hi the range its LFOs reach (a tinted zone, fixed), its fill tinted toward the circle's
+ * colour as far as the value now sits up that range (a slow, soft pulse); *sig: what the picture depends on */
+static void alt_live_bar(uint32_t q, uint32_t i, int32_t fill, int32_t *lo, int32_t *hi, int32_t *pct)
+{
+    int32_t a = alt_live(q, i, fill, 1), b = alt_live(q, i, fill, -1), now = alt_live(q, i, fill, 0);
+    *lo = *hi = *pct = -1;
+    if (now < 0)
+        return;
+    *lo = a < b ? a : b;
+    *hi = a < b ? b : a;
+    *pct = *hi > *lo ? (now - *lo) * 4 / (*hi - *lo) * 25 : 50;   /* (five shades: few redraws) */
 }
 
 static void alt_locks_scene(void)
@@ -1037,17 +1050,25 @@ static void alt_lfo_tab(uint32_t tb, uint16_t col)
             cv_rect(xx, y0, 1, h, beat ? ALT_GREY : ALT_DARK);
     }
     cv_rect(ALT_WAVE_X, mid, ALT_WAVE_W, 1, ALT_DARK);
-    for (x = 0; x < ALT_WAVE_W; x++) {          /* the wave over the last bar, now at the right */
-        uint32_t back = (uint32_t)((uint64_t)(ALT_WAVE_W - 1 - x) * bar / ALT_WAVE_W);
-        int32_t v = alt_lfo_at(w, r, seed, now - back, p, 0), y;
-        if (alt_wave_uni(w))
-            v = v * 2 - 32767;                   /* (a ramp drawn over the whole height) */
-        y = mid - ((v * (h / 2 - 3)) >> 15);
-        if (x && (y - py > 1 || py - y > 1))
-            cv_rect(ALT_WAVE_X + x, y < py ? y : py, 2, (y < py ? py - y : y - py) + 1, wc);
-        else
-            cv_rect(ALT_WAVE_X + x, y - 1, 1, 3, wc);
-        py = y;
+    {                                            /* the wave over the last bar, now at the right: as DEPTH scales it
+                                                 * (smaller, upside down below 0), over its full shape faint */
+        int32_t dep = alt_lfo_val(tb, 2), ghost[ALT_WAVE_W];
+        for (x = 0; x < ALT_WAVE_W; x++) {
+            uint32_t back = (uint32_t)((uint64_t)(ALT_WAVE_W - 1 - x) * bar / ALT_WAVE_W);
+            ghost[x] = alt_lfo_at(w, r, seed, now - back, p, 0);
+            if (!alt_wave_uni(w))
+                ghost[x] = clamp(ghost[x], -32767, 32767);
+        }
+        for (x = 0; x < ALT_WAVE_W; x++)         /* the full shape, faint */
+            cv_pset(ALT_WAVE_X + x, mid - ((ghost[x] * (h / 2 - 3)) >> 15), ALT_GREY);
+        for (x = 0; x < ALT_WAVE_W; x++) {       /* the wave as it moves the sound */
+            int32_t y = mid - (((ghost[x] * dep / 64) * (h / 2 - 3)) >> 15);
+            if (x && (y - py > 1 || py - y > 1))
+                cv_rect(ALT_WAVE_X + x, y < py ? y : py, 2, (y < py ? py - y : y - py) + 1, wc);
+            else
+                cv_rect(ALT_WAVE_X + x, y - 1, 1, 3, wc);
+            py = y;
+        }
     }
     cv_rect(ALT_WAVE_X + ALT_WAVE_W, y0, 2, h, wc);   /* now */
     for (i = 0; i < 4u; i++) {                   /* the four settings, as the knobs below them */
@@ -1222,18 +1243,18 @@ static void alt_scene(uint32_t q, uint32_t flash)
         int32_t x = 8 + (int32_t)i * 58, fill;
         const char *name;
         char txt[12];
-        int32_t live;
+        int32_t lo = -1, hi = -1, pct = -1;
         alt_kv(q, i, &name, txt, &fill);
-        live = fill >= 0 ? alt_live(q, i, fill) : -1;
+        if (fill >= 0)
+            alt_live_bar(q, i, fill, &lo, &hi, &pct);
         cv_text(x, 209, &AF_S, name, ALT_DIM);
         if (fill >= 0) {
             cv_rect(x, 227, 50, 5, ALT_DARK);
-            cv_rect(x, 227, fill, 5, ALT_INK);
-            if (live >= 0) {                     /* an LFO moves it: where it is now, in the circle's colour */
-                int32_t a = live < fill ? live : fill, w = live < fill ? fill - live : live - fill;
-                cv_rect(x + a, 228, w, 3, alt_fade(ALT_COL[au.sel], 60));
-                cv_rect(x + (live > 48 ? 48 : live), 224, 2, 11, ALT_COL[au.sel]);
-            }
+            if (pct >= 0) {                      /* an LFO moves it: the range it reaches, the fill's soft tint */
+                cv_rect(x + lo, 226, (hi > lo ? hi - lo : 1) + 1, 7, alt_fade(ALT_COL[au.sel], 50));
+                cv_rect(x, 228, fill, 3, ux_mix(ALT_INK, ALT_COL[au.sel], 30 + pct * 70 / 100));
+            } else
+                cv_rect(x, 227, fill, 5, ALT_INK);
         } else
             cv_text(x, 222, &AF_S, txt, ALT_INK);
     }
@@ -1259,8 +1280,11 @@ static void alter_draw(void)
         char tx[12];
         int32_t f;
         sig = sig * 31u + (uint32_t)alt_kv(q, i, &nm, tx, &f);
-        if (f >= 0 && !au.mat_open && !au.scene_open && !au.lockc)
-            sig = sig * 31u + (uint32_t)(alt_live(q, i, f) + 7);   /* (a moving bar redraws) */
+        if (f >= 0 && !au.mat_open && !au.scene_open && !au.lockc) {
+            int32_t lo, hi, pc;
+            alt_live_bar(q, i, f, &lo, &hi, &pc);
+            sig = sig * 31u + (uint32_t)(lo * 977 + hi * 31 + pc + 7);   /* (the range, the tint's shade) */
+        }
     }
     sig = sig * 31u + alt_emode[au.sel] * 37u + alt_seq.scale * 41u + au.scene_open * 43u + au.row[au.tab] * 47u + au.tab * 59u +
           au.pre[au.sel] * 53u;

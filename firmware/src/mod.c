@@ -319,8 +319,9 @@ static __attribute__((noinline)) void mod_voice(track_t *t, voice_t *v, vmod_t *
 /* ALTER (alter_ui.c, the main loop): how far the LFOs and the matrix move parameter id of part t right now, in its
  * own units, as the audio side would this block (the GLOBAL leading where it does); LEVEL: *gain (Q15) of the AMP
  * routings instead. *on: something moves it. The engines' FILTER is E3 (ALTER HARM, PHYS BRIT, NOISE FREQ), their
- * SHAPE E1 on ALTER (MRPH), E2 on NOISE (COLR). Only to draw it */
-static int32_t mod_show(const track_t *t, uint32_t id, int32_t *gain, int *on)
+ * SHAPE E1 on ALTER (MRPH), E2 on NOISE (COLR). ext +1 / -1: the LFOs (and the matrix's LFO, S&H, SLEW) held at their
+ * top / bottom (a ramp: full / 0), the other sources as now: the two ends of the range they reach. Only to draw it */
+static int32_t mod_show(const track_t *t, uint32_t id, int32_t *gain, int *on, int ext)
 {
     const int16_t *p = t->p;
     const engine_t *e = ENGINES[t->engine];
@@ -346,6 +347,8 @@ static int32_t mod_show(const track_t *t, uint32_t id, int32_t *gain, int *on)
         if (k >= NMSLOT) {                              /* the GLOBAL, the circle's three LFOs */
             if (!(d = alt_lfo_k(t, k - NMSLOT, &a, &x, &s)))
                 continue;
+            if (ext)
+                x = s == MS_ENV ? (ext > 0 ? 32767 : 0) : ext * 32767;
         } else {                                        /* the part's slots */
             s = (uint32_t)p[P_M1SRC + 3u * k];
             d = (uint32_t)p[P_M1DST + 3u * k];
@@ -354,7 +357,7 @@ static int32_t mod_show(const track_t *t, uint32_t id, int32_t *gain, int *on)
                 continue;
             if (((take >> d) & 1u) && (s == MS_LFO || s == MS_SH || s == MS_SLEW))
                 continue;
-            x = mod_tsrc(t, s, lfo);
+            x = ext && (s == MS_LFO || s == MS_SH || s == MS_SLEW) ? ext * 32767 : mod_tsrc(t, s, lfo);
             if (s == MS_LFO && p[P_LPOL])
                 s = MS_ENV;
         }
