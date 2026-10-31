@@ -152,10 +152,7 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         puis modes PERC/STAB/DRONE (ALGORITHM) + CHAOS.
         ATTEND SA 2e ÉCOUTE.
         Constat : NOISE METAL nettement plus doux que ALTER/PHYS dans le mélange → équilibrer en 3d-3.
-  - [ ] **3d-2 (PROCHAINE)** : édition par pas FORCE (rotation FROT, déjà dans alter_seq) et CHANCE (chance[] déjà là),
-        tenir touche(s) blanche(s) = pas 1..16 + KNOB. SEQ est maintenant une page rapide (LEN HITS ROT PROB). → QUESTION
-        À POSER AVANT DE CODER : comment ouvrir l'édition par pas sans casser les pages rapides (ex. OCT−+OCT+ + SEQ =
-        Felucca aujourd'hui) ? Pas 17..32 quand LEN > 16 ?
+  - [x] **3d-2 → remplacé par 3g (menu SEQ, ci-dessous)**.
   - [x] **3d-3 (31/10, codé, testé, publié ; ATTEND L'ÉCOUTE)** : SCÈNES + presets. Choix validés : **SAVE (appui court) = page SCÈNES** (PRESETS
         choisit, SAVE charge, HOME annule ; les vraies pages SAVE de Felucca via OCT−+OCT+ + SAVE). Scènes de départ :
         TECHNO (texture, stab, perc), HOUSE (perc, accord, drone), AMBIENT (drone, drone, texture) ; une scène règle les 3
@@ -225,6 +222,23 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         pulse plus (zone de plage seule). Scènes USER : réglages d'enveloppe gardés dans l'objet 4 (alt_bank_p.envok/env :
         la banque de scènes est pleine) → **patterns USER d'avant effacés** ; scènes d'usine / NEW = AE_DEF.
         Tests : PERC HOLD, STAB LENGTH, LFO SQR → LENGTH en PERC, DRONE en couches sans attaque dure (sauts < ×1,5 par 50 ms).
+  - [x] **3g MENU SEQ (31/10, codé, testé, publié ; ATTEND L'ÉCOUTE)**. Choix de Romain : **SEQ tenu 0,5 s = menu SEQ**
+        (reste ouvert ; SEQ tapé ou HOME = sortie ; appui court = page rapide des 4 réglages du rythme) ; **SEQ tenu +
+        ALGORITHM = moteur du cercle choisi : EUCLID · STEP · TURING** (cycle suivant ; marche aussi hors menu). Knobs par
+        moteur : EUCLID LEN HITS ROT PROB · STEP LEN FILL (pas répartis, point de départ) ROT PROB · TURING LEN LOCK (127 =
+        figé) DENS RANGE (pas de gamme). STEP/TURING : LEN 1..16. **Couloirs façon XO** sur 16 pas : ALGORITHM = VELO ·
+        CHANCE · SEND · PITCH ; touches blanches = pas 1..16 (STEP : tap = on/off, au pas suivant) ; **tenir des pas + un
+        KNOB = leur valeur** ; barres par pas (couleur = coup, gris = pas de coup), cadre blanc = tenu, trait = tête de
+        lecture ; LED blanches = pas (allumé = coup). Code : alter_seq.c AS_T_*, as_cfg_t type/tlock/tdens/trange,
+        as_circ_t svel[16] (remplace force[] : ghost < 64, accent ≥ 112 ; FROT tourne VELO ; dé ±30), ssend[16], spitch[16]
+        (-7..7 degrés ; as_note gère les degrés négatifs), steps (écrit par l'UI, lu à chaque pas), treg (TURING : bits
+        remplacés au début du cycle avec chance 127-LOCK, 1 avec DENS ; hauteur = 4 bits lus × RANGE/15), ev.send ;
+        alter_play.c : SEND → offsets P_DLY (+send) et P_REV (+send/2) par coup (slots 12-13, ALT_NSLOT 14) ;
+        alter_ui.c : alt_seq_input / alt_seq_scene / alt_seq_sig, ALT_WHITE, ALT_RHY_NAME, alt_lane_turn, alt_seq_type.
+        Stockage : alt_rhy_t (type, TURING, steps, couloirs 4 bits) ; **rythmes des scènes USER dans l'objet 2**
+        (OBJ_PROJECT0+1, Felucca projet 2, magie ATLR, alt_bank_r) → **scènes et patterns USER d'avant effacés**.
+        Tests : alter_seq_test (STEP, couloirs SEND/PITCH, TURING figé / qui mute) + alter_emu_test (menu, STEP tap,
+        VELO, TURING, retour EUCLID). P-lock façon Elektron : pas fait (idée gardée).
   - [ ] 3c : vue DEEP (EDIT ouvre encore la page EDIT de Felucca). Puis retirer l'interface Felucca. Reste : SCL → gamme
         des cercles, touches blanches libres, DESTROY assignable, verrous du dé, DOSE.
 - [ ] Étape 4 (après le séquenceur) : tranche de console dédiée, ordre FIXE validé :

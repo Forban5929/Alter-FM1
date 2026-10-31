@@ -31,7 +31,13 @@ enum { AS_LK_PITCH = 1, AS_LK_VEL = 2, AS_LK_GLIDE = 4, AS_LK_FORCE = 8, AS_LK_T
 #define AS_DOSE_DEF 100
 enum { AS_SC_OCT, AS_SC_5TH, AS_SC_MPEN, AS_SC_MIN, AS_SC_PHRY, AS_SC_DOR, AS_SC_CHR, AS_NSCALE };
 static const char *const AS_SCALE_NAME[AS_NSCALE] = {"OCT", "5TH", "MPEN", "MIN", "PHRY", "DOR", "CHR"};
-static const uint8_t AS_VEL[3] = {40, 96, 124};  /* ghost, normal, accent */
+static const uint8_t AS_VEL[3] = {40, 96, 124};  /* ghost, normal, accent (the VELO lane's three marks) */
+/* the rhythm engine a circle runs (as_cfg_t.type): EUCLID HITS spread evenly; STEP the steps set by hand (as_circ_t
+ * steps); TURING a looping random pattern that mutates as each cycle starts (LOCK 127 frozen, 0 new every time; DENS
+ * how many hits the new bits bring; RANGE how far its pitch walks, in scale degrees) */
+enum { AS_T_EUCLID, AS_T_STEP, AS_T_TURING, AS_NTYPE };
+static const char *const AS_TYPE_NAME[AS_NTYPE] = {"EUCLID", "STEP", "TURING"};
+#define AS_NLANE 16                       /* the lanes' steps (VELO CHANCE SEND PITCH): a longer circle repeats them */
 /* chords: a hit's degree, then these degrees above it in the scale (0 = none) */
 enum { AS_CH_OFF, AS_CH_TRI, AS_CH_SUS, AS_CH_OPEN, AS_NCHORD };
 static const char *const AS_CHORD_NAME[AS_NCHORD] = {"OFF", "TRIAD", "SUS", "OPEN"};
@@ -42,6 +48,8 @@ typedef struct {
     uint8_t frot;                   /* the forces' own rotation, 0..len-1 */
     uint8_t dose, mute, root;       /* 0..127, 0/1, the MIDI note of degree 0 */
     uint8_t chord;                  /* AS_CH_*: each hit plays these degrees above its own */
+    uint8_t type;                   /* AS_T_*; STEP and TURING: LEN 1..16 */
+    uint8_t tlock, tdens, trange;   /* TURING: 0..127, 0..127, 0..14 degrees */
 } as_cfg_t;
 
 typedef struct {
@@ -50,8 +58,12 @@ typedef struct {
     uint32_t pat;                   /* bit i: step i hits */
     uint8_t pos;                    /* the step about to play */
     uint8_t die;                    /* 1: a draw is on */
-    uint8_t force[AS_MAXLEN];       /* AS_GHOST .. AS_ACCENT, before FROT */
+    uint8_t svel[AS_NLANE];         /* the lanes, per step (FROT turns VELO): velocity 1..127 (ghost < 64, accent >= 112) */
     uint8_t chance[AS_MAXLEN];      /* 0..127 */
+    uint8_t ssend[AS_NLANE];        /* the FX send thrown on the hit, 0..127 (the host's DELAY and REVERB) */
+    int8_t spitch[AS_NLANE];        /* scale degrees above the hit's own, -12..12 */
+    uint16_t steps;                 /* STEP: bit i, step i hits (the host writes it: at once, from the next step) */
+    uint16_t treg;                  /* TURING: its pattern now (mutated as a cycle starts) */
     int8_t dforce[AS_MAXLEN];       /* the draw: -1 0 +1 */
     int8_t pitch[AS_MAXLEN];        /* scale degrees above the root */
     int8_t vel[AS_MAXLEN];          /* velocity offset */
@@ -85,6 +97,7 @@ typedef struct {
     uint8_t gate;                   /* the note's length in steps (1..4) */
     int8_t env;                     /* decay / release offset */
     uint8_t chord[2];               /* the chord's other notes (0 = none) */
+    uint8_t send;                   /* the SEND lane: FX thrown on this hit, 0..127 */
 } as_event_t;
 
 /* the scales as semitones of each degree, ended by -1 */
@@ -142,6 +155,20 @@ static as_cfg_t as_clean(as_cfg_t c)
         c.root = 120;
     if (c.chord >= AS_NCHORD)
         c.chord = AS_CH_OFF;
+    if (c.type >= AS_NTYPE)
+        c.type = AS_T_EUCLID;
+    if (c.type != AS_T_EUCLID && c.len > 16)
+        c.len = 16;
+    if (c.hits > c.len)
+        c.hits = c.len;
+    c.rot %= c.len;
+    c.frot %= c.len;
+    if (c.tlock > 127)
+        c.tlock = 127;
+    if (c.tdens > 127)
+        c.tdens = 127;
+    if (c.trange > 14)
+        c.trange = 14;
     c.mute = c.mute ? 1 : 0;
     return c;
 }
@@ -202,10 +229,28 @@ static void as_draw(as_seq_t *q, uint32_t i)
     }
 }
 
-/* circle c's pattern as it plays: its settings, the draw's HITS and ROT on top */
+/* bits n..: turned by r within n */
+static uint32_t as_rot(uint32_t m, uint32_t n, uint32_t r)
+{
+    uint32_t full = n >= 32u ? 0xFFFFFFFFu : (1u << n) - 1u;
+    r %= n ? n : 1u;
+    m &= full;
+    return r ? ((m << r) | (m >> (n - r))) & full : m;
+}
+
+/* circle c's pattern as it plays: its settings, the draw's HITS and ROT on top (STEP: its steps turned by ROT and the
+ * draw; TURING: its register) */
 static void as_repat(as_circ_t *c)
 {
     int32_t h = c->cfg.hits, r = c->cfg.rot;
+    if (c->cfg.type == AS_T_STEP) {
+        c->pat = as_rot(c->steps, c->cfg.len, (uint32_t)r + (c->die ? c->drot : 0u));
+        return;
+    }
+    if (c->cfg.type == AS_T_TURING) {
+        c->pat = as_rot(c->treg, c->cfg.len, (uint32_t)r);
+        return;
+    }
     if (c->die) {
         h = h + c->dhits;
         h = h < 0 ? 0 : h > c->cfg.len ? c->cfg.len : h;
@@ -234,10 +279,15 @@ static void as_init(as_seq_t *q, uint32_t seed)
         c->cfg = c->next = DEF[i];
         as_repat(c);
         c->seed = seed * 2654435761u + i * 40503u + 1u;
-        for (k = 0; k < AS_MAXLEN; k++) {
-            c->force[k] = AS_NORMAL;
+        for (k = 0; k < AS_MAXLEN; k++)
             c->chance[k] = 127;
-        }
+        for (k = 0; k < AS_NLANE; k++)
+            c->svel[k] = AS_VEL[AS_NORMAL];
+        c->cfg.tlock = c->next.tlock = 100;
+        c->cfg.tdens = c->next.tdens = 64;
+        c->cfg.trange = c->next.trange = 4;
+        c->steps = 0x1111u;
+        c->treg = (uint16_t)(as_rand(&c->seed) & 0xFFFFu);
     }
 }
 
@@ -306,19 +356,48 @@ static uint32_t as_note(const as_seq_t *q, uint32_t root, int32_t deg)
     int32_t n = 0, oct, note;
     while (sc[n] >= 0)
         n++;
-    oct = deg / n;
-    note = (int32_t)root + oct * 12 + sc[deg % n];
+    oct = deg >= 0 ? deg / n : -((-deg + n - 1) / n);   /* (below the root: the octaves down) */
+    note = (int32_t)root + oct * 12 + sc[deg - oct * n];
     return (uint32_t)(note < 1 ? 1 : note > 127 ? 127 : note);
 }
 
-/* the force a step of circle c plays with (its FROT, the draw) */
-static uint32_t as_force(const as_circ_t *c, uint32_t k)
+/* the velocity a step of circle c plays with: its VELO lane (turned by FROT), the draw a ghost / accent away */
+static int32_t as_svel(const as_circ_t *c, uint32_t k)
 {
     uint32_t len = c->cfg.len ? c->cfg.len : 1u;
-    int32_t f = c->force[(k + len - c->cfg.frot % len) % len];
+    int32_t v = c->svel[((k + len - c->cfg.frot % len) % len) % AS_NLANE];
     if (c->die)
-        f += c->dforce[k];
-    return (uint32_t)(f < AS_GHOST ? AS_GHOST : f > AS_ACCENT ? AS_ACCENT : f);
+        v += c->dforce[k] * 30;
+    return v < 1 ? 1 : v > 127 ? 127 : v;
+}
+
+/* .. as a force (ghost < 64, accent >= 112) */
+static uint32_t as_force(const as_circ_t *c, uint32_t k)
+{
+    int32_t v = as_svel(c, k);
+    return v < 64 ? AS_GHOST : v >= 112 ? AS_ACCENT : AS_NORMAL;
+}
+
+/* TURING: a new cycle of circle c: each of its bits replaced with a chance (LOCK 127 never), by a hit with DENS */
+static void as_turing(as_circ_t *c, uint32_t *rng)
+{
+    uint32_t k, len = c->cfg.len, ch = 127u - c->cfg.tlock;
+    for (k = 0; k < len && k < 16u; k++)
+        if (as_rand(rng) % 127u < ch) {
+            if (as_rand(rng) % 127u < c->cfg.tdens)
+                c->treg |= (uint16_t)(1u << k);
+            else
+                c->treg &= (uint16_t)~(1u << k);
+        }
+}
+
+/* TURING: step k's pitch, a walk over RANGE degrees read from the register's bits there */
+static int32_t as_tpitch(const as_circ_t *c, uint32_t k)
+{
+    uint32_t len = c->cfg.len ? c->cfg.len : 1u, w = 0, b;
+    for (b = 0; b < 4u; b++)
+        w |= ((c->treg >> ((k + b) % len)) & 1u) << b;
+    return (int32_t)(w * c->cfg.trange / 15u);
 }
 
 /* one sixteenth: what each circle plays (ev[i].on), and the circles move on */
@@ -331,8 +410,11 @@ static void as_step(as_seq_t *q, as_event_t ev[AS_NCIRC])
         uint32_t k, on;
         if (c->pos == 0) {                              /* a new cycle: what was asked for starts now */
             c->cfg = c->next;
+            if (c->cfg.type == AS_T_TURING)
+                as_turing(c, &q->rng);
             as_repat(c);
-        }
+        } else if (c->cfg.type == AS_T_STEP)
+            as_repat(c);                                /* (STEP: the host's steps, from the next step) */
         k = c->pos;
         {
             uint32_t ch = c->chance[k];
@@ -349,17 +431,20 @@ static void as_step(as_seq_t *q, as_event_t ev[AS_NCIRC])
         if (!on)
             continue;
         {
-            uint32_t f = as_force(c, k);
-            int32_t vel = AS_VEL[f], deg = 0;
+            uint32_t f = as_force(c, k), l = k % AS_NLANE;
+            int32_t vel = as_svel(c, k), deg = c->spitch[l];
             e->on = 1;
             e->force = (uint8_t)f;
             e->gate = 1;
+            e->send = c->ssend[l];
+            if (c->cfg.type == AS_T_TURING)
+                deg += as_tpitch(c, k);
             if (c->die) {
                 e->rat = c->rat[k];
                 e->flam = c->flam[k];
                 e->gate = c->gate[k];
                 e->env = c->env[k];
-                deg = c->pitch[k];
+                deg += c->pitch[k];
                 vel += c->vel[k];
                 e->glide = c->glide[k];
                 for (j = 0; j < AS_NTIMB; j++)

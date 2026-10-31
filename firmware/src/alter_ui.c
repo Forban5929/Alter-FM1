@@ -83,6 +83,9 @@ static struct {
     uint8_t mat_open, mtab, mrow[4], dd;   /* the MATRIX page: its tab (0..2 the circles, 3 GLOBAL), each tab's row
                                  * (0 the LFO, 1..4 the slots); the knob whose list drops down (1..3), shown since dd_ms */
     uint32_t dd_ms;
+    uint8_t seq_open, seq_hold, lane, step_turned;   /* the SEQ menu (SEQ held 0.5 s): open; opened by this hold; its
+                                 * lane (VELO CHANCE SEND PITCH); a knob turned while steps were held (no toggle) */
+    uint16_t step_down;          /* the step keys (white keys) held: bit = step */
     uint8_t scene_open, tab, row[2], save_done;   /* the SAVE page open; its tab (0 SCENES 1 PATTERNS), each tab's row;
                                                  * a long hold has stored (its release loads nothing) */
     uint32_t save_t0;            /* SAVE's press on the page (fm1_ms), 0 = up */
@@ -101,8 +104,11 @@ static struct {
 static const char *alt_qp_name(uint32_t q)
 {
     static const char *const ENV[AM_N] = {"ENV FREE", "ENV PERC", "ENV STAB", "ENV DRONE"};
+    static const char *const RHY[AS_NTYPE] = {"SEQ EUCLID", "SEQ STEP", "SEQ TURING"};
     if (q == QP_ENV)                             /* (the chosen circle's mode: its own four) */
         return ENV[alt_emode[au.sel % AS_NCIRC] % AM_N];
+    if (q == QP_SEQ)                             /* (the chosen circle's engine) */
+        return RHY[au.cfg[au.sel % AS_NCIRC].type % AS_NTYPE];
     return q == QP_LFO ? "LFO 1" : ALT_QP_NAME[q % QP_N];   /* (LFO 1 of the chosen circle: drawn in its colour) */
 }
 
@@ -183,26 +189,45 @@ static void alt_preset_step(uint32_t c, int32_t s)
 #include "alter_store.c"
 
 /* SEQ held: knob i of the chosen circle, s detents */
+/* the rhythm's four knobs, by the circle's engine (alter_seq.c AS_T_*) */
+static const char *const ALT_RHY_NAME[AS_NTYPE][4] = {
+    {"LEN", "HITS", "ROT", "PROB"}, {"LEN", "FILL", "ROT", "PROB"}, {"LEN", "LOCK", "DENS", "RANGE"},
+};
+static uint32_t alt_popc16(uint32_t m)
+{
+    uint32_t n = 0;
+    for (m &= 0xFFFFu; m; m &= m - 1u)
+        n++;
+    return n;
+}
+
+/* SEQ: knob i of the chosen circle's rhythm, s detents (LEN HITS ROT PROB / LEN FILL ROT PROB / LEN LOCK DENS RANGE) */
 static void alt_edit_circle(uint32_t i, int32_t s)
 {
     as_cfg_t *c = &au.cfg[au.sel];
-    switch (i) {
-    case 0:
-        c->len = (uint8_t)clamp((int32_t)c->len + s, 1, AS_MAXLEN);
+    as_circ_t *sc = &alt_seq.c[au.sel];
+    uint32_t t = c->type % AS_NTYPE, mx = t == AS_T_EUCLID ? AS_MAXLEN : 16u;
+    if (i == 0) {
+        c->len = (uint8_t)clamp((int32_t)c->len + s, 1, (int32_t)mx);
         if (c->hits > c->len)
             c->hits = c->len;
         c->rot %= c->len;
         c->frot %= c->len;
-        break;
-    case 1:
-        c->hits = (uint8_t)clamp((int32_t)c->hits + s, 0, c->len);
-        break;
-    case 2:
-        c->rot = (uint8_t)(((int32_t)c->rot + s + 4 * AS_MAXLEN) % c->len);
-        break;
-    default:
+    } else if (i == 3u && t != AS_T_TURING) {
         c->prob = (uint8_t)clamp((int32_t)c->prob + s * 8, 0, 127);
-        break;
+    } else if (i == 2u && t != AS_T_TURING) {
+        c->rot = (uint8_t)(((int32_t)c->rot + s + 4 * AS_MAXLEN) % c->len);
+    } else if (t == AS_T_EUCLID) {
+        c->hits = (uint8_t)clamp((int32_t)c->hits + s, 0, c->len);
+    } else if (t == AS_T_STEP) {                  /* FILL: the steps spread evenly, as many as asked (a start to edit) */
+        int32_t n = clamp((int32_t)alt_popc16(sc->steps & ((1u << c->len) - 1u)) + (s > 0 ? 1 : -1), 0, c->len);
+        sc->steps = (uint16_t)as_euclid(c->len, (uint32_t)n, 0);
+    } else if (i == 1u) {
+        c->tlock = (uint8_t)clamp((int32_t)c->tlock + s * 4, 0, 127);
+    } else if (i == 2u) {
+        c->tdens = (uint8_t)clamp((int32_t)c->tdens + s * 4, 0, 127);
+    } else {
+        c->trange = (uint8_t)clamp((int32_t)c->trange + (s > 0 ? 1 : -1), 0, 14);
     }
     alt_post_circle(au.sel);
 }
@@ -400,6 +425,88 @@ static void alt_mtx_turn(uint32_t i, int32_t s)
     }
 }
 
+/* ---- the SEQ menu: the chosen circle's steps, its lanes (VELO CHANCE SEND PITCH), its engine -------------------- */
+#define ALT_SEQ_HOLD_MS 500u                     /* SEQ held this long: the menu */
+enum { LN_VELO, LN_CHANCE, LN_SEND, LN_PITCH, LN_N };
+static const char *const ALT_LANE_NAME[LN_N] = {"VELO", "CHANCE", "SEND", "PITCH"};
+static const uint8_t ALT_WHITE[16] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26};   /* step i's key */
+
+/* lane ln's value at step k of circle c: 0..127 (PITCH: -7..7) */
+static int32_t alt_lane_val(uint32_t c, uint32_t ln, uint32_t k)
+{
+    const as_circ_t *sc = &alt_seq.c[c % AS_NCIRC];
+    k %= AS_NLANE;
+    return ln == LN_VELO ? sc->svel[k] : ln == LN_CHANCE ? sc->chance[k] : ln == LN_SEND ? sc->ssend[k] : sc->spitch[k];
+}
+
+/* the held steps' lane value moved by s (written here: the audio side reads the bytes) */
+static void alt_lane_turn(int32_t s)
+{
+    as_circ_t *sc = &alt_seq.c[au.sel % AS_NCIRC];
+    uint32_t k;
+    for (k = 0; k < AS_NLANE; k++) {
+        if (!((au.step_down >> k) & 1u))
+            continue;
+        if (au.lane == LN_VELO)
+            sc->svel[k] = (uint8_t)clamp((int32_t)sc->svel[k] + s * 4, 1, 127);
+        else if (au.lane == LN_CHANCE) {
+            int32_t v = clamp((int32_t)sc->chance[k] + s * 8, 0, 127);
+            sc->chance[k] = (uint8_t)v;
+            if (k + AS_NLANE < AS_MAXLEN)        /* (a 32-step circle repeats the lane) */
+                sc->chance[k + AS_NLANE] = (uint8_t)v;
+        } else if (au.lane == LN_SEND)
+            sc->ssend[k] = (uint8_t)clamp((int32_t)sc->ssend[k] + s * 8, 0, 127);
+        else
+            sc->spitch[k] = (int8_t)clamp((int32_t)sc->spitch[k] + (s > 0 ? 1 : -1), -7, 7);
+    }
+    au.step_turned = 1;
+}
+
+/* SEQ held: ALGORITHM picks the chosen circle's engine (from its next cycle) */
+static void alt_seq_type(int32_t s)
+{
+    as_cfg_t *c = &au.cfg[au.sel % AS_NCIRC];
+    c->type = (uint8_t)clamp((int32_t)c->type + (s > 0 ? 1 : -1), 0, AS_NTYPE - 1);
+    if (c->type != AS_T_EUCLID && c->len > 16u)
+        c->len = 16;
+    alt_post_circle(au.sel % AS_NCIRC);
+    alt_say(AS_TYPE_NAME[c->type]);
+}
+
+/* the SEQ menu has this frame: the step keys, the lanes, the knobs (no fills here) */
+static void alt_seq_input(uint32_t keys)
+{
+    uint32_t down = keys & ~au.keys, up = au.keys & ~keys, k, i, c = au.sel % AS_NCIRC;
+    int32_t s;
+    if ((s = panel_enc(EN_ALGO)) != 0)
+        au.lane = (uint8_t)clamp((int32_t)au.lane + (s > 0 ? 1 : -1), 0, LN_N - 1);
+    if ((s = panel_enc(EN_SELECT)) != 0) {
+        alt_select((uint32_t)((int32_t)au.sel + s + 3 * 16));
+        au.step_down = 0;
+    }
+    (void)panel_enc(EN_PRESET);
+    for (k = 0; k < 16u; k++) {
+        uint32_t key = ALT_WHITE[k];
+        if ((down >> key) & 1u) {
+            if (!au.step_down)
+                au.step_turned = 0;
+            au.step_down |= (uint16_t)(1u << k);
+        } else if ((up >> key) & 1u) {
+            au.step_down &= (uint16_t)~(1u << k);
+            if (!au.step_turned && au.cfg[c].type == AS_T_STEP && k < au.cfg[c].len)   /* a tap: the step on / off */
+                alt_seq.c[c].steps ^= (uint16_t)(1u << k);
+        }
+    }
+    for (i = 0; i < 4u; i++)
+        if ((s = panel_enc(EN_K1 + i)) != 0) {
+            if (au.step_down)
+                alt_lane_turn(s);                /* steps held: their lane */
+            else
+                alt_edit_circle(i, s);           /* else the engine's four */
+        }
+    alt_hold = 0;
+}
+
 /* the LFO page has this frame (1), or it has just been left (0: the frame goes on as usual) */
 static int alt_matrix_input(uint32_t pressed)
 {
@@ -534,6 +641,7 @@ static int alter_ui_input(uint32_t pressed)
                 au.qp_was = 0;
                 au.scene_open = 0;
                 au.mat_open = 0;
+                au.seq_open = 0;
                 alt_hold = 0;
                 au.keys = keys;
                 return 0;
@@ -571,6 +679,7 @@ static int alter_ui_input(uint32_t pressed)
         au.lockc = 0;
         au.scene_open = 0;
         au.mat_open = 0;
+        au.seq_open = 0;
     }
     if (((pressed >> panel.btn[B_SAVE]) & 1u) && !au.scene_open) {   /* SAVE: the SAVE page (its press opens it) */
         au.scene_open = 1;
@@ -578,6 +687,7 @@ static int alter_ui_input(uint32_t pressed)
         au.qp = QP_NONE;
         au.lockc = 0;
         au.mat_open = 0;
+        au.seq_open = 0;
     } else if (au.scene_open) {                  /* on it: a tap loads, held 1 s stores */
         uint32_t dn = (fm1_in.buttons >> panel.btn[B_SAVE]) & 1u, t = au.tab, r = au.row[t];
         if (((pressed >> panel.btn[B_SAVE]) & 1u)) {
@@ -617,6 +727,23 @@ static int alter_ui_input(uint32_t pressed)
     }
     for (q = 1; q < QP_N; q++) {                 /* the page buttons: a tap keeps the page, a long hold does not */
         uint32_t dn = (fm1_in.buttons >> panel.btn[ALT_QP_BTN[q]]) & 1u, was = (au.qp_was >> q) & 1u;
+        if (dn && !was && q != QP_SEQ && au.seq_open)
+            au.seq_open = 0;                     /* (another page: the SEQ menu closes) */
+        if (q == QP_SEQ && dn && was && !au.seq_open &&
+            (int32_t)(fm1_ms - au.qp_t0[q]) >= (int32_t)ALT_SEQ_HOLD_MS) {   /* SEQ held 0.5 s: the menu */
+            au.seq_open = 1;
+            au.seq_hold = 1;
+            au.qp = QP_NONE;
+            au.step_down = 0;
+            alt_say("SEQ");
+        }
+        if (q == QP_SEQ && !dn && was && (au.seq_hold || au.seq_open)) {   /* its release: the menu stays (a hold), */
+            if (!au.seq_hold)                    /* or closes (a tap on it) */
+                au.seq_open = 0;
+            au.seq_hold = 0;
+            au.qp_was &= (uint8_t)~(1u << q);
+            continue;
+        }
         if (dn && !was) {
             au.qp_t0[q] = fm1_ms;
             au.lockc = 0;
@@ -634,6 +761,13 @@ static int alter_ui_input(uint32_t pressed)
                 au.qp = QP_NONE;
         }
         au.qp_was = (uint8_t)((au.qp_was & ~(1u << q)) | (dn << q));
+    }
+    if (((fm1_in.buttons >> panel.btn[B_SEQ]) & 1u) && (s = panel_enc(EN_ALGO)) != 0)
+        alt_seq_type(s);                         /* SEQ held + ALGORITHM: the chosen circle's engine */
+    if (au.seq_open) {                           /* the SEQ menu */
+        alt_seq_input(keys);
+        au.keys = keys;
+        return 1;
     }
     q = alt_page();
     for (i = 0; i < 4u; i++)
@@ -731,6 +865,21 @@ static void alter_leds(uint8_t *nl, uint8_t *nd, uint8_t *nb, uint8_t *nm)
     for (k = 0; k < 27u; k++) {
         const alt_key_t *a = &ALT_KEY[k];
         int lit = 0, faint = 0;
+        if (au.seq_open) {                       /* the SEQ menu: the white keys are the steps: a hit lit, else faint */
+            uint32_t j, c = au.sel % AS_NCIRC, n = au.cfg[c].len < 16u ? au.cfg[c].len : 16u;
+            for (j = 0; j < 16u; j++)
+                if (ALT_WHITE[j] == k && j < n) {
+                    lit = (int)((alt_seq.c[c].pat >> j) & 1u) || (int)((au.step_down >> j) & 1u);
+                    faint = !lit;
+                }
+            led_clear(nl, 14u + k);
+            led_clear(nd, 14u + k);
+            led_clear(nb, 14u + k);
+            led_clear(nm, 14u + k);
+            led_put(nl, 14u + k, lit);
+            led_put(nd, 14u + k, faint);
+            continue;
+        }
         if (au.lockc) {                          /* the LOCKS page: a lock lit, a free one faint */
             uint32_t j;
             for (j = 0; j < 7u; j++)
@@ -811,7 +960,6 @@ static void alt_num(char *d, int32_t q, int pct)
 static uint32_t c_chord_of(uint32_t c) { return au.cfg[c % AS_NCIRC].chord % AS_NCHORD; }
 static int32_t alt_kv(uint32_t q, uint32_t i, const char **name, char *txt, int32_t *fill)
 {
-    static const char *const RHY[4] = {"LEN", "HITS", "ROT", "PROB"};
     static const char *const NOTE[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
     const track_t *t = &trk[au.sel];
     const as_cfg_t *c = &au.cfg[au.sel];
@@ -845,11 +993,20 @@ static int32_t alt_kv(uint32_t q, uint32_t i, const char **name, char *txt, int3
         *fill = v * 50 / 127;
         return v;
     }
-    case QK_RHY:
-        *name = RHY[i];
-        v = i == 0u ? c->len : i == 1u ? c->hits : i == 2u ? c->rot : c->prob * 100 / 127;
-        alt_num(txt, v, i == 3u);
-        return v;
+    case QK_RHY: {
+        uint32_t ty = c->type % AS_NTYPE;
+        *name = ALT_RHY_NAME[ty][i & 3u];
+        if (i == 0u)
+            v = c->len;
+        else if (ty == AS_T_TURING)
+            v = i == 1u ? c->tlock * 100 / 127 : i == 2u ? c->tdens * 100 / 127 : c->trange;
+        else if (i == 1u)
+            v = ty == AS_T_STEP ? (int32_t)alt_popc16(alt_seq.c[au.sel].steps & ((1u << c->len) - 1u)) : c->hits;
+        else
+            v = i == 2u ? c->rot : c->prob * 100 / 127;
+        alt_num(txt, v, (ty == AS_T_TURING && (i == 1u || i == 2u)) || (ty != AS_T_TURING && i == 3u));
+        return v + (int32_t)ty * 1000;
+    }
     case QK_LWAVE: case QK_LRATE: case QK_LDEPTH: case QK_LDEST: {
         char lb[8];
         const char *n;
@@ -1231,6 +1388,93 @@ static void alt_mtx_tab(uint16_t col)
     }
 }
 
+/* the SEQ menu: the chosen circle's engine, its steps with their lane as bars (XO-like), the engine's four knobs */
+static void alt_seq_scene(void)
+{
+    uint32_t c = au.sel % AS_NCIRC, i, k, ln = au.lane % LN_N;
+    const as_circ_t *sc = &alt_seq.c[c];
+    const as_cfg_t *cf = &au.cfg[c];
+    uint32_t len = cf->len ? cf->len : 1u, n = len < 16u ? len : 16u, now = (sc->pos + sc->cfg.len - 1u) % sc->cfg.len;
+    uint16_t col = ALT_COL[c];
+    int32_t x = 8, w = 224 / 16, y0 = 66, h = 96, mid = y0 + h / 2;
+    alt_disc(14, 13, 5, col);                    /* the head: the circle, SEQ, its engine (SEQ held + ALGORITHM) */
+    cv_text(26, 2, &AF_M, "SEQ", ALT_INK);
+    for (i = 0; i < AS_NTYPE; i++) {
+        int32_t tw = text_w(&AF_S, AS_TYPE_NAME[i]);
+        cv_text(x + 54 + (int32_t)i * 58, 6, &AF_S, AS_TYPE_NAME[i], i == cf->type ? col : ALT_GREY);
+        if (i == cf->type)
+            cv_rect(x + 54 + (int32_t)i * 58, 21, tw, 2, col);
+    }
+    for (i = 0; i < LN_N; i++) {                 /* the lanes (ALGORITHM) */
+        int32_t lx = 8 + (int32_t)i * 58, tw = text_w(&AF_S, ALT_LANE_NAME[i]);
+        cv_text(lx, 32, &AF_S, ALT_LANE_NAME[i], i == ln ? ALT_INK : ALT_GREY);
+        if (i == ln)
+            cv_rect(lx, 47, tw, 2, col);
+    }
+    if (ln == LN_PITCH)
+        cv_rect(x, mid, 224, 1, ALT_DARK);
+    for (k = 0; k < 16u; k++) {                  /* the steps: a bar each, their lane's value */
+        int32_t bx = x + (int32_t)k * w, v = alt_lane_val(c, ln, k), on = k < n && ((sc->pat >> k) & 1u);
+        int held = (au.step_down >> k) & 1u, here = song.playing && k == now % 16u && k < n;
+        uint16_t bc = k >= n ? ALT_DARK : on ? col : ALT_GREY;
+        if (k >= n) {
+            cv_rect(bx + 2, y0 + h - 2, w - 4, 2, ALT_DARK);
+            continue;
+        }
+        if (ln == LN_PITCH) {
+            int32_t bh = (v < 0 ? -v : v) * (h / 2 - 2) / 7;
+            cv_rect(bx + 2, v >= 0 ? mid - bh : mid, w - 4, bh ? bh : 1, bc);
+        } else {
+            int32_t bh = v * (h - 2) / 127;
+            cv_rect(bx + 2, y0 + h - bh, w - 4, bh ? bh : 1, bc);
+        }
+        if (held)                                /* held: a white frame */
+            cv_rect(bx + 1, y0 - 2, w - 2, 2, ALT_INK), cv_rect(bx + 1, y0 + h + 1, w - 2, 2, ALT_INK);
+        cv_rect(bx + 2, y0 + h + 6, w - 4, 3, here ? ALT_INK : on ? alt_fade(col, 60) : ALT_DARK);   /* hit, playhead */
+    }
+    {
+        char b[8];
+        int32_t v = au.step_down ? alt_lane_val(c, ln, (uint32_t)__builtin_ctz(au.step_down)) : 0;
+        if (au.step_down) {                      /* the held step's value */
+            if (ln == LN_PITCH) {
+                int32_t q = v < 0 ? -v : v;
+                b[0] = v < 0 ? '-' : '+';
+                b[1] = (char)('0' + q);
+                b[2] = 0;
+            } else
+                alt_num(b, v * 100 / 127, 1);
+            cv_text_r(234, 32, &AF_S, b, ALT_INK, cv_bg);
+        }
+    }
+    cv_text(8, 178, &AF_S, cf->type == AS_T_STEP ? "TAP STEP: ON/OFF  HOLD + KNOB: LANE" : "HOLD STEP + KNOB: LANE",
+            ALT_DIM);
+    for (i = 0; i < 4u; i++) {                   /* the engine's four knobs */
+        int32_t kx = 8 + (int32_t)i * 58, fill;
+        const char *name;
+        char txt[12];
+        alt_kv(QP_SEQ, i, &name, txt, &fill);
+        cv_text(kx, 200, &AF_S, name, ALT_DIM);
+        cv_text(kx, 216, &AF_S, txt, ALT_INK);
+    }
+}
+
+/* what the SEQ menu's picture depends on */
+static uint32_t alt_seq_sig(void)
+{
+    uint32_t c = au.sel % AS_NCIRC, k, sg = c * 7u + au.lane * 11u + au.step_down * 13u + au.cfg[c].type * 17u;
+    const as_circ_t *sc = &alt_seq.c[c];
+    sg = sg * 31u + sc->pat + sc->pos * 977u + au.cfg[c].len * 3u + (uint32_t)song.playing;
+    for (k = 0; k < 16u; k++)
+        sg = sg * 31u + (uint32_t)alt_lane_val(c, au.lane, k);
+    for (k = 0; k < 4u; k++) {
+        const char *nm;
+        char tx[12];
+        int32_t f;
+        sg = sg * 31u + (uint32_t)alt_kv(QP_SEQ, k, &nm, tx, &f);
+    }
+    return sg;
+}
+
 static void alt_matrix_scene(void)
 {
     static const char *const TAB[5] = {"LFO 1", "LFO 2", "LFO 3", "GLOBAL", "MTX"};
@@ -1273,6 +1517,10 @@ static void alt_scene(uint32_t q, uint32_t flash)
     }
     if (au.mat_open) {
         alt_matrix_scene();
+        return;
+    }
+    if (au.seq_open) {
+        alt_seq_scene();
         return;
     }
     /* the head: a point of the chosen circle's colour, its sound, the transport */
@@ -1388,7 +1636,7 @@ static void alter_draw(void)
     }
     sig = sig * 31u + alt_emode[au.sel] * 37u + alt_seq.scale * 41u + au.scene_open * 43u + au.row[au.tab] * 47u + au.tab * 59u +
           au.pre[au.sel] * 53u;
-    sig = sig * 31u + (au.mat_open ? alt_mat_sig() * 2u + 1u : 0u);
+    sig = sig * 31u + (au.mat_open ? alt_mat_sig() * 2u + 1u : 0u) + (au.seq_open ? alt_seq_sig() * 4u + 3u : 0u);
     sig = sig * 31u + q * 19u + au.lockc * 23u + alt_seq.c[au.lockc ? au.lockc - 1u : 0u].locks * 29u;
     sig = sig * 31u + au.sel * 3u + flash * 5u + (uint32_t)song.playing * 7u + trk[au.sel].preset * 11u +
           (uint32_t)song.g[G_BPM] * 13u + (au.msg && fm1_ms - au.msg_ms < 1500u ? (uint32_t)(uintptr_t)au.msg + (fm1_ms - au.msg_ms < 900u) : 1u);

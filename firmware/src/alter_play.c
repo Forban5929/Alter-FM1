@@ -26,7 +26,7 @@
 
 enum { AF_ROLL16, AF_ROLL32, AF_ROLLT, AF_RAT2, AF_RAT3, AF_DLY, AF_REV, AF_DESTROY, AF_REVERSE, AF_N };
 #define AF_ROLLS ((1u << AF_ROLL16) | (1u << AF_ROLL32) | (1u << AF_ROLLT))
-#define ALT_NSLOT 12                             /* the offsets: E1..E8, DEC, REL, ATK, SUS */
+#define ALT_NSLOT 14                             /* the offsets: E1..E8, DEC, REL, ATK, SUS, the SEND lane's DLY REV */
 /* the envelope modes (ALGORITHM, per circle): FREE the sound's own ADSR; PERC, STAB, DRONE an ADSR of their own
  * (the sound's own nudges it a quarter of the way, the die's offset a third as far) and the notes' length */
 enum { AM_FREE, AM_PERC, AM_STAB, AM_DRONE, AM_N };
@@ -90,7 +90,7 @@ static int32_t alt_slot(uint32_t p)
 {
     if (p >= P_E0 && p < P_E0 + 8u)
         return (int32_t)(p - P_E0);
-    return p == P_DEC ? 8 : p == P_REL ? 9 : p == P_ATK ? 10 : p == P_SUS ? 11 : -1;
+    return p == P_DEC ? 8 : p == P_REL ? 9 : p == P_ATK ? 10 : p == P_SUS ? 11 : p == P_DLY ? 12 : p == P_REV ? 13 : -1;
 }
 
 /* parameter p of part c at base + o (the die's offset o; o = 0: back to the base) */
@@ -457,6 +457,8 @@ static void alter_step(void)
             continue;
         }
         alt_msrc[c][1] = (int16_t)(v->force >= AS_ACCENT ? 32767 : v->force * 16383);   /* FORCE */
+        alt_offset(c, P_DLY, v->send);           /* the SEND lane: this hit thrown into the delay and the reverb */
+        alt_offset(c, P_REV, v->send / 2);
         if (tp)                                  /* back to the base, then this hit's offsets */
             for (j = 0; j < AS_NTIMB; j++)
                 alt_offset(c, tp[j], v->timb[j]);

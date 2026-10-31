@@ -6,7 +6,8 @@
  * three LFOs (WAVE RATE DEPTH DEST) and its four matrix slots; and the scale, tempo, swing and the GLOBAL LFO (alter_lfo.c). A PATTERN is the rhythm only (per circle LEN HITS ROT PROB FROT, force and chance per step):
  * loading one leaves the sounds, notes and everything else as they are.
  * The USER slots live in RAM (alt_bank_s, alt_bank_p) and on the flash, in Felucca's project objects 3 and 4
- * (storage.c OBJ_PROJECT0 + 2 / + 3; an own magic tells ours from a Felucca project saved there). A USER scene's
+ * (storage.c OBJ_PROJECT0 + 2 / + 3; an own magic tells ours from a Felucca project saved there); the USER scenes'
+ * rhythms in object 2 (OBJ_PROJECT0 + 1: alt_bank_r). A USER scene's
  * envelope modes' settings (alter_lfo.c AE_*) are kept with the patterns, in object 4 (alt_bank_p.env). Packed small: a
  * step's force in 2 bits, its chance in 4 (16 levels). */
 
@@ -15,6 +16,8 @@
 #define ALT_NLIST (1 + ALT_NFACT + ALT_NUSER)   /* NEW, the factory ones, the USER slots */
 #define ALT_OBJ_SCENES 3u                        /* storage.c OBJ_PROJECT0 + 2 (OBJ_PROJECT0 = 1) */
 #define ALT_OBJ_PATS 4u                          /* OBJ_PROJECT0 + 3 */
+#define ALT_OBJ_SRHY 2u                          /* OBJ_PROJECT0 + 1: the USER scenes' rhythms (the scenes' object is full) */
+#define ALT_MAGIC_R 0x524C5441u                  /* "ATLR" */
 #define ALT_MAGIC_S 0x534C5441u                  /* "ATLS" */
 #define ALT_MAGIC_P 0x504C5441u                  /* "ATLP" */
 static int st_load(uint32_t obj, void *dst, uint32_t max);   /* (storage.c, included later) */
@@ -27,15 +30,18 @@ static const uint8_t ALT_SP[] = {P_ATK, P_DEC, P_SUS, P_REL, P_DIST, P_CHOR, P_D
 
 typedef struct {                 /* a circle's rhythm */
     uint8_t len, hits, rot, prob, frot;
-    uint8_t force[AS_MAXLEN / 4];                /* 2 bits a step */
-    uint8_t chance[AS_MAXLEN / 2];               /* 4 bits a step (x 127 / 15) */
+    uint8_t type, tlock, tdens, trange;          /* its engine (alter_seq.c AS_T_*), TURING's settings */
+    uint8_t steps[2];                            /* STEP: its steps (bit i) */
+    uint8_t vel[AS_NLANE / 2];                   /* the lanes, 4 bits a step: VELO (x 127 / 15, 0 = 1) .. */
+    uint8_t chance[AS_MAXLEN / 2];               /* .. CHANCE, 32 steps (x 127 / 15) .. */
+    uint8_t send[AS_NLANE / 2];                  /* .. SEND (x 127 / 15) .. */
+    uint8_t pitch[AS_NLANE / 2];                 /* .. PITCH (-7..7 + 8) */
 } alt_rhy_t;
 
 typedef struct {                 /* a circle in a scene */
     uint8_t eng, pre, mode, locks, dose, root, chord, rsv;
     int8_t e[8];
     int8_t p[ALT_NSP];
-    alt_rhy_t r;
     uint8_t lfo[3 * CL_N];                       /* its three LFOs: WAVE | RATE << 3, DEST, DEPTH (alter_lfo.c) */
     uint8_t m[2 * NMSLOT];                       /* the matrix slots: SRC (4 bits) DST (5) AMT + 64 (7), 2 bytes each */
 } alt_scirc_t;
@@ -53,13 +59,15 @@ typedef struct {
 } alt_pat_rec_t;
 
 static struct { uint32_t magic; alt_scene_rec_t s[ALT_NUSER]; } alt_bank_s;
+static struct { uint32_t magic; alt_rhy_t r[ALT_NUSER][AS_NCIRC]; } alt_bank_r;   /* the USER scenes' rhythms (object 2) */
 static struct {
     uint32_t magic;
     alt_pat_rec_t p[ALT_NUSER];
     uint8_t envok[ALT_NUSER];                    /* (the USER scenes' envelope modes' settings live here, object 4: the */
     uint8_t env[ALT_NUSER][AS_NCIRC][AE_N];      /* scenes' own object is full; 0: a scene stored before them) */
 } alt_bank_p;
-_Static_assert(sizeof alt_bank_s <= 3840u && sizeof alt_bank_p <= 3840u, "ALTER's banks fit a storage object");
+_Static_assert(sizeof alt_bank_s <= 3840u && sizeof alt_bank_p <= 3840u && sizeof alt_bank_r <= 3840u,
+               "ALTER's banks fit a storage object");
 
 /* the factory patterns: per circle LEN HITS ROT PROB */
 static const struct {
@@ -73,19 +81,23 @@ static const struct {
 };
 
 /* ---- the rhythm, in and out ---------------------------------------------------------------------------------- */
+static uint32_t alt_q4(uint32_t v) { return (v * 15u + 63u) / 127u & 15u; }   /* 0..127 in 4 bits, and back */
+static uint32_t alt_u4(uint32_t q) { return (q & 15u) * 127u / 15u; }
 static void alt_rhy_get(uint32_t c, alt_rhy_t *r)
 {
     const as_cfg_t *cf = &au.cfg[c];
     const as_circ_t *sc = &alt_seq.c[c];
     uint32_t k;
     r->len = cf->len, r->hits = cf->hits, r->rot = cf->rot, r->prob = cf->prob, r->frot = cf->frot;
-    for (k = 0; k < AS_MAXLEN / 4u; k++)
-        r->force[k] = 0;
+    r->type = cf->type, r->tlock = cf->tlock, r->tdens = cf->tdens, r->trange = cf->trange;
+    r->steps[0] = (uint8_t)sc->steps;
+    r->steps[1] = (uint8_t)(sc->steps >> 8);
     for (k = 0; k < AS_MAXLEN / 2u; k++)
-        r->chance[k] = 0;
-    for (k = 0; k < AS_MAXLEN; k++) {
-        r->force[k >> 2] |= (uint8_t)((sc->force[k] & 3u) << ((k & 3u) * 2u));
-        r->chance[k >> 1] |= (uint8_t)(((sc->chance[k] * 15u + 63u) / 127u & 15u) << ((k & 1u) * 4u));
+        r->chance[k] = (uint8_t)(alt_q4(sc->chance[2u * k]) | alt_q4(sc->chance[2u * k + 1u]) << 4);
+    for (k = 0; k < AS_NLANE / 2u; k++) {
+        r->vel[k] = (uint8_t)(alt_q4(sc->svel[2u * k]) | alt_q4(sc->svel[2u * k + 1u]) << 4);
+        r->send[k] = (uint8_t)(alt_q4(sc->ssend[2u * k]) | alt_q4(sc->ssend[2u * k + 1u]) << 4);
+        r->pitch[k] = (uint8_t)(((sc->spitch[2u * k] + 8) & 15) | ((sc->spitch[2u * k + 1u] + 8) & 15) << 4);
     }
 }
 
@@ -97,10 +109,15 @@ static void alt_rhy_put(uint32_t c, const alt_rhy_t *r)
     uint32_t k;
     cf->len = r->len ? r->len : 16u;
     cf->hits = r->hits, cf->rot = r->rot, cf->prob = r->prob, cf->frot = r->frot;
-    for (k = 0; k < AS_MAXLEN; k++) {
-        uint32_t f = (r->force[k >> 2] >> ((k & 3u) * 2u)) & 3u;
-        sc->force[k] = (uint8_t)(f > AS_ACCENT ? AS_NORMAL : f);
-        sc->chance[k] = (uint8_t)(((r->chance[k >> 1] >> ((k & 1u) * 4u)) & 15u) * 127u / 15u);
+    cf->type = (uint8_t)(r->type % AS_NTYPE), cf->tlock = r->tlock, cf->tdens = r->tdens, cf->trange = r->trange;
+    sc->steps = (uint16_t)(r->steps[0] | r->steps[1] << 8);
+    for (k = 0; k < AS_MAXLEN; k++)
+        sc->chance[k] = (uint8_t)alt_u4(r->chance[k >> 1] >> ((k & 1u) * 4u));
+    for (k = 0; k < AS_NLANE; k++) {
+        uint32_t v = alt_u4(r->vel[k >> 1] >> ((k & 1u) * 4u));
+        sc->svel[k] = (uint8_t)(v ? v : 1u);
+        sc->ssend[k] = (uint8_t)alt_u4(r->send[k >> 1] >> ((k & 1u) * 4u));
+        sc->spitch[k] = (int8_t)(((r->pitch[k >> 1] >> ((k & 1u) * 4u)) & 15) - 8);
     }
     alt_post_now |= (uint8_t)(1u << c);
     alt_post_circle(c);
@@ -111,11 +128,17 @@ static void alt_rhy_put(uint32_t c, const alt_rhy_t *r)
 static void alt_rhy_plain(alt_rhy_t *r, uint32_t len, uint32_t hits, uint32_t rot, uint32_t prob)
 {
     uint32_t k;
-    r->len = (uint8_t)len, r->hits = (uint8_t)hits, r->rot = (uint8_t)rot, r->prob = (uint8_t)prob, r->frot = 0;
-    for (k = 0; k < AS_MAXLEN / 4u; k++)
-        r->force[k] = 0x55;                      /* AS_NORMAL (1) in each 2 bits */
+    for (k = 0; k < sizeof *r; k++)
+        ((uint8_t *)r)[k] = 0;
+    r->len = (uint8_t)len, r->hits = (uint8_t)hits, r->rot = (uint8_t)rot, r->prob = (uint8_t)prob;
+    r->type = AS_T_EUCLID, r->tlock = 100, r->tdens = 64, r->trange = 4;
+    r->steps[0] = 0x11, r->steps[1] = 0x11;      /* (STEP: the four beats to start from) */
     for (k = 0; k < AS_MAXLEN / 2u; k++)
         r->chance[k] = 0xFF;
+    for (k = 0; k < AS_NLANE / 2u; k++) {
+        r->vel[k] = (uint8_t)(alt_q4(96) * 0x11u);   /* normal */
+        r->pitch[k] = 0x88;                      /* 0 */
+    }
 }
 
 /* ---- the scene, in and out ----------------------------------------------------------------------------------- */
@@ -125,7 +148,7 @@ static int32_t alt_base(uint32_t c, uint32_t p)  /* a parameter without the die'
     return trk[c].p[p] - (sl >= 0 ? alt_applied[c][sl] : 0);
 }
 
-static void alt_scene_get(alt_scene_rec_t *s)
+static void alt_scene_get(alt_scene_rec_t *s, alt_rhy_t *alt_scene_rhy)
 {
     uint32_t c, k;
     s->used = 1;
@@ -147,7 +170,7 @@ static void alt_scene_get(alt_scene_rec_t *s)
             o->e[k] = (int8_t)clamp(alt_base(c, P_E0 + k), -128, 127);
         for (k = 0; k < ALT_NSP; k++)
             o->p[k] = (int8_t)clamp(alt_base(c, ALT_SP[k]), -128, 127);
-        alt_rhy_get(c, &o->r);
+        alt_rhy_get(c, &alt_scene_rhy[c]);   /* (the rhythm: its own object, alt_bank_r) */
         for (k = 0; k < CL_N; k++) {
             o->lfo[3u * k] = (uint8_t)(alt_cl[c][k].wave | alt_cl[c][k].rate << 3);
             o->lfo[3u * k + 1u] = alt_cl[c][k].dst;
@@ -166,7 +189,7 @@ static void alt_scene_get(alt_scene_rec_t *s)
     s->gamt = alt_gl.amt[0];
 }
 
-static void alt_scene_put(const alt_scene_rec_t *s)
+static void alt_scene_put(const alt_scene_rec_t *s, const alt_rhy_t *rhy)
 {
     uint32_t c, k;
     song.g[G_BPM] = s->bpm;
@@ -205,7 +228,7 @@ static void alt_scene_put(const alt_scene_rec_t *s)
         au.cfg[c].root = o->root;
         au.cfg[c].chord = (uint8_t)(o->chord % AS_NCHORD);
         au.cfg[c].mute = 0;
-        alt_rhy_put(c, &o->r);
+        alt_rhy_put(c, &rhy[c]);
     }
     alt_gl.wave = (uint8_t)(s->gwave % GW_N);
     alt_gl.rate = (uint8_t)(s->grate % GL_NRATE);
@@ -275,6 +298,15 @@ static void alt_banks_load(void)
             ((uint8_t *)&alt_bank_s)[i] = 0;
         alt_bank_s.magic = ALT_MAGIC_S;
     }
+    if (st_load(ALT_OBJ_SRHY, &alt_bank_r, sizeof alt_bank_r) != (int)sizeof alt_bank_r || alt_bank_r.magic != ALT_MAGIC_R ||
+        alt_bank_s.magic != ALT_MAGIC_S) {       /* (no rhythms for the scenes: the scenes go too) */
+        uint32_t i;
+        for (i = 0; i < sizeof alt_bank_r; i++)
+            ((uint8_t *)&alt_bank_r)[i] = 0;
+        alt_bank_r.magic = ALT_MAGIC_R;
+        for (i = 0; i < ALT_NUSER; i++)
+            alt_bank_s.s[i].used = 0;
+    }
     if (st_load(ALT_OBJ_PATS, &alt_bank_p, sizeof alt_bank_p) != (int)sizeof alt_bank_p || alt_bank_p.magic != ALT_MAGIC_P) {
         uint32_t i;
         for (i = 0; i < sizeof alt_bank_p; i++)
@@ -323,7 +355,7 @@ static int alt_row_load(uint32_t t, uint32_t i)
             alt_load_scene(i - 1u);
         else if (alt_bank_s.s[i - 1u - ALT_NFACT].used) {
             uint32_t u = i - 1u - ALT_NFACT, k;
-            alt_scene_put(&alt_bank_s.s[u]);
+            alt_scene_put(&alt_bank_s.s[u], alt_bank_r.r[u]);
             for (c = 0; c < AS_NCIRC; c++)       /* its envelope modes' settings (or the defaults: stored before them) */
                 for (k = 0; k < AE_N; k++)
                     alt_envp[c][k] = alt_bank_p.envok[u] ? alt_bank_p.env[u][c][k] : AE_DEF[k];
@@ -356,12 +388,13 @@ static int alt_row_save(uint32_t t, uint32_t i)
     u = i - 1u - ALT_NFACT;
     if (t == 0) {
         uint32_t k;
-        alt_scene_get(&alt_bank_s.s[u]);
+        alt_scene_get(&alt_bank_s.s[u], alt_bank_r.r[u]);
         alt_bank_p.envok[u] = 1;
         for (c = 0; c < AS_NCIRC; c++)
             for (k = 0; k < AE_N; k++)
                 alt_bank_p.env[u][c][k] = alt_envp[c][k];
         return st_save(ALT_OBJ_SCENES, &alt_bank_s, sizeof alt_bank_s) == 0 &&
+               st_save(ALT_OBJ_SRHY, &alt_bank_r, sizeof alt_bank_r) == 0 &&
                st_save(ALT_OBJ_PATS, &alt_bank_p, sizeof alt_bank_p) == 0 ? 1 : -1;
     }
     alt_bank_p.p[u].used = 1;

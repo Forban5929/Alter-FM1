@@ -90,9 +90,41 @@ const h8 = bar();
 check(`SEQ tapped (kept open) + KNOB 2: circle 1 HITS 4 -> 8 ${h8.steps.join(",")}`, same(h8.steps, euclid(16, 8, 0)));
 enc(4, 2); bar();
 check("SEQ tapped again: closed (KNOB 2 moves the sound, not HITS)", same(bar().steps, euclid(16, 8, 0)));
-ex.web_buttons(1 << SEQB); render(FS * 2.2); ex.web_buttons(0); render(2000);
-enc(4, 2); bar();
-check("SEQ held 2.2 s: closes on release (HITS untouched after)", same(bar().steps, euclid(16, 8, 0)));
+{
+  const scr = () => { render(4000); return Array.from(new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240).slice(0, 240 * 24)).join(); };
+  const before = scr();
+  ex.web_buttons(1 << SEQB); render(FS * 0.7); ex.web_buttons(0); render(2000);
+  const menu = scr();
+  ex.web_buttons(1 << SEQB); render(2000); ex.web_buttons(0); render(2000);   // a tap: closed again
+  enc(4, 2); bar();
+  check("SEQ held 0.7 s: the SEQ menu stays open; a tap closes it (HITS untouched after)",
+        menu !== before && scr() === before && same(bar().steps, euclid(16, 8, 0)));
+}
+// the SEQ menu: SEQ held + ALGORITHM = the circle's engine; STEP: a white key tapped = a step on / off; VELO lane;
+// TURING plays; back to EUCLID
+{
+  const seqHold = (algo) => { ex.web_buttons(1 << SEQB); render(FS * 0.7); if (algo) enc(1, algo); ex.web_buttons(0); render(2000); };
+  seqHold(1);                                                   // STEP (from the next cycle), the menu open
+  tap(4);                                                       // step 3 (key 4) on: steps 1 5 9 13 + 3
+  bar();
+  const st = bar().steps;
+  check(`SEQ STEP: steps 1 5 9 13 and the tapped 3 (${st.join(",")})`, same(st, [0, 2, 4, 8, 12]));
+  const p0 = bar();
+  K(1 << 7); render(1500); enc(3, -30); K(0); render(1500);     // hold step 5 (key 7) + KNOB 1: its VELO down
+  const p1 = bar(), pk = (b, k) => peak(b.audio.slice(k * STEP, k * STEP + 2600));
+  check(`VELO lane: step 5 held + KNOB 1 down: softer (${pk(p0, 4).toFixed(3)} -> ${pk(p1, 4).toFixed(3)}), still a step`,
+        pk(p1, 4) < 0.7 * pk(p0, 4) && same(p1.steps.filter((x) => x !== 4), [0, 2, 8, 12]));
+  K(1 << 7); render(1500); enc(3, 30); K(0); render(1500);
+  tap(4);                                                       // step 3 off again
+  ex.web_buttons(1 << SEQB); render(2000); enc(1, 1); ex.web_buttons(0); render(2000);   // TURING (a hold in the menu)
+  seqHold(0);                                                   // (reopen)
+  bar();
+  const tu = [...bar().steps, ...bar().steps];
+  check(`SEQ TURING: it plays its own pattern (${[...new Set(tu)].join(",")})`, tu.length > 0);
+  ex.web_buttons(1 << SEQB); render(2000); enc(1, -2); ex.web_buttons(0); render(2000);   // EUCLID, the menu closed
+  bar();
+  check("SEQ back to EUCLID: 8 hits as before", same(bar().steps, euclid(16, 8, 0)));
+}
 // SHIFT +1: turned a step at once, kept
 tap(16);
 bar();
