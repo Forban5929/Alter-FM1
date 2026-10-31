@@ -67,10 +67,11 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
 - Émulateur navigateur = le VRAI firmware en WebAssembly (écran 240×240, panneau simulé). Build FM-1 : `./build.sh` (Linux x86-64).
   Emscripten est bloqué dans la session cloud → on compile avec le clang du système : `tools/alter/wasm/build_emu.sh`
   (mini-libc maison `tools/alter/wasm/`, génère build/gen si absent, sortie build/emu/ + `alter.html` pour l'artifact).
-  Tests : `node web/emu/emu_test.mjs build/emu/felucca.wasm` (Felucca ; 1 échec VOULU : « a key sounds », le clavier
-  est aux commandes live sur l'écran PLAY) et `node tools/alter/alter_emu_test.mjs build/emu/felucca.wasm build/emu/alter_play.wav`
+  Tests : `node web/emu/emu_test.mjs build/emu/felucca.wasm` (Felucca ; 4 échecs VOULUS : « a key sounds », « FX held »,
+  « SAVE, OCT+, OCT+ » et « a fresh instance… » : clavier, FX et SAVE appartiennent à la vue PLAY) et `node tools/alter/alter_emu_test.mjs build/emu/felucca.wasm build/emu/alter_play.wav`
   (chaque cercle seul, SEQ appui/tenu, SHIFT, DÉ via son triangle à l'écran, DENSITÉ, fills sur le cercle choisi, PRESETS,
-  page ENV, OCT−+OCT+ + FX → Felucca puis HOME, VERROUS, modes ALGORITHM, CHAOS, traînes d'effets qui s'éteignent).
+  page ENV, OCT−+OCT+ + FX → Felucca puis HOME, VERROUS, modes ALGORITHM, CHAOS, SCÈNES, traînes d'effets qui s'éteignent).
+  Le test règle le tempo à 120 (web_alter 4) ; un pas = nombre ENTIER d'échantillons (5512 à 120 BPM), comme le firmware.
   Détecteur d'attaques = enveloppe (les traînes delay/reverb des presets ne retombent jamais à 0).
   Captures d'écran : `node tools/alter/alter_shot.mjs build/emu/felucca.wasm DOSSIER "b:PLAY w:500 K:10+ s:nom"` (.ppm).
   Clavier de la page : `-` = PLAY, `0` = SEQ, `1`..`=` = FX…REC, ↑↓ = SELECT, Z.. = touches blanches.
@@ -113,12 +114,12 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
   `as_roll` = dé IMMÉDIAT (dhits/drot, rat, flam, dchance, gate, env, force, hauteur, vél., glide, 4 timbres ;
   as_repat = motif joué) ; `as_clear` = motif propre ; `as_density` = ±1 HITS gardé ; `as_step(q, ev[3])`.
   DOSE par défaut AS_DOSE_DEF = 100 (drastique). Gamme partagée (OCT 5TH MPEN MIN PHRY DOR CHR), verrous PAR CERCLE
-  (c->locks) AS_LK_PITCH/VEL/GLIDE/FORCE/TIMB/RHYTHM/ENV.
-- `tools/alter/alter_seq_test.c` : 28 contrôles (motifs, cycle suivant, mute, force+FROT, chance, dé drastique, verrous,
+  (c->locks) AS_LK_PITCH/VEL/GLIDE/FORCE/TIMB/RHYTHM/ENV. Accord : cfg.chord (AS_CH_*), ev.chord[2].
+- `tools/alter/alter_seq_test.c` : 29 contrôles (motifs, cycle suivant, mute, force+FROT, chance, dé drastique, verrous,
   SHIFT, DENSITÉ, polyrythmie). `cc -std=c99 -O2 -Wall -o build/alter/alter_seq_test tools/alter/alter_seq_test.c && build/alter/alter_seq_test`
 - (`alter_seq_demo.c` supprimé : ancien modèle. Nouvelles démos à faire en 3d-3.)
 - `tools/alter/make_listen_page.py build/alter` : page d'écoute HTML (MP3 via ffmpeg depuis wav/ dans mp3/).
-- Page d'écoute (étapes 1-2, ancien modèle, 23 extraits) : https://claude.ai/artifact/BqNkjf2dYiPQFnkgco6zey
+- Page d'écoute (scènes + 19 sons, 3d-3) : https://claude.ai/artifact/BqNkjf2dYiPQFnkgco6zey
 
 ## État d'avancement
 - [x] Dépôts vérifiés, vision et design validés
@@ -146,13 +147,23 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         tenir touche(s) blanche(s) = pas 1..16 + KNOB. SEQ est maintenant une page rapide (LEN HITS ROT PROB). → QUESTION
         À POSER AVANT DE CODER : comment ouvrir l'édition par pas sans casser les pages rapides (ex. OCT−+OCT+ + SEQ =
         Felucca aujourd'hui) ? Pas 17..32 quand LEN > 16 ?
-  - [ ] **3d-3 (EN COURS, 31/10)** : SCÈNES + presets. Choix validés : **SAVE (appui court) = page SCÈNES** (PRESETS
+  - [x] **3d-3 (31/10, codé, testé, publié ; ATTEND L'ÉCOUTE)** : SCÈNES + presets. Choix validés : **SAVE (appui court) = page SCÈNES** (PRESETS
         choisit, SAVE charge, HOME annule ; les vraies pages SAVE de Felucca via OCT−+OCT+ + SAVE). Scènes de départ :
         TECHNO (texture, stab, perc), HOUSE (perc, accord, drone), AMBIENT (drone, drone, texture) ; une scène règle les 3
         cercles (moteur, preset, mode, rythme, note, accord) + gamme + TEMPO. **ACCORD par cercle** (3 notes de la gamme
         par coup, réglable dans SCL ; le dé bouge l'accord entier). **Presets indus/noise/texture ~6 par moteur** dans
         une table À NOUS (alter, pas les tables Felucca : NOISE est dans le sous-module), niveaux équilibrés. Page
         d'écoute : chaque preset + chaque scène, rendus par le VRAI firmware (émulateur).
+        FAIT : `firmware/src/alter_sounds.c` = ALT_PRE (19 sons : ALTER THUD ANVIL STAB PIPES RUST GRIND, PHYS TOMS GONG
+        BARS SCRAPE BUZZ SITAR, NOISE HAT SNARE METAL CRUSH RAIN WIND ARCADE ; moteur, E1..E8, ADSR, envois, LEVEL, mode
+        conseillé) + ALT_SCENE (TECHNO HOUSE AMBIENT INDUS — INDUS ajoutée par Claude ; gain par cercle). Scène 1 chargée
+        à l'allumage (TRK_DEF n'est plus qu'un point de départ). Une scène chargée retombe sur la grille depuis PLAY
+        (alt_gstep). SCL KNOB 3 = ACCORD (OFF TRIAD SUS OPEN) à la place du GLIDE (glide encore réglable par la vraie page).
+        ALTER passé à 3 voix (accords). Niveaux mesurés : sons perc ~0,10-0,15 de crête, sons longs −27..−31 dB RMS,
+        scènes −30..−34 dB RMS. `tools/alter/alter_render.mjs build/emu/felucca.wasm build/alter` (WAV + volumes) puis
+        `python3 tools/alter/make_listen_page.py build/alter` → build/alter/alter_ecoute.html (page d'écoute, même lien
+        que l'ancienne : https://claude.ai/artifact/BqNkjf2dYiPQFnkgco6zey). Hook navigateur : web_alter(op,a,b)
+        (felucca_web.c → alter_ui.c alt_web_cmd : 0 son, 1 scène, 2 mute, 3 mode, 4 tempo, 5 mode conseillé).
   - [ ] 3c : vue DEEP (EDIT ouvre encore la page EDIT de Felucca). Puis retirer l'interface Felucca. Reste : SCL → gamme
         des cercles, touches blanches libres, DESTROY assignable, verrous du dé, DOSE.
 - [ ] Étape 4 (après le séquenceur) : tranche de console dédiée, ordre FIXE validé :

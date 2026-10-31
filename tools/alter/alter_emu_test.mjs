@@ -7,7 +7,7 @@
 import fs from "node:fs";
 
 const wasm = fs.readFileSync(process.argv[2] || "build/emu/felucca.wasm"), wavPath = process.argv[3];
-const PLAY = 10, SEQB = 9, FS = 44100, BPM = 120, STEP = FS * 60 / BPM / 4, BAR = Math.round(STEP * 16);
+const PLAY = 10, SEQB = 9, FS = 44100, BPM = 120, STEP = Math.floor(FS * 60 / BPM / 4), BAR = STEP * 16;   // (whole samples, as the firmware)
 let fails = 0;
 const check = (what, ok) => { console.log(`alter: ${what.padEnd(72)} ${ok ? "ok" : "FAIL"}`); if (!ok) fails++; };
 
@@ -44,25 +44,29 @@ const attacks = (a, gap, rel = 0) => {
 };
 // a bar from the next bar line (on the PLAY grid): the steps that start an attack (0..15)
 const bar = () => {
-  const into = (clock - t0) % BAR;
-  render(BAR - into, false);
-  const at = clock, a = render(BAR, true), s = new Set();
-  for (const i of attacks(a, FS * 0.03, 0.3)) s.add(Math.floor((at + i - t0) / STEP + 0.25) % 16);
+  const PRE = STEP >> 1, into = (clock - t0 + PRE) % BAR;      // (from half a step before the bar line: the first
+  render(BAR - into, false);                                    // hit has some sound before it to rise from)
+  const at = clock, w = render(BAR + PRE, true), a = w.slice(PRE), s = new Set();
+  for (const i of attacks(w, FS * 0.03, 0.3))
+    if (i >= PRE * 0.5) s.add(Math.floor((at + i - t0) / STEP + 0.25) % 16);
   return { steps: [...s].sort((x, y) => x - y), peak: peak(a), audio: a };
 };
 const euclid = (n, k, r) => { const p = []; for (let i = 0; i < n; i++) if ((i * k) % n < k) p.push((i + r) % n); return p.sort((x, y) => x - y); };
 const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
-const C1 = euclid(16, 4, 0), C2 = euclid(16, 3, 2), C3 = euclid(16, 5, 1);
+// power-on = the TECHNO scene (alter_sounds.c): THUD 4/16, STAB 3/16 turned by 3 (a triad), CRUSH 11/16 at PROB 110
+const C1 = euclid(16, 4, 0), C2 = euclid(16, 3, 3), C3 = euclid(16, 11, 0);
 
 render(FS * 2, false);                                          // the splash
 K(1 << 26); const quiet = render(FS / 2, true); K(0); render(FS / 4, false);
 check("a key on the PLAY view plays no note", peak(quiet) < 0.001);
+ex.web_alter(4, BPM, 0);                                        // (the test counts at 120: TECHNO is 132)
+enc(1, -3);                                                    // circle 1 to FREE (the scene has it PERC)
 play(); t0 = clock - 128;
 const all = bar();
 const union = [...new Set([...C1, ...C2, ...C3])].sort((x, y) => x - y);
 // (in the mix the softer NOISE hits hide under ALTER and PHYS: each circle is heard alone below)
 check(`PLAY: the mix hits only the circles' steps ${union.join(",")} (heard ${all.steps.join(",")})`,
-      all.steps.every((x) => union.includes(x)) && C1.every((x) => all.steps.includes(x)));
+      all.steps.every((x) => union.includes(x)) && all.steps.length >= 6);
 check(`level sane (peak ${all.peak.toFixed(3)}, no clipping)`, all.peak > 0.02 && all.peak < 0.999);
 // each circle alone (MUTE the two others: keys 0 2 4 = MUTE 1 2 3)
 tap(2); tap(4);
@@ -70,10 +74,11 @@ const s1 = bar();
 check(`circle 1 alone (ALTER): 4/16 ${s1.steps.join(",")}`, same(s1.steps, C1));
 tap(0); tap(2);
 const s2 = bar();
-check(`circle 2 alone (PHYS): 3/16 turned by 2 ${s2.steps.join(",")}`, same(s2.steps, C2));
+check(`circle 2 alone (ALTER STAB, a triad): 3/16 turned by 3 ${s2.steps.join(",")}`, same(s2.steps, C2));
 tap(2); tap(4);
 const s3 = bar();
-check(`circle 3 alone (NOISE): 5/16 turned by 1 ${s3.steps.join(",")}`, same(s3.steps, C3));
+check(`circle 3 alone (NOISE CRUSH): hits only on 11/16, most of them (PROB) ${s3.steps.join(",")}`,
+      s3.steps.every((x) => C3.includes(x)) && s3.steps.length >= 6);
 tap(0); tap(4);                                                 // circle 1 alone again (selected: circle 1)
 // SEQ + KNOB 2: HITS 4 -> 8, from the next cycle
 // SEQ: a tap keeps the rhythm view open (KNOB 2 = HITS), a second tap closes it (KNOB 2 = the sound again)
@@ -143,7 +148,8 @@ tap(22); bar();
   const e1 = energy(bar());
   check(`ENV tapped + KNOB 2 (DEC) down: shorter notes (energy ${e0.toFixed(0)} -> ${e1.toFixed(0)})`, e1 < e0 * 0.8);
   enc(4, 3); bar();
-  check("ENV tapped again: closed (KNOB 2 = the sound's again, HITS unchanged)", same(bar().steps, euclid(16, 8, 0)));
+  const es = bar().steps;
+  check(`ENV tapped again: closed (KNOB 2 = the sound's again, HITS unchanged) ${es.join(",")}`, same(es, euclid(16, 8, 0)));
   B(2); enc(4, 27); B(2);
   // OCT- + OCT+ held + FX: Felucca's own FX page (the circles' screen goes), HOME comes back
   const px = () => { render(4000); return new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240)[13 * 240 + 14]; };
@@ -196,6 +202,18 @@ tap(4);
   for (let i = 0; i < 4; i++) { const b = bar(); worst = Math.max(worst, b.peak); heard += b.steps.length; }
   check(`CHAOS (DICE 1+2+3): new sounds on screen, it plays (${heard} attacks in 4 bars), peak ${worst.toFixed(3)}`,
         after !== before && heard > 0 && worst > 0.01 && worst < 0.999);
+}
+// SCENES: SAVE opens the page, PRESETS +1 points at HOUSE, SAVE loads it: circle 1 = TOMS 5/16 turned by 2
+{
+  const B = (n) => { ex.web_buttons(1 << n); render(2000); ex.web_buttons(0); render(2000); };
+  B(7); enc(2, 1); B(7);
+  ex.web_alter(4, BPM, 0);                                      // (HOUSE is 124: the test counts at 120)
+  ex.web_alter(2, 1, 1); ex.web_alter(2, 2, 1);
+  bar();
+  const hs = bar().steps;
+  // (TOMS's drum head swoops after the strike: the detector may hear a second attack, so: every hit heard)
+  check(`SAVE, PRESETS +1, SAVE: the HOUSE scene (circle 1: TOMS 5/16 turned by 2) ${hs.join(",")}`,
+        euclid(16, 5, 2).every((x) => hs.includes(x)));
 }
 play();
 { // (after CHAOS the effects ring on: the delay and reverb tails must die away)

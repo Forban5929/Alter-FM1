@@ -495,3 +495,6 @@ EXPORT uint32_t web_screen_draws(void) { return web_draws; }
 EXPORT uint32_t web_now_ms(void) { return fm1_ms; }
 EXPORT uint32_t web_playing(void) { return song.playing; }
 EXPORT uint32_t web_sample_rate(void) { return FS; }
+
+/* ALTER (tools/alter/alter_render.mjs, the tests): alter_ui.c alt_web_cmd */
+EXPORT void web_alter(uint32_t op, uint32_t a, uint32_t b) { alt_web_cmd(op, a, b); }

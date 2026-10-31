@@ -14,12 +14,12 @@
  * DRFT  a slow random wander of each oscillator's pitch, up to about a semitone
  * The track's SHP moves MRPH, FLT moves HARM. Amplitude: the track's ADSR, as every engine.
  *
- * Polyphony 2 per part (engine_t.poly): a hit rings on under the next. Each of the part's voices 0..1 has a
+ * Polyphony 3 per part (engine_t.poly): a hit rings on under the next, a chord sounds whole. Each voice 0..2 has a
  * state slot in the part's engine memory (engines.c eng_mem): the six phases, decays and drifts.
  * Fixed point only: phases are 32-bit turns, levels Q15, decays Q16; ratios and coefficients once a block. */
 
 #define ALT_NOSC 6
-#define ALT_POLY 2
+#define ALT_POLY 3
 enum { ALT_SKIN, ALT_LIQUID, ALT_METAL };
 
 typedef struct {

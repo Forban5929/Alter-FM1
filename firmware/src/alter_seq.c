@@ -16,6 +16,8 @@
  * envelope offset (the host moves decay and release) and four timbre offsets (the host maps them to its engine's
  * parameters). Kept until the next roll; as_clear forgets it (the clean pattern). DOSE (0..127) is how far a draw
  * reaches: low for small variations, high for sound design. A circle's lock (AS_LK_*) keeps that part out of its draws.
+ * CHORD (as_cfg_t.chord): each hit plays two more notes of the scale above its own (TRIAD, SUS, OPEN), moved
+ * by the die's pitch with it.
  * DENSITY (as_density): +-1 HITS at once and kept (the keys are quantised to the grid: they act at the next step).
  *
  * Integers only, no allocation: as_step() runs once per sixteenth, in the audio interrupt if the host wants. */
@@ -30,11 +32,16 @@ enum { AS_LK_PITCH = 1, AS_LK_VEL = 2, AS_LK_GLIDE = 4, AS_LK_FORCE = 8, AS_LK_T
 enum { AS_SC_OCT, AS_SC_5TH, AS_SC_MPEN, AS_SC_MIN, AS_SC_PHRY, AS_SC_DOR, AS_SC_CHR, AS_NSCALE };
 static const char *const AS_SCALE_NAME[AS_NSCALE] = {"OCT", "5TH", "MPEN", "MIN", "PHRY", "DOR", "CHR"};
 static const uint8_t AS_VEL[3] = {40, 96, 124};  /* ghost, normal, accent */
+/* chords: a hit's degree, then these degrees above it in the scale (0 = none) */
+enum { AS_CH_OFF, AS_CH_TRI, AS_CH_SUS, AS_CH_OPEN, AS_NCHORD };
+static const char *const AS_CHORD_NAME[AS_NCHORD] = {"OFF", "TRIAD", "SUS", "OPEN"};
+static const int8_t AS_CHORD[AS_NCHORD][2] = {{0, 0}, {2, 4}, {3, 4}, {4, 7}};
 
 typedef struct {
     uint8_t len, hits, rot, prob;   /* 1..32, 0..len, 0..len-1, 0..127 */
     uint8_t frot;                   /* the forces' own rotation, 0..len-1 */
     uint8_t dose, mute, root;       /* 0..127, 0/1, the MIDI note of degree 0 */
+    uint8_t chord;                  /* AS_CH_*: each hit plays these degrees above its own */
 } as_cfg_t;
 
 typedef struct {
@@ -76,6 +83,7 @@ typedef struct {
     uint8_t rat, flam;              /* repeats in the step (0..3), a quick repeat */
     uint8_t gate;                   /* the note's length in steps (1..4) */
     int8_t env;                     /* decay / release offset */
+    uint8_t chord[2];               /* the chord's other notes (0 = none) */
 } as_event_t;
 
 /* the scales as semitones of each degree, ended by -1 */
@@ -131,6 +139,8 @@ static as_cfg_t as_clean(as_cfg_t c)
         c.root = 1;
     if (c.root > 120)
         c.root = 120;
+    if (c.chord >= AS_NCHORD)
+        c.chord = AS_CH_OFF;
     c.mute = c.mute ? 1 : 0;
     return c;
 }
@@ -238,6 +248,7 @@ static void as_set(as_seq_t *q, uint32_t i, as_cfg_t cfg)
         c->next = as_clean(cfg);
         c->cfg.mute = c->next.mute;
         c->cfg.root = c->next.root;
+        c->cfg.chord = c->next.chord;
     }
 }
 
@@ -353,6 +364,10 @@ static void as_step(as_seq_t *q, as_event_t ev[AS_NCIRC])
                     e->timb[j] = c->timb[k][j];
             }
             e->note = (uint8_t)as_note(q, c->cfg.root, deg);
+            if (c->cfg.chord) {                         /* the chord moves with the hit's degree */
+                e->chord[0] = (uint8_t)as_note(q, c->cfg.root, deg + AS_CHORD[c->cfg.chord][0]);
+                e->chord[1] = (uint8_t)as_note(q, c->cfg.root, deg + AS_CHORD[c->cfg.chord][1]);
+            }
             e->vel = (uint8_t)(vel < 1 ? 1 : vel > 127 ? 127 : vel);
         }
     }

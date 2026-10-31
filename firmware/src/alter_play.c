@@ -39,7 +39,7 @@ static const uint8_t ALT_MODE_ENV[AM_N][4] = {   /* ATK DEC SUS REL */
 static as_seq_t alt_seq;
 static uint32_t alt_pos;                         /* samples into the sixteenth */
 static uint8_t alt_run, alt_ready;               /* transport was running; alt_seq set up */
-static uint8_t alt_note[AS_NCIRC];               /* each part's sounding note (0 = none) */
+static uint8_t alt_note[AS_NCIRC][3];            /* each part's sounding notes: the hit's and its chord's (0 = none) */
 static uint8_t alt_gate_left[AS_NCIRC];          /* steps the note still rings */
 static int16_t alt_applied[AS_NCIRC][ALT_NSLOT]; /* the die's offsets in each part now (alt_slot) */
 
@@ -65,6 +65,7 @@ static volatile uint8_t alt_tgt;                 /* the circle the fills act on 
 
 static int32_t alt_shift_seen[AS_NCIRC], alt_dens_seen[AS_NCIRC];
 static uint8_t alt_par;                          /* the sixteenth just played was an odd one (SWING) */
+static uint32_t alt_gstep;                       /* sixteenths played since PLAY (a scene lands on this grid) */
 static uint32_t alt_roll_seen[AS_NCIRC], alt_clear_seen[AS_NCIRC], alt_preset_seen[AS_NCIRC];
 static uint16_t alt_prev;                        /* alt_hold at the last block */
 static uint8_t alt_rev_pos;                      /* REVERSE: where the target was at the press .. */
@@ -72,7 +73,7 @@ static uint16_t alt_rev_n;                       /* .. and the steps since */
 static int16_t alt_fx_save[6];                   /* DLY, REV, DIST, ITYPE, IA, IMIX before the dub keys */
 static int32_t alt_roll_pos;                     /* ROLL: samples to the next roll note (counting up to its period) */
 static uint32_t alt_roll_n;                      /* roll notes so far (the rise) */
-static uint8_t alt_rat_left[AS_NCIRC], alt_rat_note[AS_NCIRC], alt_rat_vel[AS_NCIRC];
+static uint8_t alt_rat_left[AS_NCIRC], alt_rat_note[AS_NCIRC], alt_rat_vel[AS_NCIRC], alt_rat_ch[AS_NCIRC][2];
 static uint32_t alt_rat_at[AS_NCIRC], alt_rat_dt[AS_NCIRC];   /* repeats: the next (samples into the step), the spacing */
 
 /* the four parameters the die's timbre offsets move, by the part's engine */
@@ -106,21 +107,33 @@ static void alt_offset(uint32_t c, uint32_t p, int32_t o)
 
 static void alt_off(uint32_t c)
 {
-    if (alt_note[c]) {
-        trk_note_off(&trk[c], alt_note[c]);
-        alt_note[c] = 0;
-    }
+    uint32_t k;
+    for (k = 0; k < 3u; k++)
+        if (alt_note[c][k]) {
+            trk_note_off(&trk[c], alt_note[c][k]);
+            alt_note[c][k] = 0;
+        }
 }
 
-static void alt_on(uint32_t c, uint32_t note, uint32_t vel, int glide)
+/* part c's note (and its chord's: ch[0], ch[1], 0 = none; a chord softer and never gliding) */
+static void alt_on(uint32_t c, uint32_t note, uint32_t vel, int glide, const uint8_t *ch)
 {
     track_t *t = &trk[c];
-    int16_t g = t->p[P_GLIDE];
+    int16_t g = t->p[P_GLIDE], vm = t->p[P_VOICE];
+    uint32_t k, n = 1;
     alt_off(c);
-    t->p[P_GLIDE] = (int16_t)(glide ? (g ? g : 40) : 0);
+    if (ch && (ch[0] || ch[1]))
+        t->p[P_VOICE] = V_POLY;                  /* (a mono preset's LEGATO would play one note) */
+    t->p[P_GLIDE] = (int16_t)(glide && !(ch && ch[0]) ? (g ? g : 40) : 0);
     trk_note_on(t, note, vel);
+    alt_note[c][0] = (uint8_t)note;
+    for (k = 0; ch && k < 2u; k++)
+        if (ch[k] && ch[k] != note) {
+            trk_note_on(t, ch[k], vel * 7u / 8u);
+            alt_note[c][n++] = ch[k];
+        }
     t->p[P_GLIDE] = g;
-    alt_note[c] = (uint8_t)note;
+    t->p[P_VOICE] = vm;
     alt_hits[c]++;
 }
 
@@ -190,7 +203,7 @@ static void alt_take(void)
             if ((alt_post_now >> c) & 1u) {      /* at once: from the next step */
                 as_circ_t *cc = &alt_seq.c[c];
                 cc->cfg = cc->next;
-                cc->pos = (uint8_t)(cc->pos % cc->cfg.len);
+                cc->pos = (uint8_t)(alt_gstep % cc->cfg.len);   /* where it would be had it played so from PLAY */
                 as_repat(cc);
                 alt_post_now &= (uint8_t)~(1u << c);
             }
@@ -248,6 +261,7 @@ static void alter_step(void)
     as_event_t ev[AS_NCIRC];
     uint32_t c, j, h = alt_hold;
     as_step(&alt_seq, ev);
+    alt_gstep++;
     if ((h >> AF_REVERSE) & 1u) {                /* back two: the next step is the one before this one */
         as_circ_t *r = &alt_seq.c[alt_tgt];
         r->pos = (uint8_t)((r->pos + 2u * r->cfg.len - 2u) % r->cfg.len);
@@ -290,7 +304,7 @@ static void alter_step(void)
                 }
                 gate = m == AM_PERC ? 1u : m == AM_STAB ? (gate > 2u ? 2u : gate) : 255u;   /* DRONE: until the next hit */
             }
-            alt_on(c, v->note, v->vel, v->glide);
+            alt_on(c, v->note, v->vel, v->glide, v->chord);
             alt_gate_left[c] = (uint8_t)(gate > 1u ? gate - 1u : 0u);
         }
         rep = v->rat;                            /* repeats: the die's burst, or a held RATCHET, the more */
@@ -299,6 +313,8 @@ static void alter_step(void)
             rep = f > rep ? f : rep;
         }
         alt_rat_note[c] = v->note;
+        alt_rat_ch[c][0] = v->chord[0];
+        alt_rat_ch[c][1] = v->chord[1];
         alt_rat_vel[c] = v->vel;
         if (rep) {
             alt_rat_left[c] = (uint8_t)rep;
@@ -317,7 +333,7 @@ static void alt_ratchets(uint32_t upto)
     for (c = 0; c < AS_NCIRC; c++)
         while (alt_rat_left[c] && alt_rat_at[c] <= upto) {
             alt_rat_vel[c] = (uint8_t)(alt_rat_vel[c] * 80u / 100u + 1u);
-            alt_on(c, alt_rat_note[c], alt_rat_vel[c], 0);
+            alt_on(c, alt_rat_note[c], alt_rat_vel[c], 0, alt_rat_ch[c]);
             alt_rat_at[c] += alt_rat_dt[c];
             alt_rat_left[c]--;
         }
@@ -354,6 +370,7 @@ static void alter_tick(uint32_t n)
         alt_run = 1;
         alt_pos = 0;
         alt_par = 0;
+        alt_gstep = 0;
         for (c = 0; c < AS_NCIRC; c++)
             alt_seq.c[c].pos = 0;
         alter_step();
@@ -377,7 +394,7 @@ static void alter_tick(uint32_t n)
         while (alt_roll_pos >= (int32_t)per) {
             uint32_t v = 40u + alt_roll_n * 6u;
             alt_roll_pos -= (int32_t)per;
-            alt_on(alt_tgt, as_note(&alt_seq, r->cfg.root, 0), v > 124u ? 124u : v, 0);
+            alt_on(alt_tgt, as_note(&alt_seq, r->cfg.root, 0), v > 124u ? 124u : v, 0, 0);
             alt_roll_n++;
         }
     }

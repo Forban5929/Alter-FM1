@@ -221,6 +221,17 @@ int main(void)
         as_density(&q, 0, -1);
         check("DENSITY -1: 4/16 again", pat16(run(&q, 0, 16, 0)) == as_euclid(16, 4, 0));
     }
+    /* 15. CHORD: a triad of the scale over each hit, at once */
+    as_init(&q, 1);
+    {
+        as_cfg_t c = q.c[0].next;
+        as_event_t ev[AS_NCIRC];
+        c.chord = AS_CH_TRI;
+        as_set(&q, 0, c);                               /* (MIN: C D Eb F G Ab Bb) */
+        as_step(&q, ev);
+        check("CHORD TRIAD on C2: C2 + Eb2 + G2", ev[0].on && ev[0].note == 36 && ev[0].chord[0] == 39 &&
+                                                    ev[0].chord[1] == 43);
+    }
     printf(fails ? "%d FAILED\n" : "all ok\n", fails);
     return fails != 0;
 }
