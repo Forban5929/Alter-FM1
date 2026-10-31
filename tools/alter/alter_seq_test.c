@@ -1,167 +1,189 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * Tests of ALTER's sequencer (firmware/src/alter_seq.c), on the PC:
+ * Tests of alter_seq.c (three independent circles, force and chance per step, the die at once).
  *   cc -std=c99 -O2 -Wall -o build/alter/alter_seq_test tools/alter/alter_seq_test.c && build/alter/alter_seq_test */
 #include <stdint.h>
 #include <stdio.h>
-#include <string.h>
 #include "../../firmware/src/alter_seq.c"
 
 static int fails;
-#define CHECK(c, ...) do { if (!(c)) { fails++; printf("FAIL %s:%d: ", __FILE__, __LINE__); printf(__VA_ARGS__); printf("\n"); } } while (0)
-
-static uint32_t popcount(uint32_t x) { uint32_t n = 0; while (x) { n += x & 1u; x >>= 1; } return n; }
-
-/* the steps circle 0 plays over n sixteenths, as a bit string from the current position */
-static void run(as_seq_t *q, uint32_t n, as_event_t *ev)
+static void check(const char *what, int ok)
 {
-    uint32_t i;
-    for (i = 0; i < n; i++)
-        as_step(q, &ev[i]);
+    printf("%-64s %s\n", what, ok ? "ok" : "FAIL");
+    if (!ok)
+        fails++;
 }
 
-static as_cfg_t cfg(uint8_t len, uint8_t hits, uint8_t rot, uint8_t prob)
+/* n steps: which steps circle i played (bit s), and its events */
+static uint64_t run(as_seq_t *q, uint32_t i, uint32_t n, as_event_t *keep)
 {
-    as_cfg_t c = {len, hits, rot, prob, 0, 0, 0};
-    return c;
-}
-
-static void solo(as_seq_t *q, uint32_t keep)           /* only circle keep plays (others muted, now) */
-{
-    uint32_t i;
-    for (i = 0; i < AS_NCIRC; i++) {
-        q->c[i].cfg.mute = q->c[i].next.mute = (uint8_t)(i != keep);
+    uint64_t m = 0;
+    uint32_t s;
+    for (s = 0; s < n; s++) {
+        as_event_t ev[AS_NCIRC];
+        as_step(q, ev);
+        if (ev[i].on)
+            m |= 1ull << s;
+        if (keep)
+            keep[s] = ev[i];
     }
+    return m;
 }
+
+static uint32_t pat16(uint64_t m) { return (uint32_t)(m & 0xFFFF); }
 
 int main(void)
 {
-    as_seq_t q, q2;
-    as_event_t ev[256], ev2[256];
-    uint32_t i, n, k;
+    as_seq_t q;
+    as_event_t e[64];
+    uint32_t i, s;
 
-    /* 1. euclidean patterns: E(3,8) is x..x..x., every E(k,n) has k hits, the rotation turns it */
-    CHECK(as_euclid(8, 3, 0) == ((1u << 0) | (1u << 3) | (1u << 6)), "E(3,8) = %x", as_euclid(8, 3, 0));
-    CHECK(as_euclid(16, 4, 0) == 0x1111u, "E(4,16) = %x", as_euclid(16, 4, 0));
-    CHECK(as_euclid(8, 3, 1) == ((1u << 1) | (1u << 4) | (1u << 7)), "E(3,8) rot 1");
-    for (n = 1; n <= 32; n++)
-        for (k = 0; k <= n; k++)
-            CHECK(popcount(as_euclid(n, k, k % n)) == k, "E(%u,%u) has %u hits", k, n, popcount(as_euclid(n, k, k % n)));
-
-    /* 2. a change waits for the next cycle */
+    /* 1. the three circles are three euclidean patterns, each on its own */
     as_init(&q, 1);
-    solo(&q, AS_HITS);
-    as_set(&q, AS_HITS, cfg(16, 4, 0, 127));
-    run(&q, 5, ev);                                    /* steps 0..4 of the first cycle */
-    as_set(&q, AS_HITS, cfg(16, 16, 0, 127));          /* every step, asked at step 5 */
-    run(&q, 11, ev);                                   /* steps 5..15: still E(4,16): hits at 8 and 12 */
-    for (i = 0; i < 11; i++)
-        CHECK(ev[i].on == ((i + 5) % 4 == 0), "step %u before the cycle: on %u", i + 5, ev[i].on);
-    run(&q, 16, ev);                                   /* the next cycle: every step */
-    for (i = 0; i < 16; i++)
-        CHECK(ev[i].on, "step %u of the new cycle silent", i);
-
-    /* 3. a roll waits for the next cycle, then stays the same cycle after cycle */
-    as_init(&q, 7);
-    solo(&q, AS_HITS);
-    q.scale = AS_SC_CHR;
-    as_set(&q, AS_HITS, (as_cfg_t){8, 8, 0, 127, 1, 127, 0});
-    run(&q, 8, ev);                                    /* the cycle that takes the new settings (die on) */
-    run(&q, 3, ev);
     {
-        uint8_t before[8], after[8];
-        int changed = 0;
-        for (i = 0; i < 8; i++)
-            before[i] = q.c[AS_HITS].pitch[i];
-        as_roll(&q, AS_HITS);
-        for (i = 0; i < 8; i++)
-            CHECK(q.c[AS_HITS].pitch[i] == before[i], "the roll changed step %u before the cycle ended", i);
-        run(&q, 5, ev);                                /* the end of this cycle */
-        run(&q, 8, ev);                                /* the new draw plays */
-        for (i = 0; i < 8; i++) {
-            after[i] = q.c[AS_HITS].pitch[i];
-            changed |= after[i] != before[i];
-        }
-        CHECK(changed, "a roll at DOSE 127 changed no pitch");
-        run(&q, 8, ev2);                               /* the next cycle: the same notes */
-        for (i = 0; i < 8; i++)
-            CHECK(ev[i].note == ev2[i].note && ev[i].vel == ev2[i].vel, "step %u differs between cycles", i);
+        as_seq_t a = q, b = q, c = q;
+        check("circle 1 = 4/16", pat16(run(&a, 0, 16, 0)) == as_euclid(16, 4, 0));
+        check("circle 2 = 3/16 turned by 2", pat16(run(&b, 1, 16, 0)) == as_euclid(16, 3, 2));
+        check("circle 3 = 5/16 turned by 1", pat16(run(&c, 2, 16, 0)) == as_euclid(16, 5, 1));
     }
-
-    /* 4. locks keep a parameter out of the draw */
-    as_init(&q, 3);
-    q.locks = AS_LK_PITCH | AS_LK_MRPH;
-    as_set(&q, AS_HITS, (as_cfg_t){16, 16, 0, 127, 1, 127, 0});
-    as_roll(&q, AS_HITS);
-    run(&q, 16, ev);
-    for (i = 0; i < AS_MAXLEN; i++) {
-        CHECK(q.c[AS_HITS].pitch[i] == 0, "pitch locked but drawn at step %u", i);
-        CHECK(q.c[AS_HITS].timb[i][AS_MRPH] == 0, "MRPH locked but drawn at step %u", i);
+    /* 2. each circle plays its own root, normal force */
+    as_init(&q, 1);
+    {
+        as_event_t ev[AS_NCIRC];
+        as_step(&q, ev);
+        check("step 1: circle 1 on its root (C2), normal force", ev[0].on && ev[0].note == 36 && ev[0].vel == 96);
     }
+    /* 3. a change waits for the next cycle */
+    as_init(&q, 1);
+    run(&q, 0, 5, 0);
+    {
+        as_cfg_t c = q.c[0].next;
+        c.hits = 8;
+        as_set(&q, 0, c);
+    }
+    check("HITS 8 asked at step 5: the bar ends on 4/16",
+          (run(&q, 0, 11, 0) << 5 | (as_euclid(16, 4, 0) & 31)) == as_euclid(16, 4, 0));
+    check("HITS 8 from the next cycle", pat16(run(&q, 0, 16, 0)) == as_euclid(16, 8, 0));
+    /* 4. mute at once, on that circle alone */
+    as_init(&q, 1);
+    {
+        as_cfg_t c = q.c[1].next;
+        as_seq_t q2;
+        c.mute = 1;
+        as_set(&q, 1, c);
+        q2 = q;
+        check("MUTE circle 2: silent at once", run(&q, 1, 16, 0) == 0);
+        check("circle 1 untouched", pat16(run(&q2, 0, 16, 0)) == as_euclid(16, 4, 0));
+    }
+    /* 5. force per step and its own rotation */
+    as_init(&q, 1);
+    q.c[0].force[0] = AS_ACCENT;
+    q.c[0].force[4] = AS_GHOST;
+    run(&q, 0, 16, e);
+    check("force: step 1 accent, step 5 ghost, step 9 normal", e[0].vel == 124 && e[4].vel == 40 && e[8].vel == 96);
+    q.c[0].next.frot = 4;
+    run(&q, 0, 16, e);
+    check("FROT 4: the accent moves to step 5, hits stay", e[4].vel == 124 && e[0].vel == 96 && e[0].on && e[4].on);
+    /* 6. chance per step */
+    as_init(&q, 1);
+    q.c[0].chance[0] = 0;
+    {
+        uint64_t m = run(&q, 0, 64, 0);
+        check("CHANCE 0 on step 1: never plays, the others always",
+              !(m & 0x0001000100010001ull) && (m & 0x0010001000100010ull) == 0x0010001000100010ull);
+    }
+    /* 7. the die: at once, kept, cleared */
+    as_init(&q, 7);
+    q.c[0].next.dose = 127;
+    run(&q, 0, 3, 0);
+    as_roll(&q, 0);
+    run(&q, 0, 13, e);                                  /* steps 4..16: the draw plays already */
     {
         int moved = 0;
-        for (i = 0; i < AS_MAXLEN; i++)
-            moved |= q.c[AS_HITS].timb[i][AS_SPRD] != 0;
-        CHECK(moved, "SPRD not locked but never drawn");
+        for (s = 0; s < 13; s++)
+            if (e[s].on && (e[s].note != 36 || e[s].vel != 96))
+                moved = 1;
+        check("DICE: the draw plays at once (same cycle)", moved);
     }
-
-    /* 5. DOSE 0: the die changes nothing */
-    as_init(&q, 5);
-    as_set(&q, AS_HITS, (as_cfg_t){16, 16, 0, 127, 1, 0, 0});
-    as_roll(&q, AS_HITS);
-    run(&q, 32, ev);
-    for (i = 16; i < 32; i++)
-        CHECK(ev[i].note == q.root && !ev[i].glide && ev[i].timb[0] == 0, "DOSE 0 moved step %u", i);
-
-    /* 6. ACCENT alone plays nothing; on a hit it makes it loud; GHOST plays only where HITS does not */
-    as_init(&q, 9);
-    as_set(&q, AS_HITS, cfg(8, 1, 0, 127));            /* step 0 */
-    as_set(&q, AS_GHOST, cfg(8, 2, 0, 127));           /* steps 0, 4 */
-    as_set(&q, AS_ACCENT, cfg(8, 4, 0, 127));          /* steps 0, 2, 4, 6 */
-    run(&q, 8, ev);
-    run(&q, 8, ev);
-    CHECK(ev[0].on && !ev[0].ghost && ev[0].accent && ev[0].vel >= 120, "step 0: an accented hit (vel %u)", ev[0].vel);
-    CHECK(ev[4].on && ev[4].ghost && ev[4].accent, "step 4: an accented ghost");
-    CHECK(ev[4].vel < ev[0].vel, "an accented ghost stays under an accented hit");
-    CHECK(!ev[2].on && !ev[6].on, "an accent alone played");
-
-    /* 7. PROB: 0 never plays, 127 always, 64 about half */
+    {
+        as_event_t a[16], b[16];
+        int same = 1;
+        run(&q, 0, 16, a);
+        run(&q, 0, 16, b);
+        for (s = 0; s < 16; s++)
+            same &= a[s].note == b[s].note && a[s].vel == b[s].vel && a[s].on == b[s].on;
+        check("DICE: the draw is kept, cycle after cycle", same);
+    }
+    as_clear(&q, 0);
+    run(&q, 0, 16, e);
+    {
+        int clean = 1;
+        for (s = 0; s < 16; s++)
+            if (e[s].on)
+                clean &= e[s].note == 36 && e[s].vel == 96 && !e[s].glide && !e[s].timb[0];
+        check("DICE held: the clean pattern again", clean);
+    }
+    /* 8. a roll on one circle leaves the others alone */
+    as_init(&q, 3);
+    q.c[0].next.dose = q.c[1].next.dose = 127;
+    as_roll(&q, 1);
+    run(&q, 0, 16, e);
+    {
+        int clean = 1;
+        for (s = 0; s < 16; s++)
+            if (e[s].on)
+                clean &= e[s].note == 36 && e[s].vel == 96;
+        check("DICE circle 2: circle 1 unchanged", clean);
+    }
+    /* 9. low DOSE stays near the pattern: notes mostly on the root, forces mostly as set */
     as_init(&q, 11);
-    solo(&q, AS_HITS);
-    as_set(&q, AS_HITS, cfg(16, 16, 0, 0));
-    run(&q, 16, ev);
-    run(&q, 64, ev);
-    for (i = 0, n = 0; i < 64; i++)
-        n += ev[i].on;
-    CHECK(n == 0, "PROB 0 played %u", n);
-    as_set(&q, AS_HITS, cfg(16, 16, 0, 64));
-    run(&q, 16, ev);
-    run(&q, 256, ev);
-    for (i = 0, n = 0; i < 256; i++)
-        n += ev[i].on;
-    CHECK(n > 90 && n < 170, "PROB 64 played %u of 256", n);
-
-    /* 8. the same seed plays the same */
-    as_init(&q, 42);
-    as_init(&q2, 42);
-    for (k = 0; k < AS_NCIRC; k++) {
-        as_set(&q, k, (as_cfg_t){(uint8_t)(13 + k), 5, 1, 100, 1, 80, 0});
-        as_set(&q2, k, (as_cfg_t){(uint8_t)(13 + k), 5, 1, 100, 1, 80, 0});
-        as_roll(&q, k);
-        as_roll(&q2, k);
+    q.c[0].next.dose = 10;
+    q.c[0].next.hits = 16;
+    run(&q, 0, 16, 0);
+    as_roll(&q, 0);
+    run(&q, 0, 16, e);
+    {
+        uint32_t root = 0, n = 0;
+        for (s = 0; s < 16; s++)
+            if (e[s].on)
+                n++, root += e[s].note == 36;
+        check("DOSE 10: most notes on the root", n == 16 && root >= 12);
     }
-    run(&q, 200, ev);
-    run(&q2, 200, ev2);
-    CHECK(!memcmp(ev, ev2, 200 * sizeof ev[0]), "two runs from the same seed differ");
-
-    /* 9. odd lengths turn against each other: the whole pattern repeats only after LCM(len) steps */
+    /* 10. locks */
+    as_init(&q, 5);
+    q.locks = AS_LK_PITCH | AS_LK_FORCE;
+    q.c[0].next.dose = 127;
+    q.c[0].next.hits = 16;
+    run(&q, 0, 16, 0);
+    as_roll(&q, 0);
+    run(&q, 0, 16, e);
+    {
+        int ok = 1;
+        for (s = 0; s < 16; s++)
+            ok &= e[s].note == 36 && e[s].force == AS_NORMAL;
+        check("locks PITCH + FORCE: root and normal force through a full draw", ok);
+    }
+    /* 11. SHIFT turns the pattern at once and keeps it */
     as_init(&q, 1);
-    as_set(&q, AS_HITS, cfg(16, 5, 0, 127));
-    as_set(&q, AS_GHOST, cfg(12, 7, 0, 127));
-    as_set(&q, AS_ACCENT, cfg(5, 2, 0, 127));
-    run(&q, 240, ev);                                  /* LCM(16, 12, 5) = 240 */
-    run(&q, 240, ev2);
-    CHECK(!memcmp(ev, ev2, 240 * sizeof ev[0]), "the 16/12/5 polyrhythm does not repeat after 240 steps");
-
-    printf(fails ? "alter_seq: %d FAILED\n" : "alter_seq: all tests passed\n", fails);
+    as_turn(&q, 0, 1);
+    check("SHIFT +1: 4/16 turned by 1 at once", pat16(run(&q, 0, 16, 0)) == as_euclid(16, 4, 1));
+    check("SHIFT +1: kept next cycle", pat16(run(&q, 0, 16, 0)) == as_euclid(16, 4, 1));
+    /* 12. polyrhythm: LEN 5 against 16 */
+    as_init(&q, 1);
+    {
+        as_cfg_t c = q.c[2].next;
+        uint64_t m;
+        c.len = 5, c.hits = 2, c.rot = 0;
+        as_set(&q, 2, c);
+        run(&q, 2, 16, 0);                              /* the bar it was asked in */
+        for (i = 0; i < 16; i++)                        /* (wait for circle 3's cycle start) */
+            if (q.c[2].pos == 0)
+                break;
+            else
+                run(&q, 2, 1, 0);
+        m = run(&q, 2, 20, 0);
+        check("LEN 5 HITS 2: repeats every 5 steps", (m & 31) == as_euclid(5, 2, 0) && (m >> 5 & 31) == (m & 31) &&
+                                                         (m >> 15 & 31) == (m & 31));
+    }
+    printf(fails ? "%d FAILED\n" : "all ok\n", fails);
     return fails != 0;
 }

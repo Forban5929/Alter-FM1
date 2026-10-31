@@ -1,105 +1,141 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // ALTER in the browser build, in Node as the page's worklet runs it:
 //   node tools/alter/alter_emu_test.mjs build/emu/felucca.wasm [out.wav]
-// Boots, presses PLAY, and listens to each sixteenth of 4 bars: the steps the default circles hit
-// (alter_seq.c as_init: HITS 4/16, GHOST 3/16 turned by 2, ACCENT 2/16) must sound, the others stay quiet,
-// and the loudness orders accent > hit > ghost. Writes the 4 bars as a WAV to listen to.
+// Boots, presses PLAY and listens: the three circles (alter_seq.c as_init: 4/16, 3/16 turned by 2, 5/16 turned by
+// 1) are three voices (parts 1-3: ALTER, PHYS, NOISE). Then the PLAY view (alter_ui.c): MUTE 1 2 3, SEQ + knob,
+// DICE (a tap at once, held = clean), SHIFT, the fills on the selected circle only. Writes 4 bars as a WAV.
 import fs from "node:fs";
 
 const wasm = fs.readFileSync(process.argv[2] || "build/emu/felucca.wasm"), wavPath = process.argv[3];
-const PLAY = 10, FS = 44100, BPM = 120;
+const PLAY = 10, SEQB = 9, FS = 44100, BPM = 120, STEP = FS * 60 / BPM / 4, BAR = Math.round(STEP * 16);
 let fails = 0;
-const check = (what, ok) => { console.log(`alter: ${what.padEnd(70)} ${ok ? "ok" : "FAIL"}`); if (!ok) fails++; };
+const check = (what, ok) => { console.log(`alter: ${what.padEnd(72)} ${ok ? "ok" : "FAIL"}`); if (!ok) fails++; };
 
 const { instance } = await WebAssembly.instantiate(wasm, {});
 const ex = instance.exports, mem = ex.memory;
 ex._initialize(); ex.web_nor_erase(); ex.web_boot();
-const out = [];
+let clock = 0, t0 = 0;                                          // samples rendered; when PLAY was pressed
 const render = (n, keep) => {
+  const got = [];
   for (let k = 0; k < n; k += 128) {
     const m = Math.min(128, n - k);
     ex.web_render(m);
-    if (keep) { const l = new Float32Array(mem.buffer, ex.web_out_l(), m); for (let i = 0; i < m; i++) out.push(l[i]); }
+    if (keep) { const l = new Float32Array(mem.buffer, ex.web_out_l(), m); for (let i = 0; i < m; i++) got.push(l[i]); }
+    clock += m;
   }
+  return got;
 };
-render(FS * 2, false);                                         // the splash
-ex.web_buttons(1 << PLAY); render(128, true); ex.web_buttons(0);
-const step = FS * 60 / BPM / 4, total = Math.round(step * 64);
-render(total, true);
-
-// the euclidean patterns as alter_seq.c draws them
-const euclid = (n, k, r) => { const p = new Set(); for (let i = 0; i < n; i++) if ((i * k) % n < k) p.add((i + r) % n); return p; };
-const H = euclid(16, 4, 0), G = euclid(16, 3, 2), A = euclid(16, 2, 0);
-// the peak in the first 30 ms after each step, against the sound's onset (the first sample above a floor)
-const onset = out.findIndex((x) => Math.abs(x) > 0.002);
-check(`PLAY starts ALTER (first sound ${(onset / FS * 1000).toFixed(0)} ms after the press)`, onset >= 0 && onset < FS * 0.1);
-const lvl = (s) => { let p = 0; const a = Math.round(onset + s * step); for (let i = a; i < a + FS * 0.03; i++) p = Math.max(p, Math.abs(out[i] - (out[i - 1] || 0))); return p; };
-const kinds = { accent: [], hit: [], ghost: [], rest: [] };
-for (let s = 0; s < 64; s++) {
-  const i = s % 16, k = H.has(i) ? (A.has(i) ? "accent" : "hit") : G.has(i) ? (A.has(i) ? "accent" : "ghost") : "rest";
-  kinds[k].push(lvl(s));
-}
-const avg = (a) => a.reduce((x, y) => x + y, 0) / (a.length || 1), min = (a) => Math.min(...a), max = (a) => Math.max(...a);
-console.log(`alter: attack (sample step) accent ${avg(kinds.accent).toFixed(4)} hit ${avg(kinds.hit).toFixed(4)} ghost ${avg(kinds.ghost).toFixed(4)} rest ${avg(kinds.rest).toFixed(4)}`);
-check("every hit, ghost and accent step sounds (attack over 3 x the quietest rest)", min([...kinds.accent, ...kinds.hit, ...kinds.ghost]) > 3 * Math.max(1e-4, min(kinds.rest)));
-check("accent > hit > ghost", avg(kinds.accent) > avg(kinds.hit) && avg(kinds.hit) > avg(kinds.ghost));
-check("no step quieter than a rest is counted as a hit (rests stay below the softest hit)", max(kinds.rest) < min([...kinds.hit, ...kinds.accent]));
-const peak = out.reduce((p, x) => Math.max(p, Math.abs(x)), 0);
-check(`level sane (peak ${peak.toFixed(3)}, no clipping)`, peak > 0.02 && peak < 0.999);
-ex.web_buttons(1 << PLAY); render(128, false); ex.web_buttons(0);
-out.length = 0; render(FS, true);
-const tail = out.slice(FS / 2).reduce((p, x) => Math.max(p, Math.abs(x)), 0);
-check(`PLAY again stops it (last half second peak ${tail.toFixed(4)})`, tail < 0.002);
-
-// ---- the PLAY view (alter_ui.c): its keys, SEQ + knobs
-const SEQB = 9, K = (n) => ex.web_keys(n);
-const onsets = (a) => {                                          // attacks: a jump in the signal, 30 ms apart at least
-  let n = 0, last = -1e9;
-  for (let i = 1; i < a.length; i++) if (Math.abs(a[i] - a[i - 1]) > 0.0015 && i - last > FS * 0.03) { n++; last = i; }
-  return n;
+const K = (n) => ex.web_keys(n), tap = (k) => { K(1 << k); render(1200); K(0); render(1200); };
+const enc = (role, n) => { for (let i = 0; i < Math.abs(n); i++) { ex.web_enc(role, Math.sign(n)); render(1300); } };
+const play = () => { ex.web_buttons(1 << PLAY); render(128); ex.web_buttons(0); };
+const peak = (a) => a.reduce((p, x) => Math.max(p, Math.abs(x)), 0);
+// attacks: the envelope (mean |x| over 3 ms) jumps to over 3 x what it was 10 ms before, above a floor (the
+// presets' reverb and delay tails never let the output fall silent); rel: and over rel x the loudest (not the
+// delay's echoes)
+const attacks = (a, gap, rel = 0) => {
+  const W = 128, env = new Float32Array(a.length);
+  let acc = 0;
+  for (let i = 0; i < a.length; i++) { acc += Math.abs(a[i]) - (i >= W ? Math.abs(a[i - W]) : 0); env[i] = acc / W; }
+  const out = [], D = Math.round(FS * 0.010), floor = Math.max(0.006, rel * env.reduce((p, x) => Math.max(p, x), 0));
+  let last = -1e9;
+  for (let i = D; i < a.length; i++)
+    if (env[i] > floor && env[i] > 3 * env[i - D] && i - last > gap) { out.push(i - W / 2); last = i; }
+  return out;
 };
-const bar = Math.round(step * 16), listen = (n) => { out.length = 0; render(n, true); return out.slice(); };
-K(1 << 26); const quiet = listen(FS / 2); K(0); render(FS / 2, false);
-check("a key on the PLAY view plays no note", quiet.reduce((p, x) => Math.max(p, Math.abs(x)), 0) < 0.001);
-ex.web_buttons(1 << PLAY); render(128, false); ex.web_buttons(0);
-render(bar, false);
-const base = onsets(listen(bar));
-check(`the circles play (${base} attacks in a bar: HITS 4 + GHOST 3)`, base >= 6 && base <= 8);
-K(1 << 3); const roll = onsets(listen(bar)); K(0);
-check(`ROLL 1/32 held: ${roll} attacks in a bar (~32)`, roll >= 26);
-render(bar, false);
-K(1); render(120, false); K(0); K(1 << 2); render(120, false); K(0);       // MUTE HITS, MUTE GHOST
-const muted = listen(bar).slice(FS / 4).reduce((p, x) => Math.max(p, Math.abs(x)), 0);
-check(`MUTE HITS + GHOST: silence (ACCENT never plays alone; peak ${muted.toFixed(4)})`, muted < 0.002);
-K(1); render(120, false); K(0); K(1 << 2); render(120, false); K(0);       // back on
-render(300, false); ex.web_buttons(1 << SEQB); render(200, false);
-for (let i = 0; i < 4; i++) { ex.web_enc(4, 1); render(30, false); }      // SEQ + KNOB 2: HITS 4 -> 8
-ex.web_buttons(0); render(bar * 2, false);
-const dense = onsets(listen(bar));
-check(`SEQ + KNOB 2: HITS 4 -> 8 from the next cycle (${dense} attacks in a bar)`, dense >= 8 && dense <= 10);
-K(1 << 7); render(120, false); K(0); render(bar * 2, false);               // DICE HITS: a draw
-check("DICE HITS: still playing after a new draw", onsets(listen(bar)) >= 8);
+// a bar from the next bar line (on the PLAY grid): the steps that start an attack (0..15)
+const bar = () => {
+  const into = (clock - t0) % BAR;
+  render(BAR - into, false);
+  const at = clock, a = render(BAR, true), s = new Set();
+  for (const i of attacks(a, FS * 0.03, 0.3)) s.add(Math.floor((at + i - t0) / STEP + 0.25) % 16);
+  return { steps: [...s].sort((x, y) => x - y), peak: peak(a), audio: a };
+};
+const euclid = (n, k, r) => { const p = []; for (let i = 0; i < n; i++) if ((i * k) % n < k) p.push((i + r) % n); return p.sort((x, y) => x - y); };
+const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+const C1 = euclid(16, 4, 0), C2 = euclid(16, 3, 2), C3 = euclid(16, 5, 1);
+
+render(FS * 2, false);                                          // the splash
+K(1 << 26); const quiet = render(FS / 2, true); K(0); render(FS / 4, false);
+check("a key on the PLAY view plays no note", peak(quiet) < 0.001);
+play(); t0 = clock - 128;
+const all = bar();
+const union = [...new Set([...C1, ...C2, ...C3])].sort((x, y) => x - y);
+// (in the mix the softer NOISE hits hide under ALTER and PHYS: each circle is heard alone below)
+check(`PLAY: the mix hits only the circles' steps ${union.join(",")} (heard ${all.steps.join(",")})`,
+      all.steps.every((x) => union.includes(x)) && C1.every((x) => all.steps.includes(x)));
+check(`level sane (peak ${all.peak.toFixed(3)}, no clipping)`, all.peak > 0.02 && all.peak < 0.999);
+// each circle alone (MUTE the two others: keys 0 2 4 = MUTE 1 2 3)
+tap(2); tap(4);
+const s1 = bar();
+check(`circle 1 alone (ALTER): 4/16 ${s1.steps.join(",")}`, same(s1.steps, C1));
+tap(0); tap(2);
+const s2 = bar();
+check(`circle 2 alone (PHYS): 3/16 turned by 2 ${s2.steps.join(",")}`, same(s2.steps, C2));
+tap(2); tap(4);
+const s3 = bar();
+check(`circle 3 alone (NOISE): 5/16 turned by 1 ${s3.steps.join(",")}`, same(s3.steps, C3));
+tap(0); tap(4);                                                 // circle 1 alone again (selected: circle 1)
+// SEQ + KNOB 2: HITS 4 -> 8, from the next cycle
+ex.web_buttons(1 << SEQB); render(2000); enc(4, 4); ex.web_buttons(0);
+bar();
+const h8 = bar();
+check(`SEQ + KNOB 2: circle 1 HITS 4 -> 8 ${h8.steps.join(",")}`, same(h8.steps, euclid(16, 8, 0)));
+// SHIFT +1: turned a step at once, kept
+tap(16);
+bar();
+const sh = bar(), sh2 = bar();
+check(`SHIFT +1: turned by 1 and kept ${sh.steps.join(",")}`, same(sh.steps, euclid(16, 8, 1)) && same(sh2.steps, sh.steps));
+tap(14);
+bar();
+check("SHIFT -1: back", same(bar().steps, euclid(16, 8, 0)));
+// (the sound alone cannot tell: THUD's noise burst differs at every hit) the die's mark on the screen, a square at
+// the top right of circle 1 (alter_ui.c alt_scene: ALT_CX 120, ALT_CY 116, radius 80)
+const mark = () => { render(4000); const v = new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240)[36 * 240 + 130]; return v !== 0; };
+// DICE 1: a draw at once (the hits stay: the die moves force, pitch, timbre), held 0.6 s: clean
+check("no draw at first (no mark)", !mark());
+tap(7);
+const d1 = bar();
+check(`DICE 1: the circle still plays its 8 hits after a draw (${d1.steps.length})`, same(d1.steps, euclid(16, 8, 0)));
+check("DICE 1: a draw is on (its mark on the screen)", mark());
+K(1 << 7); render(FS * 0.7); K(0); render(1200);
+check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().steps, euclid(16, 8, 0)));
+// the fills: on the selected circle (1)
 {
-  const before = onsets(listen(bar));
-  const FILLS = { 1: "ROLL 1/16", 5: "ROLL 1/16T", 8: "RATCHET X2", 10: "RATCHET X3", 13: "DUB DELAY", 15: "DUB REVERB",
-                  17: "DESTROY", 20: "DENSITY -", 22: "DENSITY +", 25: "REVERSE", 14: "SHIFT -1", 16: "SHIFT +1" };
-  const got = {};
+  const before = bar().steps.length;
+  const FILLS = { 1: "ROLL 1/16", 3: "ROLL 1/32", 5: "ROLL 1/16T", 8: "RATCHET X2", 10: "RATCHET X3", 13: "DUB DELAY",
+                  15: "DUB REVERB", 17: "DESTROY", 20: "DENSITY -", 22: "DENSITY +", 25: "REVERSE" };
+  const got = {}, n = {};
   let worst = 0;
   for (const [k, name] of Object.entries(FILLS)) {
-    K(1 << +k); const a = listen(bar); K(0); render(bar * 2, false);
-    got[name] = onsets(a);
-    worst = Math.max(worst, a.reduce((p, x) => Math.max(p, Math.abs(x)), 0));
+    K(1 << +k); render(2000);
+    const b = bar(); K(0); bar();
+    const c = attacks(b.audio, FS * 0.012).length;
+    got[name] = b.steps.length; n[name] = c;
+    worst = Math.max(worst, b.peak);
   }
-  console.log("alter: attacks in a bar held: " + Object.entries(got).map(([n, v]) => `${n} ${v}`).join(", "));
-  check(`every fill plays and none clips (peak ${worst.toFixed(3)})`, Object.values(got).every((v) => v > 0) && worst < 0.999);
-  check("RATCHET X2 / X3 add attacks", got["RATCHET X2"] > before && got["RATCHET X3"] > got["RATCHET X2"]);
+  console.log("alter: attacks in a bar held: " + Object.entries(n).map(([k, v]) => `${k} ${v}`).join(", "));
+  check(`every fill plays and none clips (peak ${worst.toFixed(3)})`, Object.values(n).every((v) => v > 0) && worst < 0.999);
+  check("ROLL 1/32 ~ 32 attacks", n["ROLL 1/32"] >= 26);
+  check("RATCHET X2 / X3 add attacks", n["RATCHET X2"] > before && n["RATCHET X3"] > n["RATCHET X2"]);
   check("DENSITY - < DENSITY +", got["DENSITY -"] < got["DENSITY +"]);
-  const after = onsets(listen(bar));
-  check(`let go: the pattern is back (${before} attacks before, ${after} after)`, after === before);
+  check(`let go: the pattern is back`, same(bar().steps, euclid(16, 8, 0)));
 }
-if (wavPath) {                                                  // 4 bars again from a fresh start, 16-bit mono
-  ex.web_buttons(1 << PLAY); render(128, false); ex.web_buttons(0);
-  out.length = 0; render(total + FS, true);
+// a fill on another circle leaves this one alone: SELECT circle 2 (muted), RATCHET X3 held
+enc(0, 1);
+{
+  K(1 << 10); render(2000); const b = bar(); K(0);
+  check(`SELECT circle 2: RATCHET X3 does not touch circle 1 ${b.steps.join(",")}`, same(b.steps, euclid(16, 8, 0)));
+}
+// PRESETS on circle 2: through the engines (PHYS's last presets, then NOISE's)
+tap(2);                                                          // circle 2 back on
+enc(2, 3);
+check("PRESETS on circle 2: it still plays", bar().steps.length >= 1);
+play(); render(FS / 2);
+check(`STOP: silent (last half second peak ${peak(render(FS / 2, true)).toFixed(4)})`, peak(render(FS / 2, true)) < 0.003);
+if (wavPath) {                                                  // 4 bars from a fresh start, all three circles
+  ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
+  play();
+  const out = render(BAR * 4 + FS, true);
   const b = Buffer.alloc(44 + out.length * 2);
   b.write("RIFF", 0); b.writeUInt32LE(36 + out.length * 2, 4); b.write("WAVEfmt ", 8); b.writeUInt32LE(16, 16);
   b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22); b.writeUInt32LE(FS, 24); b.writeUInt32LE(FS * 2, 28);

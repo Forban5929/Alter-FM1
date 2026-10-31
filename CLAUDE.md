@@ -55,7 +55,8 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
   (mini-libc maison `tools/alter/wasm/`, génère build/gen si absent, sortie build/emu/ + `alter.html` pour l'artifact).
   Tests : `node web/emu/emu_test.mjs build/emu/felucca.wasm` (Felucca ; 1 échec VOULU : « a key sounds », le clavier
   est aux commandes live sur l'écran PLAY) et `node tools/alter/alter_emu_test.mjs build/emu/felucca.wasm build/emu/alter_play.wav`
-  (cercles, accents, touches muettes, ROLL, MUTE, SEQ+KNOB, DÉ, tous les fills, retour au motif).
+  (chaque cercle seul, SEQ+KNOB, SHIFT, DÉ via son carré à l'écran, fills sur le cercle choisi seulement, PRESETS).
+  Détecteur d'attaques = enveloppe (les traînes delay/reverb des presets ne retombent jamais à 0).
   Captures d'écran : `node tools/alter/alter_shot.mjs build/emu/felucca.wasm DOSSIER "b:PLAY w:500 K:10+ s:nom"` (.ppm).
   Clavier de la page : `-` = PLAY, `0` = SEQ, `1`..`=` = FX…REC, ↑↓ = SELECT, Z.. = touches blanches.
 
@@ -64,15 +65,18 @@ Source de vérité = le dépôt GitHub (copies de secours dans le Projet, `claud
 Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner, `git submodule update --init`.
 - `firmware/src/eng_alter.c` : le moteur, inscrit en DERNIER dans `engines.c` (`ENGI_ALTER` = NENGINES-1 dans core.h,
   1er dans ENGINE_ORDER, partie 1 au démarrage = ALTER THUD ; ENG_VCOST 330 ; MIDI CUT=HARM RES=SPRD ; pas de favoris).
-- `firmware/src/alter_play.c` (inclus en tête de seq.c, `alter_tick` appelé après click_tick, côté AUDIO) : relie
-  alter_seq au transport Felucca (PLAY, tempo, horloge MIDI) sur la partie 1 ; note d'un pas ; GLIDE seulement si le dé
-  l'a tiré ; offsets de timbre annulés au pas suivant. Les FILLS (alt_hold, bits AF_*) : rolls, ratchets, envois
-  DLY/REV/DESTROY sauvés-restaurés, densité, reverse, shift ; au relâchement chaque cercle revient où il aurait été.
-  Échange UI→audio sans conflit : compteurs écrits par l'UI seule (alt_knob_tot, alt_preset_cnt), alt_post + alt_post_cfg.
-- `firmware/src/alter_ui.c` (inclus dans ui_input.c après led_clear) : écran PLAY (alter_view = HOME de la partie 1 en
-  ALTER, aucun bouton Felucca tenu), alter_ui_input (appelé tôt dans ui_input ; rend la main à Felucca dès qu'un autre
-  bouton est pressé, jusqu'à 0,4 s après relâchement), alter_draw (2 moitiés 240×120, redessin si signature change),
-  alter_leds. Touche k = demi-tons au-dessus de F3 (table ALT_KEY). seq.c keyboard_block : alt_kb_own = clavier muet.
+- `firmware/src/alter_play.c` (inclus en tête de seq.c, `alter_tick` après click_tick, côté AUDIO) : cercle i joue la
+  PARTIE i (0..2 ; TRK_DEF dans engines.c = ALTER THUD, PHYS TOMS, NOISE METAL ; partie 4 DRUM muette). Note d'un pas,
+  GLIDE seulement si le dé l'a tiré, offsets de timbre du dé sur 4 paramètres PAR MOTEUR (ALT_TIMB_*) annulés au pas
+  suivant (alt_applied[3][8]). FILLS (alt_hold, bits AF_*) sur UN cercle = alt_tgt (le sélectionné au 1er appui).
+  Échange UI→audio sans conflit : compteurs écrits par l'UI seule (alt_knob_tot[3][4], alt_shift_tot, alt_roll_cnt,
+  alt_clear_cnt, alt_preset_cnt), alt_sel, alt_post + alt_post_cfg.
+- `firmware/src/alter_ui.c` (inclus dans ui_input.c) : vue PLAY = HOME (alter_view), rend la main à Felucca dès qu'un
+  autre bouton est pressé (0,4 s après relâchement). KNOB 1-4 = engine_t.knob du moteur du cercle choisi ; SELECT =
+  cercle + track_select (pages Felucca ENV/FX/EDIT suivent) ; PRESETS = presets ALTER+PHYS+NOISE à la suite
+  (alt_preset_step, change de moteur si besoin) ; table ALT_KEY (touche k = demi-tons au-dessus de F3). Écran :
+  alter_draw (2 moitiés 240×120, redessin si signature change). Carré à droite du haut d'un cercle = dé actif.
+  Comparer des temps en SIGNÉ (`(int32_t)(fm1_ms - t0)`) : bug corrigé le 31/10 (die_t0 = fm1_ms|1).
 - `tools/alter/alter_wav.c` : programme PC, rend 15 extraits WAV + compare le coût à ANALOG.
   Recréer : `python3 firmware/engines/tools/gen_engine_tables.py build/alter/fe_tables.h`
   puis `cc -std=c99 -O2 -I build/alter -o build/alter/alter_wav tools/alter/alter_wav.c -lm && build/alter/alter_wav build/alter/wav`
@@ -82,16 +86,16 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
   64 bits seulement 1×/bloc (incréments). Presets : THUD, BELL, CLANG, SNAP, STAB, RUST.
 - Mesures (PC x86) : ALTER ≈ 1,7 à 2,3 × ANALOG par voix → estimé ~4-5 % CPU FM-1 par voix (≈10 % pour 2).
   NON vérifié sur pi32v2 (toolchain JieLi pas encore installée). Crêtes -2 à -5 dBFS, pas d'écrêtage, DC ≈ 0.
-- `firmware/src/alter_seq.c` : le séquenceur (étape 2), C pur, sans dépendance, appelé 1×/double-croche
-  (`as_init`, `as_set` = réglage appliqué au cycle suivant du cercle, `as_roll` = dé, `as_step` → `as_event_t`).
-  ACCENT ne joue jamais seul ; GHOST seulement là où HITS est vide ; PROB 0..127 ; 32 pas max ; DOSE par cercle ;
-  verrous AS_LK_PITCH/VEL/GLIDE/MRPH/SPRD/HARM/AMNT ; gammes OCT 5TH MPEN MIN PHRY DOR CHR. Le dé d'ACCENT
-  ne bouge que la force de l'accent. Offsets de timbre appliqués aux paramètres au déclenchement.
-- `tools/alter/alter_seq_test.c` : 9 tests (motifs, cycle suivant, dé figé, verrous, PROB, polyrythmie).
-  `cc -std=c99 -O2 -Wall -o build/alter/alter_seq_test tools/alter/alter_seq_test.c && build/alter/alter_seq_test`
-- `tools/alter/alter_seq_demo.c` : 8 démos du séquenceur (inclut alter_wav.c avec ALTER_HOST_NO_MAIN) + `rings.txt`.
+- `firmware/src/alter_seq.c` : séquenceur C pur, 1×/double-croche. 3 cercles indépendants (`as_cfg_t` : len hits
+  rot prob frot dose mute root). Par pas : `force[]` (GHOST/NORMAL/ACCENT = vél. 40/96/124, rotation FROT propre) et
+  `chance[]` (0..127). `as_set` = cycle suivant (mute, root tout de suite) ; `as_turn` = SHIFT immédiat gardé ;
+  `as_roll` = dé IMMÉDIAT (force ±1, hauteur dans la gamme, vél., glide, 4 timbres) ; `as_clear` = motif propre ;
+  `as_step(q, ev[3])`. Gamme partagée (OCT 5TH MPEN MIN PHRY DOR CHR), verrous AS_LK_PITCH/VEL/GLIDE/FORCE/TIMB.
+- `tools/alter/alter_seq_test.c` : 20 contrôles (motifs, cycle suivant, mute, force+FROT, chance, dé, verrous, SHIFT,
+  polyrythmie). `cc -std=c99 -O2 -Wall -o build/alter/alter_seq_test tools/alter/alter_seq_test.c && build/alter/alter_seq_test`
+- (`alter_seq_demo.c` supprimé : ancien modèle. Nouvelles démos à faire en 3d-3.)
 - `tools/alter/make_listen_page.py build/alter` : page d'écoute HTML (MP3 via ffmpeg depuis wav/ dans mp3/).
-- Page d'écoute publiée (23 extraits) : https://claude.ai/artifact/BqNkjf2dYiPQFnkgco6zey
+- Page d'écoute (étapes 1-2, ancien modèle, 23 extraits) : https://claude.ai/artifact/BqNkjf2dYiPQFnkgco6zey
 
 ## État d'avancement
 - [x] Dépôts vérifiés, vision et design validés
@@ -99,30 +103,24 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
 - [x] Étape 2 : séquenceur 3 cercles + dé (validé par Romain, fusionné dans main)
 - [ ] Étape 3 (choix validés 30/10 : vues SUR L'ÉCRAN FM-1 240×240, ALTER REMPLACE Felucca (comme SLOOP),
       cercles CONCENTRIQUES HITS dehors → ACCENT dedans, livraison par morceaux) :
-  - [x] 3a : ALTER + séquenceur jouables dans le navigateur (branche `etape-3a-navigateur`, attend l'écoute de Romain).
-        Page : https://claude.ai/artifact/JpKofrvF7kb17ZmrJZmx8X (republier `build/emu/alter.html` avec ses fichiers).
-        Encore l'interface Felucca ; réglages des cercles = valeurs par défaut (4/16, 3/16 rot 2, 2/16), pas de dé.
-  - [x] 3b : vue PLAY codée, testée, publiée (même lien). Attend l'écoute de Romain. **Règle de Romain : une touche fait ce que dit son nom** (ne jamais détourner un libellé).
-        Mapping VALIDÉ (30/10) : HOME = vue PLAY ; EDIT = vue DEEP ; SEQ TENU = KNOB 1-4 → LEN HITS ROT PROB du
-        cercle choisi (lâché = macros MRPH SPRD HARM MODE) ; SELECT = choix du cercle ; SCL = gamme + note de base ;
-        ENV = enveloppe ; LFO = modulations ; FX = effets ; GLO = tempo / sync MIDI ; SAVE = preset ; PLAY = start/stop ;
-        ARP, REC = rien pour l'instant. CLAVIER = zone live : 3 touches MUTE (HITS GHOST ACCENT), 3 touches DÉ,
-        le reste = FILLS / VARIATIONS. LED des touches blanches (pas de couleur) → couleurs sur l'écran.
-        (Ci-dessous = état codé en 3b, avant la nouvelle direction.) CLAVIER VALIDÉ (31/10) — NOIRES (groupes 3-2-3-2-1, tenir = actif) : ROLL 1/16, 1/32, triolet (ghost→accent) |
-        RATCHET x2, x3 | DUB DELAY, DUB REVERB, DESTROY (DIST+FOLD montent, assignable en DEEP) | DENSITÉ -, + | REVERSE
-        (motif à l'envers). BLANCHES par blocs ALLUMÉS séparés d'une touche ÉTEINTE : MUTE ×3 (appui) · DÉ ×3 (appui) ·
-        DÉCALAGE -1/+1 (tenir) · le reste libre. Écran PLAY = maquette validée (cercles concentriques, pas animés,
-        bas d'écran = 4 macros ; SEQ tenu = LEN HITS ROT PROB du cercle choisi, les autres cercles grisés).
-  - [ ] **3d (PROCHAINE)** : passer à la nouvelle direction, en 3 morceaux validés à l'écoute :
-        3d-1 modèle 3 voix (parties 1-3 = ALTER/PHYS/NOISE, 1 voix ; alter_seq → 3 pistes euclidiennes indépendantes avec
-             force + chance par pas ; HOME = déclenchements seuls ; fills sur cercle sélectionné ; SHIFT gardé ; DÉ immédiat ;
-             LED faible/fort ; PRESETS par cercle sur les 3 moteurs). Réutiliser alter_play/alter_ui/alter_seq.
-             CHOIX VALIDÉS (31/10) : 3 MUTE + 3 DÉ = un par cercle (1,2,3) ; DÉ clic = tirage immédiat, DÉ TENU 0,6 s =
-             efface le tirage (motif propre) ; KNOB 1-4 sur PLAY = 4 réglages principaux du moteur du cercle choisi
-             (rythme sous SEQ tenu) ; même gamme, NOTE DE BASE PAR CERCLE (ALTER grave, PHYS médium, NOISE aigu).
-        3d-2 onglet SEQ linéaire (SEQ = page, plus « SEQ tenu ») : pages FORCE (rotation accents/ghosts) et CHANCE.
-             → où vont alors LEN/HITS/ROT/PROB ? à proposer (ex. page RYTHME de l'onglet SEQ) AVANT de coder.
-        3d-3 presets indus/noise/texture (ALTER, PHYS, NOISE) + page d'écoute.
+  - [x] 3a : ALTER + séquenceur jouables dans le navigateur. Page (republiée à chaque morceau) :
+        https://claude.ai/artifact/JpKofrvF7kb17ZmrJZmx8X — republier `build/emu/alter.html` + files felucca.wasm,
+        worklet.js, fonts/DotGothic16-subset.woff, fonts/OFL.txt (lire felucca.wasm publié avant, sinon refus).
+  - [x] 3b : vue PLAY (cercles concentriques). **Règle de Romain : une touche fait ce que dit son nom.**
+        Boutons : HOME = PLAY ; EDIT = DEEP ; SEQ tenu = KNOB 1-4 → LEN HITS ROT PROB ; SELECT = cercle ; SCL = gamme +
+        note de base ; ENV, LFO, FX, GLO (tempo/sync), SAVE ; PLAY = start/stop ; ARP, REC = rien pour l'instant.
+        Clavier : NOIRES tenues (groupes 3-2-3-2-1) ROLL 1/16 1/32 triolet | RATCHET x2 x3 | DUB DELAY, DUB REVERB,
+        DESTROY | DENSITÉ -, + | REVERSE. BLANCHES (blocs allumés séparés d'une éteinte) MUTE 1 2 3 · DÉ 1 2 3 ·
+        SHIFT -1 +1 · le reste libre.
+  - [x] **3d-1 (branche `etape-3d`, 31/10) : 3 voix ALTER/PHYS/NOISE** codé, testé, publié (même lien que 3a).
+        ATTEND L'ÉCOUTE DE ROMAIN. Choix validés : 3 MUTE + 3 DÉ (un par cercle) ; DÉ clic = tirage immédiat, tenu
+        0,6 s = motif propre ; KNOB 1-4 = son du cercle choisi ; note de base par cercle (C2, C3, C4).
+        Constat : NOISE METAL nettement plus doux que ALTER/PHYS dans le mélange → équilibrer en 3d-3.
+  - [ ] **3d-2 (PROCHAINE)** : onglet SEQ linéaire (SEQ = page, plus « SEQ tenu ») : pages FORCE (rotation
+        accents/ghosts = FROT, déjà dans alter_seq) et CHANCE (chance[] déjà là). Édition : tenir touche(s) blanche(s)
+        = pas 1..16 + KNOB. → QUESTION OUVERTE à poser AVANT de coder : où vont LEN/HITS/ROT/PROB (ex. page RYTHME
+        de l'onglet SEQ) ? Pas 17..32 quand LEN > 16 ?
+  - [ ] 3d-3 : presets indus/noise/texture (~6 par moteur ALTER, PHYS, NOISE, niveaux équilibrés) + page d'écoute.
   - [ ] 3c : vue DEEP (EDIT ouvre encore la page EDIT de Felucca). Puis retirer l'interface Felucca. Reste : SCL → gamme
         des cercles, touches blanches libres, DESTROY assignable, verrous du dé, DOSE.
 - [ ] Étape 4 (après le séquenceur) : tranche de console dédiée, ordre FIXE validé :

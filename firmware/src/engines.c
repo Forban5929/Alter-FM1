@@ -203,6 +203,6 @@ static const struct {
 #define NPATTERNS (sizeof PATTERNS / sizeof PATTERNS[0])
 
 /* the parts at power-on (engine, preset, PATTERNS[n - 1] in the sequencer, 0 = empty: all are): bass, pad, lead, drums */
-static const uint8_t TRK_DEF[NPART][3] = {{ENGI_ALTER, 0, 0}, {ENGI_FM6, 4, 0}, {3, 0, 0}, {ENGI_DRUM, 0, 0}}; /* ANALOG ACID,
-                                                                       * FM6 PAD (was DIGITAL PAD), LOFI PULSE LD, DRUM KIT */
+/* ALTER: circles 1-3 play parts 1-3 (alter_play.c): ALTER THUD, PHYS TOMS, NOISE METAL; part 4 DRUM KIT stays silent */
+static const uint8_t TRK_DEF[NPART][3] = {{ENGI_ALTER, 0, 0}, {ENGI_PHYS, 6, 0}, {11, 3, 0}, {ENGI_DRUM, 0, 0}};
 static uint32_t trk_def_engine(uint32_t i) { return TRK_DEF[i % NPART][0]; }
