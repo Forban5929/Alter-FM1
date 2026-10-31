@@ -22,7 +22,7 @@
  *                point (alter_sounds.c ALT_SCENE). The first scene is loaded at power-on
  *   ALGORITHM    the chosen circle's envelope mode: FREE PERC STAB DRONE (alter_play.c AM_*)
  *   DICE 1 + 2 + 3 together: CHAOS, everything drawn to the extreme on the three circles: engine, preset, the
- *                engine's eight, the effects (sends 33 %, DIST and INSERT 10 % at most), its LFO (WAVE RATE DEPTH DEST), the rhythm (at once), the die (DOSE 127), the scale and roots;
+ *                engine's eight, the effects (sends 33 %, DIST and INSERT 10 % at most), the SEQ lanes (each 40 %), its LFO (WAVE RATE DEPTH DEST), the rhythm (at once), the die (DOSE 127), the scale and roots;
  *                not the tempo, not the modes, not the mutes. For good: no undo
  *   PLAY  start / stop      ARP REC: nothing yet (REC stays disarmed: no count-in, no click)
  * The keys (no notes here: alt_kb_own): the whites in lit blocks with a dark key between: MUTE 1 2 3 (a tap),
@@ -607,6 +607,23 @@ static void alt_chaos(void)
         cf->prob = (uint8_t)(80u + alt_cr(48u));
         cf->dose = 127;
         cf->root = (uint8_t)(24u + alt_cr(37u)); /* C1 .. C4 */
+        {                                        /* the SEQ menu's lanes: each (VELO CHANCE DELAY REVERB PITCH) drawn with a 40 %
+                                                  * chance, on about half its steps, else plain (Romain: under 50 % each,
+                                                  * DELAY and REVERB 40 % of the bar at most) */
+            as_circ_t *sc = &alt_seq.c[c];
+            uint32_t pick = 0;
+            for (k = 0; k < 5u; k++)
+                if (alt_cr(100u) < 40u)
+                    pick |= 1u << k;
+            for (k = 0; k < AS_NLANE; k++) {
+                uint8_t ch = (pick & 2u) && alt_cr(2u) ? (uint8_t)(40u + alt_cr(88u)) : 127u;
+                sc->svel[k] = (pick & 1u) && alt_cr(2u) ? (uint8_t)(40u + alt_cr(88u)) : AS_VEL[AS_NORMAL];
+                sc->chance[k] = sc->chance[k + AS_NLANE] = ch;
+                sc->sdly[k] = (pick & 4u) && alt_cr(2u) ? (uint8_t)alt_cr(52u) : 0u;   /* (0..51: 40 %) */
+                sc->srev[k] = (pick & 8u) && alt_cr(2u) ? (uint8_t)alt_cr(52u) : 0u;
+                sc->spitch[k] = (int8_t)((pick & 16u) && alt_cr(2u) ? (int32_t)alt_cr(15u) - 7 : 0);
+            }
+        }
         alt_post_now |= (uint8_t)(1u << c);
         alt_post_circle(c);
         alt_roll_cnt[c]++;                       /* and the die at full DOSE */

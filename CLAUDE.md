@@ -254,6 +254,9 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         **Retour Romain (31/10 soir)** : « effets trop présents, grooves perdus » → scènes d'usine = effets d'ORIGINE
         (dpre/rpre/mpre tous 0 = ECHO/HALL/FLAT ; Romain ajoute les effets lui-même). **CHAOS** : envois DLY/REV ≤ 33 %
         (0..42), DIST/INSERT A/MIX ≤ 10 % (0..13), type d'insert OFF..CRUSH, LFO 1 jamais vers DIST ni les envois.
+        CHAOS tire aussi les **couloirs SEQ** (31/10) : chaque couloir (VELO CHANCE DELAY REVERB PITCH) a 40 % de chances
+        d'être tiré, indépendamment, sur ~1 pas sur 2 (VELO 40..127, CHANCE 40..127, DELAY/REVERB 0..51 = 40 % max, PITCH
+        −7..7) ; un couloir non tiré revient neutre (96, 127, 0, 0, 0).
         TECHNO = « parfait » (ne pas toucher) ; INDUS redevenue celle d'avant. **HOUSE refaite en DEEP** (122 BPM DOR swing 8 :
         THUD 4/16, WARM triade 3/16 rot 3, OPEN HAT 4/16 rot 2) ; **AMBIENT refaite en nappes douces** (70 BPM MIN : 2 × PAD
         en DRONE, 32 pas accord OPEN + 24 pas rot 12 une quinte plus haut, RAIN discrète). 3 sons ajoutés EN FIN de ALT_PRE
