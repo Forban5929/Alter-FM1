@@ -117,6 +117,9 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         3d-1 modèle 3 voix (parties 1-3 = ALTER/PHYS/NOISE, 1 voix ; alter_seq → 3 pistes euclidiennes indépendantes avec
              force + chance par pas ; HOME = déclenchements seuls ; fills sur cercle sélectionné ; SHIFT gardé ; DÉ immédiat ;
              LED faible/fort ; PRESETS par cercle sur les 3 moteurs). Réutiliser alter_play/alter_ui/alter_seq.
+             CHOIX VALIDÉS (31/10) : 3 MUTE + 3 DÉ = un par cercle (1,2,3) ; DÉ clic = tirage immédiat, DÉ TENU 0,6 s =
+             efface le tirage (motif propre) ; KNOB 1-4 sur PLAY = 4 réglages principaux du moteur du cercle choisi
+             (rythme sous SEQ tenu) ; même gamme, NOTE DE BASE PAR CERCLE (ALTER grave, PHYS médium, NOISE aigu).
         3d-2 onglet SEQ linéaire (SEQ = page, plus « SEQ tenu ») : pages FORCE (rotation accents/ghosts) et CHANCE.
              → où vont alors LEN/HITS/ROT/PROB ? à proposer (ex. page RYTHME de l'onglet SEQ) AVANT de coder.
         3d-3 presets indus/noise/texture (ALTER, PHYS, NOISE) + page d'écoute.
