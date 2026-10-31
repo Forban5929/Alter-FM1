@@ -201,8 +201,8 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         1..3 LFO du cercle) dans mod_global et mod_show. PROB : alt_seq.pmod[3] = alt_prob_of. Changer de son garde les
         LFO. Scènes : 3 octets par LFO (WAVE|RATE<<3, DEST, DEPTH) + GLOBAL 4 octets ; P_LRATE/LD_* sortis d'ALT_SP
         (banque 3780 o) → **slots USER d'avant effacés**. CHAOS tire le LFO 1 de chaque cercle. voice.c : FADE 0 = sans
-        fondu. Écran cercles : une valeur bougée par un LFO = **zone teintée fixe** (plage min↔max, mod_show ext ±1) + **teinte
-        douce de la barre** (5 nuances selon la position) — plus de trait qui saute (alt_live / alt_live_bar). Page LFO : la
+        fondu. Écran cercles : une valeur bougée par un LFO = **zone fixe dans la couleur du cercle choisi** (plage min↔max, mod_show ext ±1) +
+        **barre blanche qui pulse doucement** (5 nuances selon la position) — plus de trait qui saute (alt_live / alt_live_bar). Page LFO : la
         vague dessinée **suit DEPTH** (taille, retournée si négatif) sur sa forme pleine en pointillé gris. Tests : LFO 1 SQR→PROB, SAW→LEVEL, le GLOBAL
         prend le dessus, RAMP+→LEVEL, LFO 2 SQR -64→PROB (autre moitié), MTX POS→AMP. Idée pas faite : DÉ qui tire les LFO.
   - [ ] 3c : vue DEEP (EDIT ouvre encore la page EDIT de Felucca). Puis retirer l'interface Felucca. Reste : SCL → gamme

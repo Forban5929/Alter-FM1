@@ -880,8 +880,8 @@ static int32_t alt_live(uint32_t q, uint32_t i, int32_t fill, int ext)
     return (v - d->min) * 50 / span;
 }
 
-/* the moved knob's bar: lo .. hi the range its LFOs reach (a tinted zone, fixed), its fill tinted toward the circle's
- * colour as far as the value now sits up that range (a slow, soft pulse); *sig: what the picture depends on */
+/* the moved knob's bar: lo .. hi the range its LFOs reach (a zone in the chosen circle's colour, fixed), its fill
+ * brighter as far as the value now sits up that range (a slow, soft pulse) */
 static void alt_live_bar(uint32_t q, uint32_t i, int32_t fill, int32_t *lo, int32_t *hi, int32_t *pct)
 {
     int32_t a = alt_live(q, i, fill, 1), b = alt_live(q, i, fill, -1), now = alt_live(q, i, fill, 0);
@@ -1251,8 +1251,8 @@ static void alt_scene(uint32_t q, uint32_t flash)
         if (fill >= 0) {
             cv_rect(x, 227, 50, 5, ALT_DARK);
             if (pct >= 0) {                      /* an LFO moves it: the range it reaches, the fill's soft tint */
-                cv_rect(x + lo, 226, (hi > lo ? hi - lo : 1) + 1, 7, alt_fade(ALT_COL[au.sel], 50));
-                cv_rect(x, 228, fill, 3, ux_mix(ALT_INK, ALT_COL[au.sel], 30 + pct * 70 / 100));
+                cv_rect(x + lo, 226, (hi > lo ? hi - lo : 1) + 1, 7, ALT_COL[au.sel]);   /* (its colour, full) */
+                cv_rect(x, 228, fill, 3, ux_mix(ALT_DIM, ALT_INK, 40 + pct * 60 / 100));
             } else
                 cv_rect(x, 227, fill, 5, ALT_INK);
         } else
