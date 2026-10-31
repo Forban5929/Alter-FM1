@@ -18,7 +18,7 @@
  *   DICE 1 + 2 + 3 together: CHAOS, everything drawn to the extreme on the three circles: engine, preset, the
  *                engine's eight, the effects and LFO, the rhythm (at once), the die (DOSE 127), the scale and roots;
  *                not the tempo, not the modes, not the mutes. For good: no undo
- *   PLAY  start / stop      SAVE ARP REC: Felucca's
+ *   PLAY  start / stop      ARP REC: nothing yet (REC stays disarmed: no count-in, no click)
  * The keys (no notes here: alt_kb_own): the whites in lit blocks with a dark key between: MUTE 1 2 3 (a tap),
  * DICE 1 2 3 (a tap: a new draw at once; held 0.6 s: the clean pattern again), SHIFT -1 +1 (a tap: the chosen
  * circle turned a step, kept); the blacks in their groups 3-2-3-2-1, on the chosen circle: held ROLL 1/16 1/32
@@ -93,7 +93,7 @@ static struct {
 static uint32_t alt_ours(void)
 {
     static const uint8_t OURS[] = {B_SEQ, B_ENV, B_FX, B_LFO, B_EDIT, B_SCL, B_GLO, B_HOME, B_SAVE, B_PLAY, B_OCTDN,
-                                   B_OCTUP};
+                                   B_OCTUP, B_REC, B_ARP};   /* (REC, ARP: nothing yet, and not Felucca's) */
     uint32_t i, m = 0;
     for (i = 0; i < sizeof OURS; i++)
         m |= 1u << panel.btn[OURS[i]];
@@ -369,6 +369,8 @@ static int alter_ui_input(uint32_t pressed)
         alt_banks_load();                        /* the USER slots, from the flash */
         alt_load_scene(0);                       /* power-on: the first scene */
     }
+    if (song.rec)                                /* (no recording in ALTER: an armed REC would count in and click) */
+        song.rec = 0;
     if (song.sel != au.sel && song.sel < AS_NCIRC)   /* (chosen elsewhere: TRACKS, the editor) */
         au.sel = alt_sel = song.sel;
     if ((pressed >> panel.btn[B_PLAY]) & 1u)
@@ -854,7 +856,8 @@ static void alter_draw(void)
 }
 
 /* the browser build's hooks (web/emu/felucca_web.c web_alter): op 0 circle a's sound b, 1 scene a, 2 mute circle a
- * (b = 0 / 1), 3 circle a's envelope mode b, 4 tempo a, 5 circle a's mode: its sound's own */
+ * (b = 0 / 1), 3 circle a's envelope mode b, 4 tempo a, 5 circle a's mode: its sound's own, 6 Felucca's phrase b on
+ * part a (as its own SAVE page would: the test that ALTER keeps Felucca's sequencer quiet) */
 static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
 {
     if (!au.ready)
@@ -866,6 +869,7 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
     case 3: alt_emode[a % AS_NCIRC] = (uint8_t)(b % AM_N); break;
     case 4: song.g[G_BPM] = (int16_t)clamp((int32_t)a, 40, 240); break;
     case 5: alt_emode[a % AS_NCIRC] = (uint8_t)(ALT_PRE[au.pre[a % AS_NCIRC]].mode % AM_N); break;
+    case 6: pat_load(&trk[a % NPART], b); break;   /* (a test: Felucca's own phrase b on part a) */
     default: break;
     }
 }

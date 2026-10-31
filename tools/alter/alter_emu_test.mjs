@@ -268,11 +268,22 @@ const holdSave = () => { ex.web_buttons(1 << 7); render(FS * 1.2); ex.web_button
   const n2 = attacks(out2, FS * 0.03, 0.3).length;
   check(`after power-off: USER 01 loads from the flash (circle 1: ${n2} hits in a bar, 6 stored)`, n2 >= 5 && n2 <= 7);
 }
+// a Felucca phrase left under the circles (its own SAVE page, an old autosave) and an armed REC: neither may sound.
+// NEW SCENE (no hits) must be silent
+{
+  ex.web_alter(6, 0, 0); ex.web_alter(6, 3, 0);                 // Felucca's phrase 1 on parts 1 and 4
+  B(11);                                                        // REC (Felucca's would arm: count-in, click)
+  B(7); row(0); B(7);
+  play(); render(FS / 2); play();                               // stop, start again: no count-in
+  render(FS / 4);
+  const q = peak(render(FS * 2, true));
+  check(`NEW SCENE over a hidden Felucca phrase, REC pressed: silence (peak ${q.toFixed(4)})`, q < 0.002);
+}
 play();
 { // (after CHAOS the effects ring on: the delay and reverb tails must die away)
   const tails = [1, 2, 4, 8].map(() => peak(render(FS, true)));
   check(`STOP: the notes stop, the effects' tails die away (peaks a second apart ${tails.map((x) => x.toFixed(4)).join(" ")})`,
-        tails[3] < 0.003 && tails[3] < tails[0]);
+        tails[3] < 0.003 && tails[3] <= tails[0]);
 }
 if (wavPath) {                                                  // 4 bars from a fresh start, all three circles
   ex.web_nor_erase(); ex.web_boot(); render(FS * 2);

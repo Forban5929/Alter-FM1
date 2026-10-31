@@ -13,6 +13,9 @@
  * held length as TIE steps (rec_note, rec_hold, rec_release). With the ARP on, the notes the arp
  * plays are recorded, not the keys held (what plays back is what was heard). A key or MIDI note plays a
  * chord when the track's CHRD is on (chord.c): its notes go through the same input as so many keys. */
+#ifndef ALTER_FELUCCA_STEPS
+#define ALTER_FELUCCA_STEPS 0          /* 1: Felucca's own sequencer plays too (alter_play.c: 0, ALTER alone) */
+#endif
 #include "alter_play.c"     /* ALTER's three circles on part 1 (alter_tick, below after click_tick) */
 static const uint16_t SCALE_MASK[] = {
     0xFFF,                                   /* CHR */
@@ -1452,8 +1455,14 @@ static void events_block(uint32_t n)
     if (aud_req)
         seq_audition();                               /* (STEP PREVIEW: a step sounds, stopped) */
     chain_tick(clock_mode && chain.running ? midi_seq_preview(&trk[chain.clk], seq_n) : seq_n);
+#if !ALTER_FELUCCA_STEPS                             /* ALTER: its circles are the sequencer; Felucca's own steps never
+                                                     * play (a phrase from its SAVE page, or an old autosave, would sound
+                                                     * under the circles, unseen) */
+    (void)i;
+#else
     for (i = 0; i < NTRK; i++)
         seq_tick(&trk[i], seq_n);
+#endif
     if (cin_flush)
         cin_record();
     if (song.playing)

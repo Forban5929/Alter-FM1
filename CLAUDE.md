@@ -102,6 +102,10 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
   spéciaux : gamme, note, dose, tempo, swing, rythme, moteur), alt_page/alt_turn/alt_kv ; boutons de page = ceux de
   la vue (alt_ours), OCT−+OCT+ + bouton → au.handed (Felucca). Page VERROUS : au.lockc, ALT_LK_KEY/BIT. CHAOS : alt_chaos.
   Comparer des temps en SIGNÉ (`(int32_t)(fm1_ms - t0)`) : bug corrigé le 31/10 (die_t0 = fm1_ms|1).
+- **Felucca ne séquence plus rien** (bug « kick invisible », 31/10) : seq.c n'appelle plus seq_tick (ALTER_FELUCCA_STEPS 0)
+  — un motif Felucca (sa vraie page SAVE, une vieille sauvegarde auto du navigateur) jouait sous les cercles sans être
+  vu. REC et ARP appartiennent à la vue et ne font rien ; song.rec est désarmé (sinon décompte + clic de métronome).
+  Test : web_alter 6 (phrase Felucca sur une partie) + REC + NEW SCENE = silence.
 - `tools/alter/alter_wav.c` : programme PC, rend 15 extraits WAV + compare le coût à ANALOG.
   Recréer : `python3 firmware/engines/tools/gen_engine_tables.py build/alter/fe_tables.h`
   puis `cc -std=c99 -O2 -I build/alter -o build/alter/alter_wav tools/alter/alter_wav.c -lm && build/alter/alter_wav build/alter/wav`
