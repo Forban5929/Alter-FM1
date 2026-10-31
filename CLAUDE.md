@@ -183,25 +183,24 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         force 2 bits, chance 4 bits par pas), alt_rhy_get/put (pattern), alt_new_scene, alt_row_load/save, banques en
         RAM alt_bank_s/alt_bank_p + flash objets 3 et 4 (magie ATLS/ATLP), chargées au démarrage (alt_banks_load).
         Scènes d'usine : champ `dly` (envoi delay, 0 = celui du son). Écran : 2 onglets, 5 lignes, cadenas = usine.
-  - [x] **3e LFO (31/10, refait après retour de Romain ; codé, testé, publié ; ATTEND L'ÉCOUTE)**. Structure validée :
-        **chaque LFO = classique K1 WAVE · K2 RATE (divisions du tempo, calées sur PLAY et la grille des pas) · K3 DEPTH
-        · K4 DEST (1 seule)** ; DEST = même liste pour tout : OFF PITCH SHAPE FILTER LEVEL DIST DELAY REVERB PAN PROB.
-        **Appui court LFO** = page rapide du LFO **du cercle choisi** (écrit « LFO n »), ces 4 réglages. **LFO encore** =
-        page LFO, onglets **LFO 1 · LFO 2 · LFO 3 · GLOBAL · | MTX** (ALGORITHM = onglet) : onglet LFO = titre, forme
-        dessinée avec un point qui la parcourt, 4 réglages, liste déroulante pour DEST ; MTX = les 4 cases Felucca du
-        cercle choisi (SELECT case, K1 SRC K2 DEST K3 AMT, phrase qui explique la source ; toutes les sources gardées,
-        noms clairs ALT_SRC_NAME + POS + FORCE). LFO d'un cercle = LFO Felucca de sa partie (WAVE = P_LWAVE SIN TRI SAW
-        SQR S&H, RATE = P_LSYNC 1/32..4 BAR, TRIG FREE, phase recalée chaque bloc sur alt_gl_n en pas entiers
-        ALT_SYNC_6TH, lfo_val recalculé avant la matrice) + DEST/DEPTH à nous (alt_cl[3]). GLOBAL = alt_gl (formes + SLEW
-        RAMP+ RAMP-, RATE 1/32..8 BAR GL_RATE_6TH, 1 DEST = slot 0 ; les slots 1-3 restent dans le code, inutilisés).
-        Le GLOBAL **prend le dessus** sur une DEST (DEST du cercle, P_LD_*, cases MTX à source LFO/S&H/SLEW). PROB :
-        alt_seq.pmod[3] (alt_prob_of, valeur du LFO à sa phase). P_LD_* mis à 0 (DEST à nous) ; changer de son garde le
-        LFO du cercle. voice.c : FADE 0 = pas de fondu (avant : 1 bloc de LFO à 0 à chaque note). Scènes : ldst
-        (ancien rsv) + ldepth (ancien lshp), taille inchangée. CHAOS tire WAVE RATE DEST (timbre/mix) DEPTH ±40.
-        Code : `alter_lfo.c` (inclus par mod.c), mod.c mod_global (GLOBAL + LFO du cercle) / mod_show, alter_play.c
-        alt_gl_tick, alter_ui.c alt_lfo_val/text/turn, alt_mtx_*, alt_lfo_tab, alt_mtx_tab. **Barre qui ondule** en bas
-        de l'écran cercles (alt_live). Tests : LFO 1 SQR→PROB, SAW→LEVEL, le GLOBAL prend le dessus, RAMP+→LEVEL,
-        MTX POS→AMP. Idées pas faites : DÉ qui tire le LFO, source GLOBAL dans MTX.
+  - [x] **3e LFO (31/10, 3e version après retours de Romain ; codé, testé, publié ; ATTEND L'ÉCOUTE)**. Validé :
+        **3 LFO simples PAR CERCLE + 1 GLOBAL**, chacun K1 WAVE · K2 RATE · K3 DEPTH · K4 DEST (1 seule) ; formes SIN TRI
+        SAW SQR S&H SLEW RAMP+ RAMP- ; RATE 1/32..8 BAR (GL_RATE_6TH, sixièmes de double-croche) ; DEST = OFF PITCH SHAPE
+        FILTER LEVEL DIST DELAY REVERB PAN PROB (même liste partout). **Appui court LFO** = LFO 1 du cercle choisi (page
+        rapide, « LFO 1 »). **LFO encore** = page LFO : onglets **LFO 1 · LFO 2 · LFO 3** (du cercle choisi, soulignés à sa
+        couleur ; SELECT change de cercle) · **GLOBAL** · **| MTX** (cases Felucca du cercle choisi, SELECT = case, K1 SRC
+        K2 DEST K3 AMT, phrase d'aide par source). Vue d'un LFO : **grille d'UNE mesure fixe** (pas fins, temps plus clairs)
+        et la **vague qui défile** (présent au bord droit) ; RATE change le nombre de vagues visibles ; liste déroulante
+        pour DEST. Tout est à nous (alter_lfo.c) : une horloge alt_gl_n (échantillons depuis PLAY, en pas entiers
+        alt_lfo_p) → alt_lfo_at(forme, rate, graine, n) ; S&H/SLEW = hasard tiré du numéro de cycle (l'écran dessine
+        exactement ce qui joue). alt_cl[3][3] + alt_cl_val, alt_gl (slot 0 seulement) + alt_gl_val. Le GLOBAL **prend le
+        dessus** sur une DEST (alt_cl_on, P_LD_*, cases MTX à source LFO/S&H/SLEW). Dans MTX, LFO/S&H/SLEW = LFO 1 du
+        cercle (alt_mlfo). Le LFO Felucca des parties n'est plus utilisé (P_LD_* à 0). mod.c : alt_lfo_k (k 0 GLOBAL,
+        1..3 LFO du cercle) dans mod_global et mod_show. PROB : alt_seq.pmod[3] = alt_prob_of. Changer de son garde les
+        LFO. Scènes : 3 octets par LFO (WAVE|RATE<<3, DEST, DEPTH) + GLOBAL 4 octets ; P_LRATE/LD_* sortis d'ALT_SP
+        (banque 3780 o) → **slots USER d'avant effacés**. CHAOS tire le LFO 1 de chaque cercle. voice.c : FADE 0 = sans
+        fondu. **Barre qui ondule** en bas de l'écran cercles (alt_live). Tests : LFO 1 SQR→PROB, SAW→LEVEL, le GLOBAL
+        prend le dessus, RAMP+→LEVEL, LFO 2 SQR -64→PROB (autre moitié), MTX POS→AMP. Idée pas faite : DÉ qui tire les LFO.
   - [ ] 3c : vue DEEP (EDIT ouvre encore la page EDIT de Felucca). Puis retirer l'interface Felucca. Reste : SCL → gamme
         des cercles, touches blanches libres, DESTROY assignable, verrous du dé, DOSE.
 - [ ] Étape 4 (après le séquenceur) : tranche de console dédiée, ordre FIXE validé :

@@ -3,7 +3,7 @@
  *   NEW (load only: a blank scene, or an empty pattern), 4 factory ones (protected), 16 USER slots.
  * A SCENE is everything: per circle its sound (engine, E1..E8, ADSR, sends, insert, level, pan, glide, LFO), envelope
  * mode, locks and rhythm (LEN HITS ROT PROB FROT, DOSE, ROOT, CHORD, each step's force and chance), its LFO's
- * WAVE RATE DEPTH DEST and its four matrix slots; and the scale, tempo, swing and the GLOBAL LFO (alter_lfo.c). A PATTERN is the rhythm only (per circle LEN HITS ROT PROB FROT, force and chance per step):
+ * three LFOs (WAVE RATE DEPTH DEST) and its four matrix slots; and the scale, tempo, swing and the GLOBAL LFO (alter_lfo.c). A PATTERN is the rhythm only (per circle LEN HITS ROT PROB FROT, force and chance per step):
  * loading one leaves the sounds, notes and everything else as they are.
  * The USER slots live in RAM (alt_bank_s, alt_bank_p) and on the flash, in Felucca's project objects 3 and 4
  * (storage.c OBJ_PROJECT0 + 2 / + 3; an own magic tells ours from a Felucca project saved there). Packed small: a
@@ -21,7 +21,7 @@ static int st_save(uint32_t obj, const void *src, uint32_t len);
 
 /* the part's parameters a scene keeps besides E1..E8 (each fits a signed byte) */
 static const uint8_t ALT_SP[] = {P_ATK, P_DEC, P_SUS, P_REL, P_DIST, P_CHOR, P_DLY, P_REV, P_ITYPE, P_IA, P_IMIX,
-                                 P_LEVEL, P_PAN, P_GLIDE, P_LRATE, P_LD_PIT, P_LD_FLT, P_LD_AMP};
+                                 P_LEVEL, P_PAN, P_GLIDE};
 #define ALT_NSP (sizeof ALT_SP)
 
 typedef struct {                 /* a circle's rhythm */
@@ -31,21 +31,19 @@ typedef struct {                 /* a circle's rhythm */
 } alt_rhy_t;
 
 typedef struct {                 /* a circle in a scene */
-    uint8_t eng, pre, mode, locks, dose, root, chord, ldst;   /* ldst: its LFO's DEST (alter_lfo.c GD_*) */
+    uint8_t eng, pre, mode, locks, dose, root, chord, rsv;
     int8_t e[8];
     int8_t p[ALT_NSP];
     alt_rhy_t r;
-    uint8_t lwave, lsync;                        /* its LFO's WAVE, RATE (P_LSYNC), DEPTH */
-    int8_t ldepth;
+    uint8_t lfo[3 * CL_N];                       /* its three LFOs: WAVE | RATE << 3, DEST, DEPTH (alter_lfo.c) */
     uint8_t m[2 * NMSLOT];                       /* the matrix slots: SRC (4 bits) DST (5) AMT + 64 (7), 2 bytes each */
 } alt_scirc_t;
 
 typedef struct {
     uint8_t used, bpm, scale, swing;
     alt_scirc_t c[AS_NCIRC];
-    uint8_t gwave, grate;                        /* the GLOBAL LFO */
-    uint8_t gdst[GL_NSLOT];
-    int8_t gamt[GL_NSLOT];
+    uint8_t gwave, grate, gdst;                  /* the GLOBAL LFO */
+    int8_t gamt;
 } alt_scene_rec_t;
 
 typedef struct {
@@ -138,15 +136,17 @@ static void alt_scene_get(alt_scene_rec_t *s)
         o->dose = au.cfg[c].dose;
         o->root = au.cfg[c].root;
         o->chord = au.cfg[c].chord;
-        o->ldst = alt_cl[c].dst;
+        o->rsv = 0;
         for (k = 0; k < 8u; k++)
             o->e[k] = (int8_t)clamp(alt_base(c, P_E0 + k), -128, 127);
         for (k = 0; k < ALT_NSP; k++)
             o->p[k] = (int8_t)clamp(alt_base(c, ALT_SP[k]), -128, 127);
         alt_rhy_get(c, &o->r);
-        o->lwave = (uint8_t)t->p[P_LWAVE];
-        o->lsync = (uint8_t)t->p[P_LSYNC];
-        o->ldepth = alt_cl[c].depth;
+        for (k = 0; k < CL_N; k++) {
+            o->lfo[3u * k] = (uint8_t)(alt_cl[c][k].wave | alt_cl[c][k].rate << 3);
+            o->lfo[3u * k + 1u] = alt_cl[c][k].dst;
+            o->lfo[3u * k + 2u] = (uint8_t)alt_cl[c][k].depth;
+        }
         for (k = 0; k < NMSLOT; k++) {
             uint32_t w = ((uint32_t)t->p[P_M1SRC + 3u * k] & 15u) | ((uint32_t)t->p[P_M1DST + 3u * k] & 31u) << 4 |
                          ((uint32_t)(t->p[P_M1AMT + 3u * k] + 64) & 127u) << 9;
@@ -156,10 +156,8 @@ static void alt_scene_get(alt_scene_rec_t *s)
     }
     s->gwave = alt_gl.wave;
     s->grate = alt_gl.rate;
-    for (k = 0; k < GL_NSLOT; k++) {
-        s->gdst[k] = alt_gl.dst[k];
-        s->gamt[k] = alt_gl.amt[k];
-    }
+    s->gdst = alt_gl.dst[0];
+    s->gamt = alt_gl.amt[0];
 }
 
 static void alt_scene_put(const alt_scene_rec_t *s)
@@ -179,12 +177,13 @@ static void alt_scene_put(const alt_scene_rec_t *s)
             t->p[P_E0 + k] = o->e[k];
         for (k = 0; k < ALT_NSP; k++)
             t->p[ALT_SP[k]] = o->p[k];
-        t->p[P_LWAVE] = (int16_t)clamp(o->lwave, TP[P_LWAVE].min, TP[P_LWAVE].max);
-        t->p[P_LSYNC] = (int16_t)clamp(o->lsync, TP[P_LSYNC].min, TP[P_LSYNC].max);
-        t->p[P_LTRIG] = 1;                       /* (FREE: the LFO runs on the tempo, not from each note) */
-        t->p[P_LD_PIT] = t->p[P_LD_FLT] = t->p[P_LD_SHP] = t->p[P_LD_AMP] = 0;   /* (the DEST is ours: alt_cl) */
-        alt_cl[c].dst = (uint8_t)(o->ldst % GD_N);
-        alt_cl[c].depth = (int8_t)clamp(o->ldepth, -64, 63);
+        t->p[P_LD_PIT] = t->p[P_LD_FLT] = t->p[P_LD_SHP] = t->p[P_LD_AMP] = 0;   /* (the LFOs are ours: alt_cl) */
+        for (k = 0; k < CL_N; k++) {
+            alt_cl[c][k].wave = (uint8_t)((o->lfo[3u * k] & 7u) % GW_N);
+            alt_cl[c][k].rate = (uint8_t)((o->lfo[3u * k] >> 3) % GL_NRATE);
+            alt_cl[c][k].dst = (uint8_t)(o->lfo[3u * k + 1u] % GD_N);
+            alt_cl[c][k].depth = (int8_t)clamp((int8_t)o->lfo[3u * k + 2u], -64, 63);
+        }
         for (k = 0; k < NMSLOT; k++) {
             uint32_t w = o->m[2u * k] | (uint32_t)o->m[2u * k + 1u] << 8;
             t->p[P_M1SRC + 3u * k] = (int16_t)((w & 15u) < MS_N ? w & 15u : 0u);
@@ -204,10 +203,8 @@ static void alt_scene_put(const alt_scene_rec_t *s)
     }
     alt_gl.wave = (uint8_t)(s->gwave % GW_N);
     alt_gl.rate = (uint8_t)(s->grate % GL_NRATE);
-    for (k = 0; k < GL_NSLOT; k++) {
-        alt_gl.dst[k] = (uint8_t)(s->gdst[k] % GD_N);
-        alt_gl.amt[k] = (int8_t)clamp(s->gamt[k], -64, 63);
-    }
+    alt_gl.dst[0] = (uint8_t)(s->gdst % GD_N);
+    alt_gl.amt[0] = (int8_t)clamp(s->gamt, -64, 63);
 }
 
 /* factory scene n (alter_sounds.c ALT_SCENE) */
@@ -232,7 +229,6 @@ static void alt_load_scene(uint32_t n)
         cf->mute = 0;
         cf->dose = AS_DOSE_DEF;
         alt_seq.c[c].locks = 0;
-        alt_lfo_default(c);
         alt_rhy_plain(&r, sc->c[c].len, sc->c[c].hits, sc->c[c].rot, sc->c[c].prob);
         alt_rhy_put(c, &r);
     }
@@ -257,7 +253,6 @@ static void alt_new_scene(void)
         au.cfg[c].mute = 0;
         au.cfg[c].dose = AS_DOSE_DEF;
         alt_seq.c[c].locks = 0;
-        alt_lfo_default(c);
         alt_rhy_plain(&r, 16, 0, 0, 127);
         alt_rhy_put(c, &r);
     }

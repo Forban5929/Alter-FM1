@@ -97,14 +97,10 @@ static struct {
     uint32_t sig, hits_seen[AS_NCIRC], flash_ms[AS_NCIRC], handed_ms;   /* handed_ms: when every Felucca button was up */
 } au;
 
-/* quick page q's name: LFO says whose ("LFO 1": the chosen circle's own) */
+/* quick page q's name (LFO: the chosen circle's LFO 1) */
 static const char *alt_qp_name(uint32_t q)
 {
-    static char lb[6] = "LFO 1";
-    if (q != QP_LFO)
-        return ALT_QP_NAME[q % QP_N];
-    lb[4] = (char)('1' + au.sel % AS_NCIRC);
-    return lb;
+    return q == QP_LFO ? "LFO 1" : ALT_QP_NAME[q % QP_N];   /* (LFO 1 of the chosen circle: drawn in its colour) */
 }
 
 /* the buttons the view keeps: the page buttons, HOME, PLAY, OCT- OCT+ */
@@ -147,16 +143,13 @@ static void alt_load_sound(uint32_t c, uint32_t i)
     track_t *t = &trk[c];
     const alt_pre_t *pr = &ALT_PRE[i % ALT_NPRE];
     uint32_t e = ALT_ENGS[pr->eng % AS_NCIRC], j;
-    int16_t lw = t->p[P_LWAVE], ls = t->p[P_LSYNC];   /* (the circle's LFO stays: it is not the sound's) */
     au.pre[c] = (uint8_t)(i % ALT_NPRE);
     if (t->eng_req != e)
         set_engine_of(t, e);                     /* (the IRQ off inside: the engine and its values together) */
     fm1_irq_off();                               /* (the ISR's offsets and the sound's values together) */
     apply_preset_to(t, 0);                       /* (everything else at the engine's first preset's) */
-    t->p[P_LWAVE] = lw;
-    t->p[P_LSYNC] = ls ? ls : (int16_t)CL_RATE_SYNC[CL_RATE_DEF];
-    t->p[P_LTRIG] = 1;                           /* FREE: on the tempo, not restarted at each note */
-    t->p[P_LD_PIT] = t->p[P_LD_FLT] = t->p[P_LD_SHP] = t->p[P_LD_AMP] = 0;   /* (its DEST is ours: alter_lfo.c) */
+    t->p[P_LD_PIT] = t->p[P_LD_FLT] = t->p[P_LD_SHP] = t->p[P_LD_AMP] = 0;   /* (the circle's LFOs are ours, they stay:
+                                                                            * alter_lfo.c) */
     for (j = 0; j < 8u; j++)
         t->p[P_E0 + j] = pr->e[j];
     t->p[P_ATK] = pr->env[0];
@@ -174,13 +167,6 @@ static void alt_load_sound(uint32_t c, uint32_t i)
     alt_gate_left[c] = 0;
     fm1_irq_on();
     alt_preset_cnt[c]++;
-}
-
-/* circle c's LFO as a scene starts it: SIN, 1/4, no DEST (alt_gl_reset clears the DESTs) */
-static void alt_lfo_default(uint32_t c)
-{
-    trk[c].p[P_LWAVE] = 0;
-    trk[c].p[P_LSYNC] = (int16_t)CL_RATE_SYNC[CL_RATE_DEF];
 }
 
 /* PRESETS: circle c's sound s on */
@@ -240,6 +226,7 @@ static uint32_t alt_qk(uint32_t q, uint32_t i)
 }
 
 static void alt_lfo_turn(uint32_t tb, uint32_t i, int32_t s);   /* (the LFOs, below) */
+static void alt_select(uint32_t i);
 
 /* a knob of quick page q turned s detents */
 static void alt_turn(uint32_t q, uint32_t i, int32_t s)
@@ -251,7 +238,7 @@ static void alt_turn(uint32_t q, uint32_t i, int32_t s)
         alt_edit_circle(i, s);
         return;
     case QK_LWAVE: case QK_LRATE: case QK_LDEPTH: case QK_LDEST:
-        alt_lfo_turn(au.sel, id - QK_LWAVE, s);
+        alt_lfo_turn(0, id - QK_LWAVE, s);    /* (the chosen circle's LFO 1) */
         return;
     case QK_SCALE:
         alt_seq.scale = (uint8_t)(((int32_t)alt_seq.scale + s + 16 * AS_NSCALE) % AS_NSCALE);
@@ -300,24 +287,23 @@ static void alt_qpush(uint32_t c, uint32_t id, int32_t d)
     alt_qw = nx;
 }
 
-/* ---- the LFOs: each circle's and the GLOBAL, four settings each (alter_lfo.c) --------------------------------- */
-#define ALT_TAB_GL AS_NCIRC                      /* the LFO page's tabs: 0..2 the circles' LFOs, the GLOBAL, MTX */
-#define ALT_TAB_MTX (AS_NCIRC + 1u)
+/* ---- the LFOs: the chosen circle's three and the GLOBAL, four settings each (alter_lfo.c) ---------------------- */
+#define ALT_TAB_GL CL_N                          /* the LFO page's tabs: LFO 1 2 3 of the chosen circle, the GLOBAL, MTX */
+#define ALT_TAB_MTX (CL_N + 1u)
 #define ALT_DD_MS 1200u                          /* a list stays down this long after its knob */
 static const char *const ALT_LFO_KNOB[4] = {"WAVE", "RATE", "DEPTH", "DEST"};
 
-/* setting i (0 WAVE 1 RATE 2 DEPTH 3 DEST) of LFO tb (0..2 a circle's, ALT_TAB_GL) as a number */
+/* setting i (0 WAVE 1 RATE 2 DEPTH 3 DEST) of LFO tb (0..2 the chosen circle's, ALT_TAB_GL) as a number */
 static int32_t alt_lfo_val(uint32_t tb, uint32_t i)
 {
+    const volatile alt_cl_t *l = &alt_cl[au.sel % AS_NCIRC][tb % CL_N];
     if (tb == ALT_TAB_GL)
         return i == 0 ? alt_gl.wave : i == 1 ? alt_gl.rate : i == 2 ? alt_gl.amt[0] : alt_gl.dst[0];
-    tb %= AS_NCIRC;
-    return i == 0 ? trk[tb].p[P_LWAVE] : i == 1 ? (int32_t)alt_cl_rate(trk[tb].p[P_LSYNC]) :
-           i == 2 ? alt_cl[tb].depth : alt_cl[tb].dst;
+    return i == 0 ? l->wave : i == 1 ? l->rate : i == 2 ? l->depth : l->dst;
 }
 
 /* .. as words (buf: room for 6) */
-static const char *alt_lfo_text(uint32_t tb, uint32_t i, int32_t v, char *buf)
+static const char *alt_lfo_text(uint32_t i, int32_t v, char *buf)
 {
     if (i == 2) {
         int32_t n = 0, q = v < 0 ? -v : v;
@@ -330,38 +316,30 @@ static const char *alt_lfo_text(uint32_t tb, uint32_t i, int32_t v, char *buf)
     }
     if (i == 3)
         return GL_DST_NAME[clamp(v, 0, GD_N - 1)];
-    if (tb == ALT_TAB_GL)
-        return i == 0 ? GL_WAVE_NAME[clamp(v, 0, GW_N - 1)] : GL_RATE_NAME[clamp(v, 0, GL_NRATE - 1)];
-    return i == 0 ? GL_WAVE_NAME[clamp(v, 0, GW_SH)] : GL_RATE_NAME[clamp(v, 0, CL_NRATE - 1)];
+    return i == 0 ? GL_WAVE_NAME[clamp(v, 0, GW_N - 1)] : GL_RATE_NAME[clamp(v, 0, GL_NRATE - 1)];
 }
 
-/* setting i of LFO tb turned s detents */
+/* setting i of LFO tb turned s detents (bytes the audio side reads: written here) */
 static void alt_lfo_turn(uint32_t tb, uint32_t i, int32_t s)
 {
     int32_t d = s > 0 ? 1 : -1;
-    if (tb == ALT_TAB_GL) {                      /* the GLOBAL: its bytes, written here (its first slot) */
-        if (i == 0)
-            alt_gl.wave = (uint8_t)clamp((int32_t)alt_gl.wave + d, 0, GW_N - 1);
-        else if (i == 1)
-            alt_gl.rate = (uint8_t)clamp((int32_t)alt_gl.rate + d, 0, GL_NRATE - 1);
-        else if (i == 2)
-            alt_gl.amt[0] = (int8_t)clamp((int32_t)alt_gl.amt[0] + s, -64, 63);
-        else
-            alt_gl.dst[0] = (uint8_t)clamp((int32_t)alt_gl.dst[0] + d, 0, GD_N - 1);
+    volatile uint8_t *w, *r, *g;
+    volatile int8_t *a;
+    if (tb == ALT_TAB_GL) {
+        w = &alt_gl.wave, r = &alt_gl.rate, g = &alt_gl.dst[0], a = &alt_gl.amt[0];
     } else {
-        tb %= AS_NCIRC;
-        if (i == 0)                              /* WAVE: Felucca's five (SIN TRI SAW SQR S&H) */
-            alt_qpush(tb, P_LWAVE, d);
-        else if (i == 1) {                       /* RATE: a note value (P_LSYNC), fast to slow */
-            int32_t k = clamp((int32_t)alt_cl_rate(trk[tb].p[P_LSYNC]) + d, 0, CL_NRATE - 1);
-            alt_qpush(tb, P_LSYNC, (int32_t)CL_RATE_SYNC[k] - trk[tb].p[P_LSYNC]);
-        } else if (i == 2)
-            alt_cl[tb].depth = (int8_t)clamp((int32_t)alt_cl[tb].depth + s, -64, 63);
-        else
-            alt_cl[tb].dst = (uint8_t)clamp((int32_t)alt_cl[tb].dst + d, 0, GD_N - 1);
+        volatile alt_cl_t *l = &alt_cl[au.sel % AS_NCIRC][tb % CL_N];
+        w = &l->wave, r = &l->rate, g = &l->dst, a = &l->depth;
     }
-    if (i == 3) {                                /* DEST: its list drops down */
-        au.dd = 4;
+    if (i == 0)
+        *w = (uint8_t)clamp((int32_t)*w + d, 0, GW_N - 1);
+    else if (i == 1)
+        *r = (uint8_t)clamp((int32_t)*r + d, 0, GL_NRATE - 1);
+    else if (i == 2)
+        *a = (int8_t)clamp((int32_t)*a + s, -64, 63);
+    else {
+        *g = (uint8_t)clamp((int32_t)*g + d, 0, GD_N - 1);
+        au.dd = 4;                               /* DEST: its list drops down */
         au.dd_ms = fm1_ms;
     }
 }
@@ -400,8 +378,12 @@ static int alt_matrix_input(uint32_t pressed)
         au.mtab = (uint8_t)clamp((int32_t)au.mtab + (s > 0 ? 1 : -1), 0, ALT_TAB_MTX);
         au.dd = 0;
     }
-    if ((s = panel_enc(EN_SELECT)) != 0 && au.mtab == ALT_TAB_MTX)
-        au.mrow[0] = (uint8_t)clamp((int32_t)au.mrow[0] + s, 0, NMSLOT - 1);
+    if ((s = panel_enc(EN_SELECT)) != 0) {       /* MTX: the slot; the LFO tabs: the circle (its three LFOs) */
+        if (au.mtab == ALT_TAB_MTX)
+            au.mrow[0] = (uint8_t)clamp((int32_t)au.mrow[0] + s, 0, NMSLOT - 1);
+        else
+            alt_select((uint32_t)((int32_t)au.sel + s + 3 * 16));
+    }
     for (i = 0; i < 4u; i++)
         if ((s = panel_enc(EN_K1 + i)) != 0) {
             if (au.mtab == ALT_TAB_MTX)
@@ -461,10 +443,10 @@ static void alt_chaos(void)
             t->p[P_E0 + k] = alt_crange(&en->edit[k], 1);
         for (k = 0; k < sizeof FXP; k++)         /* the effects and LFO */
             t->p[FXP[k]] = alt_crange(param_desc_of(e, FXP[k]), 1);
-        t->p[P_LWAVE] = (int16_t)alt_cr(5u);     /* its LFO: any wave and rate, a DEST of the timbre or the mix */
-        t->p[P_LSYNC] = (int16_t)CL_RATE_SYNC[alt_cr(CL_NRATE)];
-        alt_cl[c].dst = LDST[alt_cr(6u)];
-        alt_cl[c].depth = (int8_t)((int32_t)alt_cr(81u) - 40);
+        alt_cl[c][0].wave = (uint8_t)alt_cr(GW_N);   /* its LFO 1: any wave and rate, a DEST of the timbre or the mix */
+        alt_cl[c][0].rate = (uint8_t)alt_cr(GL_NRATE);
+        alt_cl[c][0].dst = LDST[alt_cr(6u)];
+        alt_cl[c][0].depth = (int8_t)((int32_t)alt_cr(81u) - 40);
         for (k = 0; k < ALT_NSLOT; k++)
             alt_applied[c][k] = 0;
         alt_note[c][0] = alt_note[c][1] = alt_note[c][2] = 0;
@@ -600,7 +582,7 @@ static int alter_ui_input(uint32_t pressed)
             if ((int32_t)(fm1_ms - au.qp_t0[q]) < (int32_t)ALT_PAGE_HOLD_MS && q == QP_LFO && au.qp == QP_LFO) {
                 au.qp = QP_NONE;                 /* LFO tapped on its page: the MATRIX */
                 au.mat_open = 1;
-                au.mtab = au.sel;
+                au.mtab = 0;
                 au.dd = 0;
                 alt_say("MATRIX");
             } else if ((int32_t)(fm1_ms - au.qp_t0[q]) < (int32_t)ALT_PAGE_HOLD_MS)
@@ -804,14 +786,14 @@ static int32_t alt_kv(uint32_t q, uint32_t i, const char **name, char *txt, int3
         const char *n;
         int32_t k = 0;
         *name = ALT_LFO_KNOB[id - QK_LWAVE];
-        v = alt_lfo_val(au.sel, id - QK_LWAVE);
-        n = alt_lfo_text(au.sel, id - QK_LWAVE, v, lb);
+        v = alt_lfo_val(0, id - QK_LWAVE);
+        n = alt_lfo_text(id - QK_LWAVE, v, lb);
         while (n[k] && k < 7) {
             txt[k] = n[k];
             k++;
         }
         txt[k] = 0;
-        return v + (id == QK_LDEST && !alt_cl_on(au.sel) && alt_cl[au.sel].dst ? 1000 : 0);
+        return v;
     }
     case QK_SCALE:
         *name = "SCALE";
@@ -975,31 +957,25 @@ static const char *alt_mtx_name(uint32_t i, int32_t v, char *buf)
     return buf;
 }
 
-/* LFO tb's shape at phase ph, Q15 (a circle's: its part's own wave; its S&H drawn as fixed steps) */
-static int32_t alt_lfo_shape(uint32_t tb, uint32_t ph)
+/* LFO tb's wave, rate and random seed */
+static void alt_lfo_def(uint32_t tb, uint32_t *w, uint32_t *r, uint32_t *seed)
 {
-    static const int16_t STEPS[8] = {9000, -20000, 26000, -6000, 15000, -28000, 3000, -14000};
-    uint32_t w = tb == ALT_TAB_GL ? alt_gl.wave : (uint32_t)clamp(trk[tb % AS_NCIRC].p[P_LWAVE], 0, GW_SH);
-    int32_t u = (int32_t)(ph >> 17);
-    switch (w) {
-    case GW_SH: return STEPS[ph >> 29];
-    case GW_SLEW: {
-        int32_t a = STEPS[ph >> 29], b = STEPS[((ph >> 29) + 1u) & 7u];
-        return a + (((b - a) * (int32_t)((ph >> 14) & 32767)) >> 15);
-    }
-    case GW_RUP: return u * 2 - 32767;
-    case GW_RDN: return 32767 - u * 2;
-    default:
-        if (tb != ALT_TAB_GL)                    /* (Felucca's own, as the LFO plays it) */
-            return lfo_wave(&trk[tb % AS_NCIRC], ph);
-        return w == GW_SIN ? sine_i(ph) : w == GW_TRI ? (u < 16384 ? u * 4 - 32767 : (32767 - u) * 4 - 32767) :
-               w == GW_SAW ? u * 2 - 32767 : (ph < 0x80000000u ? 32767 : -32767);
+    uint32_t c = au.sel % AS_NCIRC;
+    if (tb == ALT_TAB_GL) {
+        *w = alt_gl.wave, *r = alt_gl.rate, *seed = 9u;
+    } else {
+        *w = alt_cl[c][tb % CL_N].wave, *r = alt_cl[c][tb % CL_N].rate, *seed = c * 3u + tb % CL_N;
     }
 }
 
-/* LFO tb's phase now */
-static uint32_t alt_lfo_phase(uint32_t tb) { return tb == ALT_TAB_GL ? alt_gl_ph : trk[tb % AS_NCIRC].lfo_ph; }
+/* LFO tb acts (a DEST and a DEPTH, and not taken by the GLOBAL) */
+static int alt_lfo_acts(uint32_t tb)
+{
+    return tb == ALT_TAB_GL ? alt_gl.dst[0] && alt_gl.amt[0] : alt_cl_on(au.sel % AS_NCIRC, tb % CL_N) != 0;
+}
 
+#define ALT_WAVE_W 224
+#define ALT_WAVE_X 8
 /* what the LFO page's picture depends on */
 static uint32_t alt_mat_sig(void)
 {
@@ -1008,9 +984,10 @@ static uint32_t alt_mat_sig(void)
         for (i = 0; i < 3u * NMSLOT; i++)
             sg = sg * 31u + (uint32_t)trk[au.sel % AS_NCIRC].p[P_M1SRC + i];
     } else {
+        uint32_t px = alt_lfo_p * 16u / ALT_WAVE_W;   /* (the wave scrolls a pixel at a time) */
         for (i = 0; i < 4u; i++)
             sg = sg * 31u + (uint32_t)alt_lfo_val(tb, i);
-        sg = sg * 31u + (alt_lfo_phase(tb) >> 26) + (tb < AS_NCIRC ? alt_cl_on(tb) * 5u : 0u);   /* (the dot moves) */
+        sg = sg * 31u + (px ? alt_gl_n / px : 0u) + (uint32_t)alt_lfo_acts(tb) * 5u;
     }
     if (au.dd && fm1_ms - au.dd_ms < ALT_DD_MS)
         sg = sg * 31u + au.dd * 977u;
@@ -1030,52 +1007,67 @@ static void alt_dropdown(int32_t lx, int32_t ly, int32_t cur, int32_t n, uint16_
             continue;
         if (!k)
             cv_rect(lx, yy, 80, 15, ALT_DARK);
-        cv_text(lx + 4, yy + 1, &AF_S, tb == ALT_TAB_MTX ? alt_mtx_name(ki, v, b) : alt_lfo_text(tb, 3, v, b),
+        cv_text(lx + 4, yy + 1, &AF_S, tb == ALT_TAB_MTX ? alt_mtx_name(ki, v, b) : alt_lfo_text(3, v, b),
                 k ? ALT_DIM : col);
     }
 }
 
-/* an LFO tab: its title, its wave with a dot running along it, its four settings (KNOB 1-4) */
+/* an LFO tab: its title, one bar of time with its beats and steps, the wave scrolling through it (now at the right
+ * edge: it comes in from there), its four settings (KNOB 1-4) */
 static void alt_lfo_tab(uint32_t tb, uint16_t col)
 {
-    char b[8];
-    uint32_t i, ph = alt_lfo_phase(tb), on = tb == ALT_TAB_GL ? (alt_gl.dst[0] && alt_gl.amt[0]) : alt_cl_on(tb) != 0;
-    int32_t x, py = 0, y0 = 50, h = 64;
-    char t[24] = "LFO 1  CIRCLE 1";
+    char b[8], t[24] = "CIRCLE 1  LFO 1";
+    uint32_t i, w, r, seed, c = au.sel % AS_NCIRC, p = alt_lfo_p ? alt_lfo_p : 1u, now = alt_gl_n, bar = 16u * p;
+    int on = alt_lfo_acts(tb);
+    int32_t x, py = 0, y0 = 46, h = 84, mid = y0 + h / 2;
+    uint16_t wc = on ? col : ALT_DIM;
+    alt_lfo_def(tb, &w, &r, &seed);
     if (tb == ALT_TAB_GL)
-        cv_text(8, 30, &AF_S, "GLOBAL  THE THREE CIRCLES", col);
+        cv_text(8, 28, &AF_S, "GLOBAL  THE THREE CIRCLES", col);
     else {
-        t[4] = t[14] = (char)('1' + tb);
-        cv_text(8, 30, &AF_S, t, col);
+        t[7] = (char)('1' + c);
+        t[14] = (char)('1' + tb);
+        cv_text(8, 28, &AF_S, t, col);
     }
-    cv_rect(8, y0 + h / 2, 224, 1, ALT_DARK);    /* the wave over one cycle, its middle line */
-    for (x = 0; x < 224; x++) {
-        int32_t y = y0 + h / 2 - ((alt_lfo_shape(tb, (uint32_t)x * (0xFFFFFFFFu / 224u)) * (h / 2 - 2)) >> 15);
+    /* the grid: a bar, steps faint, beats brighter, the bar's ends; fixed to the beat as time scrolls past */
+    for (i = 0; i <= 16u; i++) {
+        uint32_t back = (now % p) + (16u - i) * p;     /* samples before now of the step line i */
+        int32_t xx = ALT_WAVE_X + ALT_WAVE_W - (int32_t)((uint64_t)back * ALT_WAVE_W / bar), beat = ((now / p) + i) % 4u == 0u;
+        if (xx >= ALT_WAVE_X && xx <= ALT_WAVE_X + ALT_WAVE_W)
+            cv_rect(xx, y0, 1, h, beat ? ALT_GREY : ALT_DARK);
+    }
+    cv_rect(ALT_WAVE_X, mid, ALT_WAVE_W, 1, ALT_DARK);
+    for (x = 0; x < ALT_WAVE_W; x++) {          /* the wave over the last bar, now at the right */
+        uint32_t back = (uint32_t)((uint64_t)(ALT_WAVE_W - 1 - x) * bar / ALT_WAVE_W);
+        int32_t v = alt_lfo_at(w, r, seed, now - back, p, 0), y;
+        if (alt_wave_uni(w))
+            v = v * 2 - 32767;                   /* (a ramp drawn over the whole height) */
+        y = mid - ((v * (h / 2 - 3)) >> 15);
         if (x && (y - py > 1 || py - y > 1))
-            cv_rect(8 + x, y < py ? y : py, 1, (y < py ? py - y : y - py) + 1, on ? alt_fade(col, 55) : ALT_GREY);
-        cv_rect(8 + x, y, 1, 2, on ? col : ALT_GREY);
+            cv_rect(ALT_WAVE_X + x, y < py ? y : py, 2, (y < py ? py - y : y - py) + 1, wc);
+        else
+            cv_rect(ALT_WAVE_X + x, y - 1, 1, 3, wc);
         py = y;
     }
-    x = (int32_t)(((uint64_t)ph * 224u) >> 32);
-    alt_disc(8 + x, y0 + h / 2 - ((alt_lfo_shape(tb, ph) * (h / 2 - 2)) >> 15), 4, on ? ALT_INK : ALT_DIM);
+    cv_rect(ALT_WAVE_X + ALT_WAVE_W, y0, 2, h, wc);   /* now */
     for (i = 0; i < 4u; i++) {                   /* the four settings, as the knobs below them */
         int32_t v = alt_lfo_val(tb, i), xx = 8 + (int32_t)i * 58;
-        cv_text(xx, 150, &AF_S, ALT_LFO_KNOB[i], ALT_DIM);
-        cv_text(xx, 166, &AF_M, alt_lfo_text(tb, i, v, b), i == 3 && !v ? ALT_DIM : ALT_INK);
+        cv_text(xx, 142, &AF_S, ALT_LFO_KNOB[i], ALT_DIM);
+        cv_text(xx, 158, &AF_M, alt_lfo_text(i, v, b), i == 3 && !v ? ALT_DIM : ALT_INK);
         if (i == 2) {                            /* DEPTH: a bar from the middle */
             int32_t bw = (v < 0 ? -v : v) * 24 / 64;
-            cv_rect(xx, 190, 50, 3, ALT_DARK);
-            cv_rect(xx + 25, 188, 1, 7, ALT_GREY);
-            cv_rect(v >= 0 ? xx + 25 : xx + 25 - bw, 190, bw, 3, col);
+            cv_rect(xx, 182, 50, 3, ALT_DARK);
+            cv_rect(xx + 25, 180, 1, 7, ALT_GREY);
+            cv_rect(v >= 0 ? xx + 25 : xx + 25 - bw, 182, bw, 3, col);
         }
     }
-    if (tb < AS_NCIRC && alt_cl[tb].dst && alt_cl[tb].depth && !on)
-        cv_text(8, 200, &AF_S, "THE GLOBAL LEADS ON THIS DEST", ALT_GREY);
+    if (tb < ALT_TAB_GL && alt_lfo_val(tb, 3) && alt_lfo_val(tb, 2) && !on)
+        cv_text(8, 196, &AF_S, "THE GLOBAL LEADS ON THIS DEST", ALT_GREY);
     else if (!on)
-        cv_text(8, 200, &AF_S, "SET A DEST AND A DEPTH", ALT_GREY);
-    cv_text(8, 216, &AF_S, "K1 WAVE  K2 RATE  K3 DEPTH  K4 DEST", ALT_DIM);
+        cv_text(8, 196, &AF_S, "SET A DEST AND A DEPTH", ALT_GREY);
+    cv_text(8, 216, &AF_S, "SELECT: CIRCLE   KNOBS 1-4: SETTINGS", ALT_DIM);
     if (au.dd == 4u && fm1_ms - au.dd_ms < ALT_DD_MS)
-        alt_dropdown(150, 70, alt_lfo_val(tb, 3), GD_N, col, tb, 3);
+        alt_dropdown(150, 62, alt_lfo_val(tb, 3), GD_N, col, tb, 3);
 }
 
 /* the MTX tab: the chosen circle's four slots, under its own title */
@@ -1125,17 +1117,19 @@ static void alt_matrix_scene(void)
 {
     static const char *const TAB[5] = {"LFO 1", "LFO 2", "LFO 3", "GLOBAL", "MTX"};
     uint32_t tb = au.mtab, i;
-    uint16_t col = tb < AS_NCIRC ? ALT_COL[tb] : tb == ALT_TAB_MTX ? ALT_COL[au.sel % AS_NCIRC] : ALT_INK;
+    uint16_t sc = ALT_COL[au.sel % AS_NCIRC], col = tb == ALT_TAB_GL ? ALT_INK : sc;
     int32_t x = 4;
-    for (i = 0; i < 5u; i++) {                   /* the tabs; MTX set apart by a bar */
+    for (i = 0; i < 5u; i++) {                   /* the tabs: the chosen circle's colour, MTX set apart by a bar */
         int32_t w = text_w(&AF_S, TAB[i]);
-        uint16_t c = i < AS_NCIRC ? ALT_COL[i] : i == ALT_TAB_MTX ? ALT_COL[au.sel % AS_NCIRC] : ALT_INK;
+        uint16_t c = i == ALT_TAB_GL ? ALT_INK : sc;
         if (i == ALT_TAB_MTX) {
             cv_rect(x - 2, 4, 1, 16, ALT_GREY);
             x += 6;
         }
         cv_text(x, 4, &AF_S, TAB[i], i == tb ? c : ALT_GREY);
-        if (i == tb)
+        if (i < ALT_TAB_GL)                      /* LFO 1 2 3: a line in the circle's colour, full under the one shown */
+            cv_rect(x, 20, w, i == tb ? 2 : 1, i == tb ? c : alt_fade(c, 45));
+        else if (i == tb)
             cv_rect(x, 20, w, 2, c);
         x += w + 10;
     }

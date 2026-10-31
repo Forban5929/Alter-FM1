@@ -109,6 +109,8 @@ static int32_t mod_sh(const track_t *t) { return t->lfo_rnd ? (int32_t)(t->lfo_r
 /* source s of the track: the per-track ones, the per-voice ones of the latest note-on */
 static int32_t mod_tsrc(const track_t *t, uint32_t s, int32_t lfo)
 {
+    if ((s == MS_SH || s == MS_SLEW) && (uint32_t)(t - trk) < 3u)
+        return alt_mlfo(t, s);                          /* (ALTER: on the circle's LFO 1's cycles) */
     switch (s) {
     case MS_SH:
         return mod_sh(t);
@@ -191,27 +193,15 @@ static void mod_keep(const track_t *t, modw_t *mw, int32_t *off, uint32_t id, in
     off[j] += o;
 }
 
-/* ALTER's LFOs on one of the circles' parts (alter_lfo.c): the GLOBAL's slots, the circle's own LFO (its DEST,
- * lfo its value), and the circle's LFO DEST routings on the destinations the GLOBAL takes held at 0 this block */
-static __attribute__((noinline)) void mod_global(const track_t *t, modw_t *mw, int32_t *off, uint32_t take, int32_t lfo)
+/* ALTER's LFOs on one of the circles' parts (alter_lfo.c alt_lfo_k: the GLOBAL, the circle's three), and the part's
+ * LFO DEST routings on the destinations the GLOBAL takes held at 0 this block */
+static __attribute__((noinline)) void mod_global(const track_t *t, modw_t *mw, int32_t *off, uint32_t take)
 {
     static const uint8_t LD[4][2] = {{MD_PITCH, P_LD_PIT}, {MD_CUT, P_LD_FLT}, {MD_SHP, P_LD_SHP}, {MD_AMP, P_LD_AMP}};
-    uint32_t k, gs = alt_gl_uni() ? MS_ENV : MS_LFO;    /* (a ramp is 0..1: AMP reads it as ENV) */
-    for (k = 0; k <= GL_NSLOT; k++) {
-        uint32_t g, d, s = gs;
-        int32_t a, x = alt_gl_val;
-        if (k < GL_NSLOT) {
-            g = alt_gl.dst[k];
-            a = alt_gl.amt[k];
-        } else {                                        /* the circle's own LFO */
-            uint32_t c = (uint32_t)(t - trk);
-            g = alt_cl_on(c);
-            a = g ? alt_cl[c].depth : 0;
-            x = lfo;
-            s = t->p[P_LPOL] ? MS_ENV : MS_LFO;
-        }
-        d = g < GD_N ? GL_MD[g] : 0u;
-        if (!d || !a)
+    uint32_t k, d, s;
+    int32_t a, x;
+    for (k = 0; k <= CL_N; k++) {
+        if (!(d = alt_lfo_k(t, k, &a, &x, &s)))
             continue;
         if (d <= MD_AMP) {
             mw->amp |= d == MD_AMP;
@@ -233,7 +223,7 @@ static __attribute__((noinline)) int mod_begin(track_t *t)
     const int16_t *p = t->p;
     int32_t lfo, off[MOD_NKEEP];
     uint32_t k, j, ci = (uint32_t)(t - trk), take = ci < 3u ? alt_gl_take() : 0u;   /* (ALTER: what the GLOBAL leads) */
-    int alt = ci < 3u && (take || (alt_cl_on(ci) && GL_MD[alt_cl_on(ci)]));          /* (ALTER: its LFOs act) */
+    int alt = ci < 3u && (take || alt_cl_any(ci));     /* (ALTER: its LFOs act) */
     modw_t *mw = &MOD(t);
     mw->on = 0;
     for (k = 0; k < NMSLOT; k++)                        /* (VEL and TIME: at the notes, not here) */
@@ -241,7 +231,8 @@ static __attribute__((noinline)) int mod_begin(track_t *t)
             break;
     if (k == NMSLOT && !alt)
         return 0;
-    lfo = mulq15(t->lfo_val, t->lfo_fade);              /* (the LFO of the block before: track_render ticks it) */
+    lfo = ci < 3u ? alt_cl_val[ci][0] : mulq15(t->lfo_val, t->lfo_fade);   /* (the LFO of the block before: track_render
+                                                         * ticks it; ALTER: the circle's LFO 1, alter_lfo.c) */
     mw->on = 1;
     mw->amp = 0;
     mw->nv = mw->nk = 0;
@@ -251,7 +242,7 @@ static __attribute__((noinline)) int mod_begin(track_t *t)
     if (mw->ldep < 32767)
         lfo = mulq15(lfo, mw->ldep);
     if (alt)
-        mod_global(t, mw, off, take, lfo);
+        mod_global(t, mw, off, take);
     for (; k < NMSLOT; k++) {
         uint32_t s = (uint32_t)p[P_M1SRC + 3u * k], d = (uint32_t)p[P_M1DST + 3u * k];
         int32_t a = p[P_M1AMT + 3u * k], x;
@@ -334,7 +325,8 @@ static int32_t mod_show(const track_t *t, uint32_t id, int32_t *gain, int *on)
     const int16_t *p = t->p;
     const engine_t *e = ENGINES[t->engine];
     uint32_t take = (uint32_t)(t - trk) < 3u ? alt_gl_take() : 0u, k, cutid, shpid;
-    int32_t lfo = mulq15(t->lfo_val, t->lfo_fade), cut = 0, shp = 0, g = 32767, off = 0, dg = mod_depth(t, lfo);
+    int32_t lfo = (uint32_t)(t - trk) < 3u ? alt_cl_val[t - trk][0] : mulq15(t->lfo_val, t->lfo_fade);
+    int32_t cut = 0, shp = 0, g = 32767, off = 0, dg = mod_depth(t, lfo);
     int cuton = 0, shpon = 0, ampon = 0;
     *on = 0;
     *gain = 32767;
@@ -348,17 +340,13 @@ static int32_t mod_show(const track_t *t, uint32_t id, int32_t *gain, int *on)
         g = mulq15(g, 32767 - mulq15(p[P_LPOL] ? lfo : (lfo + 32768) >> 1, p[P_LD_AMP] * 258));
         ampon = 1;
     }
-    for (k = 0; k <= NMSLOT + GL_NSLOT; k++) {
+    for (k = 0; k <= NMSLOT + CL_N; k++) {
         uint32_t s, d;
         int32_t a, x;
-        if (k == NMSLOT + GL_NSLOT) {                   /* the circle's own LFO */
-            uint32_t c = (uint32_t)(t - trk), g = alt_cl_on(c);
-            if (!g || !(d = GL_MD[g]))
+        if (k >= NMSLOT) {                              /* the GLOBAL, the circle's three LFOs */
+            if (!(d = alt_lfo_k(t, k - NMSLOT, &a, &x, &s)))
                 continue;
-            a = alt_cl[c].depth;
-            x = lfo;
-            s = p[P_LPOL] ? MS_ENV : MS_LFO;
-        } else if (k < NMSLOT) {                               /* the part's slots */
+        } else {                                        /* the part's slots */
             s = (uint32_t)p[P_M1SRC + 3u * k];
             d = (uint32_t)p[P_M1DST + 3u * k];
             a = p[P_M1AMT + 3u * k];
@@ -369,12 +357,6 @@ static int32_t mod_show(const track_t *t, uint32_t id, int32_t *gain, int *on)
             x = mod_tsrc(t, s, lfo);
             if (s == MS_LFO && p[P_LPOL])
                 s = MS_ENV;
-        } else {                                        /* the GLOBAL's */
-            uint32_t gd = alt_gl.dst[k - NMSLOT];
-            if (!take || gd >= GD_N || !(d = GL_MD[gd]) || !(a = alt_gl.amt[k - NMSLOT]))
-                continue;
-            x = alt_gl_val;
-            s = alt_gl_uni() ? MS_ENV : MS_LFO;
         }
         if (d == MD_CUT)
             cut += (x * a) >> 7, cuton = 1;
