@@ -11,8 +11,8 @@ D = sys.argv[1] if len(sys.argv) > 1 else "build/alter"
 SCENES = [
     ("scene_1_TECHNO", "TECHNO", "132 BPM · phrygien", "PERC · STAB · TEXTURE",
      "THUD en PERC sur les noires, STAB en accord (triade) sur 3 coups décalés, CRUSH en texture sur 11 pas sur 16 avec un peu de hasard."),
-    ("scene_2_HOUSE", "HOUSE", "124 BPM · dorien · swing", "PERC · ACCORD · DRONE",
-     "TOMS en PERC (5 sur 16), BARS en accord STAB, SITAR en DRONE sur un cercle de 32 pas. Swing léger."),
+    ("scene_2_HOUSE", "HOUSE", "124 BPM · dorien · swing", "KICK · STABS · DRONE",
+     "THUD sur les 4 temps, STAB en triade sur les contretemps envoyé dans un dub delay, SITAR en drone discret. Swing léger."),
     ("scene_3_AMBIENT", "AMBIENT", "80 BPM · mineur", "DRONE · DRONE · TEXTURE",
      "RUST et SCRAPE (accord ouvert) en DRONE sur des cercles de 32 et 24 pas qui se croisent, RAIN en texture."),
     ("scene_4_INDUS", "INDUS", "128 BPM · phrygien", "MÉTAL · BRUIT · GONG",
@@ -151,7 +151,7 @@ footer {{ color: var(--dim); font-size: 13px; }}
     <div class="rings"><i style="background:var(--c1)"></i><i style="background:var(--c2)"></i><i style="background:var(--c3)"></i></div>
     <h1>ALTER, écoute</h1>
     <p>Les scènes de départ et les sons d'ALTER, joués par le vrai firmware (la version navigateur), sans retouche.
-    Sur l'instrument : <b>SAVE</b> ouvre les scènes, <b>PRESETS</b> fait défiler les sons du cercle choisi.</p>
+    Sur l'instrument : <b>SAVE</b> ouvre les scènes et les patterns (SELECT choisit, SAVE charge, SAVE tenu enregistre), <b>PRESETS</b> fait défiler les sons du cercle choisi.</p>
     <p class="dim">Chaque son est joué seul sur 4 mesures (4 coups sur 16, 120 BPM), dans le mode d'enveloppe pour lequel il est fait. Les niveaux sont égalisés à la mesure.</p>
   </section>
   <section class="block"><h2>Scènes</h2><div class="scenes">{scenes_html}</div></section>

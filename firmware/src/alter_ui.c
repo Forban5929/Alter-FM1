@@ -46,6 +46,7 @@ static const alt_key_t ALT_KEY[27] = {    /* k: semitones above F3 (whites 0 2 4
 };
 #define ALT_DIE_HOLD_MS 600u
 #define ALT_TAP_MS 150u                   /* a tapped key's bright LED */
+#define ALT_SAVE_HOLD_MS 1000u            /* SAVE held this long on its page: store */
 #define ALT_PAGE_HOLD_MS 2000u            /* a page button held this long: it closes on release (shorter: stays open) */
 
 /* the quick pages: their buttons, names and four knobs (P_* of the chosen circle's part, or ALT_QK_* below;
@@ -74,7 +75,9 @@ static struct {
     uint8_t ready, sel, drawn, die_clean_done, handed;   /* handed: a Felucca button is down (its release is Felucca's) */
     uint8_t qp, qp_was;          /* the quick page kept open (QP_*); the page buttons down at the last frame (bit QP_*) */
     uint8_t lockc;               /* the LOCKS page open: circle + 1 */
-    uint8_t scene_open, scene_i; /* the SCENES page open; the scene it points at */
+    uint8_t scene_open, tab, row[2], save_done;   /* the SAVE page open; its tab (0 SCENES 1 PATTERNS), each tab's row;
+                                                 * a long hold has stored (its release loads nothing) */
+    uint32_t save_t0;            /* SAVE's press on the page (fm1_ms), 0 = up */
     uint8_t pre[AS_NCIRC];       /* each circle's sound (ALT_PRE) */
     uint32_t qp_t0[QP_N];        /* a page button's press (fm1_ms) */
     uint32_t keys;               /* the keys held at the last frame */
@@ -158,34 +161,7 @@ static void alt_preset_step(uint32_t c, int32_t s)
     alt_say(ALT_PRE[i].name);
 }
 
-/* scene n: the three circles, the scale, the tempo, the swing (the dice, mutes and locks cleared) */
-static void alt_load_scene(uint32_t n)
-{
-    const alt_scene_t *sc = &ALT_SCENE[n % ALT_NSCENE];
-    uint32_t c;
-    song.g[G_BPM] = sc->bpm;
-    song.g[G_SWING] = sc->swing;
-    alt_seq.scale = sc->scale;
-    for (c = 0; c < AS_NCIRC; c++) {
-        as_cfg_t *cf = &au.cfg[c];
-        alt_load_sound(c, alt_pre_find(sc->c[c].pre));
-        trk[c].p[P_LEVEL] = (int16_t)clamp(trk[c].p[P_LEVEL] + sc->c[c].gain, 1, 127);
-        alt_emode[c] = sc->c[c].mode;
-        cf->len = sc->c[c].len;
-        cf->hits = sc->c[c].hits;
-        cf->rot = sc->c[c].rot;
-        cf->prob = sc->c[c].prob;
-        cf->root = sc->c[c].root;
-        cf->chord = sc->c[c].chord;
-        cf->frot = 0;
-        cf->mute = 0;
-        cf->dose = AS_DOSE_DEF;
-        alt_seq.c[c].locks = 0;
-        alt_post_now |= (uint8_t)(1u << c);
-        alt_post_circle(c);
-        alt_clear_cnt[c]++;
-    }
-}
+#include "alter_store.c"
 
 /* SEQ held: knob i of the chosen circle, s detents */
 static void alt_edit_circle(uint32_t i, int32_t s)
@@ -390,6 +366,7 @@ static int alter_ui_input(uint32_t pressed)
             au.cfg[i] = alt_seq.c[i].next;
         au.ready = 1;
         alt_select(song.sel < AS_NCIRC ? song.sel : 0u);
+        alt_banks_load();                        /* the USER slots, from the flash */
         alt_load_scene(0);                       /* power-on: the first scene */
     }
     if (song.sel != au.sel && song.sel < AS_NCIRC)   /* (chosen elsewhere: TRACKS, the editor) */
@@ -401,24 +378,40 @@ static int alter_ui_input(uint32_t pressed)
         au.lockc = 0;
         au.scene_open = 0;
     }
-    if ((pressed >> panel.btn[B_SAVE]) & 1u) {   /* SAVE: the SCENES page; on it, SAVE loads the scene */
-        if (au.scene_open) {
-            alt_load_scene(au.scene_i);
-            alt_say(ALT_SCENE[au.scene_i].name);
-            au.scene_open = 0;
-        } else {
-            au.scene_open = 1;
-            au.qp = QP_NONE;
-            au.lockc = 0;
+    if (((pressed >> panel.btn[B_SAVE]) & 1u) && !au.scene_open) {   /* SAVE: the SAVE page (its press opens it) */
+        au.scene_open = 1;
+        au.save_t0 = 0;
+        au.qp = QP_NONE;
+        au.lockc = 0;
+    } else if (au.scene_open) {                  /* on it: a tap loads, held 1 s stores */
+        uint32_t dn = (fm1_in.buttons >> panel.btn[B_SAVE]) & 1u, t = au.tab, r = au.row[t];
+        if (((pressed >> panel.btn[B_SAVE]) & 1u)) {
+            au.save_t0 = fm1_ms | 1u;
+            au.save_done = 0;
+        } else if (dn && au.save_t0 && !au.save_done && (int32_t)(fm1_ms - au.save_t0) >= (int32_t)ALT_SAVE_HOLD_MS) {
+            int rc = alt_row_save(t, r);
+            au.save_done = 1;
+            alt_say(rc > 0 ? "SAVED" : rc == 0 ? "PROTECTED" : "SAVE FAILED");
+        } else if (!dn && au.save_t0) {
+            if (!au.save_done) {
+                static char nb[12];                  /* (the middle shows it a while: kept) */
+                if (alt_row_load(t, r)) {
+                    alt_say(alt_row_name(t, r, nb));
+                    au.scene_open = 0;
+                } else
+                    alt_say("EMPTY");
+            }
+            au.save_t0 = 0;
         }
     }
-    if (au.scene_open) {                         /* the SCENES page: PRESETS picks, the rest waits */
-        if ((s = panel_enc(EN_PRESET)) != 0)
-            au.scene_i = (uint8_t)(((int32_t)au.scene_i + s + 16 * (int32_t)ALT_NSCENE) % (int32_t)ALT_NSCENE);
+    if (au.scene_open) {                         /* the SAVE page: SELECT picks the row, ALGORITHM the tab */
+        if ((s = panel_enc(EN_SELECT)) != 0)
+            au.row[au.tab] = (uint8_t)clamp((int32_t)au.row[au.tab] + s, 0, ALT_NLIST - 1);
+        if ((s = panel_enc(EN_ALGO)) != 0)
+            au.tab = (uint8_t)(s > 0 ? 1 : 0);
         for (i = 0; i < 4u; i++)
             (void)panel_enc(EN_K1 + i);
-        (void)panel_enc(EN_SELECT);
-        (void)panel_enc(EN_ALGO);
+        (void)panel_enc(EN_PRESET);
         alt_hold = 0;
         au.keys = keys;
         return 1;
@@ -702,15 +695,32 @@ static void alt_locks_scene(void)
 
 static void alt_scenes_scene(void)
 {
-    uint32_t i;
-    cv_text(8, 2, &AF_M, "SCENES", ALT_INK);
-    cv_text(8, 26, &AF_S, "PRESETS: PICK   SAVE: LOAD   HOME: BACK", ALT_DIM);
-    for (i = 0; i < ALT_NSCENE; i++) {
-        int32_t y = 54 + (int32_t)i * 42, on = i == au.scene_i;
+    static const char *const TAB[2] = {"SCENES", "PATTERNS"};
+    uint32_t t = au.tab, r = au.row[t], i, top;
+    char nb[12];
+    for (i = 0; i < 2u; i++) {                   /* the tabs */
+        int32_t x = 8 + (int32_t)i * 100, w = text_w(&AF_M, TAB[i]);
+        cv_text(x, 4, &AF_M, TAB[i], i == t ? ALT_INK : ALT_GREY);
+        if (i == t)
+            cv_rect(x, 26, w, 2, ALT_COL[0]);
+    }
+    if (au.msg && fm1_ms - au.msg_ms < 1500u)   /* SAVED, PROTECTED, EMPTY .. */
+        cv_text(8, 216, &AF_S, au.msg, ALT_COL[1]);
+    else
+        cv_text(8, 216, &AF_S, "SELECT  SAVE: LOAD  HOLD: STORE", ALT_DIM);
+    top = r < 2u ? 0u : r - 2u;                  /* five rows, the chosen one second or third */
+    if (top > ALT_NLIST - 5u)
+        top = ALT_NLIST - 5u;
+    for (i = 0; i < 5u; i++) {
+        uint32_t row = top + i;
+        int32_t y = 40 + (int32_t)i * 34, on = row == r, user = row > ALT_NFACT;
+        const char *nm = alt_row_name(t, row, nb);
         if (on)
-            cv_rect(4, y - 4, 232, 38, ALT_DARK);
-        cv_text(14, y, &AF_M, ALT_SCENE[i].name, on ? ALT_INK : ALT_DIM);
-        cv_text(14, y + 20, &AF_S, ALT_SCENE[i].about, on ? ALT_COL[i % AS_NCIRC] : ALT_GREY);
+            cv_rect(4, y - 3, 232, 32, ALT_DARK);
+        if (row && !user)                        /* the factory ones: a lock */
+            cv_rect(14, y + 4, 6, 7, on ? ALT_DIM : ALT_GREY);
+        cv_text(26, y, &AF_S, nm, on ? ALT_INK : (nm[0] == 'E' ? ALT_GREY : ALT_DIM));
+        cv_text(26, y + 14, &AF_S, alt_row_about(t, row), on ? ALT_COL[t + 1u] : ALT_GREY);
     }
 }
 
@@ -824,11 +834,11 @@ static void alter_draw(void)
         int32_t f;
         sig = sig * 31u + (uint32_t)alt_kv(q, i, &nm, tx, &f);
     }
-    sig = sig * 31u + alt_emode[au.sel] * 37u + alt_seq.scale * 41u + au.scene_open * 43u + au.scene_i * 47u +
+    sig = sig * 31u + alt_emode[au.sel] * 37u + alt_seq.scale * 41u + au.scene_open * 43u + au.row[au.tab] * 47u + au.tab * 59u +
           au.pre[au.sel] * 53u;
     sig = sig * 31u + q * 19u + au.lockc * 23u + alt_seq.c[au.lockc ? au.lockc - 1u : 0u].locks * 29u;
     sig = sig * 31u + au.sel * 3u + flash * 5u + (uint32_t)song.playing * 7u + trk[au.sel].preset * 11u +
-          (uint32_t)song.g[G_BPM] * 13u + (au.msg && fm1_ms - au.msg_ms < 900u ? (uint32_t)(uintptr_t)au.msg : 1u);
+          (uint32_t)song.g[G_BPM] * 13u + (au.msg && fm1_ms - au.msg_ms < 1500u ? (uint32_t)(uintptr_t)au.msg + (fm1_ms - au.msg_ms < 900u) : 1u);
     ui.force = 1;                                /* (whatever comes after this view draws itself whole) */
     if (au.drawn && sig == au.sig)
         return;

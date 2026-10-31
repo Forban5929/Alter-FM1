@@ -203,17 +203,70 @@ tap(4);
   check(`CHAOS (DICE 1+2+3): new sounds on screen, it plays (${heard} attacks in 4 bars), peak ${worst.toFixed(3)}`,
         after !== before && heard > 0 && worst > 0.01 && worst < 0.999);
 }
-// SCENES: SAVE opens the page, PRESETS +1 points at HOUSE, SAVE loads it: circle 1 = TOMS 5/16 turned by 2
+// SAVE page: SELECT picks (NEW, TECHNO, HOUSE ..), a tap of SAVE loads: HOUSE = a kick on the four beats
+const B = (n) => { ex.web_buttons(1 << n); render(2000); ex.web_buttons(0); render(2000); };
+const row = (n) => { enc(0, -25); enc(0, n); };                // (the page keeps its last row: from the top)
+const holdSave = () => { ex.web_buttons(1 << 7); render(FS * 1.2); ex.web_buttons(0); render(2000); };
 {
-  const B = (n) => { ex.web_buttons(1 << n); render(2000); ex.web_buttons(0); render(2000); };
-  B(7); enc(2, 1); B(7);
+  B(7); row(2); B(7);
   ex.web_alter(4, BPM, 0);                                      // (HOUSE is 124: the test counts at 120)
   ex.web_alter(2, 1, 1); ex.web_alter(2, 2, 1);
   bar();
   const hs = bar().steps;
-  // (TOMS's drum head swoops after the strike: the detector may hear a second attack, so: every hit heard)
-  check(`SAVE, PRESETS +1, SAVE: the HOUSE scene (circle 1: TOMS 5/16 turned by 2) ${hs.join(",")}`,
-        euclid(16, 5, 2).every((x) => hs.includes(x)));
+  check(`SAVE, SELECT +2, SAVE: HOUSE (circle 1: four to the floor) ${hs.join(",")}`, same(hs, euclid(16, 4, 0)));
+}
+// store a scene: circle 1 to 6 hits, SAVE page, row USER 01 (NEW + 4 factory + 1), SAVE held 1 s
+{
+  enc(0, -1);                                                   // (circle 1 chosen again)
+  tap(22); tap(22); bar();                                      // (DENSITY + twice: 6 hits)
+  const b6 = bar().steps;
+  check(`before storing: 6 hits ${b6.join(",")}`, same(b6, euclid(16, 6, 0)));
+  B(7); row(5); holdSave(); B(6);
+  B(7); row(0); B(7);                                       // NEW SCENE: no hits anywhere
+  ex.web_alter(4, BPM, 0);
+  bar();
+  const ns = bar();
+  check(`NEW SCENE: silence (no hits on the three circles; heard ${ns.steps.join(",")}, peak ${ns.peak.toFixed(4)})`, ns.peak < 0.01);
+  B(7); row(5); B(7);                                           // USER 01 back
+  ex.web_alter(4, BPM, 0); ex.web_alter(2, 1, 1); ex.web_alter(2, 2, 1);
+  bar();
+  const us = bar().steps;
+  check(`USER 01 loaded: circle 1's 6 hits again ${us.join(",")}`, same(us, euclid(16, 6, 0)));
+  B(7); row(1); holdSave(); B(6);                               // TECHNO: protected
+  check("a factory scene cannot be overwritten (TECHNO still 4 hits on circle 1)", (() => {
+    B(7); enc(1, -1); row(1); B(7); ex.web_alter(4, BPM, 0); ex.web_alter(2, 1, 1); ex.web_alter(2, 2, 1); bar();
+    return same(bar().steps, euclid(16, 4, 0));
+  })());
+}
+// PATTERNS tab (ALGORITHM): BROKEN = circle 1 5/16, the sound unchanged
+{
+  B(7); enc(1, 1); row(3); B(7);
+  ex.web_alter(4, BPM, 0);
+  bar();
+  const ps = bar().steps;
+  check(`PATTERNS, BROKEN: circle 1 = 5 hits ${ps.join(",")}`, same(ps, euclid(16, 5, 0)));
+}
+// the flash keeps USER 01: a fresh instance with this one's flash has it
+{
+  const nor = new Uint8Array(mem.buffer, ex.web_nor(), ex.web_nor_size()).slice();
+  const { instance: i2 } = await WebAssembly.instantiate(wasm, {});
+  const e2 = i2.exports;
+  e2._initialize(); e2.web_nor_erase();
+  new Uint8Array(e2.memory.buffer, e2.web_nor(), e2.web_nor_size()).set(nor);
+  e2.web_boot();
+  const r2 = (n) => { for (let k = 0; k < n; k += 128) e2.web_render(Math.min(128, n - k)); };
+  r2(FS * 2);
+  const B2 = (n) => { e2.web_buttons(1 << n); r2(2000); e2.web_buttons(0); r2(2000); };
+  B2(7); for (let k = 0; k < 5; k++) { e2.web_enc(0, 1); r2(1300); }
+  r2(4000);
+  const fb = new Uint16Array(e2.memory.buffer, e2.web_screen(), 240 * 240);
+  // (row USER 01 chosen: its line says YOURS, drawn in circle 2's colour; EMPTY slots say HOLD SAVE: STORE HERE)
+  B2(7); e2.web_buttons(1 << 10); r2(128); e2.web_buttons(0); e2.web_alter(4, BPM, 0);
+  e2.web_alter(2, 1, 1); e2.web_alter(2, 2, 1);
+  const out2 = []; r2(STEP * 16 * 2);
+  for (let k = 0; k < STEP * 16; k += 128) { e2.web_render(128); out2.push(...new Float32Array(e2.memory.buffer, e2.web_out_l(), 128)); }
+  const n2 = attacks(out2, FS * 0.03, 0.3).length;
+  check(`after power-off: USER 01 loads from the flash (circle 1: ${n2} hits in a bar, 6 stored)`, n2 >= 5 && n2 <= 7);
 }
 play();
 { // (after CHAOS the effects ring on: the delay and reverb tails must die away)

@@ -7,7 +7,7 @@
  * (DIST CHOR DLY REV), LEVEL and the envelope mode it is made for (LEVEL set by measure: tools/alter/alter_render.mjs prints each sound's loudness,
  * the levels bring them within a few dB of each other).
  * A scene: TEMPO, SCALE, SWING, then per circle a sound, its envelope mode (alter_play.c AM_*), its rhythm (LEN HITS
- * ROT PROB), its root, its chord (alter_seq.c AS_CH_*), a level offset (0.5 dB steps). Loading one clears the dice, the mutes and the locks. */
+ * ROT PROB), its root, its chord (alter_seq.c AS_CH_*), a level offset (0.5 dB steps), a DELAY send (0: the sound's). Loading one clears the dice, the mutes and the locks. */
 
 typedef struct {
     const char *name;
@@ -72,25 +72,26 @@ typedef struct {
         const char *pre;
         uint8_t mode, len, hits, rot, prob, root, chord;
         int8_t gain;             /* LEVEL steps on the sound's (0.5 dB each): the scene's balance */
+        uint8_t dly;             /* the DELAY send (0: the sound's own) */
     } c[AS_NCIRC];
 } alt_scene_t;
 
 static const alt_scene_t ALT_SCENE[] = {
     {"TECHNO", "PERC . STAB . TEXTURE", 132, AS_SC_PHRY, 0,
-     {{"THUD", 1, 16, 4, 0, 127, 36, AS_CH_OFF, 0},
-      {"STAB", 2, 16, 3, 3, 127, 48, AS_CH_TRI, 0},
-      {"CRUSH", 0, 16, 11, 0, 110, 60, AS_CH_OFF, 0}}},
-    {"HOUSE", "PERC . CHORD . DRONE", 124, AS_SC_DOR, 18,
-     {{"TOMS", 1, 16, 5, 2, 127, 45, AS_CH_OFF, 0},
-      {"BARS", 2, 16, 3, 2, 127, 50, AS_CH_TRI, 0},
-      {"SITAR", 3, 32, 1, 0, 127, 38, AS_CH_OFF, 0}}},
+     {{"THUD", 1, 16, 4, 0, 127, 36, AS_CH_OFF, 0, 0},
+      {"STAB", 2, 16, 3, 3, 127, 48, AS_CH_TRI, 0, 0},
+      {"CRUSH", 0, 16, 11, 0, 110, 60, AS_CH_OFF, 0, 0}}},
+    {"HOUSE", "KICK 4 . TRIAD STABS + DUB . DRONE", 124, AS_SC_DOR, 12,
+     {{"THUD", 1, 16, 4, 0, 127, 36, AS_CH_OFF, 0, 0},      /* four to the floor */
+      {"STAB", 2, 16, 4, 2, 127, 57, AS_CH_TRI, -6, 96},    /* the offbeats, a triad, into a dub delay */
+      {"SITAR", 3, 32, 1, 0, 127, 45, AS_CH_OFF, -10, 0}}},
     {"AMBIENT", "DRONE . DRONE . TEXTURE", 80, AS_SC_MIN, 0,
-     {{"RUST", 3, 32, 1, 0, 127, 36, AS_CH_OFF, -4},
-      {"SCRAPE", 3, 24, 1, 12, 127, 43, AS_CH_OPEN, -34},
-      {"RAIN", 0, 16, 5, 0, 100, 60, AS_CH_OFF, -8}}},
+     {{"RUST", 3, 32, 1, 0, 127, 36, AS_CH_OFF, -4, 0},
+      {"SCRAPE", 3, 24, 1, 12, 127, 43, AS_CH_OPEN, -34, 0},
+      {"RAIN", 0, 16, 5, 0, 100, 60, AS_CH_OFF, -8, 0}}},
     {"INDUS", "METAL . NOISE . GONG", 128, AS_SC_PHRY, 0,
-     {{"ANVIL", 1, 16, 5, 0, 127, 36, AS_CH_OFF, 0},
-      {"METAL", 1, 16, 7, 1, 127, 55, AS_CH_OFF, 0},
-      {"GONG", 0, 16, 3, 2, 100, 40, AS_CH_OFF, 0}}},
+     {{"ANVIL", 1, 16, 5, 0, 127, 36, AS_CH_OFF, 0, 0},
+      {"METAL", 1, 16, 7, 1, 127, 55, AS_CH_OFF, 0, 0},
+      {"GONG", 0, 16, 3, 2, 100, 40, AS_CH_OFF, 0, 0}}},
 };
 #define ALT_NSCENE (sizeof ALT_SCENE / sizeof ALT_SCENE[0])

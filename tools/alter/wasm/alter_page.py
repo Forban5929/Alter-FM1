@@ -12,7 +12,7 @@ s = s.replace('content="Felucca, the multi-engine synth firmware for the FM-1, r
 s = s.replace('<p class="keys">',
               '<p class="keys"><b>ALTER</b> : <i>Switch on</i>, puis <b>PLAY</b> (touche <kbd>-</kbd>). '
               '3 cercles = 3 sons : <b>1 ALTER</b> (dehors), <b>2 PHYS</b>, <b>3 NOISE</b> (dedans). '
-              'SELECT (<kbd>↑</kbd><kbd>↓</kbd>) = cercle choisi ; KNOB 1-4 = son du cercle choisi ; PRESETS = sons des 3 moteurs. <b>SAVE</b> (<kbd>8</kbd>) = SCÈNES (TECHNO, HOUSE, AMBIENT, INDUS : PRESETS choisit, SAVE charge). '
+              'SELECT (<kbd>↑</kbd><kbd>↓</kbd>) = cercle choisi ; KNOB 1-4 = son du cercle choisi ; PRESETS = sons des 3 moteurs. <b>SAVE</b> (<kbd>8</kbd>) = page SCÈNES / PATTERNS (SELECT choisit, ALGORITHM change d\'onglet, SAVE charge, SAVE tenu 1 s enregistre dans un slot USER ; NEW et usine protégés). '
               '<b>Pages rapides</b> (appui court = reste ouverte, même bouton ou HOME = fermée, tenu 2 s = se ferme au relâchement) : '
               '<b>SEQ</b> (<kbd>0</kbd>) LEN HITS ROT PROB · <b>ENV</b> (<kbd>3</kbd>) ATK DEC SUS REL · <b>FX</b> (<kbd>1</kbd>) DIST INSERT DELAY REVERB · '
               '<b>LFO</b> (<kbd>4</kbd>) · <b>EDIT</b> (<kbd>5</kbd>) les 4 autres réglages du moteur · <b>SCL</b> (<kbd>2</kbd>) GAMME NOTE ACCORD DOSE · '

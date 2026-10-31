@@ -68,9 +68,12 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
   Emscripten est bloqué dans la session cloud → on compile avec le clang du système : `tools/alter/wasm/build_emu.sh`
   (mini-libc maison `tools/alter/wasm/`, génère build/gen si absent, sortie build/emu/ + `alter.html` pour l'artifact).
   Tests : `node web/emu/emu_test.mjs build/emu/felucca.wasm` (Felucca ; 4 échecs VOULUS : « a key sounds », « FX held »,
-  « SAVE, OCT+, OCT+ » et « a fresh instance… » : clavier, FX et SAVE appartiennent à la vue PLAY) et `node tools/alter/alter_emu_test.mjs build/emu/felucca.wasm build/emu/alter_play.wav`
+  « SAVE, OCT+, OCT+ » et « a fresh instance… » : clavier, FX et SAVE appartiennent à la vue PLAY ; la ligne
+  de résumé « 4 FAILED » en fait un 5e « FAIL » quand on les compte) et `node tools/alter/alter_emu_test.mjs build/emu/felucca.wasm build/emu/alter_play.wav`
   (chaque cercle seul, SEQ appui/tenu, SHIFT, DÉ via son triangle à l'écran, DENSITÉ, fills sur le cercle choisi, PRESETS,
-  page ENV, OCT−+OCT+ + FX → Felucca puis HOME, VERROUS, modes ALGORITHM, CHAOS, SCÈNES, traînes d'effets qui s'éteignent).
+  page ENV, OCT−+OCT+ + FX → Felucca puis HOME, VERROUS, modes ALGORITHM, CHAOS, SAVE/LOAD scènes + patterns, usine
+  protégée, mémoire flash relue par une instance neuve, traînes d'effets qui s'éteignent). La page SAVE garde sa
+  dernière ligne : le test va d'abord en haut (row(n)).
   Le test règle le tempo à 120 (web_alter 4) ; un pas = nombre ENTIER d'échantillons (5512 à 120 BPM), comme le firmware.
   Détecteur d'attaques = enveloppe (les traînes delay/reverb des presets ne retombent jamais à 0).
   Captures d'écran : `node tools/alter/alter_shot.mjs build/emu/felucca.wasm DOSSIER "b:PLAY w:500 K:10+ s:nom"` (.ppm).
@@ -164,6 +167,18 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         `python3 tools/alter/make_listen_page.py build/alter` → build/alter/alter_ecoute.html (page d'écoute, même lien
         que l'ancienne : https://claude.ai/artifact/BqNkjf2dYiPQFnkgco6zey). Hook navigateur : web_alter(op,a,b)
         (felucca_web.c → alter_ui.c alt_web_cmd : 0 son, 1 scène, 2 mute, 3 mode, 4 tempo, 5 mode conseillé).
+  - [x] **3d-4 (31/10, codé, testé, publié ; ATTEND L'ÉCOUTE) : SAVE / LOAD** (retour de Romain). Page SAVE à 2 ONGLETS SCÈNES / PATTERNS.
+        Gestes VALIDÉS : SELECT = slot · ALGORITHM = onglet · appui SAVE = CHARGER · SAVE tenu 1 s = ENREGISTRER · HOME =
+        sortir. Chaque onglet : NEW (vide, chargement seul, jamais écrasable) + 4 d'usine PROTÉGÉS + 16 slots USER.
+        SCÈNE = tout (sons, réglages, effets, rythmes, modes, notes, accords, verrous, gamme, tempo, swing).
+        PATTERN = rythme SEUL (par cercle LEN HITS ROT PROB FROT + force et chance par pas), le reste ne bouge pas.
+        Mémoire durable : ALTER prend les slots PROJETS 3 et 4 de Felucca dans la flash (validé). HOUSE refait :
+        4 temps au kick + stabs en triade façon house avec DUB DELAY.
+        FAIT : `firmware/src/alter_store.c` (inclus par alter_ui.c) : listes NEW + 4 usine + 16 USER par onglet
+        (ALT_NLIST), patterns d'usine ALT_FPAT (FOUR FLOOR, ACID, BROKEN, POLY), alt_scene_get/put (scène compacte :
+        force 2 bits, chance 4 bits par pas), alt_rhy_get/put (pattern), alt_new_scene, alt_row_load/save, banques en
+        RAM alt_bank_s/alt_bank_p + flash objets 3 et 4 (magie ATLS/ATLP), chargées au démarrage (alt_banks_load).
+        Scènes d'usine : champ `dly` (envoi delay, 0 = celui du son). Écran : 2 onglets, 5 lignes, cadenas = usine.
   - [ ] 3c : vue DEEP (EDIT ouvre encore la page EDIT de Felucca). Puis retirer l'interface Felucca. Reste : SCL → gamme
         des cercles, touches blanches libres, DESTROY assignable, verrous du dé, DOSE.
 - [ ] Étape 4 (après le séquenceur) : tranche de console dédiée, ordre FIXE validé :
