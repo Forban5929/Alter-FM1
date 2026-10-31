@@ -39,9 +39,6 @@ static const uint8_t AS_VEL[3] = {40, 96, 124};  /* ghost, normal, accent (the V
 enum { AS_T_EUCLID, AS_T_TURING, AS_NTYPE };
 static const char *const AS_TYPE_NAME[AS_NTYPE] = {"EUCLID", "TURING"};
 #define AS_THIST 2                        /* TURING: the patterns kept to go back to */
-enum { AS_CD_ALL, AS_CD_2, AS_CD_3, AS_CD_4, AS_CD_8, AS_NCD };
-static const char *const AS_CD_NAME[AS_NCD] = {"ALWAYS", "1/2", "1/3", "1/4", "1/8"};
-static const uint8_t AS_CD_N[AS_NCD] = {1, 2, 3, 4, 8};
 #define AS_NLR 6                          /* the lanes with a RANGE: VELO CHANCE DELAY REVERB PITCH RATCH */
 #define AS_NLANE 16                       /* the lanes' steps (VELO CHANCE DELAY REVERB PITCH): a longer circle repeats them */
 /* chords: a hit's degree, then these degrees above it in the scale (0 = none) */
@@ -70,8 +67,6 @@ typedef struct {
     uint8_t srev[AS_NLANE];         /* .. and into the reverb */
     int8_t spitch[AS_NLANE];        /* scale degrees above the hit's own, -7..7 */
     uint8_t srat[AS_NLANE];         /* RATCH: the hit repeated in its step, 0..3 (x1 .. x4) */
-    uint8_t scond[AS_NLANE];        /* a step's condition (the SEQ menu's KNOB 2): AS_CD_* (plays 1 cycle in N) */
-    uint16_t cyc;                   /* this circle's cycles since PLAY (0 = the first) */
     uint16_t rmask[AS_NLR];         /* RANGE (the SEQ menu's KNOB 3 / 4): bit l = lane step l draws in rlo..rhi at each pass */
     int8_t rlo[AS_NLR][AS_NLANE], rhi[AS_NLR][AS_NLANE];
     uint16_t treg;                  /* TURING: its pattern now (mutated as a cycle starts) .. */
@@ -480,7 +475,6 @@ static void as_step(as_seq_t *q, as_event_t ev[AS_NCIRC])
         as_event_t *e = &ev[i];
         uint32_t k, on;
         if (c->pos == 0) {                              /* a new cycle: what was asked for starts now */
-            c->cyc++;
             c->cfg = c->next;
             if (c->cfg.type == AS_T_TURING)
                 as_turing(c, &q->rng);
@@ -493,7 +487,6 @@ static void as_step(as_seq_t *q, as_event_t ev[AS_NCIRC])
             if (c->die && c->dchance[k] < ch)
                 ch = c->dchance[k];
             on = !c->cfg.mute && (c->pat >> k & 1u) &&
-                 c->cyc % AS_CD_N[c->scond[k % AS_NLANE] % AS_NCD] == 0u &&   /* (its condition: 1 cycle in N) */
                  (prob >= 127 || (int32_t)(as_rand(&q->rng) % 127u) < prob) &&
                  (ch >= 127 || as_rand(&q->rng) % 127u < ch);
         }

@@ -188,16 +188,20 @@ check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().
     const back = bar().steps.includes(0);
     check(`SEQ RANGE: CHANCE 0..100 % on step 1 plays it in some bars only (${played}/10), KNOB 1 gives it back`,
           played > 0 && played < 10 && back);
-    // a condition: step 1 held + KNOB 2 one detent = 1/2: that step plays one cycle in two (the circle's cycles: its
-    // LEN may be under a bar here), so 6 bars lose about half its hits
-    const hits6 = () => { let n = 0; for (let b = 0; b < 6; b++) n += bar().steps.length; return n; };
-    bar(); const h0 = hits6();
-    seqTap(FS * 0.7); K(1 << 0); render(1500); enc(4, 1); K(0); render(1500); seqTap(2000); bar();
-    const h1 = hits6();
-    seqTap(FS * 0.7); K(1 << 0); render(1500); enc(4, -1); K(0); render(1500); seqTap(2000); bar();
-    const h2 = hits6();
-    check(`SEQ condition 1/2 on step 1: fewer hits in 6 bars (${h0} -> ${h1}), ALWAYS again (${h2})`,
-          h1 <= h0 - 3 && h1 >= h0 - 12 && h2 === h0);
+    // SHUFFLE: two steps held + KNOB 2 = the lane shown drawn anew (here CHANCE, black key 3); one step held + KNOB 2:
+    // nothing. The screen's lane changes with two, not with one
+    const scr = () => { render(4000); return Array.from(new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240).slice(240 * 50, 240 * 163)).join(); };   // (the bars only: not the moving playhead under them)
+    seqTap(FS * 0.7); K(1 << 3); render(1500); K(0); render(1500);
+    const l0 = scr();
+    K(1 << 0); render(1500); enc(4, 1); K(0); render(1500);
+    const l1 = scr();
+    K((1 << 0) | (1 << 2)); render(1500); enc(4, 1); K(0); render(1500);
+    const l2 = scr();
+    seqTap(2000);
+    check("SEQ SHUFFLE: KNOB 2 with one step held changes nothing, with two it draws the lane anew", l1 === l0 && l2 !== l1);
+    // (the chances stay audible: 30 % and up; put back to 100 % for what follows)
+    seqTap(FS * 0.7); K(1 << 3); render(1500); K(0); render(1500);
+    K(0x5ad5ad5); render(1500); enc(3, 20); K(0); render(1500); seqTap(2000);   // (all 16 step keys held)
   }
   check("RATCHET X2 / X3 add attacks", n["RATCHET X2"] > before && n["RATCHET X3"] > n["RATCHET X2"]);
 
