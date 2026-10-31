@@ -1697,7 +1697,8 @@ static void alter_draw(void)
 /* the browser build's hooks (web/emu/felucca_web.c web_alter): op 0 circle a's sound b, 1 scene a, 2 mute circle a
  * (b = 0 / 1), 3 circle a's envelope mode b, 4 tempo a, 5 circle a's mode: its sound's own, 6 Felucca's phrase b on
  * part a (as its own SAVE page would: the test that ALTER keeps Felucca's sequencer quiet), 7 the FX page's preset b
- * of slot a (alter_fx.c AFX_S_*: 0..2 a circle's DIST), 8 MASTER setting a (amx) to b */
+ * of slot a (alter_fx.c AFX_S_*: 0..2 a circle's DIST), 8 MASTER setting a (amx) to b, 9 circle a's
+ * DELAY lane at step b off, 10 circle a's envelope mode settings to their defaults */
 static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
 {
     if (!au.ready)
@@ -1715,6 +1716,8 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
         else if (a == AFX_S_REV) afp_rev_apply(b); else afp_mst_apply(b);
         break;
     case 8: amx[a % AMX_N] = (uint8_t)b; break;  /* (a test: MASTER setting a) */
+    case 9: alt_seq.c[a % AS_NCIRC].sdly[b % AS_NLANE] = 0; break;   /* (a test: a step's DELAY lane off) */
+    case 10: alt_env_default(a % AS_NCIRC); break;   /* (a test: circle a's mode settings back to the defaults) */
     default: break;
     }
 }

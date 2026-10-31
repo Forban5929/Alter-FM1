@@ -258,6 +258,16 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         THUD 4/16, WARM triade 3/16 rot 3, OPEN HAT 4/16 rot 2) ; **AMBIENT refaite en nappes douces** (70 BPM MIN : 2 × PAD
         en DRONE, 32 pas accord OPEN + 24 pas rot 12 une quinte plus haut, RAIN discrète). 3 sons ajoutés EN FIN de ALT_PRE
         (WARM, PAD, OPEN HAT : les numéros des sons des scènes USER ne bougent pas). alter_render.mjs accepte les noms à espace.
+        **2e retour (31/10, 23 h)** : son **KICK** ajouté (fin de ALT_PRE : sinus, LIQUID 64, NOIS 10, DEC 85, DIST 25 ;
+        +5 dB de graves < 120 Hz vs THUD) pour TECHNO et HOUSE (gain −6, PERC HOLD 45 DECAY 85 : champs de scène
+        phold/pdec). TECHNO : le 4e kick (pas 13) part à +40 % dans le delay (champs lstep/ldly → couloir DELAY sdly).
+        Tests : web_alter 9 (couloir DELAY d'un pas à 0) et 10 (réglages de mode par défaut) remettent l'ancien kick sec.
+        **À FAIRE : remplacer AMBIENT par la scène USER 1 de Romain.** Sa sauvegarde est dans le localStorage du navigateur
+        où il joue (pas accessible d'ici, Chrome non connecté). Bouton « Envoyer mes sauvegardes ALTER à Claude » sur la
+        page 3a (capability db) → ArtifactData list collection `saves` (docs s<offset> = {off, b64} : secteurs flash
+        contenant ATLS/ATLR/ATLP ; repli : texte JSON {sectors} à copier). Plan : charger ces secteurs dans web_nor d'une
+        instance node, lire la scène USER 1 (alt_bank_s.s[0], alt_bank_r.r[0] et .fx[0], alt_bank_p.env[0]) et l'embarquer
+        comme scène d'usine.
         Test : `node tools/alter/alter_fx_test.mjs build/emu/felucca.wasm` (page, EQ par bande, COMP, CLIP, DUCK, scène).
         ⚠ Le son du navigateur a ~0,3 s de retard sur les réglages : attendre ≥ 1 s avant de mesurer.
         Police AF_L : « Z » ajouté (tools/gen_aa_font.py ; supprimer build/gen pour régénérer).

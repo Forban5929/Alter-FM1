@@ -26,6 +26,41 @@ s = s.replace('<p class="keys">',
               'appui <b>DENSITÉ</b> − + (un coup de moins / de plus, gardé) · tenir <b>REVERSE</b>.</p>\n<p class="keys">', 1)
 s = s.replace('<nav><a href="../installer/">Install</a><a href="../editor/">Editor</a><a href="https://github.com/hugelton/Felucca">Source</a></nav>',
               '<nav><a href="https://github.com/Forban5929/alter-fm1">ALTER (source)</a><a href="https://github.com/hugelton/Felucca">Felucca</a></nav>')
+# EXPORT: the ALTER saves kept in this browser (the flash sectors holding ALTER's objects: magic ATLS ATLR ATLP), as a
+# file and as text to copy, so Romain can hand them to Claude (a USER scene turned into a factory one)
+EXPORT = r"""<p class="keys" id="altexp"><button type="button" id="expbtn">Envoyer mes sauvegardes ALTER à Claude</button>
+<span id="expmsg"></span>
+<textarea id="exptxt" readonly hidden style="width:100%;height:120px;font:11px ui-monospace,monospace;margin-top:8px"></textarea></p>
+<script>
+document.getElementById("expbtn").addEventListener("click", async () => {
+  const msg = document.getElementById("expmsg");
+  let raw = {};
+  try { raw = JSON.parse(localStorage.getItem("felucca-emu-flash") || "{}"); } catch (e) {}
+  const out = {};
+  for (const [off, b64] of Object.entries(raw)) {
+    let t = "";
+    try { t = atob(b64); } catch (e) { continue; }
+    if (t.includes("ATLS") || t.includes("ATLR") || t.includes("ATLP")) out[off] = b64;
+  }
+  if (!Object.keys(out).length) { msg.textContent = " Aucune sauvegarde ALTER dans ce navigateur."; return; }
+  let db = null;
+  try { db = await window.claude?.use?.("db"); } catch (e) {}
+  if (db) {
+    try {
+      const when = new Date().toISOString();
+      for (const [off, b64] of Object.entries(out)) await db.doc("saves/s" + off).set({ off: Number(off), b64, when });
+      msg.textContent = " Envoyé : " + Object.keys(out).length + " secteurs. Dis-le à Claude dans la conversation.";
+      return;
+    } catch (e) { msg.textContent = " Envoi impossible (" + (e && e.code || e) + ") : copie le texte ci-dessous."; }
+  }
+  const ta = document.getElementById("exptxt");
+  ta.hidden = false;
+  ta.value = JSON.stringify({ alter_saves: 1, sectors: out });
+  ta.select();
+});
+</script>
+"""
+s = s.replace("<footer>", EXPORT + "<footer>", 1)
 open(p, "w", encoding="utf-8").write(s)
 if len(sys.argv) > 3 and sys.argv[2] == "--artifact":
     for a in ("<!doctype html>\n", '<html lang="en">\n', "<head>\n", '<meta charset="utf-8">\n',

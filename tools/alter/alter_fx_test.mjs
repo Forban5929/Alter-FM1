@@ -60,7 +60,8 @@ const solo = (c) => { for (let i = 0; i < 3; i++) W(2, i, i === c || c < 0 ? 0 :
   const a = render(BEAT * 8, true);
   W(8, 0, 0); render(FS); const lo = render(BEAT * 8, true); W(8, 0, 64);
   W(8, 2, 0); render(FS); const hi = render(BEAT * 8, true); W(8, 2, 64);
-  W(8, 1, 0); render(FS); const mi = render(BEAT * 8, true); W(8, 1, 64);
+  solo(1); render(FS); const am = render(BEAT * 8, true);         // (MID: on the chords, circle 2; the kick is mostly low)
+  W(8, 1, 0); render(FS); const mi = render(BEAT * 8, true); W(8, 1, 64); solo(-1);
   for (let b = 0; b < 3; b++) W(8, b, 0);
   render(FS);
   const z = peak(render(BEAT * 4, true));
@@ -68,7 +69,7 @@ const solo = (c) => { for (let i = 0; i < 3; i++) W(2, i, i === c || c < 0 ? 0 :
   render(FS);
   check(`EQ LOW 0: lows ${lows(a).toFixed(4)} -> ${lows(lo).toFixed(4)}`, lows(lo) < lows(a) * 0.4);
   check(`EQ HIGH 0: highs ${highs(a).toFixed(4)} -> ${highs(hi).toFixed(4)}`, highs(hi) < highs(a) * 0.4);
-  check(`EQ MID 0: rms ${rms(a).toFixed(4)} -> ${rms(mi).toFixed(4)}; all three 0: silence (${z.toFixed(5)})`, rms(mi) < rms(a) * 0.8 && z < 0.0005);
+  check(`EQ MID 0 (the chords): rms ${rms(am).toFixed(4)} -> ${rms(mi).toFixed(4)}; all three 0: silence (${z.toFixed(5)})`, rms(mi) < rms(am) * 0.8 && z < 0.0005);
 }
 // COMP 127 on the whole mix: the peaks come nearer the average (a lower crest factor)
 {

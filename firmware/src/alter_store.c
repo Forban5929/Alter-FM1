@@ -306,8 +306,14 @@ static void alt_load_scene(uint32_t n)
         cf->dose = AS_DOSE_DEF;
         alt_seq.c[c].locks = 0;
         alt_env_default(c);
+        if (sc->c[c].phold)
+            alt_envp[c][AE_PHOLD] = sc->c[c].phold;
+        if (sc->c[c].pdec)
+            alt_envp[c][AE_PDEC] = sc->c[c].pdec;
         alt_rhy_plain(&r, sc->c[c].len, sc->c[c].hits, sc->c[c].rot, sc->c[c].prob);
         alt_rhy_put(c, &r);
+        if (sc->c[c].lstep)
+            alt_seq.c[c].sdly[(sc->c[c].lstep - 1u) % AS_NLANE] = sc->c[c].ldly;
     }
 }
 

@@ -60,6 +60,8 @@ render(FS * 2, false);                                          // the splash
 K(1 << 26); const quiet = render(FS / 2, true); K(0); render(FS / 4, false);
 check("a key on the PLAY view plays no note", peak(quiet) < 0.001);
 ex.web_alter(4, BPM, 0);                                        // (the test counts at 120: TECHNO is 132)
+ex.web_alter(0, 0, 0); ex.web_alter(9, 0, 12); ex.web_alter(10, 0, 0);   // (circle 1: THUD, no echo on its 4th kick, PERC
+                                                                // as by default: the attacks counted are the hits)
 enc(1, -3);                                                    // circle 1 to FREE (the scene has it PERC)
 play(); t0 = clock - 128;
 const all = bar();

@@ -54,6 +54,8 @@ static const alt_pre_t ALT_PRE[] = {
     {"WARM", 0, {30, 0, 45, AL_S, 35, 0, -30, 8}, {2, 70, 50, 60}, {0, 20, 25, 40}, 108, 2},     /* deep house chords */
     {"PAD", 0, {12, 0, 40, AL_S, 50, 0, -40, 25}, {90, 110, 110, 100}, {0, 30, 10, 70}, 100, 3}, /* a soft, slow pad */
     {"OPEN HAT", 2, {0, 0, 115, 80, 64, 0, 0, 0}, {0, 62, 0, 55}, {0, 0, 10, 20}, 126, 0},
+    {"KICK", 0, {0, 0, 0, AL_L, 64, 10, 0, 0}, {0, 85, 0, 70}, {25, 0, 0, 0}, 118, 1},   /* a full kick: a sine, a short
+                                  * drop (~2 octaves, ~14 ms), a long body, DIST for the fat */
 };
 #define ALT_NPRE (sizeof ALT_PRE / sizeof ALT_PRE[0])
 
@@ -78,6 +80,8 @@ typedef struct {
         uint8_t mode, len, hits, rot, prob, root, chord;
         int8_t gain;             /* LEVEL steps on the sound's (0.5 dB each): the scene's balance */
         uint8_t dly;             /* the DELAY send (0: the sound's own) */
+        uint8_t phold, pdec;     /* PERC: its HOLD and DECAY (0: the defaults, alter_lfo.c AE_DEF) */
+        uint8_t lstep, ldly;     /* step lstep - 1 sent ldly more into the delay (the SEQ menu's DELAY lane; 0: none) */
     } c[AS_NCIRC];
     uint8_t dpre, rpre, mpre;    /* the FX page's DELAY, REVERB and MASTER presets (alter_fx.c AFX_DLY AFX_REV AFX_MST):
                                   * all 0 (Felucca's own: ECHO, HALL, FLAT), Romain's choice, the effects his to add */
@@ -85,11 +89,11 @@ typedef struct {
 
 static const alt_scene_t ALT_SCENE[] = {
     {"TECHNO", "PERC . STAB . TEXTURE", 132, AS_SC_PHRY, 0,
-     {{"THUD", 1, 16, 4, 0, 127, 36, AS_CH_OFF, 0, 0},
+     {{"KICK", 1, 16, 4, 0, 127, 36, AS_CH_OFF, -6, 0, 45, 85, 13, 51},   /* the 4th kick 40 % into the delay */
       {"STAB", 2, 16, 3, 3, 127, 48, AS_CH_TRI, 0, 0},
       {"CRUSH", 0, 16, 11, 0, 110, 60, AS_CH_OFF, 0, 0}}, 0, 0, 0},
     {"HOUSE", "DEEP: KICK 4 . WARM CHORDS . OPEN HAT", 122, AS_SC_DOR, 8,
-     {{"THUD", 1, 16, 4, 0, 127, 36, AS_CH_OFF, 0, 0},      /* four to the floor */
+     {{"KICK", 1, 16, 4, 0, 127, 36, AS_CH_OFF, -6, 0, 45, 85, 0, 0},   /* four to the floor */
       {"WARM", 2, 16, 3, 3, 127, 48, AS_CH_TRI, -4, 0},     /* minor chords off the beat (steps 3 9 14) */
       {"OPEN HAT", 0, 16, 4, 2, 127, 60, AS_CH_OFF, -6, 0}}, 0, 0, 0},   /* between the kicks */
     {"AMBIENT", "TWO SOFT PADS . GENTLE RAIN", 70, AS_SC_MIN, 0,
