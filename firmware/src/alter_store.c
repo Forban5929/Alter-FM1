@@ -2,8 +2,8 @@
  * ALTER's SAVE / LOAD (included by alter_ui.c after alter_sounds.c). Two tabs, each a list:
  *   NEW (load only: a blank scene, or an empty pattern), 4 factory ones (protected), 16 USER slots.
  * A SCENE is everything: per circle its sound (engine, E1..E8, ADSR, sends, insert, level, pan, glide, LFO), envelope
- * mode, locks and rhythm (LEN HITS ROT PROB FROT, DOSE, ROOT, CHORD, each step's force and chance); and the scale,
- * tempo and swing. A PATTERN is the rhythm only (per circle LEN HITS ROT PROB FROT, force and chance per step):
+ * mode, locks and rhythm (LEN HITS ROT PROB FROT, DOSE, ROOT, CHORD, each step's force and chance), its LFO's
+ * WAVE SYNC SHP and its four matrix slots; and the scale, tempo, swing and the GLOBAL LFO (alter_lfo.c). A PATTERN is the rhythm only (per circle LEN HITS ROT PROB FROT, force and chance per step):
  * loading one leaves the sounds, notes and everything else as they are.
  * The USER slots live in RAM (alt_bank_s, alt_bank_p) and on the flash, in Felucca's project objects 3 and 4
  * (storage.c OBJ_PROJECT0 + 2 / + 3; an own magic tells ours from a Felucca project saved there). Packed small: a
@@ -35,11 +35,17 @@ typedef struct {                 /* a circle in a scene */
     int8_t e[8];
     int8_t p[ALT_NSP];
     alt_rhy_t r;
+    uint8_t lwave, lsync;                        /* its LFO's WAVE, SYNC, DEST SHP */
+    int8_t lshp;
+    uint8_t m[2 * NMSLOT];                       /* the matrix slots: SRC (4 bits) DST (5) AMT + 64 (7), 2 bytes each */
 } alt_scirc_t;
 
 typedef struct {
     uint8_t used, bpm, scale, swing;
     alt_scirc_t c[AS_NCIRC];
+    uint8_t gwave, grate;                        /* the GLOBAL LFO */
+    uint8_t gdst[GL_NSLOT];
+    int8_t gamt[GL_NSLOT];
 } alt_scene_rec_t;
 
 typedef struct {
@@ -138,6 +144,21 @@ static void alt_scene_get(alt_scene_rec_t *s)
         for (k = 0; k < ALT_NSP; k++)
             o->p[k] = (int8_t)clamp(alt_base(c, ALT_SP[k]), -128, 127);
         alt_rhy_get(c, &o->r);
+        o->lwave = (uint8_t)t->p[P_LWAVE];
+        o->lsync = (uint8_t)t->p[P_LSYNC];
+        o->lshp = (int8_t)t->p[P_LD_SHP];
+        for (k = 0; k < NMSLOT; k++) {
+            uint32_t w = ((uint32_t)t->p[P_M1SRC + 3u * k] & 15u) | ((uint32_t)t->p[P_M1DST + 3u * k] & 31u) << 4 |
+                         ((uint32_t)(t->p[P_M1AMT + 3u * k] + 64) & 127u) << 9;
+            o->m[2u * k] = (uint8_t)w;
+            o->m[2u * k + 1u] = (uint8_t)(w >> 8);
+        }
+    }
+    s->gwave = alt_gl.wave;
+    s->grate = alt_gl.rate;
+    for (k = 0; k < GL_NSLOT; k++) {
+        s->gdst[k] = alt_gl.dst[k];
+        s->gamt[k] = alt_gl.amt[k];
     }
 }
 
@@ -158,6 +179,15 @@ static void alt_scene_put(const alt_scene_rec_t *s)
             t->p[P_E0 + k] = o->e[k];
         for (k = 0; k < ALT_NSP; k++)
             t->p[ALT_SP[k]] = o->p[k];
+        t->p[P_LWAVE] = (int16_t)clamp(o->lwave, TP[P_LWAVE].min, TP[P_LWAVE].max);
+        t->p[P_LSYNC] = (int16_t)clamp(o->lsync, TP[P_LSYNC].min, TP[P_LSYNC].max);
+        t->p[P_LD_SHP] = o->lshp;
+        for (k = 0; k < NMSLOT; k++) {
+            uint32_t w = o->m[2u * k] | (uint32_t)o->m[2u * k + 1u] << 8;
+            t->p[P_M1SRC + 3u * k] = (int16_t)((w & 15u) < MS_N ? w & 15u : 0u);
+            t->p[P_M1DST + 3u * k] = (int16_t)((w >> 4 & 31u) < MD_N ? w >> 4 & 31u : 0u);
+            t->p[P_M1AMT + 3u * k] = (int16_t)((int32_t)(w >> 9 & 127u) - 64);
+        }
         for (k = 0; k < ALT_NSLOT; k++)
             alt_applied[c][k] = 0;
         fm1_irq_on();
@@ -169,6 +199,12 @@ static void alt_scene_put(const alt_scene_rec_t *s)
         au.cfg[c].mute = 0;
         alt_rhy_put(c, &o->r);
     }
+    alt_gl.wave = (uint8_t)(s->gwave % GW_N);
+    alt_gl.rate = (uint8_t)(s->grate % GL_NRATE);
+    for (k = 0; k < GL_NSLOT; k++) {
+        alt_gl.dst[k] = (uint8_t)(s->gdst[k] % GD_N);
+        alt_gl.amt[k] = (int8_t)clamp(s->gamt[k], -64, 63);
+    }
 }
 
 /* factory scene n (alter_sounds.c ALT_SCENE) */
@@ -179,6 +215,7 @@ static void alt_load_scene(uint32_t n)
     song.g[G_BPM] = sc->bpm;
     song.g[G_SWING] = sc->swing;
     alt_seq.scale = sc->scale;
+    alt_gl_reset();
     for (c = 0; c < AS_NCIRC; c++) {
         as_cfg_t *cf = &au.cfg[c];
         alt_rhy_t r;
@@ -206,6 +243,7 @@ static void alt_new_scene(void)
     song.g[G_BPM] = 120;
     song.g[G_SWING] = 0;
     alt_seq.scale = AS_SC_MIN;
+    alt_gl_reset();
     for (c = 0; c < AS_NCIRC; c++) {
         alt_rhy_t r;
         alt_load_sound(c, alt_pre_find(PRE[c]));

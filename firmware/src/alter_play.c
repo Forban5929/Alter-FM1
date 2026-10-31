@@ -256,10 +256,60 @@ static uint32_t alt_roll_period(uint32_t h, uint32_t p)
     return p;
 }
 
+/* the GLOBAL LFO (alter_lfo.c) after n samples more: its phase on the sixteenths' grid (p samples each), counted
+ * from PLAY (stopped, it runs on at the tempo) */
+static uint32_t alt_gl_n, alt_gl_cyc, alt_gl_rnd;
+static int32_t alt_gl_old, alt_gl_new;           /* S&H / SLEW: the cycle before's value, this one's */
+static void alt_gl_tick(uint32_t n, uint32_t p)
+{
+    uint32_t per = p * GL_RATE_STEPS[alt_gl.rate % GL_NRATE], pos, ph, cyc;
+    int32_t u, v;
+    if (!per)
+        return;
+    alt_gl_n += n;
+    cyc = alt_gl_n / per;
+    pos = alt_gl_n - cyc * per;
+    ph = (uint32_t)(((uint64_t)pos << 32) / per);
+    if (cyc != alt_gl_cyc) {                     /* a new cycle: a new random value */
+        uint32_t x = alt_gl_rnd ? alt_gl_rnd : 0x51ED270Bu;
+        x ^= x << 13;
+        x ^= x >> 17;
+        x ^= x << 5;
+        alt_gl_rnd = x;
+        alt_gl_cyc = cyc;
+        alt_gl_old = alt_gl_new;
+        alt_gl_new = (int32_t)(x >> 16) - 32768;
+    }
+    u = (int32_t)(ph >> 17);                     /* 0 .. 32767 across the cycle */
+    switch (alt_gl.wave % GW_N) {
+    case GW_SIN: v = sine_i(ph); break;
+    case GW_TRI: v = u < 16384 ? u * 4 - 32767 : (32767 - u) * 4 - 32767; break;
+    case GW_SAW: v = u * 2 - 32767; break;
+    case GW_SQR: v = ph < 0x80000000u ? 32767 : -32767; break;
+    case GW_SH: v = alt_gl_new; break;
+    case GW_SLEW: v = alt_gl_old + (((alt_gl_new - alt_gl_old) * u) >> 15); break;
+    case GW_RUP: v = u; break;
+    default: v = 32767 - u; break;
+    }
+    alt_gl_val = clamp(v, -32767, 32767);
+}
+
+/* each circle's POS (alter_lfo.c): its step sounding and the time into it, over its length */
+static void alt_pos_src(uint32_t p)
+{
+    uint32_t c, f = p ? ((alt_pos < p ? alt_pos : p - 1u) << 15) / p : 0u;
+    for (c = 0; c < AS_NCIRC; c++) {
+        const as_circ_t *cc = &alt_seq.c[c];
+        uint32_t len = cc->cfg.len ? cc->cfg.len : 1u, now = (cc->pos + len - 1u) % len;
+        alt_msrc[c][0] = (int16_t)(alt_run ? (now * 32768u + f) / len : 0u);
+    }
+}
+
 static void alter_step(void)
 {
     as_event_t ev[AS_NCIRC];
     uint32_t c, j, h = alt_hold;
+    alt_seq.pmod = (int16_t)alt_gl_prob();       /* the GLOBAL on PROB */
     as_step(&alt_seq, ev);
     alt_gstep++;
     if ((h >> AF_REVERSE) & 1u) {                /* back two: the next step is the one before this one */
@@ -283,6 +333,7 @@ static void alter_step(void)
                 alt_off(c);
             continue;
         }
+        alt_msrc[c][1] = (int16_t)(v->force >= AS_ACCENT ? 32767 : v->force * 16383);   /* FORCE */
         if (tp)                                  /* back to the base, then this hit's offsets */
             for (j = 0; j < AS_NTIMB; j++)
                 alt_offset(c, tp[j], v->timb[j]);
@@ -347,7 +398,7 @@ static uint32_t alt_len(uint32_t p)
 }
 
 /* n samples on in this block (seq_n: Felucca's, so an external clock moves it too) */
-static void alter_tick(uint32_t n)
+static void alter_tick_(uint32_t n)
 {
     uint32_t p = div_samples(2), h, c, len;      /* a sixteenth */
     if (!alt_ready) {
@@ -355,6 +406,7 @@ static void alter_tick(uint32_t n)
         alt_ready = 1;
     }
     alt_take();
+    alt_gl_tick(n, p);
     h = alt_hold;
     if (!song.playing) {
         if (alt_run)
@@ -371,6 +423,8 @@ static void alter_tick(uint32_t n)
         alt_pos = 0;
         alt_par = 0;
         alt_gstep = 0;
+        alt_gl_n = 0;                            /* the GLOBAL from bar 1 */
+        alt_gl_cyc = 0;
         for (c = 0; c < AS_NCIRC; c++)
             alt_seq.c[c].pos = 0;
         alter_step();
@@ -398,4 +452,10 @@ static void alter_tick(uint32_t n)
             alt_roll_n++;
         }
     }
+}
+
+static void alter_tick(uint32_t n)
+{
+    alter_tick_(n);
+    alt_pos_src(div_samples(2));                 /* (after the steps: a cycle's first hit hears POS 0) */
 }

@@ -50,15 +50,19 @@
  * presets read and write t->p from the main loop, which the ISR preempts; TIMER5 only fills the MIDI rings),
  * and the engines read t->p as before. An engine reads its parameters in note_on (events_block) unmodulated.
  * Nothing active (every slot with SRC, DST or AMT at 0): no work, and the sound is bit-identical. */
-enum { MS_OFF, MS_LFO, MS_ENV, MS_VEL, MS_KEY, MS_RAND, MS_MODW, MS_AT, MS_EXPR, MS_SH, MS_SLEW, MS_N };
+enum { MS_OFF, MS_LFO, MS_ENV, MS_VEL, MS_KEY, MS_RAND, MS_MODW, MS_AT, MS_EXPR, MS_SH, MS_SLEW, MS_POS, MS_FORCE,
+       MS_N };   /* (ALTER: POS FORCE, alter_lfo.c) */
 enum { MD_OFF, MD_PITCH, MD_CUT, MD_SHP, MD_AMP, MD_PAN, MD_DIST, MD_CHO, MD_DLY, MD_REV, MD_RATE, MD_VIB, MD_E1,
        MD_DEPTH = MD_E1 + 8, MD_VEL, MD_TIME, MD_N };   /* (append-only: the stored values keep their meaning) */
 _Static_assert(NELEM(N_MSRC) == MS_N && NELEM(N_MDST) == MD_N, "N_MSRC / N_MDST == MS_* / MD_*");
 _Static_assert(P_M2SRC == P_M1SRC + 3 && P_M4AMT == P_M1SRC + 11 && P_M4AMT + 1 == P_FM1_ATK, "matrix slots: 3 ids each");
 #define NMSLOT 4u
 #define MS_VOICE(s) ((s) >= MS_ENV && (s) <= MS_RAND)             /* a value per voice */
-#define MS_BIPOLAR(s) ((s) == MS_LFO || (s) == MS_KEY || (s) == MS_RAND || (s) >= MS_SH)
+#define MS_BIPOLAR(s) ((s) == MS_LFO || (s) == MS_KEY || (s) == MS_RAND || (s) == MS_SH || (s) == MS_SLEW)
 #define MD_ENGINE(d) ((d) >= MD_E1 && (d) < MD_E1 + 8)           /* E1..E8: P_E0..P_E7 */
+#define MOD_NKEEP 12u            /* per-block values held: the GLOBAL's 4, the LFO DEST it takes over 4, the slots' 4 */
+
+#include "alter_lfo.c"         /* ALTER's GLOBAL LFO and the circles' POS / FORCE */
 
 /* the track parameter of a per-block destination */
 static uint32_t mod_param(uint32_t d)
@@ -76,8 +80,8 @@ typedef struct {                 /* a part's, while mix_part renders it (one per
     int32_t ldep;                /* DEPTH: the track LFO's gain (Q15; 32767 = none, track_render leaves it alone) */
     uint8_t vsrc[NMSLOT], vdst[NMSLOT];
     int8_t vamt[NMSLOT];
-    uint8_t kid[NMSLOT];         /* per-block: the parameter, its stored value */
-    int16_t keep[NMSLOT];
+    uint8_t kid[MOD_NKEEP];      /* per-block: the parameter, its stored value */
+    int16_t keep[MOD_NKEEP];
 } modw_t;
 #if FELUCCA_CPU2
 static modw_t mod_w[NTRK];
@@ -122,6 +126,10 @@ static int32_t mod_tsrc(const track_t *t, uint32_t s, int32_t lfo)
         return t->m_rnd;
     case MS_MODW:
         return t->mw * 258;
+    case MS_POS:
+        return alt_msrc_of(t, 0);
+    case MS_FORCE:
+        return alt_msrc_of(t, 1);
     case MS_AT:
         return t->at * 258;
     default:
@@ -166,19 +174,61 @@ static __attribute__((noinline)) int32_t mod_depth(const track_t *t, int32_t lfo
     return g;
 }
 
+/* a per-block parameter id moved by o this block (held: mod_end puts it back) */
+static void mod_keep(const track_t *t, modw_t *mw, int32_t *off, uint32_t id, int32_t o)
+{
+    uint32_t j;
+    for (j = 0; j < mw->nk && mw->kid[j] != id; j++)
+        ;
+    if (j == mw->nk) {
+        if (j >= MOD_NKEEP)
+            return;
+        mw->kid[j] = (uint8_t)id;
+        mw->keep[j] = t->p[id];
+        off[j] = 0;
+        mw->nk++;
+    }
+    off[j] += o;
+}
+
+/* ALTER's GLOBAL LFO on one of the circles' parts (alter_lfo.c): its slots, and the circle's own LFO DEST routings
+ * on the destinations it takes held at 0 this block */
+static __attribute__((noinline)) void mod_global(const track_t *t, modw_t *mw, int32_t *off, uint32_t take)
+{
+    static const uint8_t LD[4][2] = {{MD_PITCH, P_LD_PIT}, {MD_CUT, P_LD_FLT}, {MD_SHP, P_LD_SHP}, {MD_AMP, P_LD_AMP}};
+    uint32_t k, s = alt_gl_uni() ? MS_ENV : MS_LFO;     /* (a ramp is 0..1: AMP reads it as ENV) */
+    int32_t x = alt_gl_val;
+    for (k = 0; k < GL_NSLOT; k++) {
+        uint32_t g = alt_gl.dst[k], d = g < GD_N ? GL_MD[g] : 0u;
+        int32_t a = alt_gl.amt[k];
+        if (!d || !a)
+            continue;
+        if (d <= MD_AMP) {
+            mw->amp |= d == MD_AMP;
+            mod_voice_add(s, d, x, a, &mw->pit, &mw->cut, &mw->shp, &mw->gain);
+        } else {
+            uint32_t id = mod_param(d);
+            mod_keep(t, mw, off, id, (((x * a) >> 6) * (TP[id].max - TP[id].min)) >> 15);
+        }
+    }
+    for (k = 0; k < 4u; k++)
+        if (((take >> LD[k][0]) & 1u) && t->p[LD[k][1]])
+            mod_keep(t, mw, off, LD[k][1], -t->p[LD[k][1]]);
+}
+
 /* before a part's block (fx.c mix_part): the per-track offsets, the per-block destinations into t->p.
  * 0 = no slot active (then nothing changed) */
 static __attribute__((noinline)) int mod_begin(track_t *t)
 {
     const int16_t *p = t->p;
-    int32_t lfo, off[NMSLOT];
-    uint32_t k, j;
+    int32_t lfo, off[MOD_NKEEP];
+    uint32_t k, j, take = (uint32_t)(t - trk) < 3u ? alt_gl_take() : 0u;   /* (ALTER: what the GLOBAL leads) */
     modw_t *mw = &MOD(t);
     mw->on = 0;
     for (k = 0; k < NMSLOT; k++)                        /* (VEL and TIME: at the notes, not here) */
         if (p[P_M1SRC + 3u * k] && p[P_M1DST + 3u * k] && p[P_M1AMT + 3u * k] && p[P_M1DST + 3u * k] < MD_VEL)
             break;
-    if (k == NMSLOT)
+    if (k == NMSLOT && !take)
         return 0;
     lfo = mulq15(t->lfo_val, t->lfo_fade);              /* (the LFO of the block before: track_render ticks it) */
     mw->on = 1;
@@ -189,11 +239,15 @@ static __attribute__((noinline)) int mod_begin(track_t *t)
     mw->ldep = mod_depth(t, lfo);                       /* DEPTH first: the other slots see the LFO it leaves */
     if (mw->ldep < 32767)
         lfo = mulq15(lfo, mw->ldep);
+    if (take)
+        mod_global(t, mw, off, take);
     for (; k < NMSLOT; k++) {
         uint32_t s = (uint32_t)p[P_M1SRC + 3u * k], d = (uint32_t)p[P_M1DST + 3u * k];
         int32_t a = p[P_M1AMT + 3u * k], x;
         if (!s || !d || !a || s >= MS_N || d >= MD_DEPTH)
             continue;
+        if (((take >> d) & 1u) && (s == MS_LFO || s == MS_SH || s == MS_SLEW))
+            continue;                                   /* (the GLOBAL leads there: the circle's LFO steps aside) */
         if (d <= MD_AMP) {                              /* per voice */
             mw->amp |= d == MD_AMP;
             if (MS_VOICE(s)) {
@@ -210,15 +264,7 @@ static __attribute__((noinline)) int mod_begin(track_t *t)
             uint32_t id = mod_param(d);
             const param_desc_t *pd = id >= P_E0 ? &ENGINES[t->engine]->edit[id - P_E0] : &TP[id];
             x = mod_tsrc(t, s, lfo);
-            for (j = 0; j < mw->nk && mw->kid[j] != id; j++)
-                ;
-            if (j == mw->nk) {
-                mw->kid[j] = (uint8_t)id;
-                mw->keep[j] = p[id];
-                off[j] = 0;
-                mw->nk++;
-            }
-            off[j] += (((x * a) >> 6) * (pd->max - pd->min)) >> 15;
+            mod_keep(t, mw, off, id, (((x * a) >> 6) * (pd->max - pd->min)) >> 15);
         }
     }
     for (j = 0; j < mw->nk; j++) {

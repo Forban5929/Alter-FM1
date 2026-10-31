@@ -72,6 +72,7 @@ typedef struct {
     as_circ_t c[AS_NCIRC];
     uint8_t scale;                  /* AS_SC_*, shared */
     uint32_t rng;                   /* the PROB and CHANCE coins */
+    int16_t pmod;                   /* added to every circle's PROB (the host's GLOBAL LFO), 0 = none */
 } as_seq_t;
 
 typedef struct {
@@ -335,10 +336,11 @@ static void as_step(as_seq_t *q, as_event_t ev[AS_NCIRC])
         k = c->pos;
         {
             uint32_t ch = c->chance[k];
+            int32_t prob = (int32_t)c->cfg.prob + q->pmod;
             if (c->die && c->dchance[k] < ch)
                 ch = c->dchance[k];
             on = !c->cfg.mute && (c->pat >> k & 1u) &&
-                 (c->cfg.prob >= 127 || (int32_t)(as_rand(&q->rng) % 127u) < c->cfg.prob) &&
+                 (prob >= 127 || (int32_t)(as_rand(&q->rng) % 127u) < prob) &&
                  (ch >= 127 || as_rand(&q->rng) % 127u < ch);
         }
         c->pos = (uint8_t)((c->pos + 1u) % c->cfg.len);

@@ -183,20 +183,22 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         force 2 bits, chance 4 bits par pas), alt_rhy_get/put (pattern), alt_new_scene, alt_row_load/save, banques en
         RAM alt_bank_s/alt_bank_p + flash objets 3 et 4 (magie ATLS/ATLP), chargées au démarrage (alt_banks_load).
         Scènes d'usine : champ `dly` (envoi delay, 0 = celui du son). Écran : 2 onglets, 5 lignes, cadenas = usine.
-  - [ ] **3e LFO (choix validés 31/10, PAS codé)**. Existant Felucca vérifié (mod.c, voice.c) : 1 LFO par partie
-        (SIN TRI SAW SQR S&H, RATE PHASE FADE SYNC TRIG POL, dest. fixes PIT FLT SHP AMP ; sur ALTER FLT=HARM, SHP=MORPH),
-        calculé 1×/bloc (coût CPU minime, pas de vitesse audio) + MATRICE 4 cases/partie (P_M1SRC..P_M4AMT ; sources
-        LFO ENV VEL KEY RAND MODW AT EXPR S&H SLEW ; dest. PITCH CUT SHP AMP PAN DIST CHO DLY REV RATE VIB E1..E8 DEPTH
-        VEL TIME). Choix de Romain : **1 LFO par cercle + 1 LFO GLOBAL** (à nous, synchro tempo, peut bouger les 3 voix) ;
-        **LFO 2e appui = page MATRICE** (1er appui = page rapide actuelle, 3e = retour) ; **nouvelles sources : POSITION
-        dans le cycle du cercle (rampe sur LEN) et FORCE du pas**. Réglages du LFO global dans NOS scènes (ne pas
-        allonger P_COUNT : casse les sauvegardes Felucca). **Choix 31/10 (2e série)** : GLOBAL agit TOUJOURS sur les 3
-        cercles, mêmes destinations pour les 3 synthés, menu = SON (hauteur, MORPH/SHP, HARM/FLT, volume) + EFFETS
-        (DIST, delay, reverb) + PAN + RYTHME (PROB des cercles, nouveau) ; s'il vise une destination déjà modulée par le
-        LFO d'un cercle, le GLOBAL PREND LE DESSUS (remplace). Formes GLOBAL : SIN TRI SAW SQR S&H SLEW + RAMPES
-        montante/descendante sur 1, 2, 4 ou 8 mesures. Page MATRICE = onglets LFO 1, LFO 2, LFO 3, GLOBAL ; gestes comme la
-        page SAVE : ALGORITHM = onglet, SELECT = case, KNOB 1 = source, KNOB 2 = destination (liste déroulante),
-        KNOB 3 = quantité.
+  - [x] **3e LFO (31/10, codé, testé, publié ; ATTEND L'ÉCOUTE)**. Choix de Romain : 1 LFO par cercle (celui de Felucca) +
+        **1 LFO GLOBAL** (toujours les 3 cercles ; formes SIN TRI SAW SQR S&H SLEW RAMP+ RAMP- ; vitesse 1/16..8 MESURES
+        comptée depuis PLAY ; 4 cases destination + quantité : PITCH SHAPE FILT LEVEL DIST DELAY REVRB PAN PROB). Le
+        GLOBAL **prend le dessus** : sur une destination qu'il vise, la route LFO DEST du cercle (P_LD_*) et ses cases
+        de matrice à source LFO/S&H/SLEW sont ignorées. **LFO 2e appui = page MATRICE** (onglets LFO 1 2 3 · GLOBAL ;
+        ALGORITHM onglet, SELECT ligne ; ligne 0 = WAVE RATE SYNC du LFO ; lignes 1-4 = cases : K1 source, K2
+        destination avec liste déroulante 1,2 s, K3 quantité ; LFO, HOME ou autre bouton de page = sortie). Nouvelles
+        sources de matrice **POS** (rampe sur le cycle du cercle) et **FORCE** (dernier coup : ghost 0, normal 0,5,
+        accent 1). Scènes : + WAVE SYNC LD_SHP + 4 cases (2 octets chacune) par cercle + le GLOBAL (banque 3780/3840 o ;
+        la taille a changé → les slots USER enregistrés avant sont effacés au 1er démarrage). Scènes d'usine / NEW =
+        GLOBAL éteint. Code : `alter_lfo.c` (inclus par mod.c : GLOBAL alt_gl, alt_gl_val, alt_msrc[3][2] POS/FORCE,
+        alt_gl_take = masque MD_*, alt_gl_prob) ; mod.c : MS_POS MS_FORCE, mod_global + mod_keep (MOD_NKEEP 12) ;
+        alter_play.c : alt_gl_tick (par bloc, sur la grille), alt_pos_src APRÈS les pas (alter_tick → alter_tick_),
+        FORCE au coup, alt_seq.pmod (PROB) ; alter_ui.c : alt_matrix_input / alt_matrix_scene, alt_qpush.
+        Tests (alter_emu_test) : MATRICE s'ouvre, GLOBAL SQR → PROB, RAMP+ → LEVEL, POS → AMP, le GLOBAL prend le dessus.
+        Idées pas faites : DÉ/CHAOS qui tirent le LFO, source GLOBAL dans les matrices des cercles.
   - [ ] 3c : vue DEEP (EDIT ouvre encore la page EDIT de Felucca). Puis retirer l'interface Felucca. Reste : SCL → gamme
         des cercles, touches blanches libres, DESTROY assignable, verrous du dé, DOSE.
 - [ ] Étape 4 (après le séquenceur) : tranche de console dédiée, ordre FIXE validé :

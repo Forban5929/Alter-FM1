@@ -7,7 +7,11 @@
  *                HITS ROT PROB from the next cycle, the other circles greyed; ENV = ATK DEC SUS REL; FX = DIST INSERT
  *                DELAY REVERB; LFO = RATE >PITCH >TIMBRE >LEVEL; EDIT = the engine's four others; SCL = SCALE ROOT
  *                CHORD DOSE; GLO = TEMPO LEVEL PAN SWING). A tap keeps it open (the same button again, or HOME, closes
- *                it; another page button switches); held 2 s or more it closes on release
+ *                it; another page button switches); held 2 s or more it closes on release. LFO tapped again on its
+ *                page: the MATRIX page (alt_matrix_input): tabs LFO 1 2 3 (each circle's LFO and its four matrix
+ *                slots) and GLOBAL (alter_lfo.c); ALGORITHM the tab, SELECT the row, KNOB 1 SOURCE (row 0: WAVE),
+ *                KNOB 2 DESTINATION (a list drops down; row 0: RATE), KNOB 3 AMOUNT (row 0: SYNC); LFO, HOME or
+ *                another page button leaves
  *   OCT- + OCT+ held, then a page button: Felucca's own page (HOME comes back); then DICE n: circle n's LOCKS page
  *                (the white keys F3..E4 = RHYTHM PITCH GLIDE ENV TIMBRE FORCE VELOCITY, a tap locks / frees; HOME)
  *   SELECT       the chosen circle (and Felucca's selected part: its pages edit its sound)
@@ -75,6 +79,9 @@ static struct {
     uint8_t ready, sel, drawn, die_clean_done, handed;   /* handed: a Felucca button is down (its release is Felucca's) */
     uint8_t qp, qp_was;          /* the quick page kept open (QP_*); the page buttons down at the last frame (bit QP_*) */
     uint8_t lockc;               /* the LOCKS page open: circle + 1 */
+    uint8_t mat_open, mtab, mrow[4], dd;   /* the MATRIX page: its tab (0..2 the circles, 3 GLOBAL), each tab's row
+                                 * (0 the LFO, 1..4 the slots); the knob whose list drops down (1..3), shown since dd_ms */
+    uint32_t dd_ms;
     uint8_t scene_open, tab, row[2], save_done;   /* the SAVE page open; its tab (0 SCENES 1 PATTERNS), each tab's row;
                                                  * a long hold has stored (its release loads nothing) */
     uint32_t save_t0;            /* SAVE's press on the page (fm1_ms), 0 = up */
@@ -253,6 +260,83 @@ static void alt_turn(uint32_t q, uint32_t i, int32_t s)
     }
 }
 
+/* parameter id of circle c's part moved by d (through the queue: the audio side applies it) */
+static void alt_qpush(uint32_t c, uint32_t id, int32_t d)
+{
+    uint8_t w = alt_qw, nx = (uint8_t)((w + 1u) % ALT_QN);
+    if (nx == alt_qr)                            /* (full: the turn is lost, the next one goes) */
+        return;
+    alt_q[w].c = (uint8_t)c;
+    alt_q[w].p = (uint8_t)id;
+    alt_q[w].d = (int8_t)clamp(d, -100, 100);
+    alt_qw = nx;
+}
+
+/* ---- the MATRIX page ----------------------------------------------------------------------------------------- */
+#define ALT_DD_MS 1200u                          /* a list stays down this long after its knob */
+/* knob i (0..2) on row r of tab tb: the circle's parameter it moves (P_*), or 0 (the GLOBAL's own, or none) */
+static uint32_t alt_mat_param(uint32_t tb, uint32_t r, uint32_t i)
+{
+    static const uint8_t LFO[3] = {P_LWAVE, P_LRATE, P_LSYNC};
+    if (tb >= AS_NCIRC || i > 2u)
+        return 0;
+    return r == 0 ? LFO[i] : P_M1SRC + 3u * (r - 1u) + i;
+}
+
+static void alt_mat_turn(uint32_t i, int32_t s)
+{
+    uint32_t tb = au.mtab, r = au.mrow[tb], id = alt_mat_param(tb, r, i);
+    if (id) {
+        alt_qpush(tb, id, id == P_LRATE ? s * 2 : s);
+    } else if (tb == AS_NCIRC) {                 /* the GLOBAL: its bytes, written here */
+        int32_t d = s > 0 ? 1 : -1;
+        if (r == 0 && i == 0)
+            alt_gl.wave = (uint8_t)clamp((int32_t)alt_gl.wave + d, 0, GW_N - 1);
+        else if (r == 0 && i == 1)
+            alt_gl.rate = (uint8_t)clamp((int32_t)alt_gl.rate + d, 0, GL_NRATE - 1);
+        else if (r && i == 1)
+            alt_gl.dst[r - 1u] = (uint8_t)clamp((int32_t)alt_gl.dst[r - 1u] + d, 0, GD_N - 1);
+        else if (r && i == 2)
+            alt_gl.amt[r - 1u] = (int8_t)clamp((int32_t)alt_gl.amt[r - 1u] + s, -64, 63);
+        else
+            return;
+    } else
+        return;
+    if (r && i < 2u) {                           /* a SOURCE or a DESTINATION: its list drops down */
+        au.dd = (uint8_t)(i + 1u);
+        au.dd_ms = fm1_ms;
+    }
+}
+
+/* the MATRIX page has this frame (1), or it has just been left (0: the frame goes on as usual) */
+static int alt_matrix_input(uint32_t pressed)
+{
+    uint32_t q, i, lfo = (fm1_in.buttons >> panel.btn[B_LFO]) & 1u;
+    int32_t s;
+    for (q = 1; q < QP_N; q++)                   /* another page button: that page instead */
+        if (q != QP_LFO && ((pressed >> panel.btn[ALT_QP_BTN[q]]) & 1u)) {
+            au.mat_open = 0;
+            return 0;
+        }
+    if (!lfo && ((au.qp_was >> QP_LFO) & 1u)) { /* LFO let go: back to the circles */
+        au.qp_was &= (uint8_t)~(1u << QP_LFO);
+        au.mat_open = 0;
+        au.qp = QP_NONE;
+        return 1;
+    }
+    au.qp_was = (uint8_t)((au.qp_was & ~(1u << QP_LFO)) | (lfo << QP_LFO));
+    if ((s = panel_enc(EN_ALGO)) != 0)
+        au.mtab = (uint8_t)clamp((int32_t)au.mtab + (s > 0 ? 1 : -1), 0, AS_NCIRC);
+    if ((s = panel_enc(EN_SELECT)) != 0)
+        au.mrow[au.mtab] = (uint8_t)clamp((int32_t)au.mrow[au.mtab] + s, 0, NMSLOT);
+    for (i = 0; i < 4u; i++)
+        if ((s = panel_enc(EN_K1 + i)) != 0)
+            alt_mat_turn(i, s);
+    (void)panel_enc(EN_PRESET);
+    alt_hold = 0;
+    return 1;
+}
+
 /* the quick page showing: a page button held, else the one kept open */
 static uint32_t alt_page(void)
 {
@@ -343,6 +427,7 @@ static int alter_ui_input(uint32_t pressed)
                 au.qp = QP_NONE;
                 au.qp_was = 0;
                 au.scene_open = 0;
+                au.mat_open = 0;
                 alt_hold = 0;
                 au.keys = keys;
                 return 0;
@@ -379,12 +464,14 @@ static int alter_ui_input(uint32_t pressed)
         au.qp = QP_NONE;
         au.lockc = 0;
         au.scene_open = 0;
+        au.mat_open = 0;
     }
     if (((pressed >> panel.btn[B_SAVE]) & 1u) && !au.scene_open) {   /* SAVE: the SAVE page (its press opens it) */
         au.scene_open = 1;
         au.save_t0 = 0;
         au.qp = QP_NONE;
         au.lockc = 0;
+        au.mat_open = 0;
     } else if (au.scene_open) {                  /* on it: a tap loads, held 1 s stores */
         uint32_t dn = (fm1_in.buttons >> panel.btn[B_SAVE]) & 1u, t = au.tab, r = au.row[t];
         if (((pressed >> panel.btn[B_SAVE]) & 1u)) {
@@ -418,6 +505,10 @@ static int alter_ui_input(uint32_t pressed)
         au.keys = keys;
         return 1;
     }
+    if (au.mat_open && alt_matrix_input(pressed)) {
+        au.keys = keys;
+        return 1;
+    }
     for (q = 1; q < QP_N; q++) {                 /* the page buttons: a tap keeps the page, a long hold does not */
         uint32_t dn = (fm1_in.buttons >> panel.btn[ALT_QP_BTN[q]]) & 1u, was = (au.qp_was >> q) & 1u;
         if (dn && !was) {
@@ -425,7 +516,13 @@ static int alter_ui_input(uint32_t pressed)
             au.lockc = 0;
             alt_say(ALT_QP_NAME[q]);
         } else if (!dn && was) {
-            if ((int32_t)(fm1_ms - au.qp_t0[q]) < (int32_t)ALT_PAGE_HOLD_MS)
+            if ((int32_t)(fm1_ms - au.qp_t0[q]) < (int32_t)ALT_PAGE_HOLD_MS && q == QP_LFO && au.qp == QP_LFO) {
+                au.qp = QP_NONE;                 /* LFO tapped on its page: the MATRIX */
+                au.mat_open = 1;
+                au.mtab = au.sel;
+                au.dd = 0;
+                alt_say("MATRIX");
+            } else if ((int32_t)(fm1_ms - au.qp_t0[q]) < (int32_t)ALT_PAGE_HOLD_MS)
                 au.qp = (uint8_t)(au.qp == q ? QP_NONE : q);
             else if (au.qp == q)
                 au.qp = QP_NONE;
@@ -726,6 +823,135 @@ static void alt_scenes_scene(void)
     }
 }
 
+/* the name of value v of knob i (0..2) on row r of tab tb (the GLOBAL's or the circle's); amount: *num set */
+static const char *alt_mat_name(uint32_t tb, uint32_t r, uint32_t i, int32_t v, char *buf)
+{
+    if (tb == AS_NCIRC) {
+        if (r == 0)
+            return i == 0 ? GL_WAVE_NAME[clamp(v, 0, GW_N - 1)] : GL_RATE_NAME[clamp(v, 0, GL_NRATE - 1)];
+        if (i == 1)
+            return GL_DST_NAME[clamp(v, 0, GD_N - 1)];
+    } else {
+        if (r == 0 && i == 0)
+            return N_LWAVE[clamp(v, 0, (int32_t)NELEM(N_LWAVE) - 1)];
+        if (r == 0 && i == 2)
+            return N_LSYNC[clamp(v, 0, (int32_t)NELEM(N_LSYNC) - 1)];
+        if (r && i == 0)
+            return N_MSRC[clamp(v, 0, MS_N - 1)];
+        if (r && i == 1)
+            return mod_dst_name(&trk[tb], v);
+    }
+    alt_num(buf, v, 0);
+    return buf;
+}
+
+/* the value knob i (0..2) shows on row r of tab tb */
+static int32_t alt_mat_val(uint32_t tb, uint32_t r, uint32_t i)
+{
+    uint32_t id = alt_mat_param(tb, r, i);
+    if (id)
+        return trk[tb].p[id];
+    if (tb != AS_NCIRC)
+        return 0;
+    if (r == 0)
+        return i == 0 ? alt_gl.wave : i == 1 ? alt_gl.rate : 0;
+    return i == 1 ? alt_gl.dst[r - 1u] : i == 2 ? alt_gl.amt[r - 1u] : 0;
+}
+
+/* what the MATRIX page's picture depends on */
+static uint32_t alt_mat_sig(void)
+{
+    uint32_t tb = au.mtab, r, i, sg = tb * 7u + au.mrow[tb] * 11u + alt_gl_take() * 3u;
+    for (r = 0; r <= NMSLOT; r++)
+        for (i = 0; i < 3u; i++)
+            sg = sg * 31u + (uint32_t)alt_mat_val(tb, r, i);
+    if (au.dd && fm1_ms - au.dd_ms < ALT_DD_MS)
+        sg = sg * 31u + au.dd * 977u;
+    return sg;
+}
+
+static void alt_matrix_scene(void)
+{
+    static const char *const TAB[4] = {"LFO 1", "LFO 2", "LFO 3", "GLOBAL"};
+    static const char *const H0C[3] = {"WAVE", "RATE", "SYNC"}, *const H0G[3] = {"WAVE", "RATE", ""};
+    uint32_t tb = au.mtab, row = au.mrow[tb], i, r, take = alt_gl_take();
+    uint16_t col = tb < AS_NCIRC ? ALT_COL[tb] : ALT_INK;
+    char b0[8], b1[8], b2[8];
+    int32_t x = 6;
+    for (i = 0; i < 4u; i++) {                   /* the tabs */
+        int32_t w = text_w(&AF_S, TAB[i]);
+        uint16_t c = i < AS_NCIRC ? ALT_COL[i] : ALT_INK;
+        cv_text(x, 4, &AF_S, TAB[i], i == tb ? c : ALT_GREY);
+        if (i == tb)
+            cv_rect(x, 20, w, 2, c);
+        x += w + 16;
+    }
+    for (r = 0; r <= NMSLOT; r++) {
+        int32_t y = 30 + (int32_t)r * 36, on = r == row;
+        uint16_t rb = on ? ALT_DARK : cv_bg;
+        const char *n0, *n1;
+        int32_t v0 = alt_mat_val(tb, r, 0), v1 = alt_mat_val(tb, r, 1), v2 = alt_mat_val(tb, r, 2);
+        if (on)
+            cv_rect(2, y - 2, 236, 34, ALT_DARK);
+        if (r == 0) {                            /* the LFO itself: three columns */
+            const char *const *h = tb < AS_NCIRC ? H0C : H0G;
+            n0 = alt_mat_name(tb, 0, 0, v0, b0);
+            n1 = alt_mat_name(tb, 0, 1, v1, b1);
+            for (i = 0; i < 3u; i++)
+                cv_text_on(8 + (int32_t)i * 78, y, &AF_S, h[i], ALT_DIM, rb);
+            cv_text_on(8, y + 14, &AF_S, n0, on ? ALT_INK : ALT_DIM, rb);
+            cv_text_on(86, y + 14, &AF_S, n1, on ? ALT_INK : ALT_DIM, rb);
+            if (tb < AS_NCIRC)
+                cv_text_on(164, y + 14, &AF_S, alt_mat_name(tb, 0, 2, v2, b2), on ? ALT_INK : ALT_DIM, rb);
+            continue;
+        }
+        {
+            int led = tb < AS_NCIRC && ((take >> v1) & 1u) && (v0 == MS_LFO || v0 == MS_SH || v0 == MS_SLEW);
+            int act = v2 && v1 && (tb == AS_NCIRC || v0);
+            int32_t bw = (v2 < 0 ? -v2 : v2) * 24 / 64;
+            uint16_t vc = led ? ALT_GREY : act ? col : ALT_DIM;
+            b0[0] = (char)('0' + r);
+            b0[1] = 0;
+            cv_text_on(8, y + 7, &AF_S, b0, ALT_GREY, rb);
+            n0 = tb == AS_NCIRC ? "GLOBAL" : alt_mat_name(tb, r, 0, v0, b1);
+            n1 = alt_mat_name(tb, r, 1, v1, b2);
+            cv_text_on(24, y + 7, &AF_S, n0, tb == AS_NCIRC ? ALT_GREY : on ? ALT_INK : ALT_DIM, rb);
+            cv_text_on(88, y + 7, &AF_S, ">", ALT_GREY, rb);
+            cv_text_on(100, y + 7, &AF_S, n1, on ? ALT_INK : ALT_DIM, rb);
+            cv_rect(168, y + 13, 1, 7, ALT_GREY);   /* the amount: a bar from the middle, and its number */
+            if (v2 > 0)
+                cv_rect(169, y + 14, bw, 5, vc);
+            else if (v2 < 0)
+                cv_rect(168 - bw, y + 14, bw, 5, vc);
+            alt_num(b0, v2, 0);
+            cv_text_r(234, y + 7, &AF_S, b0, vc, on ? ALT_DARK : cv_bg);
+            if (led)                             /* the GLOBAL leads there */
+                cv_text_on(24, y + 20, &AF_S, "GLOBAL LEADS", ALT_GREY, rb);
+        }
+    }
+    cv_text(8, 216, &AF_S, row ? (tb == AS_NCIRC ? "K2 DEST  K3 AMOUNT" : "K1 SRC  K2 DEST  K3 AMOUNT")
+                                : (tb == AS_NCIRC ? "K1 WAVE  K2 RATE" : "K1 WAVE  K2 RATE  K3 SYNC"), ALT_DIM);
+    if (au.dd && row && fm1_ms - au.dd_ms < ALT_DD_MS) {   /* the list, dropped down over its column */
+        uint32_t ki = au.dd - 1u;
+        int32_t cur = alt_mat_val(tb, row, ki), n = ki == 0 ? MS_N : tb == AS_NCIRC ? GD_N : MD_N, k;
+        int32_t lx = ki == 0 ? 20 : 96, ly = 30 + (int32_t)row * 36 + 8 - 2 * 15;
+        if (ly < 26)
+            ly = 26;
+        if (ly > 206 - 5 * 15)
+            ly = 206 - 5 * 15;
+        cv_rect(lx - 2, ly - 2, 84, 5 * 15 + 4, col);
+        cv_rect(lx - 1, ly - 1, 82, 5 * 15 + 2, RGB(0, 0, 0));
+        for (k = -2; k <= 2; k++) {
+            int32_t v = cur + k, yy = ly + (k + 2) * 15;
+            if (v < 0 || v >= n)
+                continue;
+            if (!k)
+                cv_rect(lx, yy, 80, 15, ALT_DARK);
+            cv_text(lx + 4, yy + 1, &AF_S, alt_mat_name(tb, row, ki, v, b0), k ? ALT_DIM : col);
+        }
+    }
+}
+
 static void alt_scene(uint32_t q, uint32_t flash)
 {
     const track_t *t = &trk[au.sel];
@@ -738,6 +964,10 @@ static void alt_scene(uint32_t q, uint32_t flash)
     }
     if (au.scene_open) {
         alt_scenes_scene();
+        return;
+    }
+    if (au.mat_open) {
+        alt_matrix_scene();
         return;
     }
     /* the head: a point of the chosen circle's colour, its sound, the transport */
@@ -838,6 +1068,7 @@ static void alter_draw(void)
     }
     sig = sig * 31u + alt_emode[au.sel] * 37u + alt_seq.scale * 41u + au.scene_open * 43u + au.row[au.tab] * 47u + au.tab * 59u +
           au.pre[au.sel] * 53u;
+    sig = sig * 31u + (au.mat_open ? alt_mat_sig() * 2u + 1u : 0u);
     sig = sig * 31u + q * 19u + au.lockc * 23u + alt_seq.c[au.lockc ? au.lockc - 1u : 0u].locks * 29u;
     sig = sig * 31u + au.sel * 3u + flash * 5u + (uint32_t)song.playing * 7u + trk[au.sel].preset * 11u +
           (uint32_t)song.g[G_BPM] * 13u + (au.msg && fm1_ms - au.msg_ms < 1500u ? (uint32_t)(uintptr_t)au.msg + (fm1_ms - au.msg_ms < 900u) : 1u);
