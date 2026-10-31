@@ -18,6 +18,8 @@ s = s.replace('<p class="keys">',
               '<b>LFO</b> (<kbd>4</kbd>) · <b>EDIT</b> (<kbd>5</kbd>) les 4 autres réglages du moteur · <b>SCL</b> (<kbd>2</kbd>) GAMME NOTE GLIDE DOSE · '
               '<b>GLO</b> (<kbd>6</kbd>) TEMPO VOLUME PAN SWING. <b>OCT− + OCT+</b> (<kbd>[</kbd><kbd>]</kbd>) tenus + bouton = vraie page Felucca ; '
               '+ DÉ n = VERROUS du cercle n. HOME (<kbd>7</kbd>) = retour.<br>'
+              '<b>ALGORITHM</b> (<kbd>←</kbd><kbd>→</kbd>) = mode d\'enveloppe du cercle choisi : FREE · PERC · STAB · DRONE. '
+              '<b>CHAOS</b> = les 3 DÉ ensemble (tout est tiré à l\'extrême : moteurs, sons, effets, rythmes, gamme ; définitif).<br>'
               'Clavier : blanches <b>MUTE</b> 1 2 3 · <b>DÉ</b> 1 2 3 (appui = nouveau tirage tout de suite, tenu = motif propre) · '
               '<b>SHIFT</b> −1 +1 (tourne le cercle choisi) ; noires (sur le cercle choisi, calées sur la grille) : tenir <b>ROLL</b> 1/16 1/32 triolet · '
               '<b>RATCHET</b> ×2 ×3 · <b>DUB DELAY</b>, <b>DUB REVERB</b>, <b>DESTROY</b> · '

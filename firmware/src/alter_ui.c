@@ -12,7 +12,11 @@
  *                (the white keys F3..E4 = RHYTHM PITCH GLIDE ENV TIMBRE FORCE VELOCITY, a tap locks / frees; HOME)
  *   SELECT       the chosen circle (and Felucca's selected part: its pages edit its sound)
  *   PRESETS      the chosen circle's sound, through the presets of ALTER, PHYS and NOISE in a row
- *   ALGORITHM    the engine's KNOB 4     PLAY  start / stop      SAVE ARP REC: Felucca's
+ *   ALGORITHM    the chosen circle's envelope mode: FREE PERC STAB DRONE (alter_play.c AM_*)
+ *   DICE 1 + 2 + 3 together: CHAOS, everything drawn to the extreme on the three circles: engine, preset, the
+ *                engine's eight, the effects and LFO, the rhythm (at once), the die (DOSE 127), the scale and roots;
+ *                not the tempo, not the modes, not the mutes. For good: no undo
+ *   PLAY  start / stop      SAVE ARP REC: Felucca's
  * The keys (no notes here: alt_kb_own): the whites in lit blocks with a dark key between: MUTE 1 2 3 (a tap),
  * DICE 1 2 3 (a tap: a new draw at once; held 0.6 s: the clean pattern again), SHIFT -1 +1 (a tap: the chosen
  * circle turned a step, kept); the blacks in their groups 3-2-3-2-1, on the chosen circle: held ROLL 1/16 1/32
@@ -251,6 +255,66 @@ static uint32_t alt_page(void)
     return au.qp;
 }
 
+#define ALT_DICE_KEYS ((1u << 7) | (1u << 9) | (1u << 11))   /* DICE 1 2 3 (ALT_KEY) */
+
+static uint32_t alt_crng;
+static uint32_t alt_cr(uint32_t n)               /* 0 .. n-1 */
+{
+    uint32_t x = alt_crng ? alt_crng : (fm1_ms * 2654435761u) | 1u;
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    alt_crng = x;
+    return n ? x % n : 0u;
+}
+static int16_t alt_crange(const param_desc_t *d, int32_t div)   /* anywhere in d's range (div > 1: toward its middle) */
+{
+    int32_t span = d->max - d->min, mid = d->min + span / 2;
+    return (int16_t)(mid - span / (2 * div) + (int32_t)alt_cr((uint32_t)(span / div + 1)));
+}
+
+/* CHAOS: the three circles drawn to the extreme */
+static void alt_chaos(void)
+{
+    static const uint8_t FXP[9] = {P_DIST, P_ITYPE, P_IA, P_IMIX, P_DLY, P_REV, P_LRATE, P_LD_FLT, P_LD_AMP};
+    uint32_t c, k;
+    alt_crng ^= fm1_ms * 0x9E3779B9u;
+    alt_seq.scale = (uint8_t)alt_cr(AS_NSCALE);
+    for (c = 0; c < AS_NCIRC; c++) {
+        track_t *t = &trk[c];
+        uint32_t e = ALT_ENGS[alt_cr(AS_NCIRC)], ei;
+        const engine_t *en = ENGINES[e];
+        as_cfg_t *cf = &au.cfg[c];
+        if (t->eng_req != e)
+            set_engine_of(t, e);
+        fm1_irq_off();
+        apply_preset_to(t, alt_cr(en->npresets));
+        for (k = 0; k < 8u; k++)                 /* the engine's eight, anywhere */
+            t->p[P_E0 + k] = alt_crange(&en->edit[k], 1);
+        for (k = 0; k < sizeof FXP; k++)         /* the effects and LFO */
+            t->p[FXP[k]] = alt_crange(param_desc_of(e, FXP[k]), 1);
+        t->p[P_LD_PIT] = alt_crange(param_desc_of(e, P_LD_PIT), 4);   /* (the pitch LFO milder: the notes stay notes) */
+        for (k = 0; k < ALT_NSLOT; k++)
+            alt_applied[c][k] = 0;
+        alt_note[c] = 0;
+        alt_gate_left[c] = 0;
+        fm1_irq_on();
+        alt_preset_cnt[c]++;
+        ei = 5u + alt_cr(28u);                   /* the rhythm: LEN 5..32, anything in it, at once */
+        cf->len = (uint8_t)ei;
+        cf->hits = (uint8_t)(1u + alt_cr(ei));
+        cf->rot = (uint8_t)alt_cr(ei);
+        cf->frot = (uint8_t)alt_cr(ei);
+        cf->prob = (uint8_t)(80u + alt_cr(48u));
+        cf->dose = 127;
+        cf->root = (uint8_t)(24u + alt_cr(37u)); /* C1 .. C4 */
+        alt_post_now |= (uint8_t)(1u << c);
+        alt_post_circle(c);
+        alt_roll_cnt[c]++;                       /* and the die at full DOSE */
+    }
+    alt_say("CHAOS");
+}
+
 static void alt_select(uint32_t i)
 {
     au.sel = (uint8_t)(i % AS_NCIRC);
@@ -324,8 +388,10 @@ static int alter_ui_input(uint32_t pressed)
             alt_turn(q, i, s);
     if ((s = panel_enc(EN_SELECT)) != 0 && !au.lockc)
         alt_select((uint32_t)((int32_t)au.sel + s + 3 * 16));
-    if ((s = panel_enc(EN_ALGO)) != 0 && !au.lockc)
-        alt_turn(QP_NONE, 3, s);
+    if ((s = panel_enc(EN_ALGO)) != 0 && !au.lockc) {   /* the chosen circle's envelope mode */
+        alt_emode[au.sel] = (uint8_t)clamp((int32_t)alt_emode[au.sel] + (s > 0 ? 1 : -1), 0, AM_N - 1);
+        alt_say(ALT_MODE_NAME[alt_emode[au.sel]]);
+    }
     if ((s = panel_enc(EN_PRESET)) != 0 && !au.lockc)
         alt_preset_step(au.sel, s);
     down = keys & ~au.keys;
@@ -357,6 +423,10 @@ static int alter_ui_input(uint32_t pressed)
             } else if (a->kind == AK_DIE) {
                 au.die_t0[i2] = fm1_ms | 1u;
                 au.die_clean_done &= (uint8_t)~(1u << i2);
+                if ((keys & ALT_DICE_KEYS) == ALT_DICE_KEYS) {   /* the three dice at once: CHAOS (no roll, no clean) */
+                    au.die_clean_done = 7u;
+                    alt_chaos();
+                }
             } else if (a->kind == AK_DENS) {
                 int32_t d = i2 ? 1 : -1;
                 alt_dens_tot[au.sel] += d;
@@ -584,6 +654,8 @@ static void alt_scene(uint32_t q, uint32_t flash)
     alt_disc(14, 13, 5, ALT_COL[au.sel]);
     cv_text(26, 2, &AF_M, t->preset < e->npresets ? e->presets[t->preset].name : e->name, ALT_INK);
     cv_text(8, 22, &AF_S, e->name, ALT_DIM);
+    cv_text(8 + text_w(&AF_S, e->name) + 10, 22, &AF_S, ALT_MODE_NAME[alt_emode[au.sel] % AM_N],
+            alt_emode[au.sel] ? ALT_COL[au.sel] : ALT_DIM);
     {
         uint32_t bpm = (uint32_t)song.g[G_BPM], n = 0;
         const char *st = song.playing ? "PLAY " : "STOP ";
@@ -674,6 +746,7 @@ static void alter_draw(void)
         int32_t f;
         sig = sig * 31u + (uint32_t)alt_kv(q, i, &nm, tx, &f);
     }
+    sig = sig * 31u + alt_emode[au.sel] * 37u + alt_seq.scale * 41u;
     sig = sig * 31u + q * 19u + au.lockc * 23u + alt_seq.c[au.lockc ? au.lockc - 1u : 0u].locks * 29u;
     sig = sig * 31u + au.sel * 3u + flash * 5u + (uint32_t)song.playing * 7u + trk[au.sel].preset * 11u +
           (uint32_t)song.g[G_BPM] * 13u + (au.msg && fm1_ms - au.msg_ms < 900u ? (uint32_t)(uintptr_t)au.msg : 1u);

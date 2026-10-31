@@ -165,6 +165,16 @@ tap(22); bar();
   }
   K(1 << 7); render(FS * 0.7); K(0); render(1200);
 }
+// ALGORITHM: circle 1's envelope mode (FREE PERC STAB DRONE): DRONE rings far longer than PERC
+{
+  const energy = (b) => b.audio.reduce((p, x) => p + Math.abs(x), 0);
+  enc(1, 1); bar(); const perc = energy(bar());
+  enc(1, 2); bar(); const drone = energy(bar());
+  enc(1, -3); bar(); const free = energy(bar());
+  check(`ALGORITHM: PERC ${perc.toFixed(0)} < FREE ${free.toFixed(0)}... DRONE ${drone.toFixed(0)} the most sound`,
+        drone > 2 * perc && drone > free);
+  check("modes keep the rhythm (FREE again: 8 hits)", same(bar().steps, euclid(16, 8, 0)));
+}
 // a fill on another circle leaves this one alone: SELECT circle 2 (muted), RATCHET X3 held
 enc(0, 1);
 {
@@ -175,8 +185,24 @@ enc(0, 1);
 tap(2);                                                          // circle 2 back on
 enc(2, 3);
 check("PRESETS on circle 2: it still plays", bar().steps.length >= 1);
-play(); render(FS / 2);
-check(`STOP: silent (last half second peak ${peak(render(FS / 2, true)).toFixed(4)})`, peak(render(FS / 2, true)) < 0.003);
+// CHAOS: the three dice at once: everything drawn (circle 3 back on too); it plays, nothing clips
+tap(4);
+{
+  const px = () => { render(4000); return Array.from(new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240).slice(0, 240 * 40)).join(); };
+  const before = px();
+  K((1 << 7) | (1 << 9) | (1 << 11)); render(2000); K(0); render(2000);
+  const after = px();
+  let worst = 0, heard = 0;
+  for (let i = 0; i < 4; i++) { const b = bar(); worst = Math.max(worst, b.peak); heard += b.steps.length; }
+  check(`CHAOS (DICE 1+2+3): new sounds on screen, it plays (${heard} attacks in 4 bars), peak ${worst.toFixed(3)}`,
+        after !== before && heard > 0 && worst > 0.01 && worst < 0.999);
+}
+play();
+{ // (after CHAOS the effects ring on: the delay and reverb tails must die away)
+  const tails = [1, 2, 4, 8].map(() => peak(render(FS, true)));
+  check(`STOP: the notes stop, the effects' tails die away (peaks a second apart ${tails.map((x) => x.toFixed(4)).join(" ")})`,
+        tails[3] < 0.003 && tails[3] < tails[0]);
+}
 if (wavPath) {                                                  // 4 bars from a fresh start, all three circles
   ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
   play();

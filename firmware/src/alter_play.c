@@ -26,7 +26,14 @@
 
 enum { AF_ROLL16, AF_ROLL32, AF_ROLLT, AF_RAT2, AF_RAT3, AF_DLY, AF_REV, AF_DESTROY, AF_REVERSE, AF_N };
 #define AF_ROLLS ((1u << AF_ROLL16) | (1u << AF_ROLL32) | (1u << AF_ROLLT))
-#define ALT_NSLOT 10                             /* the die's offsets: E1..E8, DEC, REL */
+#define ALT_NSLOT 12                             /* the offsets: E1..E8, DEC, REL, ATK, SUS */
+/* the envelope modes (ALGORITHM, per circle): FREE the sound's own ADSR; PERC, STAB, DRONE an ADSR of their own
+ * (the sound's own nudges it a quarter of the way, the die's offset a third as far) and the notes' length */
+enum { AM_FREE, AM_PERC, AM_STAB, AM_DRONE, AM_N };
+static const char *const ALT_MODE_NAME[AM_N] = {"FREE", "PERC", "STAB", "DRONE"};
+static const uint8_t ALT_MODE_ENV[AM_N][4] = {   /* ATK DEC SUS REL */
+    {0, 0, 0, 0}, {0, 42, 0, 34}, {0, 62, 56, 46}, {78, 110, 127, 104},
+};
 #define ALT_FLAM_SAMPLES 1100u                   /* ~25 ms */
 
 static as_seq_t alt_seq;
@@ -39,6 +46,8 @@ static int16_t alt_applied[AS_NCIRC][ALT_NSLOT]; /* the die's offsets in each pa
 /* UI -> here */
 static volatile uint16_t alt_hold;               /* the fills held, bit AF_* */
 static volatile uint8_t alt_sel;                 /* the selected circle */
+static volatile uint8_t alt_emode[AS_NCIRC];     /* each circle's envelope mode (AM_*) */
+static volatile uint8_t alt_post_now;            /* alt_post's circles to take at once, not from the next cycle (CHAOS) */
 #define ALT_QN 32u
 typedef struct { uint8_t c, p; int8_t d; } alt_qe_t;
 static volatile alt_qe_t alt_q[ALT_QN];         /* a parameter moved: circle, P_*, by (the UI writes at alt_qw .. */
@@ -81,7 +90,7 @@ static int32_t alt_slot(uint32_t p)
 {
     if (p >= P_E0 && p < P_E0 + 8u)
         return (int32_t)(p - P_E0);
-    return p == P_DEC ? 8 : p == P_REL ? 9 : -1;
+    return p == P_DEC ? 8 : p == P_REL ? 9 : p == P_ATK ? 10 : p == P_SUS ? 11 : -1;
 }
 
 /* parameter p of part c at base + o (the die's offset o; o = 0: back to the base) */
@@ -176,6 +185,17 @@ static void alt_take(void)
             alt_dens_seen[c] += sh;
             as_density(&alt_seq, c, sh);
         }
+        if ((post >> c) & 1u) {
+            as_set(&alt_seq, c, alt_post_cfg[c]);
+            if ((alt_post_now >> c) & 1u) {      /* at once: from the next step */
+                as_circ_t *cc = &alt_seq.c[c];
+                cc->cfg = cc->next;
+                cc->pos = (uint8_t)(cc->pos % cc->cfg.len);
+                as_repat(cc);
+                alt_post_now &= (uint8_t)~(1u << c);
+            }
+            alt_post &= (uint8_t)~(1u << c);
+        }
         if ((n = alt_roll_cnt[c]) != alt_roll_seen[c]) {
             alt_roll_seen[c] = n;
             as_roll(&alt_seq, c);
@@ -183,10 +203,6 @@ static void alt_take(void)
         if ((n = alt_clear_cnt[c]) != alt_clear_seen[c]) {
             alt_clear_seen[c] = n;
             as_clear(&alt_seq, c);
-        }
-        if ((post >> c) & 1u) {
-            as_set(&alt_seq, c, alt_post_cfg[c]);
-            alt_post &= (uint8_t)~(1u << c);
         }
     }
     if (!e)
@@ -256,10 +272,27 @@ static void alter_step(void)
         if (tp)                                  /* back to the base, then this hit's offsets */
             for (j = 0; j < AS_NTIMB; j++)
                 alt_offset(c, tp[j], v->timb[j]);
-        alt_offset(c, P_DEC, v->env);
-        alt_offset(c, P_REL, v->env);
-        alt_on(c, v->note, v->vel, v->glide);
-        alt_gate_left[c] = (uint8_t)(v->gate > 1u ? v->gate - 1u : 0u);
+        {
+            uint32_t m = alt_emode[c] % AM_N, gate = v->gate;
+            if (m == AM_FREE) {
+                alt_offset(c, P_ATK, 0);
+                alt_offset(c, P_SUS, 0);
+                alt_offset(c, P_DEC, v->env);
+                alt_offset(c, P_REL, v->env);
+            } else {                             /* the mode's ADSR, nudged by the sound's own and the die */
+                static const uint8_t EP[4] = {P_ATK, P_DEC, P_SUS, P_REL};
+                for (j = 0; j < 4u; j++) {
+                    int32_t base = t->p[EP[j]] - alt_applied[c][alt_slot(EP[j])], tg = ALT_MODE_ENV[m][j];
+                    tg += (base - tg) / 4;
+                    if (j == 1u || j == 3u)
+                        tg += v->env / 3;
+                    alt_offset(c, EP[j], tg - base);
+                }
+                gate = m == AM_PERC ? 1u : m == AM_STAB ? (gate > 2u ? 2u : gate) : 255u;   /* DRONE: until the next hit */
+            }
+            alt_on(c, v->note, v->vel, v->glide);
+            alt_gate_left[c] = (uint8_t)(gate > 1u ? gate - 1u : 0u);
+        }
         rep = v->rat;                            /* repeats: the die's burst, or a held RATCHET, the more */
         if (fill) {
             uint32_t f = (h >> AF_RAT3) & 1u ? 2u : (h >> AF_RAT2) & 1u ? 1u : 0u;
