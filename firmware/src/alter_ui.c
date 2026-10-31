@@ -1699,6 +1699,27 @@ static void alter_draw(void)
  * part a (as its own SAVE page would: the test that ALTER keeps Felucca's sequencer quiet), 7 the FX page's preset b
  * of slot a (alter_fx.c AFX_S_*: 0..2 a circle's DIST), 8 MASTER setting a (amx) to b, 9 circle a's
  * DELAY lane at step b off, 10 circle a's envelope mode settings to their defaults */
+/* the browser build's tool: USER scene u's records as bytes (its scene, its three rhythms, its effects, its envelope
+ * settings), so tools/alter/alter_user_scene.mjs can turn a USER scene into a factory one (alter_sounds.c) */
+#define ALT_DUMP_N (sizeof(alt_scene_rec_t) + sizeof(alt_rhy_t) * AS_NCIRC + 1u + ALT_FXREC + 1u + AS_NCIRC * AE_N)
+static uint8_t alt_dump[ALT_DUMP_N];
+static uint32_t alt_dump_user(uint32_t u)
+{
+    uint32_t n = 0, k;
+    u %= ALT_NUSER;
+    for (k = 0; k < sizeof(alt_scene_rec_t); k++)
+        alt_dump[n++] = ((const uint8_t *)&alt_bank_s.s[u])[k];
+    for (k = 0; k < sizeof(alt_rhy_t) * AS_NCIRC; k++)
+        alt_dump[n++] = ((const uint8_t *)alt_bank_r.r[u])[k];
+    alt_dump[n++] = alt_bank_r.fxok[u];
+    for (k = 0; k < ALT_FXREC; k++)
+        alt_dump[n++] = alt_bank_r.fx[u][k];
+    alt_dump[n++] = alt_bank_p.envok[u];
+    for (k = 0; k < AS_NCIRC * AE_N; k++)
+        alt_dump[n++] = ((const uint8_t *)alt_bank_p.env[u])[k];
+    return n;
+}
+
 static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
 {
     if (!au.ready)

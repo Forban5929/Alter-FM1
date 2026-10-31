@@ -13,8 +13,8 @@ SCENES = [
      "KICK (plein, gras) en PERC sur les noires, le 4e envoyé à 40 % dans le delay pour le groove, STAB en accord (triade) sur 3 coups décalés, CRUSH en texture sur 11 pas sur 16 avec un peu de hasard."),
     ("scene_2_HOUSE", "HOUSE", "122 BPM · dorien · swing léger", "KICK · ACCORDS · OPEN HAT",
      "Deep house : KICK sur les 4 temps, WARM en accords mineurs chauds sur les contretemps, OPEN HAT entre les kicks."),
-    ("scene_3_AMBIENT", "AMBIENT", "70 BPM · mineur", "NAPPE · NAPPE · PLUIE",
-     "Deux nappes douces PAD (cercles de 32 et 24 pas, une quinte d'écart) qui se fondent, une pluie RAIN très discrète."),
+    ("scene_3_AMBIENT", "AMBIENT", "70 BPM · mineur", "NAPPE · NAPPE · TEXTURE",
+     "Ta scène USER 01, reprise telle que tu l'as enregistrée (sons, rythmes, modes, effets)."),
     ("scene_4_INDUS", "INDUS", "128 BPM · phrygien", "MÉTAL · BRUIT · GONG",
      "ANVIL en PERC, METAL (registre à décalage) en PERC sur 7 pas, GONG qui sonne librement."),
 ]

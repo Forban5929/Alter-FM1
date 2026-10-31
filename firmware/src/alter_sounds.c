@@ -85,7 +85,9 @@ typedef struct {
     } c[AS_NCIRC];
     uint8_t dpre, rpre, mpre;    /* the FX page's DELAY, REVERB and MASTER presets (alter_fx.c AFX_DLY AFX_REV AFX_MST):
                                   * all 0 (Felucca's own: ECHO, HALL, FLAT), Romain's choice, the effects his to add */
+    const uint8_t *user;         /* not 0: a USER scene of Romain's instead, whole (alter_user_*.h, alter_store.c) */
 } alt_scene_t;
+#include "alter_user_ambient.h"   /* AMBIENT: his USER 01 (31/10) */
 
 static const alt_scene_t ALT_SCENE[] = {
     {"TECHNO", "PERC . STAB . TEXTURE", 132, AS_SC_PHRY, 0,
@@ -96,10 +98,9 @@ static const alt_scene_t ALT_SCENE[] = {
      {{"KICK", 1, 16, 4, 0, 127, 36, AS_CH_OFF, -6, 0, 45, 85, 0, 0},   /* four to the floor */
       {"WARM", 2, 16, 3, 3, 127, 48, AS_CH_TRI, -4, 0},     /* minor chords off the beat (steps 3 9 14) */
       {"OPEN HAT", 0, 16, 4, 2, 127, 60, AS_CH_OFF, -6, 0}}, 0, 0, 0},   /* between the kicks */
-    {"AMBIENT", "TWO SOFT PADS . GENTLE RAIN", 70, AS_SC_MIN, 0,
-     {{"PAD", 3, 32, 1, 0, 127, 48, AS_CH_OPEN, -10, 0},    /* a pad every two bars .. */
-      {"PAD", 3, 24, 1, 12, 127, 55, AS_CH_OFF, -14, 0},    /* .. another a fifth up, out of step with it */
-      {"RAIN", 0, 16, 3, 0, 70, 72, AS_CH_OFF, -14, 0}}, 0, 0, 0},
+    {"AMBIENT", "ROMAIN'S USER 01", 70, AS_SC_MIN, 0,
+     {{"PAD", 3, 32, 1, 0, 127, 48, AS_CH_OPEN, 0, 0}, {"PAD", 3, 24, 1, 12, 127, 55, AS_CH_OFF, 0, 0},
+      {"RAIN", 0, 16, 3, 0, 70, 72, AS_CH_OFF, 0, 0}}, 0, 0, 0, ALT_USER_AMBIENT},   /* (the rest unused: user) */
     {"INDUS", "METAL . NOISE . GONG", 128, AS_SC_PHRY, 0,
      {{"ANVIL", 1, 16, 5, 0, 127, 36, AS_CH_OFF, 0, 0},
       {"METAL", 1, 16, 7, 1, 127, 55, AS_CH_OFF, 0, 0},

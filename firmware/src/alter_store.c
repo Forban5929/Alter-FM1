@@ -67,6 +67,8 @@ static struct {
     uint8_t fx[ALT_NUSER][ALT_FXREC];
 } alt_bank_r;
 #define ALT_BANK_R_OLD (4u + sizeof(alt_rhy_t) * ALT_NUSER * AS_NCIRC)   /* (before the effects: still read) */
+_Static_assert(sizeof ALT_USER_AMBIENT == sizeof(alt_scene_rec_t) + sizeof(alt_rhy_t) * AS_NCIRC + 2u + ALT_FXREC +
+               AS_NCIRC * AE_N, "a USER scene kept as a factory one matches the records (else: re-extract it)");
 static void afp_dly_apply(uint32_t i);           /* (alter_fxpage.c) */
 static void afp_rev_apply(uint32_t i);
 static void afp_mst_apply(uint32_t i);
@@ -285,6 +287,24 @@ static void alt_load_scene(uint32_t n)
 {
     const alt_scene_t *sc = &ALT_SCENE[n % ALT_NSCENE];
     uint32_t c;
+    if (sc->user) {                              /* a USER scene of Romain's, as he stored it (alter_ui.c alt_dump_user) */
+        static alt_scene_rec_t rec;
+        static alt_rhy_t rhy[AS_NCIRC];
+        const uint8_t *b = sc->user;
+        uint32_t k;
+        for (k = 0; k < sizeof rec; k++)
+            ((uint8_t *)&rec)[k] = *b++;
+        for (k = 0; k < sizeof rhy; k++)
+            ((uint8_t *)rhy)[k] = *b++;
+        alt_scene_put(&rec, rhy);
+        if (*b++)
+            alt_fx_put(b);
+        b += ALT_FXREC;
+        for (c = 0; c < AS_NCIRC; c++)
+            for (k = 0; k < AE_N; k++)
+                alt_envp[c][k] = b[0] ? b[1 + c * AE_N + k] : AE_DEF[k];
+        return;
+    }
     song.g[G_BPM] = sc->bpm;
     song.g[G_SWING] = sc->swing;
     alt_seq.scale = sc->scale;
