@@ -492,6 +492,28 @@ static void alt_lane_range(uint32_t b, int32_t s)
     au.step_turned = 1;
 }
 
+/* lane ln of the chosen circle flat again: VELO normal, CHANCE sure, no DELAY REVERB PITCH RATCH, no RANGE */
+static void alt_lane_flat(uint32_t ln)
+{
+    as_circ_t *sc = &alt_seq.c[au.sel % AS_NCIRC];
+    uint32_t k;
+    for (k = 0; k < AS_NLANE; k++) {
+        if (ln == LN_VELO)
+            sc->svel[k] = AS_VEL[AS_NORMAL];
+        else if (ln == LN_CHANCE)
+            sc->chance[k] = sc->chance[k + AS_NLANE] = 127;
+        else if (ln == LN_DLY)
+            sc->sdly[k] = 0;
+        else if (ln == LN_REV)
+            sc->srev[k] = 0;
+        else if (ln == LN_PITCH)
+            sc->spitch[k] = 0;
+        else
+            sc->srat[k] = 0;
+    }
+    sc->rmask[ln % AS_NLR] = 0;
+}
+
 /* two steps held + KNOB 2: the lane shown drawn anew on its 16 steps, hits or not, single values (no RANGE), over its
  * whole height but VELO and CHANCE kept audible (30 % and up) */
 static uint32_t alt_cr(uint32_t n);              /* (below: CHAOS's draws) */
@@ -558,7 +580,12 @@ static void alt_seq_input(uint32_t keys)
     for (k = 0; k < 27u; k++)                    /* the black keys: shortcuts */
         if ((down >> k) & 1u && ALT_SEQ_BK[k] != ASK_NONE) {
             uint32_t b = ALT_SEQ_BK[k];
-            if (b < LN_N) {
+            uint32_t both = (1u << panel.btn[B_OCTDN]) | (1u << panel.btn[B_OCTUP]);
+            if (b < LN_N && (fm1_in.buttons & both) == both) {   /* OCT- + OCT+ held: that lane back to flat */
+                alt_lane_flat(b);
+                au.lane = (uint8_t)b;
+                alt_say("FLAT");
+            } else if (b < LN_N) {
                 au.lane = (uint8_t)b;
                 alt_say(ALT_LANE_NAME[b]);
             } else if (b == ASK_TYPE)

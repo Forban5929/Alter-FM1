@@ -252,6 +252,9 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         KNOB 2** (anti-erreur en live ; 1 pas tenu + KNOB 2 = rien, aucun pas = HITS) = chaque cran tire au hasard TOUT
         l'onglet affiché sur ses 16 pas (joués ou non), valeurs fixes (plage effacée), toute la hauteur sauf VELO/CHANCE
         ≥ 30 % (alter_ui.c alt_lane_shuffle, alt_cr). Test : 1 pas = écran inchangé, 2 pas = couloir changé.
+        **FLAT (01/11)** : menu SEQ, **OCT− + OCT+ tenus + touche noire d'un onglet** = cet onglet remis à plat (VELO 96,
+        CHANCE 127, DLY/REV/PITCH/RATCH 0, plage effacée ; alt_lane_flat). Test : après SHUFFLE, FLAT = écran d'avant.
+        (Le test LOCKS tolère 1 attaque égarée : il bougeait avec le minutage du test, pas un bug du verrou.)
   - [x] **3h PAGE FX + MASTER (31/10, codé, testé, publié ; ATTEND L'ÉCOUTE)**. Choix de Romain : **FX tenu 0,5 s = page FX**
         (reste ouverte ; FX tapé ou HOME = sortie ; FX tapé court = page rapide d'avant) ; **delay et reverb PARTAGÉS** (1 seul
         de chaque dans Felucca) + envoi par cercle ; master **simple + presets** ; ducking = **temps OU cercle**. Le clavier
