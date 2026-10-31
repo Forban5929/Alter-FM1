@@ -190,8 +190,13 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         VEL TIME). Choix de Romain : **1 LFO par cercle + 1 LFO GLOBAL** (à nous, synchro tempo, peut bouger les 3 voix) ;
         **LFO 2e appui = page MATRICE** (1er appui = page rapide actuelle, 3e = retour) ; **nouvelles sources : POSITION
         dans le cycle du cercle (rampe sur LEN) et FORCE du pas**. Réglages du LFO global dans NOS scènes (ne pas
-        allonger P_COUNT : casse les sauvegardes Felucca). À demander avant de coder : formes/destinations du global,
-        comment choisir source/dest/quantité avec 4 knobs.
+        allonger P_COUNT : casse les sauvegardes Felucca). **Choix 31/10 (2e série)** : GLOBAL agit TOUJOURS sur les 3
+        cercles, mêmes destinations pour les 3 synthés, menu = SON (hauteur, MORPH/SHP, HARM/FLT, volume) + EFFETS
+        (DIST, delay, reverb) + PAN + RYTHME (PROB des cercles, nouveau) ; s'il vise une destination déjà modulée par le
+        LFO d'un cercle, le GLOBAL PREND LE DESSUS (remplace). Formes GLOBAL : SIN TRI SAW SQR S&H SLEW + RAMPES
+        montante/descendante sur 1, 2, 4 ou 8 mesures. Page MATRICE = onglets LFO 1, LFO 2, LFO 3, GLOBAL ; gestes comme la
+        page SAVE : ALGORITHM = onglet, SELECT = case, KNOB 1 = source, KNOB 2 = destination (liste déroulante),
+        KNOB 3 = quantité.
   - [ ] 3c : vue DEEP (EDIT ouvre encore la page EDIT de Felucca). Puis retirer l'interface Felucca. Reste : SCL → gamme
         des cercles, touches blanches libres, DESTROY assignable, verrous du dé, DOSE.
 - [ ] Étape 4 (après le séquenceur) : tranche de console dédiée, ordre FIXE validé :
