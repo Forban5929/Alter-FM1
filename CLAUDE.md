@@ -67,6 +67,7 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
 ## Code — dépôt https://github.com/Forban5929/alter-fm1 (branche `main`)
 Source de vérité = le dépôt GitHub (copies de secours dans le Projet, `claude/code/`).
 Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner, `git submodule update --init`.
+(Dépôt renommé `Alter-FM1` sur GitHub le 31/10 : les anciens liens redirigent.)
 - `firmware/src/eng_alter.c` : le moteur, inscrit en DERNIER dans `engines.c` (`ENGI_ALTER` = NENGINES-1 dans core.h,
   1er dans ENGINE_ORDER, partie 1 au démarrage = ALTER THUD ; ENG_VCOST 330 ; MIDI CUT=HARM RES=SPRD ; pas de favoris).
 - `firmware/src/alter_play.c` (inclus en tête de seq.c, `alter_tick` après click_tick, côté AUDIO) : cercle i joue la
