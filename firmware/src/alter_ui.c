@@ -818,7 +818,7 @@ static void alt_lanes_random(void)
 
 /* TOTAL CHAOS (SHIFT -1 + SHIFT +1 + REVERSE, Romain 01/11): CHAOS without its limits, on the three circles: engine and
  * sound, the eight values, ADSR, envelope mode and its settings, DIST and INSERT (any type), sends, the three LFOs
- * (any DEST), the matrix (one slot 50 %, two 25 %, three 5 %), rhythm (EUCLID / TURING, LEN, HITS, ..), the six lanes,
+ * (made light 01/11: LFO 1 only, DEPTH -20..20; one matrix slot, AMT -25..25; never the pitch), rhythm (EUCLID / TURING, LEN, HITS, ..), the six lanes,
  * chord, root, the scale, the shared delay and reverb; the die at full DOSE. Not: tempo, swing, mutes, the MASTER.
  * The volume kept (Romain): each sound's LEVEL as it is, INSERT LEVEL at most 0 dB, delay FEEDBACK under the howl.
  * The same combo within 3 s puts everything back as it was (alt_tc_undo) */
@@ -946,7 +946,7 @@ static void alt_total_chaos(void)
     afx_edit |= 1u << AFX_S_DLY | 1u << AFX_S_REV;
     for (c = 0; c < AS_NCIRC; c++) {
         track_t *t = &trk[c];
-        uint32_t pi = alt_cr(ALT_NPRE), e = ALT_ENGS[ALT_PRE[pi].eng % AS_NCIRC], n, r;
+        uint32_t pi = alt_cr(ALT_NPRE), e = ALT_ENGS[ALT_PRE[pi].eng % AS_NCIRC], n;
         const engine_t *en = ENGINES[e];
         as_cfg_t *cf = &au.cfg[c];
         as_circ_t *sc = &alt_seq.c[c];
@@ -964,19 +964,23 @@ static void alt_total_chaos(void)
         t->p[P_IMIX] = (int16_t)alt_cr(128u);
         t->p[P_DLY] = (int16_t)alt_cr(128u);
         t->p[P_REV] = (int16_t)alt_cr(128u);
-        r = alt_cr(100u);                        /* the matrix: 1 slot 50 %, 2 slots 25 %, 3 slots 5 %, none 20 % */
-        n = r < 50u ? 1u : r < 75u ? 2u : r < 80u ? 3u : 0u;
-        for (k = 0; k < NMSLOT; k++) {
-            t->p[P_M1SRC + 3u * k] = (int16_t)(k < n ? 1u + alt_cr(MS_N - 1u) : 0u);
-            t->p[P_M1DST + 3u * k] = (int16_t)(k < n ? 1u + alt_cr(MD_DEPTH - 1u) : 0u);
-            t->p[P_M1AMT + 3u * k] = (int16_t)(k < n ? (int32_t)alt_cr(128u) - 64 : 0);
+        /* the matrix and the LFOs, light (Romain 01/11: "not musical"): one matrix slot at most (70 %), AMT -25 .. 25;
+         * one LFO at most (LFO 1), DEPTH -20 .. 20 of 64; never the pitch (matrix PITCH / VIB, LFO PITCH) */
+        for (k = 0; k < NMSLOT; k++)
+            t->p[P_M1SRC + 3u * k] = t->p[P_M1DST + 3u * k] = t->p[P_M1AMT + 3u * k] = 0;
+        if (alt_cr(10u) < 7u) {
+            int32_t a = 4 + (int32_t)alt_cr(22u);
+            uint32_t d = 2u + alt_cr(MD_DEPTH - 3u);   /* CUT .. E8, VIB skipped */
+            t->p[P_M1SRC] = (int16_t)(1u + alt_cr(MS_N - 1u));
+            t->p[P_M1DST] = (int16_t)(d >= MD_VIB ? d + 1u : d);
+            t->p[P_M1AMT] = (int16_t)(alt_cr(2u) ? a : -a);
         }
-        for (k = 0; k < CL_N; k++) {             /* the three LFOs: anything, any DEST */
-            alt_cl[c][k].wave = (uint8_t)alt_cr(GW_N);
-            alt_cl[c][k].rate = (uint8_t)alt_cr(GL_NRATE);
-            alt_cl[c][k].dst = (uint8_t)alt_cr(GD_N);
-            alt_cl[c][k].depth = (int8_t)((int32_t)alt_cr(128u) - 64);
-        }
+        for (k = 0; k < CL_N; k++)
+            alt_cl[c][k].depth = 0;
+        alt_cl[c][0].wave = (uint8_t)alt_cr(GW_N);
+        alt_cl[c][0].rate = (uint8_t)alt_cr(GL_NRATE);
+        alt_cl[c][0].dst = (uint8_t)(GD_SHAPE + alt_cr(GD_N - GD_SHAPE));
+        alt_cl[c][0].depth = (int8_t)((int32_t)alt_cr(41u) - 20);
         for (k = 0; k < ALT_NSLOT; k++)
             alt_applied[c][k] = 0;
         alt_note[c][0] = alt_note[c][1] = alt_note[c][2] = 0;
