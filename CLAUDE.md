@@ -28,6 +28,10 @@ Ingénieur DSP + développeur C embarqué.
 4. Publier la page jouable : republier `build/emu/alter.html` + files felucca.wasm, worklet.js,
    fonts/DotGothic16-subset.woff, fonts/OFL.txt sur https://claude.ai/artifact/JpKofrvF7kb17ZmrJZmx8X (lire l'artifact avant).
    Page d'écoute : https://claude.ai/artifact/BqNkjf2dYiPQFnkgco6zey (`tools/alter/make_listen_page.py build/alter`).
+   **Lien public pour testeurs (01/11)** : https://forban5929.github.io/alter-fm1/ — automatique (`.github/workflows/pages.yml`) :
+   chaque push sur main ou `etape-*` construit + teste + publie ; le dernier push gagne. Version visible dans `/version.txt`.
+   Romain a choisi : UN lien toujours à jour. Pages doit être activé (Settings → Pages → Source : GitHub Actions) ;
+   l'API Pages est bloquée depuis la session cloud.
 - Emscripten bloqué dans le cloud → clang système + mini-libc `tools/alter/wasm/`. Le compilateur JieLi (pi32v2) n'est
   PAS installé : rien n'est vérifié sur une vraie FM-1 (taille, CPU).
 - `tools/alter/wasm/alter_page.py` : texte d'aide de la page entre apostrophes Python → écrire ’ (pas ').

@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# ALTER en ligne : à chaque envoi sur main ou une branche etape-*, construit la version navigateur (le vrai
+# firmware en WebAssembly) et la publie sur GitHub Pages (https://forban5929.github.io/alter-fm1/).
+# Le dernier envoi gagne : le lien suit toujours l'étape en cours.
+name: ALTER en ligne
+
+on:
+  push:
+    branches: [main, "etape-*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Outils (clang, wasm-ld)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq clang lld
+      - name: Construire la version navigateur
+        run: sh tools/alter/wasm/build_emu.sh
+      - name: Test ALTER
+        run: node tools/alter/alter_emu_test.mjs build/emu/felucca.wasm build/emu/alter_play.wav
+      - name: Préparer le site
+        run: |
+          mkdir -p site/fonts
+          cp build/emu/index.html build/emu/felucca.wasm build/emu/worklet.js site/
+          cp build/emu/fonts/* site/fonts/
+          echo "$GITHUB_REF_NAME @ ${GITHUB_SHA::7}" > site/version.txt
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
