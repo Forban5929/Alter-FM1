@@ -158,10 +158,14 @@ static void alt_chip_txt(const char *t, uint16_t tc)
     alt_disc(226, 11, 1, ALT_COL[c]);
     cv_text_r(218, 5, ALT_FS, t, tc, ALT_BG);
 }
-static void alt_chip(void)
+static void alt_chip(void)                       /* the chosen circle's sound by name (Romain: "which instrument am I on?") */
 {
-    char b[3] = {'C', (char)('1' + au.sel % AS_NCIRC), 0};
-    alt_chip_txt(b, ALT_INK);
+    alt_chip_txt(ALT_PRE[au.pre[au.sel % AS_NCIRC] % ALT_NPRE].name, ALT_INK);
+}
+/* the chosen circle's engine, small, after the arcana's numeral (the sub-menus) */
+static void alt_eng_tag(const char *num, const char *t, uint16_t c)
+{
+    cv_text(9 + (num ? text_w(ALT_FS, num) + 6 : 0), 5, ALT_FS, t, c);
 }
 
 /* tabs spread from x 8 to 232 at y: the one shown in ink, underlined in col; the others dim */
@@ -184,15 +188,110 @@ static void alt_tabs(int32_t y, const char *const *names, uint32_t n, uint32_t s
     cv_rect(8, y + 18, 224, 1, alt_gold_line(30));
 }
 
-/* a knob as a gold dial: its name at y; under it the dial (fill of 50, -1: none, the value as words) and its value;
- * lo .. hi (>= 0): the range an LFO gives it, an arc in col outside the dial; wave: an LFO moves it unseen */
-#define ALT_DIAL_T0 0xA0000000u                  /* -135 degrees */
-#define ALT_DIAL_SPAN 0xC0000000u                /* 270 degrees */
+/* a knob, no number at rest (Romain, 01/11: "the knob says it"): its name, then
+ *  - a MOON in its phase: new at 0, full at the top (fill of 50); lo .. hi (>= 0): the range an LFO gives it, an arc
+ *    in col on its orbit; wave: an LFO moves it unseen (a small wave by the name)
+ *  - TEMPO: an HOURGLASS, its sand down as the tempo climbs
+ *  - a value as a word (FOLD, PHRY, C2) stays written beside it; a number shows only while the knob turns (1 s, the
+ *    name in gold), then goes
+ *  fill -1: no picture, the value as words (as before) */
+#define ALT_DIAL_SHOW_MS 1000u
+static char alt_dial_nm[4][10], alt_dial_tx[4][12];
+static uint32_t alt_dial_t[4];
+static uint32_t alt_dial_live(void)              /* the knobs whose number shows now (alter_draw's signature) */
+{
+    uint32_t i, m = 0;
+    for (i = 0; i < 4u; i++)
+        if (alt_dial_t[i] && (int32_t)(fm1_ms - alt_dial_t[i]) < (int32_t)ALT_DIAL_SHOW_MS)
+            m |= 1u << i;
+    return m;
+}
+static int alt_streq(const char *a, const char *b)
+{
+    while (*a && *a == *b)
+        a++, b++;
+    return *a == *b;
+}
+static void alt_scopy(char *d, const char *s, uint32_t n)
+{
+    uint32_t i = 0;
+    while (s && s[i] && i + 1u < n)
+        d[i] = s[i], i++;
+    d[i] = 0;
+}
+static int alt_isnum(const char *t)              /* 64, -12, +7, 100%, 1/16: a number (shown while turning only) */
+{
+    if (*t == '-' || *t == '+')
+        t++;
+    return *t >= '0' && *t <= '9';
+}
+
+static void alt_moon(int32_t cx, int32_t cy, int32_t r, int32_t fill, int lit)
+{
+    int32_t dy, dx, r16 = r * 16 + 8;
+    uint16_t dark = ALT_DAY ? alt_mixc(ALT_BG, ALT_INK, 20) : alt_gold_line(16), light = lit ? ALT_GOLD : ALT_GREY;
+    for (dy = -r - 1; dy <= r + 1; dy++) {
+        int32_t s2 = r16 * r16 - dy * dy * 256, s16 = s2 > 0 ? (int32_t)alt_isqrt((uint32_t)s2) : 0;
+        int32_t term = s16 * (50 - 2 * fill) / 50;   /* the terminator: lit on its right */
+        for (dx = -r - 1; dx <= r + 1; dx++) {
+            int32_t d = (int32_t)alt_isqrt((uint32_t)((dx * dx + dy * dy) * 256)), ae = (r16 - d) * 16 + 128;
+            int32_t at = (dx * 16 - term) * 16 + 128;
+            uint16_t cc;
+            if (ae <= 0)
+                continue;
+            at = at < 0 ? 0 : at > 256 ? 256 : at;
+            if (fill <= 0)
+                at = 0;
+            else if (fill >= 50)
+                at = 256;
+            cc = alt_mixc(dark, light, at * 100 / 256);
+            if (ae >= 256)
+                cv_rect(cx + dx, cy + dy, 1, 1, cc);
+            else
+                alt_plot(cx + dx, cy + dy, cc, ae);
+        }
+    }
+    alt_aaring16(cx * 16, cy * 16, r16, alt_gold_line(lit ? 50 : 30));
+}
+
+static void alt_hourglass(int32_t cx, int32_t cy, int32_t fill)
+{
+    uint16_t ln = alt_gold_line(70), sand = ALT_GOLD;
+    int32_t top = (50 - clamp(fill, 0, 50)) * 7 / 50, bot = 7 - top, y;
+    for (y = 1; y <= top; y++) {                 /* the top bulb's sand, its last rows by the neck */
+        int32_t w = (y + 1) / 2;
+        cv_rect(cx - w, cy - y, 2 * w + 1, 1, sand);
+    }
+    for (y = 0; y < bot; y++) {                  /* the bottom one's, a heap */
+        int32_t w = 4 - y / 2;
+        cv_rect(cx - w, cy + 8 - y, 2 * w + 1, 1, sand);
+    }
+    if (top && bot)
+        cv_rect(cx, cy, 1, 8 - bot, alt_gold_line(60));   /* the thread of sand */
+    cv_rect(cx - 6, cy - 10, 13, 1, ln);
+    cv_rect(cx - 6, cy + 10, 13, 1, ln);
+    alt_aaline(cx - 5, cy - 9, cx - 1, cy - 1, ln), alt_aaline(cx - 1, cy + 1, cx - 5, cy + 9, ln);
+    alt_aaline(cx + 5, cy - 9, cx + 1, cy - 1, ln), alt_aaline(cx + 1, cy + 1, cx + 5, cy + 9, ln);
+    cv_rect(cx - 1, cy - 1, 1, 3, ln);
+    cv_rect(cx + 1, cy - 1, 1, 3, ln);
+}
+
 static void alt_dialk(int32_t x0, int32_t y, const char *name, const char *txt, int32_t fill, int32_t lo, int32_t hi,
                       int lit, uint16_t col, int wave)
 {
-    int32_t cx = x0 + 7, cy = y + 24, nx, ny;
-    cv_text(x0, y, ALT_FS, name, lit ? ALT_DIM : ALT_GREY);
+    int32_t cx = x0 + 10, cy = y + 24, slot = clamp((x0 - 8 + 28) / 57, 0, 3), turning;
+    if (!txt)
+        txt = "";
+    if (alt_streq(alt_dial_nm[slot], name)) {    /* the same knob: has its value moved? */
+        if (!alt_streq(alt_dial_tx[slot], txt))
+            alt_dial_t[slot] = fm1_ms | 1u;
+    } else {
+        alt_scopy(alt_dial_nm[slot], name, sizeof alt_dial_nm[0]);
+        alt_dial_t[slot] = 0;                    /* (another page: nothing turned) */
+    }
+    alt_scopy(alt_dial_tx[slot], txt, sizeof alt_dial_tx[0]);
+    turning = (alt_dial_live() >> slot) & 1u;
+    cv_text(x0, y, ALT_FS, name, !lit ? ALT_GREY : turning ? ALT_GOLD : ALT_DIM);
     if (wave) {
         int32_t k, wx = x0 + text_w(ALT_FS, name) + 3;
         for (k = 0; k < 8; k++)
@@ -203,18 +302,17 @@ static void alt_dialk(int32_t x0, int32_t y, const char *name, const char *txt, 
         return;
     }
     fill = clamp(fill, 0, 50);
-    alt_arc(cx, cy, 7, ALT_DIAL_T0, ALT_DIAL_SPAN, alt_gold_line(30), 2);
-    if (lo >= 0 && hi >= lo)
-        alt_arc(cx, cy, 9, ALT_DIAL_T0 + (uint32_t)((uint64_t)ALT_DIAL_SPAN * (uint32_t)lo / 50u),
-                (uint32_t)((uint64_t)ALT_DIAL_SPAN * (uint32_t)(hi - lo) / 50u) + 0x01000000u, col, 2);
-    if (fill)
-        alt_arc(cx, cy, 7, ALT_DIAL_T0, (uint32_t)((uint64_t)ALT_DIAL_SPAN * (uint32_t)fill / 50u),
-                lit ? ALT_GOLD : ALT_GREY, 2);
-    alt_pt(cx, cy, ALT_DIAL_T0 + (uint32_t)((uint64_t)ALT_DIAL_SPAN * (uint32_t)fill / 50u), 5, &nx, &ny);
-    alt_aaline(cx, cy, nx, ny, lit ? ALT_INK : ALT_GREY);
-    cv_rect(cx - 1, cy - 1, 2, 2, lit ? ALT_INK : ALT_GREY);
-    if (txt && txt[0])
-        cv_text(x0 + 18, y + 15, ALT_FV, txt, lit ? ALT_INK : ALT_GREY);
+    if (alt_streq(name, "TEMPO"))
+        alt_hourglass(cx, cy, fill);
+    else {
+        if (lo >= 0 && hi >= lo)
+            alt_arc(cx, cy, 10, (uint32_t)((uint64_t)0x100000000ull * (uint32_t)lo / 50u),
+                    (uint32_t)((uint64_t)0x100000000ull * (uint32_t)(hi - lo) / 50u) + 0x02000000u, col, 2);
+        alt_moon(cx, cy, 7, fill, lit);
+    }
+    if (txt[0] && (!alt_isnum(txt) || turning))
+        cv_text(x0 + 22, y + (turning ? 14 : 16), turning ? ALT_FV : ALT_FS, txt,
+                !lit ? ALT_GREY : turning ? ALT_GOLD : ALT_INK);
 }
 
 static void alt_foot(uint32_t q);                         /* (alter_ui.c: a page's four knobs as dials) */

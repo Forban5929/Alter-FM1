@@ -1249,13 +1249,15 @@ static int32_t alt_kv(uint32_t q, uint32_t i, const char **name, char *txt, int3
             alt_num(txt, v, 0);
         return v;
     case QK_BPM:
-        *name = "TEMPO";
+        *name = "TEMPO";                         /* (an hourglass: alter_look.c alt_dialk) */
         v = song.g[G_BPM];
+        *fill = clamp(v - 40, 0, 200) / 4;
         alt_num(txt, v, 0);
         return v;
     case QK_SWING:
         *name = "SWING";
         v = song.g[G_SWING];
+        *fill = clamp(v, 0, 100) / 2;
         alt_num(txt, v, 1);
         return v;
     default: {
@@ -1595,7 +1597,8 @@ static void alt_seq_scene(void)
     int32_t x = 8, w = 224 / 16, y0 = 50, h = 104, mid = y0 + h / 2;
     alt_card("SEQ", "X");                        /* the head: the card, the circle and its engine (SEQ held +
                                                   * ALGORITHM) at the right */
-    alt_chip_txt(AS_TYPE_NAME[cf->type % AS_NTYPE], col);
+    alt_chip();                                  /* (the sound at the right, the engine of the rhythm at the left) */
+    alt_eng_tag("X", AS_TYPE_NAME[cf->type % AS_NTYPE], col);
     alt_tabs(23, ALT_LANE_TAB, LN_N, ln, col);  /* the lanes (ALGORITHM) */
     if (ln == LN_PITCH)
         cv_rect(x, mid, 224, 1, ALT_DARK);
@@ -1732,6 +1735,7 @@ static void alt_menu_head(const char *name, const char *num)
 {
     alt_card(name, num);
     alt_chip();
+    alt_eng_tag(num, ENGINES[eng_idx(trk[au.sel % AS_NCIRC].eng_req)]->name, ALT_COL[au.sel % AS_NCIRC]);
 }
 
 /* ENV (XIII): the chosen circle's envelope as its mode shapes it (the ENV page's four knobs, the same names), a
@@ -2265,6 +2269,7 @@ static void alter_draw(void)
     sig = sig * 31u + (au.mat_open ? alt_mat_sig() * 2u + 1u : 0u) + (au.seq_open ? alt_seq_sig() * 4u + 3u : 0u) +
           (afp.open ? afp_sig() * 8u + 5u : 0u);
     sig = sig * 31u + au.mn * 61u + au.set_row * 67u + (uint32_t)ALT_DAY * 71u + au.cfg[au.sel % AS_NCIRC].chord * 73u;
+    sig = sig * 31u + alt_dial_live() * 83u;     /* (a number shown while its knob turns, then gone) */
     sig = sig * 31u + q * 19u + au.lockc * 23u + alt_seq.c[au.lockc ? au.lockc - 1u : 0u].locks * 29u;
     sig = sig * 31u + au.sel * 3u + flash * 5u + (uint32_t)song.playing * 7u + trk[au.sel].preset * 11u +
           (uint32_t)song.g[G_BPM] * 13u + (au.msg && fm1_ms - au.msg_ms < 1500u ? (uint32_t)(uintptr_t)au.msg + (fm1_ms - au.msg_ms < 900u) : 1u);
