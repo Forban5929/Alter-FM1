@@ -749,7 +749,8 @@ static void alt_chaos(void)
     alt_say("CHAOS");
 }
 
-/* MUTE 1+2+3 (Romain, 01/11): the chosen circle's VELO, CHANCE and PITCH lanes drawn anew on their 16 steps, single
+/* MUTE 1+2+3 (Romain, 01/11): the chosen circle's LEN (4..16) and HITS drawn, at once, and its VELO, CHANCE and
+ * PITCH lanes drawn anew on their 16 steps, single
  * values (no RANGE), as the SEQ menu's SHUFFLE draws them (VELO and CHANCE kept audible: 30 % and up) */
 static void alt_lanes_random(void)
 {
@@ -772,6 +773,16 @@ static void alt_lanes_random(void)
                 sc->spitch[k] = (int8_t)v;
         }
         sc->rmask[LN[i]] = 0;
+    }
+    {                                            /* and its rhythm (Romain): LEN 4..16, HITS 1..LEN, at once */
+        uint32_t c = au.sel % AS_NCIRC, n = 4u + alt_cr(13u);
+        as_cfg_t *cf = &au.cfg[c];
+        cf->len = (uint8_t)n;
+        cf->hits = (uint8_t)(1u + alt_cr(n));
+        cf->rot = (uint8_t)(cf->rot % n);
+        cf->frot = (uint8_t)(cf->frot % n);
+        alt_post_now |= (uint8_t)(1u << c);
+        alt_post_circle(c);
     }
     alt_say("SHUFFLE");
 }

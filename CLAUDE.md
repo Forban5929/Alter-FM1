@@ -70,7 +70,8 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
 - LED clavier : utilisables **faibles au repos, fortes si engagées** (mute, fill tenu, flash du dé) ; sans fonction = noires.
 - **ALGORITHM = mode d'enveloppe du cercle choisi** (31/10) : FREE (ADSR du son) · PERC · STAB (coups ≤ 2 pas) · DRONE
   (attaque lente, note tenue jusqu'au coup suivant). L'ADSR du son l'affine d'1/4, le dé d'1/3. Affiché à côté du moteur.
-- **3 MUTE ensemble (01/11)** = VELO, CHANCE, PITCH du cercle choisi tirés au hasard, valeurs fixes comme SHUFFLE ;
+- **3 MUTE ensemble (01/11)** = cercle choisi : LEN 4..16 + HITS 1..LEN tout de suite, et VELO, CHANCE, PITCH tirés
+  (valeurs fixes comme SHUFFLE) ;
   les mutes déclenchés par le combo sont annulés (alter_ui.c alt_lanes_random, au.mute_tog/mute_combo).
 - **CHAOS TOTAL (01/11) = SHIFT −1 + SHIFT +1 + REVERSE** : tout SANS limite sur les 3 cercles (moteur, son, 8 réglages,
   ADSR, mode + ses réglages, DIST/INSERT tout type, envois, 3 LFO toute DEST, MTX : 1 case 50 % / 2 cases 25 % / 3 cases

@@ -489,10 +489,20 @@ play();
   const shot = (w = FS * 3) => { render(w); let h = 2166136261; const a = new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240); for (let i = 0; i < a.length; i++) h = Math.imul(h ^ a[i], 16777619); return h >>> 0; };
   const chord = (ks) => { let m = 0; for (const k of ks) { m |= 1 << k; K(m); render(2000); } render(4000); K(0); render(2000); };
   const seqMenu = () => { ex.web_buttons(1 << SEQB); render(Math.round(FS * 0.8)); ex.web_buttons(0); render(4000); const h = shot(); ex.web_buttons(1 << 6); render(2000); ex.web_buttons(0); return h; };
-  const p0 = shot(), l0 = seqMenu(), p1 = shot();
+  const prism = () => {                                          // the centre's coloured pixels (a muted piece turns grey)
+    const a = new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240); let n = 0;
+    for (let y = 100; y < 132; y++) for (let x = 104; x < 136; x++) {
+      const v = a[y * 240 + x], p = ((v >> 8) | (v << 8)) & 0xFFFF, r = (p >> 11) * 8, g = ((p >> 5) & 63) * 4, b = (p & 31) * 8;
+      if (Math.max(r, g, b) - Math.min(r, g, b) > 40) n++;
+    }
+    return n;
+  };
+  const p0 = shot(), l0 = seqMenu(), p1 = shot(), m1 = prism();
   chord([0, 2, 4]);
-  const p2 = shot(), l1 = seqMenu();
-  check("MUTE 1+2+3: the chosen circle's lanes drawn anew, no circle muted", p2 === p1 && l1 !== l0);
+  const p2 = shot(), m2 = prism(), l1 = seqMenu();
+  tap(0); const mm = prism(); render(FS); tap(0); render(FS * 2);   // (MUTE 1 alone: the measure sees a mute)
+  check(`MUTE 1+2+3: the chosen circle's rhythm and lanes drawn anew, no circle muted (colour ${m1} -> ${m2}, muted ${mm})`,
+        p2 !== p1 && Math.abs(m2 - m1) < (m1 - mm) / 2 && l1 !== l0);
   chord([25, 14, 16]);
   const c1 = shot(FS / 2);
   chord([14, 16, 25]);                                           // (within 3 s of the first: the undo)
