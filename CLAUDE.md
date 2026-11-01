@@ -91,6 +91,8 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
   ou dont les coups se raréfient après la mesure.
 - **CHAOS = DÉ 1+2+3 ensemble** : moteur, preset, 8 réglages, effets + LFO, rythme (immédiat), dé DOSE 127, gamme et
   notes de base, sur les 3 cercles. PAS le tempo, ni les modes, ni les mutes. DÉFINITIF (pas d'annulation).
+  **Adouci (01/11, « pas musical »)** : LFO 1 seul, DEPTH −16..16 (sur 64), LFO 2/3 et GLOBAL coupés ; MTX : 1 case
+  une fois sur 2 (SRC LFO ENV VEL RAND SLEW FORCE → CUT SHP PAN E1 E2, jamais la hauteur), AMT ±6..25.
 - Vue **DEEP** (EDIT) : tous les réglages. Effets Felucca (DIST, INSERT FOLD, delay, reverb), ADSR Felucca.
 
 ## Spécification moteur ALTER (`eng_alter.c`)

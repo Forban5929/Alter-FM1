@@ -704,6 +704,8 @@ static void alt_chaos(void)
     uint32_t c, k;
     alt_crng ^= fm1_ms * 0x9E3779B9u;
     alt_seq.scale = (uint8_t)alt_cr(AS_NSCALE);
+    for (k = 0; k < NELEM(alt_gl.amt); k++)      /* the GLOBAL off (one LFO per circle, no more) */
+        alt_gl.amt[k] = 0;
     for (c = 0; c < AS_NCIRC; c++) {
         track_t *t = &trk[c];
         uint32_t pi = alt_cr(ALT_NPRE), e = ALT_ENGS[ALT_PRE[pi].eng % AS_NCIRC], ei;
@@ -720,7 +722,19 @@ static void alt_chaos(void)
         alt_cl[c][0].wave = (uint8_t)alt_cr(GW_N);   /* its LFO 1: any wave and rate, a DEST of the timbre or the mix */
         alt_cl[c][0].rate = (uint8_t)alt_cr(GL_NRATE);
         alt_cl[c][0].dst = LDST[alt_cr(6u)];
-        alt_cl[c][0].depth = (int8_t)((int32_t)alt_cr(81u) - 40);
+        alt_cl[c][0].depth = (int8_t)((int32_t)alt_cr(33u) - 16);   /* (Romain 01/11: light, -16 .. 16 of 64) */
+        for (k = 1; k < CL_N; k++)               /* one LFO per circle at most: LFO 2 and 3 off */
+            alt_cl[c][k].depth = 0;
+        for (k = 0; k < NMSLOT; k++)             /* the matrix: one slot at most, light (AMT -25 .. 25), half the time */
+            t->p[P_M1SRC + 3u * k] = t->p[P_M1DST + 3u * k] = t->p[P_M1AMT + 3u * k] = 0;
+        if (alt_cr(2u)) {
+            static const uint8_t MSRC[6] = {MS_LFO, MS_ENV, MS_VEL, MS_RAND, MS_SLEW, MS_FORCE};
+            static const uint8_t MDST[5] = {MD_CUT, MD_SHP, MD_PAN, MD_E1, MD_E1 + 1};   /* (not the pitch) */
+            int32_t a = 6 + (int32_t)alt_cr(20u);
+            t->p[P_M1SRC] = MSRC[alt_cr(6u)];
+            t->p[P_M1DST] = MDST[alt_cr(5u)];
+            t->p[P_M1AMT] = (int16_t)(alt_cr(2u) ? a : -a);
+        }
         for (k = 0; k < ALT_NSLOT; k++)
             alt_applied[c][k] = 0;
         alt_note[c][0] = alt_note[c][1] = alt_note[c][2] = 0;
