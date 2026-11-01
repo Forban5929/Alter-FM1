@@ -170,10 +170,9 @@ static void afp_input(void)
 }
 
 /* ---- the screen -------------------------------------------------------------------------------------------- */
-static uint16_t afp_dim(uint16_t c, int32_t pct)   /* c towards black (in colour whatever the theme) */
+static uint16_t afp_dim(uint16_t c, int32_t pct)   /* c towards the background (in colour whatever the theme) */
 {
-    uint32_t r = (c >> 11) & 31u, g = (c >> 5) & 63u, b = c & 31u, p = (uint32_t)clamp(pct, 0, 100);
-    return (uint16_t)(((r * p / 100u) << 11) | ((g * p / 100u) << 5) | (b * p / 100u));
+    return alt_mixc(ALT_BG, c, pct);
 }
 /* knob value k of the tab: its name, its text, a fill of 50 px (-1: text only) */
 static void afp_kv(uint32_t k, const char **name, char *txt, int32_t *fill)
@@ -277,7 +276,7 @@ static void afp_head(const char *name, uint32_t i, uint32_t n, int edited, uint1
     b[3] = (char)('0' + n / 10u);
     b[4] = (char)('0' + n % 10u);
     b[5] = 0;
-    cv_text_r(232, 36, &AF_S, b[0] == '0' ? b + 1 : b, ALT_GREY, RGB(0, 0, 0));
+    cv_text_r(232, 36, &AF_S, b[0] == '0' ? b + 1 : b, ALT_GREY, ALT_BG);
     w = cv_text(8, 52, &AF_L, name, col);
     if (edited)
         cv_text(8 + text_w(&AF_L, name) + 4, 52, &AF_M, "*", ALT_DIM);
@@ -362,7 +361,7 @@ static void afp_meter(int32_t x, int32_t y, const char *name, uint32_t pct, uint
     cv_rect(x, y + 20, (int32_t)(pct > 100u ? 100u : pct), 6, col);
     b[0] = '-';
     alt_num(b + 1, (int32_t)pct, 1);
-    cv_text_r(x + 100, y, &AF_S, pct ? b : "0", ALT_INK, RGB(0, 0, 0));
+    cv_text_r(x + 100, y, &AF_S, pct ? b : "0", ALT_INK, ALT_BG);
 }
 
 static void afp_scene(void)
@@ -404,8 +403,8 @@ static void afp_scene(void)
             for (i = 0; i < 4u; i++)
                 afp_knob(8 + (int32_t)i * 58, y, r * 4u + i, ALT_INK, r == afp.row);
         }
-        afp_meter(8, 196, "COMP", am_gr, RGB(250, 199, 117));
-        afp_meter(128, 196, amx[AMX_DUCK] ? "DUCK" : "DUCK OFF", am_dk, RGB(93, 202, 165));
+        afp_meter(8, 196, "COMP", am_gr, ALT_COL[2]);
+        afp_meter(128, 196, amx[AMX_DUCK] ? "DUCK" : "DUCK OFF", am_dk, ALT_COL[1]);
         return;
     }
     }

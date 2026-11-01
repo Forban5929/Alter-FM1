@@ -54,7 +54,6 @@ static const alt_key_t ALT_KEY[27] = {    /* k: semitones above F3 (whites 0 2 4
 #define ALT_DIE_HOLD_MS 600u
 #define ALT_TAP_MS 150u                   /* a tapped key's bright LED */
 #define ALT_SAVE_HOLD_MS 1000u            /* SAVE held this long on its page: store */
-#define ALT_PAGE_HOLD_MS 2000u            /* a page button held this long: it closes on release (shorter: stays open) */
 
 /* the quick pages: their buttons, names and four knobs (P_* of the chosen circle's part, or ALT_QK_* below;
  * QK_ENG: the engine's own) */
@@ -89,6 +88,9 @@ static struct {
     uint8_t seq_open, seq_hold, lane, step_turned;   /* the SEQ menu (SEQ held 0.5 s): open; opened by this hold; its
                                  * lane (VELO CHANCE DELAY REVERB PITCH); a knob turned while steps were held (no toggle) */
     uint16_t step_down;          /* the step keys (white keys) held: bit = step */
+    uint8_t mn, mhold;           /* the ENV / EDIT / SCL menu open (QP_*, 0: none); the page buttons whose hold opened
+                                 * their menu (bit QP_*: its release keeps it) */
+    uint8_t set_row;             /* SETTINGS (EDIT held): the row */
     uint8_t scene_open, tab, row[2], save_done;   /* the SAVE page open; its tab (0 SCENES 1 PATTERNS), each tab's row;
                                                  * a long hold has stored (its release loads nothing) */
     uint32_t save_t0;            /* SAVE's press on the page (fm1_ms), 0 = up */
@@ -419,7 +421,6 @@ static void alt_mtx_turn(uint32_t i, int32_t s)
 }
 
 /* ---- the SEQ menu: the chosen circle's steps, its lanes (VELO CHANCE DELAY REVERB PITCH), its engine ------------- */
-#define ALT_SEQ_HOLD_MS 500u                     /* SEQ held this long: the menu */
 enum { LN_VELO, LN_CHANCE, LN_DLY, LN_REV, LN_PITCH, LN_RATCH, LN_N };
 static const char *const ALT_LANE_NAME[LN_N] = {"VELO", "CHANCE", "DELAY", "REVERB", "PITCH", "RATCH"};
 static const char *const ALT_LANE_TAB[LN_N] = {"VELO", "CHNC", "DLY", "REV", "PITCH", "RATCH"};   /* (the tabs: six fit) */
@@ -624,20 +625,9 @@ static void alt_seq_input(uint32_t keys)
 /* the LFO page has this frame (1), or it has just been left (0: the frame goes on as usual) */
 static int alt_matrix_input(uint32_t pressed)
 {
-    uint32_t q, i, lfo = (fm1_in.buttons >> panel.btn[B_LFO]) & 1u;
+    uint32_t i;
     int32_t s;
-    for (q = 1; q < QP_N; q++)                   /* another page button: that page instead */
-        if (q != QP_LFO && ((pressed >> panel.btn[ALT_QP_BTN[q]]) & 1u)) {
-            au.mat_open = 0;
-            return 0;
-        }
-    if (!lfo && ((au.qp_was >> QP_LFO) & 1u)) { /* LFO let go: back to the circles */
-        au.qp_was &= (uint8_t)~(1u << QP_LFO);
-        au.mat_open = 0;
-        au.qp = QP_NONE;
-        return 1;
-    }
-    au.qp_was = (uint8_t)((au.qp_was & ~(1u << QP_LFO)) | (lfo << QP_LFO));
+    (void)pressed;
     if ((s = panel_enc(EN_ALGO)) != 0) {
         au.mtab = (uint8_t)clamp((int32_t)au.mtab + (s > 0 ? 1 : -1), 0, ALT_TAB_MTX);
         au.dd = 0;
@@ -761,8 +751,34 @@ static void alt_select(uint32_t i)
 }
 
 /* 1: the PLAY view had this frame's input (ui_input stops); 0: Felucca's (another page, or a button that opens one) */
+/* the page buttons, all alike (Romain, 01/11): a tap = the quick page (the four knobs over the circles; tapped again:
+ * gone), held 0.5 s = the button's menu, which stays (the button tapped, HOME or another page button: gone).
+ * Menus: SEQ (lanes), FX (the FX page), LFO (LFO 1 2 3 GLOBAL MTX), ENV (the envelope drawn), EDIT (SETTINGS), SCL (the
+ * scales). GLO has none yet: held = tapped */
+#define ALT_MENU_HOLD_MS 500u
+static uint32_t alt_menu_cur(void)
+{
+    return au.seq_open ? QP_SEQ : afp.open ? QP_FX : au.mat_open ? QP_LFO : au.mn;
+}
+static void alt_menu_set(uint32_t q)
+{
+    au.seq_open = (uint8_t)(q == QP_SEQ);
+    afp.open = (uint8_t)(q == QP_FX);
+    au.mat_open = (uint8_t)(q == QP_LFO);
+    au.mn = (uint8_t)(q == QP_ENV || q == QP_EDIT || q == QP_SCL ? q : 0u);
+    au.qp = (uint8_t)(q == QP_ENV || q == QP_SCL ? q : QP_NONE);   /* (ENV, SCL: their quick page's knobs, drawn big) */
+    au.step_down = 0;
+    au.dd = 0;
+    au.set_row = 0;
+}
+static const char *alt_menu_name(uint32_t q)
+{
+    return q == QP_SEQ ? "SEQ" : q == QP_FX ? "FX" : q == QP_LFO ? "LFO" : q == QP_ENV ? "ENVELOPE" :
+           q == QP_EDIT ? "SETTINGS" : q == QP_SCL ? "SCALES" : "";
+}
+
 static void afp_input(void);                     /* the FX page (alter_fxpage.c, with the screen below) */
-#define ALT_FX_HOLD_MS 500u                       /* FX held this long: the FX page */
+static void alt_set_input(void);                 /* SETTINGS (with the screens below) */
 static int alter_ui_input(uint32_t pressed)
 {
     uint32_t keys = fm1_in.notes, down, k, i, ours = alt_ours(), q, octs, both;
@@ -777,9 +793,8 @@ static int alter_ui_input(uint32_t pressed)
                 au.qp = QP_NONE;
                 au.qp_was = 0;
                 au.scene_open = 0;
-                au.mat_open = 0;
-                au.seq_open = 0;
-                afp.open = 0;
+                alt_menu_set(0);
+                au.mhold = 0;
                 alt_hold = 0;
                 au.keys = keys;
                 return 0;
@@ -816,18 +831,14 @@ static int alter_ui_input(uint32_t pressed)
         au.qp = QP_NONE;
         au.lockc = 0;
         au.scene_open = 0;
-        au.mat_open = 0;
-        au.seq_open = 0;
-        afp.open = 0;
+        alt_menu_set(0);
     }
     if (((pressed >> panel.btn[B_SAVE]) & 1u) && !au.scene_open) {   /* SAVE: the SAVE page (its press opens it) */
         au.scene_open = 1;
         au.save_t0 = 0;
         au.qp = QP_NONE;
         au.lockc = 0;
-        au.mat_open = 0;
-        au.seq_open = 0;
-        afp.open = 0;
+        alt_menu_set(0);
     } else if (au.scene_open) {                  /* on it: a tap loads, held 1 s stores */
         uint32_t dn = (fm1_in.buttons >> panel.btn[B_SAVE]) & 1u, t = au.tab, r = au.row[t];
         if (((pressed >> panel.btn[B_SAVE]) & 1u)) {
@@ -861,63 +872,38 @@ static int alter_ui_input(uint32_t pressed)
         au.keys = keys;
         return 1;
     }
+    for (q = 1; q < QP_N; q++) {                 /* the page buttons: a tap the quick page, held 0.5 s the menu */
+        uint32_t dn = (fm1_in.buttons >> panel.btn[ALT_QP_BTN[q]]) & 1u, was = (au.qp_was >> q) & 1u;
+        if (dn && !was) {
+            au.qp_t0[q] = fm1_ms;
+            au.lockc = 0;
+            au.mhold &= (uint8_t)~(1u << q);
+            if (alt_menu_cur() && alt_menu_cur() != q)
+                alt_menu_set(0);                 /* (another page: the menu open closes) */
+            alt_say(alt_qp_name(q));
+        } else if (dn && q != QP_GLO && alt_menu_cur() != q && !((au.mhold >> q) & 1u) &&
+                   (int32_t)(fm1_ms - au.qp_t0[q]) >= (int32_t)ALT_MENU_HOLD_MS) {
+            alt_menu_set(q);                     /* held: its menu */
+            au.mhold |= (uint8_t)(1u << q);
+            alt_say(alt_menu_name(q));
+        } else if (!dn && was) {
+            if ((au.mhold >> q) & 1u)            /* the hold's release: the menu stays */
+                au.mhold &= (uint8_t)~(1u << q);
+            else if (alt_menu_cur() == q)        /* tapped on its menu: back to the circles */
+                alt_menu_set(0);
+            else
+                au.qp = (uint8_t)(au.qp == q ? QP_NONE : q);
+        }
+        au.qp_was = (uint8_t)((au.qp_was & ~(1u << q)) | (dn << q));
+    }
     if (au.mat_open && alt_matrix_input(pressed)) {
         au.keys = keys;
         return 1;
     }
-    for (q = 1; q < QP_N; q++) {                 /* the page buttons: a tap keeps the page, a long hold does not */
-        uint32_t dn = (fm1_in.buttons >> panel.btn[ALT_QP_BTN[q]]) & 1u, was = (au.qp_was >> q) & 1u;
-        if (dn && !was && q != QP_SEQ && au.seq_open)
-            au.seq_open = 0;                     /* (another page: the SEQ menu closes) */
-        if (dn && !was && q != QP_FX && afp.open)
-            afp.open = 0;                        /* (another page: the FX page closes) */
-        if (q == QP_FX && dn && was && !afp.open &&
-            (int32_t)(fm1_ms - au.qp_t0[q]) >= (int32_t)ALT_FX_HOLD_MS) {   /* FX held 0.5 s: the FX page */
-            afp.open = 1;
-            afp.hold = 1;
-            au.qp = QP_NONE;
-            au.seq_open = 0;
-            alt_say("FX");
-        }
-        if (q == QP_FX && !dn && was && (afp.hold || afp.open)) {   /* its release: the page stays (a hold), or */
-            if (!afp.hold)                       /* closes (a tap on it) */
-                afp.open = 0;
-            afp.hold = 0;
-            au.qp_was &= (uint8_t)~(1u << q);
-            continue;
-        }
-        if (q == QP_SEQ && dn && was && !au.seq_open &&
-            (int32_t)(fm1_ms - au.qp_t0[q]) >= (int32_t)ALT_SEQ_HOLD_MS) {   /* SEQ held 0.5 s: the menu */
-            au.seq_open = 1;
-            au.seq_hold = 1;
-            au.qp = QP_NONE;
-            au.step_down = 0;
-            alt_say("SEQ");
-        }
-        if (q == QP_SEQ && !dn && was && (au.seq_hold || au.seq_open)) {   /* its release: the menu stays (a hold), */
-            if (!au.seq_hold)                    /* or closes (a tap on it) */
-                au.seq_open = 0;
-            au.seq_hold = 0;
-            au.qp_was &= (uint8_t)~(1u << q);
-            continue;
-        }
-        if (dn && !was) {
-            au.qp_t0[q] = fm1_ms;
-            au.lockc = 0;
-            alt_say(alt_qp_name(q));
-        } else if (!dn && was) {
-            if ((int32_t)(fm1_ms - au.qp_t0[q]) < (int32_t)ALT_PAGE_HOLD_MS && q == QP_LFO && au.qp == QP_LFO) {
-                au.qp = QP_NONE;                 /* LFO tapped on its page: the MATRIX */
-                au.mat_open = 1;
-                au.mtab = 0;
-                au.dd = 0;
-                alt_say("MATRIX");
-            } else if ((int32_t)(fm1_ms - au.qp_t0[q]) < (int32_t)ALT_PAGE_HOLD_MS)
-                au.qp = (uint8_t)(au.qp == q ? QP_NONE : q);
-            else if (au.qp == q)
-                au.qp = QP_NONE;
-        }
-        au.qp_was = (uint8_t)((au.qp_was & ~(1u << q)) | (dn << q));
+    if (au.mn == QP_EDIT) {                      /* SETTINGS */
+        alt_set_input();
+        au.keys = keys;
+        return 1;
     }
     if (((fm1_in.buttons >> panel.btn[B_SEQ]) & 1u) && (s = panel_enc(EN_ALGO)) != 0)
         alt_seq_type(s);                         /* SEQ held + ALGORITHM: the chosen circle's engine */
@@ -1091,11 +1077,32 @@ static void alter_leds(uint8_t *nl, uint8_t *nd, uint8_t *nb, uint8_t *nm)
 #define ALT_CX 120
 #define ALT_CY 116
 static const uint8_t ALT_R[AS_NCIRC] = {80, 60, 40};
-static const uint16_t ALT_COL[AS_NCIRC] = {RGB(240, 153, 123), RGB(93, 202, 165), RGB(250, 199, 117)};
-#define ALT_GREY RGB(70, 70, 74)
-#define ALT_DARK RGB(40, 40, 44)
-#define ALT_INK RGB(235, 235, 235)
-#define ALT_DIM RGB(150, 150, 155)
+/* the two themes (EDIT held: SETTINGS > THEME, Romain 01/11): NIGHT (dark, as before) and DAY (light). The theme is
+ * Felucca's palette setting (settings.palette, saved with the settings): DAY = PAPER, NIGHT = GREY; ALTER draws in
+ * its own colours, light when the palette is (ux.light) */
+#define ALT_DAY (ux.light != 0)
+static const uint16_t ALT_COLS[2][AS_NCIRC] = {
+    {RGB(240, 153, 123), RGB(93, 202, 165), RGB(250, 199, 117)},
+    {RGB(201, 86, 47), RGB(31, 138, 106), RGB(168, 116, 15)},
+};
+#define ALT_COL (ALT_COLS[ALT_DAY])
+#define ALT_BG (ALT_DAY ? RGB(244, 243, 240) : RGB(0, 0, 0))
+#define ALT_GREY (ALT_DAY ? RGB(196, 194, 190) : RGB(70, 70, 74))
+#define ALT_DARK (ALT_DAY ? RGB(224, 222, 218) : RGB(40, 40, 44))
+#define ALT_INK (ALT_DAY ? RGB(24, 24, 26) : RGB(235, 235, 235))
+#define ALT_DIM (ALT_DAY ? RGB(93, 92, 97) : RGB(150, 150, 155))
+#define ALT_GO (ALT_DAY ? RGB(30, 140, 70) : RGB(95, 224, 138))   /* PLAY */
+/* c towards the background by (100 - pct) %, in colour whatever the palette (a grey palette's ux_mix would grey it) */
+static uint16_t alt_mixc(uint16_t a, uint16_t c, int32_t pct)
+{
+    static const uint32_t SH[3] = {11, 5, 0}, MK[3] = {31, 63, 31};
+    uint32_t k, out = 0, p = (uint32_t)clamp(pct, 0, 100);
+    for (k = 0; k < 3u; k++) {
+        int32_t x = (int32_t)((a >> SH[k]) & MK[k]), y = (int32_t)((c >> SH[k]) & MK[k]);
+        out |= (uint32_t)(x + (y - x) * (int32_t)p / 100) << SH[k];
+    }
+    return (uint16_t)out;
+}
 
 static void alt_disc(int32_t cx, int32_t cy, int32_t r, uint16_t c)
 {
@@ -1112,7 +1119,7 @@ static void alt_at(uint32_t turn, int32_t r, int32_t *x, int32_t *y)   /* turn: 
     *y = ALT_CY - ((r * sine_i(turn + 0x40000000u)) >> 15);
 }
 
-static uint16_t alt_fade(uint16_t c, int32_t pct) { return ux_mix(RGB(0, 0, 0), c, pct); }
+static uint16_t alt_fade(uint16_t c, int32_t pct) { return alt_mixc(ALT_BG, c, pct); }
 
 static void alt_num(char *d, int32_t q, int pct)
 {
@@ -1443,7 +1450,7 @@ static void alt_dropdown(int32_t lx, int32_t ly, int32_t cur, int32_t n, uint16_
     char b[8];
     int32_t k;
     cv_rect(lx - 2, ly - 2, 84, 5 * 15 + 4, col);
-    cv_rect(lx - 1, ly - 1, 82, 5 * 15 + 2, RGB(0, 0, 0));
+    cv_rect(lx - 1, ly - 1, 82, 5 * 15 + 2, ALT_BG);
     for (k = -2; k <= 2; k++) {
         int32_t v = cur + k, yy = ly + (k + 2) * 15;
         if (v < 0 || v >= n)
@@ -1718,6 +1725,221 @@ static void alt_matrix_scene(void)
         alt_lfo_tab(tb, col);
 }
 
+/* the foot: the page's name, its four knobs (the circles, the ENV and SCL menus) */
+static void alt_foot(uint32_t q)
+{
+    uint32_t i;
+    if (q)
+        cv_text(8, 194, &AF_S, alt_qp_name(q), ALT_COL[au.sel]);
+    for (i = 0; i < 4u; i++) {
+        int32_t x = 8 + (int32_t)i * 58, fill;
+        const char *name;
+        char txt[12];
+        int32_t lo = -1, hi = -1, pct = -1;
+        alt_kv(q, i, &name, txt, &fill);
+        if (fill >= 0)
+            alt_live_bar(q, i, fill, &lo, &hi, &pct);
+        cv_text(x, 209, &AF_S, name, ALT_DIM);
+        if (pct < 0 && alt_knob_lfo(q, i))       /* an LFO on it the bar cannot show: a small wave by its name */
+            alt_mini_wave(x + text_w(&AF_S, name) + 4, 213, ALT_COL[au.sel]);
+        if (fill >= 0) {
+            cv_rect(x, 227, 50, 5, ALT_DARK);
+            if (pct >= 0) {                      /* an LFO moves it: the range it reaches, in the circle's colour */
+                cv_rect(x + lo, 226, (hi > lo ? hi - lo : 1) + 1, 7, ALT_COL[au.sel]);
+                cv_rect(x, 228, fill, 3, ALT_INK);
+            } else
+                cv_rect(x, 227, fill, 5, ALT_INK);
+        } else
+            cv_text(x, 222, &AF_S, txt, ALT_INK);
+    }
+}
+
+
+/* ---- the ENV, EDIT and SCL menus (their button held 0.5 s) ---- */
+/* the head: the chosen circle's point, the menu's name, a word in its colour */
+static void alt_menu_head(const char *name, const char *what)
+{
+    alt_disc(14, 13, 5, ALT_COL[au.sel % AS_NCIRC]);
+    cv_text(26, 2, &AF_M, name, ALT_INK);
+    if (what)
+        cv_text(26, 22, &AF_S, what, ALT_COL[au.sel % AS_NCIRC]);
+}
+
+/* ENVELOPE: the chosen circle's envelope as its mode shapes it (the ENV page's four knobs, the same names), a
+ * picture, not a measure: the times drawn longer as the knobs go up. PERC: PUNCH as a falling line; STAB / DRONE:
+ * PLUCK / OPEN (the filter the envelope opens) dotted */
+static void alt_env_scene(void)
+{
+    uint32_t c = au.sel % AS_NCIRC, m = alt_emode[c] % AM_N, i;
+    const track_t *t = &trk[c];
+    uint16_t col = ALT_COL[c];
+    int32_t v[4], a, d, h, sus, r, x0 = 10, y0 = 176, top = 56, H = y0 - top, px, x, prev = y0, filt = -1;
+    for (i = 0; i < 4u; i++) {
+        int32_t k = ALT_ENV_K[m][i];
+        v[i] = m == AM_FREE ? clamp(t->p[P_ATK + i] - alt_applied[c][alt_slot(P_ATK + i)], 0, 127) :
+               k >= 0 ? (int32_t)alt_envp[c][k] : 0;
+    }
+    alt_menu_head("ENVELOPE", ALT_MODE_NAME[m]);
+    switch (m) {                                 /* segment widths (px) and the sustain level (0..H) */
+    case AM_PERC:  a = 2 + v[0] * 20 / 127; h = v[1] * 60 / 127; d = 8 + v[2] * 120 / 127; sus = 0; r = 0; break;
+    case AM_STAB:  a = 2; d = 8 + v[0] * 60 / 127; h = 30; sus = v[1] * H / 127; r = 6 + v[0] * 50 / 127; filt = v[2]; break;
+    case AM_DRONE: a = 20 + v[0] * 70 / 127; d = 16; h = 40; sus = 20 + v[1] * (H - 20) / 127; r = 24 + v[2] * 60 / 127; filt = v[3]; break;
+    default:       a = 2 + v[0] * 50 / 127; d = 4 + v[1] * 50 / 127; h = 40; sus = v[2] * H / 127; r = 4 + v[3] * 60 / 127; break;
+    }
+    if (m == AM_PERC) {                          /* (hold: up there, then the decay down to nothing) */
+        sus = H;
+    }
+    cv_rect(x0, y0 + 1, 220, 1, ALT_GREY);       /* the ground */
+    px = a + d + h + r;
+    if (m == AM_PERC)
+        px = a + h + d;
+    for (x = 0; x <= px && x0 + x < 232; x++) {  /* the curve: rises straight, falls as a square law (faster first) */
+        int32_t lv, y;
+        if (x < a)
+            lv = H * x / (a ? a : 1);
+        else if (m == AM_PERC) {
+            int32_t u = x - a - h;
+            if (u < 0)
+                lv = H;
+            else {
+                int32_t w = d - u < 0 ? 0 : d - u;
+                lv = H * w / d * w / d;
+            }
+        } else if (x < a + d) {
+            int32_t w = a + d - x;
+            lv = sus + (H - sus) * w / d * w / d;
+        } else if (x < a + d + h)
+            lv = sus;
+        else {
+            int32_t w = px - x;
+            lv = sus * w / r * w / r;
+        }
+        y = y0 - lv;
+        cv_rect(x0 + x, y, 1, y0 - y, alt_fade(col, 22));   /* (the area under it, faint) */
+        cv_rect(x0 + x, y < prev ? y : prev, 2, (y < prev ? prev - y : y - prev) + 2, col);
+        prev = y;
+    }
+    if (filt >= 0)                               /* PLUCK / OPEN: the filter the envelope opens, dotted */
+        for (x = 0; x < px && x0 + x < 232; x += 4) {
+            int32_t w = px - x, lv = H * filt / 127 * w / px * w / px;
+            cv_rect(x0 + x, y0 - lv, 2, 2, ALT_DIM);
+        }
+    if (m == AM_PERC && v[3])                    /* PUNCH: the pitch dives at the hit */
+        for (x = 0; x < 40; x += 3)
+            cv_rect(x0 + 4 + x, top - 6 + x * x * v[3] / 127 / 40, 2, 2, ALT_DIM);
+    if (m == AM_STAB) {                          /* CHORD: its name */
+        char b[8];
+        const char *n = AS_CHORD_NAME[c_chord_of(c)];
+        for (i = 0; n[i] && i < 7u; i++)
+            b[i] = n[i];
+        b[i] = 0;
+        cv_text_r(232, 22, &AF_S, b, ALT_DIM, ALT_BG);
+    }
+    alt_foot(QP_ENV);
+}
+
+/* SCALES: the scale list (KNOB 1 picks, as on the quick page), an octave with the scale's notes from the chosen
+ * circle's root lit (the root in full colour) */
+static void alt_scl_scene(void)
+{
+    static const char *const NN[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+    static const uint8_t BLACK = 0x2Au | 0x540u;   /* (C# D# F# G# A#: bits 1 3 6 8 10) */
+    uint32_t c = au.sel % AS_NCIRC, sc = alt_seq.scale % AS_NSCALE, root = au.cfg[c].root % 12u, i, k;
+    uint16_t col = ALT_COL[c];
+    uint16_t lit = 0;
+    char b[16];
+    (void)BLACK;
+    for (k = 0; AS_SCALES[sc][k] >= 0; k++)
+        lit |= (uint16_t)(1u << ((root + (uint32_t)AS_SCALES[sc][k]) % 12u));
+    {
+        uint32_t n = 0;
+        const char *r = NN[root], *nm = AS_SCALE_NAME[sc];
+        while (*r) b[n++] = *r++;
+        b[n++] = ' ';
+        while (*nm && n < 15u) b[n++] = *nm++;
+        b[n] = 0;
+    }
+    alt_menu_head("SCALES", b);
+    for (i = 0; i < AS_NSCALE; i++) {            /* the list */
+        int32_t y = 44 + (int32_t)i * 19;
+        if (i == sc) {
+            cv_rect(8, y - 1, 78, 17, alt_fade(col, 25));
+            cv_rect(8, y - 1, 3, 17, col);
+        }
+        cv_text(16, y, &AF_S, AS_SCALE_NAME[i], i == sc ? ALT_INK : ALT_DIM);
+    }
+    {                                            /* an octave from C: the scale's notes in the circle's colour */
+        static const uint8_t WK[7] = {0, 2, 4, 5, 7, 9, 11}, BK[5] = {1, 3, 6, 8, 10}, BX[5] = {1, 2, 4, 5, 6};
+        int32_t kx = 98, ky = 56, kw = 19, kh = 84;
+        for (i = 0; i < 7u; i++) {
+            uint32_t n = WK[i], on = (lit >> n) & 1u;
+            cv_rect(kx + (int32_t)i * kw, ky, kw - 2, kh, on ? (n == root ? col : alt_fade(col, 60)) : ALT_GREY);
+            cv_text(kx + (int32_t)i * kw + 4, ky + kh + 4, &AF_S, NN[n], n == root ? col : ALT_DIM);
+        }
+        for (i = 0; i < 5u; i++) {
+            uint32_t n = BK[i], on = (lit >> n) & 1u;
+            int32_t x = kx + (int32_t)BX[i] * kw - 6;
+            cv_rect(x - 1, ky - 1, 12, 52, ALT_BG);
+            cv_rect(x, ky, 10, 50, on ? (n == root ? col : alt_fade(col, 40)) : ALT_DARK);
+        }
+    }
+    alt_foot(QP_SCL);
+}
+
+/* SETTINGS (EDIT held): rows, SELECT picks one, KNOB 1 or ALGORITHM changes it. THEME: NIGHT (dark) / DAY (light) */
+enum { SET_THEME, SET_N };
+static const char *const SET_NAME[SET_N] = {"THEME"};
+#define ALT_PAL_NIGHT UI_GREY_INDEX
+#define ALT_PAL_DAY 6u                            /* PAPER (build/gen/ui_palettes.h) */
+static const char *alt_set_text(uint32_t r)
+{
+    if (r == SET_THEME)
+        return ALT_DAY ? "DAY" : "NIGHT";
+    return "";
+}
+static void alt_set_turn(uint32_t r, int32_t s)
+{
+    if (r == SET_THEME) {
+        uint32_t day = s > 0;
+        if (day == (uint32_t)ALT_DAY)
+            return;
+        palette_choose(day ? ALT_PAL_DAY : ALT_PAL_NIGHT);
+        settings_save();
+        au.drawn = 0;
+    }
+}
+static void alt_set_input(void)
+{
+    int32_t s;
+    uint32_t i;
+    if ((s = panel_enc(EN_SELECT)) != 0)
+        au.set_row = (uint8_t)clamp((int32_t)au.set_row + s, 0, SET_N - 1);
+    if ((s = panel_enc(EN_ALGO)) != 0)
+        alt_set_turn(au.set_row, s);
+    for (i = 0; i < 4u; i++)
+        if ((s = panel_enc(EN_K1 + i)) != 0 && i == 0u)
+            alt_set_turn(au.set_row, s);
+    (void)panel_enc(EN_PRESET);
+    alt_hold = 0;
+}
+static void alt_set_scene(void)
+{
+    uint32_t r;
+    uint16_t col = ALT_COL[au.sel % AS_NCIRC];
+    alt_menu_head("SETTINGS", 0);
+    for (r = 0; r < SET_N; r++) {
+        int32_t y = 48 + (int32_t)r * 24;
+        if (r == au.set_row) {
+            cv_rect(8, y - 3, 224, 21, alt_fade(col, 25));
+            cv_rect(8, y - 3, 3, 21, col);
+        }
+        cv_text(18, y, &AF_M, SET_NAME[r], ALT_INK);
+        cv_text_r(226, y, &AF_M, alt_set_text(r), r == au.set_row ? col : ALT_DIM, r == au.set_row ? alt_fade(col, 25) : ALT_BG);
+    }
+    cv_text(8, 209, &AF_S, "KNOB 1", ALT_DIM);
+    cv_text(8, 222, &AF_S, alt_set_text(au.set_row), ALT_INK);
+}
+
 #include "alter_fxpage.c"
 
 static void alt_scene(uint32_t q, uint32_t flash)
@@ -1746,6 +1968,18 @@ static void alt_scene(uint32_t q, uint32_t flash)
         afp_scene();
         return;
     }
+    if (au.mn == QP_ENV) {
+        alt_env_scene();
+        return;
+    }
+    if (au.mn == QP_SCL) {
+        alt_scl_scene();
+        return;
+    }
+    if (au.mn == QP_EDIT) {
+        alt_set_scene();
+        return;
+    }
     /* the head: a point of the chosen circle's colour, its sound, the transport */
     alt_disc(14, 13, 5, ALT_COL[au.sel]);
     cv_text(26, 2, &AF_M, ALT_PRE[au.pre[au.sel] % ALT_NPRE].name, ALT_INK);
@@ -1763,7 +1997,7 @@ static void alt_scene(uint32_t q, uint32_t flash)
         b[n++] = (char)('0' + bpm % 10u);
         b[n] = 0;
     }
-    cv_text_r(234, 4, &AF_S, b, song.playing ? RGB(95, 224, 138) : ALT_DIM, cv_bg);
+    cv_text_r(234, 4, &AF_S, b, song.playing ? ALT_GO : ALT_DIM, cv_bg);
     /* the circles */
     for (i = 0; i < AS_NCIRC; i++) {
         const as_circ_t *c = &alt_seq.c[i];
@@ -1800,34 +2034,11 @@ static void alt_scene(uint32_t q, uint32_t flash)
     /* the middle: the key held or tapped, else the chosen circle's flash */
     if (au.msg && fm1_ms - au.msg_ms < 900u) {
         int32_t w = text_w(&AF_S, au.msg);
-        cv_rect(ALT_CX - w / 2 - 4, ALT_CY - 9, w + 8, 18, RGB(0, 0, 0));
+        cv_rect(ALT_CX - w / 2 - 4, ALT_CY - 9, w + 8, 18, ALT_BG);
         cv_text(ALT_CX - w / 2, ALT_CY - 8, &AF_S, au.msg, ALT_INK);
     } else
         alt_disc(ALT_CX, ALT_CY, (flash >> au.sel) & 1u ? 9 : 3, (flash >> au.sel) & 1u ? ALT_COL[au.sel] : ALT_GREY);
-    /* the foot: the page's name, its four knobs */
-    if (q)
-        cv_text(8, 194, &AF_S, alt_qp_name(q), ALT_COL[au.sel]);
-    for (i = 0; i < 4u; i++) {
-        int32_t x = 8 + (int32_t)i * 58, fill;
-        const char *name;
-        char txt[12];
-        int32_t lo = -1, hi = -1, pct = -1;
-        alt_kv(q, i, &name, txt, &fill);
-        if (fill >= 0)
-            alt_live_bar(q, i, fill, &lo, &hi, &pct);
-        cv_text(x, 209, &AF_S, name, ALT_DIM);
-        if (pct < 0 && alt_knob_lfo(q, i))       /* an LFO on it the bar cannot show: a small wave by its name */
-            alt_mini_wave(x + text_w(&AF_S, name) + 4, 213, ALT_COL[au.sel]);
-        if (fill >= 0) {
-            cv_rect(x, 227, 50, 5, ALT_DARK);
-            if (pct >= 0) {                      /* an LFO moves it: the range it reaches, in the circle's colour */
-                cv_rect(x + lo, 226, (hi > lo ? hi - lo : 1) + 1, 7, ALT_COL[au.sel]);
-                cv_rect(x, 228, fill, 3, ALT_INK);
-            } else
-                cv_rect(x, 227, fill, 5, ALT_INK);
-        } else
-            cv_text(x, 222, &AF_S, txt, ALT_INK);
-    }
+    alt_foot(q);
 }
 
 static void alter_draw(void)
@@ -1861,6 +2072,7 @@ static void alter_draw(void)
           au.pre[au.sel] * 53u;
     sig = sig * 31u + (au.mat_open ? alt_mat_sig() * 2u + 1u : 0u) + (au.seq_open ? alt_seq_sig() * 4u + 3u : 0u) +
           (afp.open ? afp_sig() * 8u + 5u : 0u);
+    sig = sig * 31u + au.mn * 61u + au.set_row * 67u + (uint32_t)ALT_DAY * 71u + au.cfg[au.sel % AS_NCIRC].chord * 73u;
     sig = sig * 31u + q * 19u + au.lockc * 23u + alt_seq.c[au.lockc ? au.lockc - 1u : 0u].locks * 29u;
     sig = sig * 31u + au.sel * 3u + flash * 5u + (uint32_t)song.playing * 7u + trk[au.sel].preset * 11u +
           (uint32_t)song.g[G_BPM] * 13u + (au.msg && fm1_ms - au.msg_ms < 1500u ? (uint32_t)(uintptr_t)au.msg + (fm1_ms - au.msg_ms < 900u) : 1u);
@@ -1870,7 +2082,7 @@ static void alter_draw(void)
     au.sig = sig;
     au.drawn = 1;
     for (i = 0; i < 2u; i++) {                   /* two halves: the canvas holds 240 x 124 */
-        cv_begin(240, 120, RGB(0, 0, 0));
+        cv_begin(240, 120, ALT_BG);
         cv_oy = -(int32_t)i * 120;
         alt_scene(q, flash);
         cv_oy = 0;

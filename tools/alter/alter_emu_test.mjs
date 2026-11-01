@@ -222,6 +222,7 @@ tap(22); bar();
 // quick pages: a tap on ENV keeps the circles, KNOB 2 = DEC (shorter notes: less sound), ENV again closes it
 {
   const B = (n) => { ex.web_buttons(1 << n); render(2000); ex.web_buttons(0); render(2000); };
+  const H = (n) => { ex.web_buttons(1 << n); render(Math.floor(44100 * 0.7)); ex.web_buttons(0); render(2000); };   // held: the menu
   const energy = (b) => b.audio.reduce((p, x) => p + Math.abs(x), 0);
   bar(); const e0 = energy(bar());
   B(2); enc(4, -30); B(2); bar();
@@ -266,6 +267,7 @@ tap(22); bar();
 // the envelope modes' own knobs (ENV page by the circle's mode): PERC HOLD, STAB LENGTH; an LFO on LENGTH
 {
   const B = (n) => { ex.web_buttons(1 << n); render(2000); ex.web_buttons(0); render(2000); };
+  const H = (n) => { ex.web_buttons(1 << n); render(Math.floor(44100 * 0.7)); ex.web_buttons(0); render(2000); };   // held: the menu
   const energy = (a) => a.reduce((p, x) => p + Math.abs(x), 0);
   enc(1, 1); B(2);                                              // PERC, its ENV page (ATTACK HOLD DECAY PUNCH)
   bar(); const h0 = energy(bar().audio);
@@ -278,7 +280,7 @@ tap(22); bar();
   check(`STAB: LENGTH up rings longer (energy ${s0.toFixed(0)} -> ${s1.toFixed(0)})`, s1 > 1.3 * s0);
   enc(3, -30); B(2);
   enc(1, -1);                                                   // PERC again: LFO 1 SQR 1 BAR -> LENGTH +63
-  B(3); B(3); enc(3, 3); enc(4, 2); enc(5, 63); enc(6, 10);
+  H(3); enc(3, 3); enc(4, 2); enc(5, 63); enc(6, 10);
   bar();
   const lb = bar().audio, e1 = energy(lb.slice(0, 8 * STEP)), e2 = energy(lb.slice(8 * STEP));
   check(`LFO 1 SQR -> LENGTH (PERC): one half of the bar rings longer (${e1.toFixed(0)} / ${e2.toFixed(0)})`,
@@ -294,18 +296,19 @@ tap(22); bar();
   bar();
   check("modes and LFO off: 8 hits as before", same(bar().steps, euclid(16, 8, 0)));
 }
-// LFO tapped twice: the LFO page. Tabs LFO 1 2 3 (the chosen circle's three), GLOBAL (each K1 WAVE K2 RATE K3 DEPTH
+// LFO held 0.5 s: the LFO page. Tabs LFO 1 2 3 (the chosen circle's three), GLOBAL (each K1 WAVE K2 RATE K3 DEPTH
 // K4 DEST), MTX (the chosen circle's matrix: SELECT the slot, K1 SRC K2 DEST K3 AMT); ALGORITHM the tab
 {
   const B = (n) => { ex.web_buttons(1 << n); render(2000); ex.web_buttons(0); render(2000); };
+  const H = (n) => { ex.web_buttons(1 << n); render(Math.floor(44100 * 0.7)); ex.web_buttons(0); render(2000); };   // held: the menu
   const top = () => { render(4000); return Array.from(new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240).slice(0, 240 * 24)).join(); };
   // the loudness of each 16th of a bar (its first 60 ms)
   const steps = (b) => Array.from({ length: 16 }, (_, k) => peak(b.audio.slice(k * STEP, k * STEP + 2600)));
   const swell = (l) => Math.max(l[14] / Math.max(l[0], 1e-4), l[0] / Math.max(l[14], 1e-4));
   const half = (st) => st.length >= 4 && (st.every((x) => x < 8) || st.every((x) => x >= 8));
   const circles = top();
-  B(3); B(3);
-  check("LFO, LFO: the LFO page (the screen's top changes)", top() !== circles);
+  H(3);
+  check("LFO held: the LFO page (the screen's top changes)", top() !== circles);
   enc(3, 3); enc(4, 2); enc(5, 63); enc(6, 9);                  // LFO 1: SQR, 1 BAR, +63, PROB
   bar();
   const pr = [...bar().steps, ...bar().steps];
@@ -447,6 +450,38 @@ play();
   const tails = [1, 2, 4, 8].map(() => peak(render(FS, true)));
   check(`STOP: the notes stop, the effects' tails die away (peaks a second apart ${tails.map((x) => x.toFixed(4)).join(" ")})`,
         tails[3] < 0.003 && tails[3] <= tails[0]);
+}
+// the page buttons all alike (01/11): a tap the quick page, held 0.5 s the menu (tapped again: the circles); ENV's
+// menu draws the envelope, SCL's the scales, EDIT's is SETTINGS (THEME NIGHT / DAY); GLO held = tapped
+{
+  const T = (n) => { ex.web_buttons(1 << n); render(2000); ex.web_buttons(0); render(2000); };
+  const H = (n) => { ex.web_buttons(1 << n); render(Math.floor(FS * 0.7)); ex.web_buttons(0); render(2000); };
+  const scr = () => { render(4000); return Array.from(new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240)); };
+  const key = (a) => a.join();
+  ex.web_buttons(1 << 6); render(2000); ex.web_buttons(0); render(FS * 1.5);   // HOME: the circles
+  const circles = key(scr());
+  for (const [n, nm] of [[2, "ENV"], [1, "SCL"], [4, "EDIT"]]) {
+    T(n); const quick = key(scr());
+    T(n); render(FS * 1.5); const back = key(scr());
+    H(n); const menu = key(scr());
+    T(n); render(FS * 1.5); const out = key(scr());
+    check(`${nm}: tap = quick page, tap = circles, held = its menu, tap = circles`,
+          quick !== circles && back === circles && menu !== quick && menu !== circles && out === circles);
+  }
+  T(5); const gq = key(scr()); T(5);
+  H(5); const gh = key(scr()); T(5);
+  check("GLO: held = the same quick page as a tap (no menu yet)", gq === gh && gq !== circles);
+  H(4);                                                          // SETTINGS: THEME to DAY
+  const night = scr()[240 * 120 + 2];
+  ex.web_enc(3, 1); render(4000);
+  const day = scr()[240 * 120 + 2];
+  T(4); render(FS * 1.5);
+  const dayc = scr()[240 * 236 + 2];
+  H(4); ex.web_enc(3, -1); render(4000); T(4); render(FS * 1.5);
+  const back = key(scr());
+  const lum = (c) => ((c >> 11) & 31) + ((c >> 5) & 63) / 2 + (c & 31);
+  check(`SETTINGS THEME: DAY lights the screen (bg ${night.toString(16)} -> ${day.toString(16)}, circles ${dayc.toString(16)}), NIGHT as before`,
+        lum(day) > 60 && lum(night) < 10 && lum(dayc) > 60 && back === circles);
 }
 if (wavPath) {                                                  // 4 bars from a fresh start, all three circles
   ex.web_nor_erase(); ex.web_boot(); render(FS * 2);

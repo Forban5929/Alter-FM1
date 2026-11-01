@@ -23,15 +23,21 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
   rafales, flams, coups sautés), hauteur (jusqu'à 3 oct. dans la gamme, gamme jamais changée), glide, longueur et
   enveloppe PAR COUP, timbre, force. Tenir 0,6 s = motif propre. Verrous par paramètre (plus tard, vue DEEP).
 - **Toutes les touches du clavier agissent sur la GRILLE (pas suivant), jamais en fin de boucle.** DENSITÉ = APPUI ±1
-  coup, gardé. REVERSE relâché = retombe sur la grille. SEQ : appui court = reste ouvert, tenu ≥ 2 s = se ferme au relâchement.
+  coup, gardé. REVERSE relâché = retombe sur la grille.
 - **Fills = sur le cercle SÉLECTIONNÉ** (ROLL, RATCHET, DUB DELAY/REVERB, DESTROY, DENSITÉ, REVERSE).
 - **SHIFT −1/+1 = tourne le cercle sélectionné d'un pas par appui, gardé.** Écran : cercle choisi = anneau plein ; dé actif =
   petit triangle à gauche du cercle, à sa couleur.
-- **Boutons de page (31/10)** : APPUI COURT sur ENV/FX/LFO/EDIT/SCL/GLO/SEQ = reste sur les cercles, seuls les 4 KNOBS
-  changent (comme SEQ : 2e appui ou autre bouton = retour, tenu ≥ 2 s = se ferme au relâchement). ENV = ATK DEC SUS REL ·
-  FX = DIST, INSERT (fold), DELAY, REVERB · LFO = VITESSE, →HAUTEUR, →TIMBRE, →VOLUME · EDIT = les 4 autres réglages du
-  moteur · SCL = GAMME, NOTE DE BASE, GLIDE, DOSE · GLO = TEMPO, VOLUME, PAN, SWING. **OCT− + OCT+ tenus + bouton = vraie
-  page Felucca** (HOME pour sortir). **OCT− + OCT+ + DÉ n = page VERROUS du cercle n** (7 touches blanches = rythme,
+- **Boutons de page = UNE règle (01/11)** : **appui court = page rapide** (4 KNOBS sur les cercles ; 2e appui ou HOME =
+  fermée) · **tenu 0,5 s = MENU** du bouton (reste ouvert ; même bouton tapé, HOME ou autre bouton = sortie). Menus :
+  SEQ (couloirs), FX (page FX), LFO (LFO 1 2 3 GLOBAL MTX), **ENV = enveloppe dessinée** selon le mode (knobs = page
+  rapide ENV), **SCL = liste des gammes + clavier** (knobs = page rapide SCL), **EDIT = RÉGLAGES** (THEME NIGHT/DAY,
+  KNOB 1 ou ALGORITHM ; SELECT = rangée), GLO pas de menu (tenu = court). Rapides : ENV = ATK DEC SUS REL (selon mode) ·
+  FX = DIST, INSERT, DELAY, REVERB · LFO = LFO 1 · EDIT = 4 autres réglages du moteur · SCL = GAMME NOTE ACCORD DOSE ·
+  GLO = TEMPO VOLUME PAN SWING. Code : alter_ui.c alt_menu_cur/alt_menu_set (seq_open, afp.open, mat_open, au.mn),
+  au.mhold, ALT_MENU_HOLD_MS ; écrans alt_env_scene, alt_scl_scene, alt_set_scene, pied commun alt_foot.
+  **THÈME** : ALT_DAY = ux.light ; DAY = palette Felucca PAPER, NIGHT = GREY (palette_choose + settings_save : gardé).
+  Couleurs ALTER = macros ALT_BG/INK/DIM/GREY/DARK/GO + ALT_COLS[2][3] ; fondus en couleur alt_mixc (jamais RGB(0,0,0)).
+  **OCT− + OCT+ tenus + bouton = vraie page Felucca** (HOME pour sortir). **OCT− + OCT+ + DÉ n = page VERROUS du cercle n** (7 touches blanches = rythme,
   hauteur, glide, enveloppe, timbre, force, vélocité ; HOME pour sortir). Verrous PAR CERCLE. En-tête : pointe de
   couleur du cercle au lieu de son numéro.
 - LED clavier : utilisables **faibles au repos, fortes si engagées** (mute, fill tenu, flash du dé) ; sans fonction = noires.
@@ -70,7 +76,7 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
   Tests : `node web/emu/emu_test.mjs build/emu/felucca.wasm` (Felucca ; 4 échecs VOULUS : « a key sounds », « FX held »,
   « SAVE, OCT+, OCT+ » et « a fresh instance… » : clavier, FX et SAVE appartiennent à la vue PLAY ; la ligne
   de résumé « 4 FAILED » en fait un 5e « FAIL » quand on les compte) et `node tools/alter/alter_emu_test.mjs build/emu/felucca.wasm build/emu/alter_play.wav`
-  (chaque cercle seul, SEQ appui/tenu, SHIFT, DÉ via son triangle à l'écran, DENSITÉ, fills sur le cercle choisi, PRESETS,
+  (chaque cercle seul, SEQ appui/tenu, boutons court/tenu ENV SCL EDIT GLO, THEME DAY, SHIFT, DÉ via son triangle à l'écran, DENSITÉ, fills sur le cercle choisi, PRESETS,
   page ENV, OCT−+OCT+ + FX → Felucca puis HOME, VERROUS, modes ALGORITHM, CHAOS, SAVE/LOAD scènes + patterns, usine
   protégée, mémoire flash relue par une instance neuve, traînes d'effets qui s'éteignent). La page SAVE garde sa
   dernière ligne : le test va d'abord en haut (row(n)).
