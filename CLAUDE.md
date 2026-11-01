@@ -123,9 +123,13 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
 - **NOUVEAUX MOTEURS (01/11, choix de Romain)** — tous indus. **Grammaire commune des 4 knobs, pour les NOUVEAUX
   seulement** (ALTER/PHYS/NOISE gardent les leurs) : E0 **MATIÈRE** · E1 **ÉCART** (harmonique→inharmonique) ·
   E2 **RÉSONANCE** · E3 **SALETÉ** ; E4..E7 sur EDIT. Feuille de route, dans l'ordre :
-  [x] **RESO** (eng_reso.c, moteur 10) : 4 SVF TPT frappés ; MATR impulsion→clic plié→bruit, SPRD 0..3 oct.,
-  RES (> ~111 = auto-oscillation), DIRT (tanh dans la boucle) ; EDIT OUT MIX/NOTCH, DCAY, PING ALL/CYCL/RAND/1-4, FINE.
-  6 sons (PING GLASS HOLLOW SIREN SCRAP TUBE, niveaux mesurés ≈ −33 dBFS). Touches blanches 19 21 23 24 = **PING 1-4**
+  [x] **RESO v2** (eng_reso.c, moteur 10 ; v1 rejetée : « toujours pareil, knobs sans effet ») : 4 SVF TPT EN ANNEAU
+  (chacun nourri par lui-même 0,6 + le précédent 0,4, via tanh), 2 oct. au-dessus de la note ; MATR impact → bruit →
+  frottement tenu (grésillement → bruit) ; SPRD unisson → harmonique → métal → dissonant ; RES ; DIRT = rétroaction
+  (chante au-delà de ~92 : larsen) ; EDIT OUT MIX/NTCH/LOW, DCAY, PING, SWEP (chute de 4 oct. à la frappe).
+  Romain veut : percus indus, hurlements, textures bruitées, du volume. 6 sons ZAP CLANK HOLLOW LARSEN FRICTION GROWL
+  (−29..−32 dBFS). Vérifier qu'un knob agit : `node tools/alter/alter_knob_probe.mjs build/emu/felucca.wasm 23,24`.
+  Leçon : m->cutoff est un DÉCALAGE autour de 0 (m->shape, lui, centré sur 64<<8). Touches blanches 19 21 23 24 = **PING 1-4**
   (un coup du cercle choisi sur la grille ; RESO = ce filtre seul : alter_play.c alt_pads → reso_force).
   [ ] **PLATE** (Crucible : 4-6 lignes de retard inharmoniques + filtre, cymbale/fêlée/courbe ; mémoire OK : 12,9 Ko/cercle ;
   entrée = un autre cercle, la FM-1 n'a pas d'entrée audio) · [ ] **CORDE FROISSÉE** (Karplus brutalisé : burst de bruit,

@@ -571,7 +571,7 @@ if (wavPath) {                                                  // 4 bars from a
   W(1, 0, 0); W(4, BPM, 0); render(FS);
   if (peak(render(FS, true)) < 0.002) play();                     // (the transport on)
   for (let c = 0; c < 3; c++) W(2, c, 1);                         // the three muted: only the keys sound
-  W(0, 0, 23); W(3, 0, 0);                                        // circle 1: RESO PING, FREE
+  W(0, 0, 24); W(3, 0, 0);                                        // circle 1: RESO CLANK, FREE
   render(FS);
   const quiet = peak(render(FS / 2, true));
   K(1 << 19); render(STEP * 2); K(0);

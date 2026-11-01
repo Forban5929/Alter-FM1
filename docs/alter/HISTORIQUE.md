@@ -309,3 +309,16 @@ seulement ; drones dans une voix à part (partie 4) ; RESO frappable par 4 touch
 - Liste des moteurs : ALT_ENGS/ALT_NENG (4), stockage scène `o->eng` 0..3, alter_render.mjs lit les moteurs 0-9.
 - 6 sons à la fin d'ALT_PRE (23..28), niveaux réglés par alter_render (−32,8..−34,7 dBFS). Les 23 anciens sons et 4 scènes :
   identiques au bit près. Test : 1 contrôle « RESO » dans alter_emu_test.mjs.
+
+## RESO v2 (01/11)
+Retour de Romain sur la v1 : « seul HOLLOW est intéressant et a du volume, les knobs ne changent pas grand-chose, toujours
+le même genre de résultat ». Diagnostic : 4 filtres passe-bande frappés = 4 sinus qui s'éteignent (toujours « cloche ») ;
+MATIÈRE ne changeait que l'attaque ; et un BUG : `m->cutoff` traité comme centré sur 64<<8 alors que c'est un décalage
+autour de 0 → filtres 2 octaves SOUS la note (sourds). Choix de Romain : refaire en profondeur ; usages : percus indus,
+hurlements/larsen, textures bruitées ; de HOLLOW il aime le volume/l'impact.
+- Filtres en anneau : entrée = excitation (×4) + fb·tanh(0,6·soi + 0,4·précédent)/drv (DIRT : fb 0..3,2, drive 1..4 ;
+  chante quand 0,6·fb > 1, DIRT ≈ 92) ; filtres +2 octaves ; SPRD 4 jeux (unisson, harmonique, 808, dissonant) ;
+  MATR > 84 = frottement tenu pendant la note ; OUT LOW (passe-bas) ; SWEP remplace FINE (chute à la frappe sur DCAY).
+- Mesuré avec `tools/alter/alter_knob_probe.mjs` (nouveau, op 14 web_alter) : sur ZAP, RES fait 0,15 → 1,7 s et
+  600 → 2150 Hz ; DIRT 0,2 → 1,4 s ; MATR 460 → 1310 Hz. Sur les sons tenus (LARSEN, FRICTION) MATR agit peu : le
+  feedback domine (assumé). 6 sons (indices 23..28) remplacés : ZAP CLANK HOLLOW LARSEN FRICTION GROWL.

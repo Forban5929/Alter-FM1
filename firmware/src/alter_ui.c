@@ -2720,6 +2720,11 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
         if (a < 2u * AFL_N) afl[a / AFL_N][a % AFL_N] = (uint8_t)b; else afl_morph = (uint8_t)b;
         break;
     case 13: afl_pre_apply(a & 1u, b); break;    /* (a test: the MASTER FILTER's preset b into snapshot a) */
+    case 14:                                     /* (a test: circle a's engine setting b >> 8 (0..7) to (int8) b) */
+        fm1_irq_off();
+        trk[a % AS_NCIRC].p[P_E0 + ((b >> 8) & 7u)] = (int8_t)(b & 255u);
+        fm1_irq_on();
+        break;
     default: break;
     }
 }
