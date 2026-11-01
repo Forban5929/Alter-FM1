@@ -1063,6 +1063,20 @@ static int alter_ui_input(uint32_t pressed)
     int32_t s;
     both = (1u << panel.btn[B_OCTDN]) | (1u << panel.btn[B_OCTUP]);
     octs = (fm1_in.buttons & both) == both;
+    if (octs && alter_view() && !au.handed && ((pressed >> panel.btn[B_HOME]) & 1u)) {   /* OCT- + OCT+ + HOME: NEW
+                                                  * SCENE at once (Romain 01/11), every page closed */
+        alt_row_load(0, 0);
+        au.qp = QP_NONE;
+        au.qp_was = 0;
+        au.scene_open = 0;
+        au.lockc = 0;
+        alt_menu_set(0);
+        au.mhold = 0;
+        alt_hold = 0;
+        alt_say("NEW SCENE");
+        au.keys = keys;
+        return 1;
+    }
     if (octs && alter_view() && !au.handed)      /* OCT- + OCT+ + a page button: Felucca's own page */
         for (q = 1; q <= QP_N; q++)              /* (QP_N: SAVE, Felucca's save pages) */
             if ((pressed >> panel.btn[q < QP_N ? ALT_QP_BTN[q] : B_SAVE]) & 1u) {

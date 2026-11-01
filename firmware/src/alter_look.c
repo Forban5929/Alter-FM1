@@ -282,8 +282,9 @@ static void alt_dialk(int32_t x0, int32_t y, const char *name, const char *txt, 
     int32_t cx = x0 + 10, cy = y + 24, slot = clamp((x0 - 8 + 28) / 57, 0, 3), turning;
     if (!txt)
         txt = "";
-    if (alt_streq(alt_dial_nm[slot], name)) {    /* the same knob: has its value moved? */
-        if (!alt_streq(alt_dial_tx[slot], txt))
+    if (alt_streq(alt_dial_nm[slot], name)) {    /* the same knob: has its value moved, by the hand? (a scene, a
+                                                  * sound or a die loaded: no number) */
+        if (!alt_streq(alt_dial_tx[slot], txt) && panel_knob_ms[slot] && (int32_t)(fm1_ms - panel_knob_ms[slot]) < 400)
             alt_dial_t[slot] = fm1_ms | 1u;
     } else {
         alt_scopy(alt_dial_nm[slot], name, sizeof alt_dial_nm[0]);

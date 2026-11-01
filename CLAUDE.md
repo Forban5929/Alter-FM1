@@ -64,9 +64,12 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
   au.mhold, ALT_MENU_HOLD_MS ; écrans alt_env_scene, alt_scl_scene, alt_set_scene, pied commun alt_foot.
   **THÈME** : ALT_DAY = ux.light ; DAY = palette Felucca PAPER, NIGHT = GREY (palette_choose + settings_save : gardé).
   Style TAROT (voir Refonte graphique) ; fondus en couleur alt_mixc (jamais RGB(0,0,0)).
+  **OCT− + OCT+ tenus + HOME = NEW SCENE tout de suite** (01/11, alt_row_load(0,0), pages fermées, pas d'annulation).
   **OCT− + OCT+ tenus + bouton = vraie page Felucca** (HOME pour sortir). **OCT− + OCT+ + DÉ n = page VERROUS du cercle n** (7 touches blanches = rythme,
   hauteur, glide, enveloppe, timbre, force, vélocité ; HOME pour sortir). Verrous PAR CERCLE. En-tête : pointe de
   couleur du cercle au lieu de son numéro.
+- Knobs : le chiffre n'apparaît que si KNOB n a tourné < 0,4 s avant (panel.c panel_knob_ms) : charger une scène, un son
+  ou un dé ne fait plus clignoter de chiffres.
 - LED clavier : utilisables **faibles au repos, fortes si engagées** (mute, fill tenu, flash du dé) ; sans fonction = noires.
 - **ALGORITHM = mode d'enveloppe du cercle choisi** (31/10) : FREE (ADSR du son) · PERC · STAB (coups ≤ 2 pas) · DRONE
   (attaque lente, note tenue jusqu'au coup suivant). L'ADSR du son l'affine d'1/4, le dé d'1/3. Affiché à côté du moteur.
