@@ -1086,11 +1086,11 @@ static const uint16_t ALT_COLS[2][AS_NCIRC] = {
     {RGB(201, 86, 47), RGB(31, 138, 106), RGB(168, 116, 15)},
 };
 #define ALT_COL (ALT_COLS[ALT_DAY])
-#define ALT_BG (ALT_DAY ? RGB(244, 243, 240) : RGB(0, 0, 0))
-#define ALT_GREY (ALT_DAY ? RGB(196, 194, 190) : RGB(70, 70, 74))
-#define ALT_DARK (ALT_DAY ? RGB(224, 222, 218) : RGB(40, 40, 44))
-#define ALT_INK (ALT_DAY ? RGB(24, 24, 26) : RGB(235, 235, 235))
-#define ALT_DIM (ALT_DAY ? RGB(93, 92, 97) : RGB(150, 150, 155))
+#define ALT_BG (ALT_DAY ? RGB(234, 224, 204) : RGB(0, 0, 0))   /* DAY: cream paper (Romain: beige, textured) */
+#define ALT_GREY (ALT_DAY ? RGB(196, 184, 162) : RGB(70, 70, 74))
+#define ALT_DARK (ALT_DAY ? RGB(218, 206, 184) : RGB(40, 40, 44))
+#define ALT_INK (ALT_DAY ? RGB(42, 34, 26) : RGB(235, 235, 235))
+#define ALT_DIM (ALT_DAY ? RGB(112, 100, 86) : RGB(150, 150, 155))
 #define ALT_GO (ALT_DAY ? RGB(30, 140, 70) : RGB(95, 224, 138))   /* PLAY */
 /* c towards the background by (100 - pct) %, in colour whatever the palette (a grey palette's ux_mix would grey it) */
 static uint16_t alt_mixc(uint16_t a, uint16_t c, int32_t pct)
@@ -2041,6 +2041,30 @@ static void alt_scene(uint32_t q, uint32_t flash)
     alt_foot(q);
 }
 
+
+/* DAY's paper: a grain over the cream, the same every frame (a hash of the pixel's place, not a random draw), in
+ * three tones near ALT_BG; half h of the screen (rows h*120 ..), straight into the canvas just cleared */
+static void alt_paper(uint32_t h)
+{
+    uint16_t t[4];
+    uint32_t x, y, i = 0;
+    t[0] = swap16(ALT_BG);
+    t[1] = swap16(RGB(226, 215, 194));
+    t[2] = swap16(RGB(216, 204, 182));
+    t[3] = swap16(RGB(240, 232, 214));
+    for (y = 0; y < 120u; y++) {
+        uint32_t yy = (y + h * 120u) * 0x9E3779B1u;
+        for (x = 0; x < 240u; x++, i++) {
+            uint32_t v = (x * 0x85EBCA77u) ^ yy;
+            v ^= v >> 15;
+            v *= 0x2C1B3C6Du;
+            v ^= v >> 13;
+            v &= 15u;                            /* 3 in 16 a shade darker, 1 in 16 darker still, 2 in 16 lighter */
+            cv_px[i] = t[v < 3u ? 1 : v == 3u ? 2 : v < 6u ? 3 : 0];
+        }
+    }
+}
+
 static void alter_draw(void)
 {
     uint32_t sig = 0, i, h, flash = 0, q = au.lockc ? 0u : alt_page();
@@ -2083,6 +2107,8 @@ static void alter_draw(void)
     au.drawn = 1;
     for (i = 0; i < 2u; i++) {                   /* two halves: the canvas holds 240 x 124 */
         cv_begin(240, 120, ALT_BG);
+        if (ALT_DAY)
+            alt_paper(i);
         cv_oy = -(int32_t)i * 120;
         alt_scene(q, flash);
         cv_oy = 0;

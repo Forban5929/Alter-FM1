@@ -472,16 +472,17 @@ play();
   H(5); const gh = key(scr()); T(5);
   check("GLO: held = the same quick page as a tap (no menu yet)", gq === gh && gq !== circles);
   H(4);                                                          // SETTINGS: THEME to DAY
-  const night = scr()[240 * 120 + 2];
+  const avg = (a, y) => { const sw = (c) => ((c & 255) << 8) | (c >> 8); let t = 0; for (let x = 0; x < 200; x++) t += lum(sw(a[240 * y + x])); return t / 200; };
+  const lum = (c) => ((c >> 11) & 31) + ((c >> 5) & 63) / 2 + (c & 31);
+  const night = avg(scr(), 120);
   ex.web_enc(3, 1); render(4000);
-  const day = scr()[240 * 120 + 2];
+  const day = avg(scr(), 120);
   T(4); render(FS * 1.5);
-  const dayc = scr()[240 * 236 + 2];
+  const dayc = avg(scr(), 236);
   H(4); ex.web_enc(3, -1); render(4000); T(4); render(FS * 1.5);
   const back = key(scr());
-  const lum = (c) => ((c >> 11) & 31) + ((c >> 5) & 63) / 2 + (c & 31);
-  check(`SETTINGS THEME: DAY lights the screen (bg ${night.toString(16)} -> ${day.toString(16)}, circles ${dayc.toString(16)}), NIGHT as before`,
-        lum(day) > 60 && lum(night) < 10 && lum(dayc) > 60 && back === circles);
+  check(`SETTINGS THEME: DAY lights the screen (brightness ${night.toFixed(0)} -> ${day.toFixed(0)}, circles ${dayc.toFixed(0)}), NIGHT as before`,
+        day > 60 && night < 10 && dayc > 60 && back === circles);
 }
 if (wavPath) {                                                  // 4 bars from a fresh start, all three circles
   ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
