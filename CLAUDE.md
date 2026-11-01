@@ -70,6 +70,14 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
 - LED clavier : utilisables **faibles au repos, fortes si engagées** (mute, fill tenu, flash du dé) ; sans fonction = noires.
 - **ALGORITHM = mode d'enveloppe du cercle choisi** (31/10) : FREE (ADSR du son) · PERC · STAB (coups ≤ 2 pas) · DRONE
   (attaque lente, note tenue jusqu'au coup suivant). L'ADSR du son l'affine d'1/4, le dé d'1/3. Affiché à côté du moteur.
+- **3 MUTE ensemble (01/11)** = VELO, CHANCE, PITCH du cercle choisi tirés au hasard, valeurs fixes comme SHUFFLE ;
+  les mutes déclenchés par le combo sont annulés (alter_ui.c alt_lanes_random, au.mute_tog/mute_combo).
+- **CHAOS TOTAL (01/11) = SHIFT −1 + SHIFT +1 + REVERSE** : tout SANS limite sur les 3 cercles (moteur, son, 8 réglages,
+  ADSR, mode + ses réglages, DIST/INSERT tout type, envois, 3 LFO toute DEST, MTX : 1 case 50 % / 2 cases 25 % / 3 cases
+  5 %, rythme EUCLID/TURING, 6 couloirs, accord, note, gamme, delay/reverb partagés, dé DOSE 127). PAS tempo, swing,
+  mutes, MASTER. Volume gardé : LEVEL du son, INSERT LEVEL ≤ 0 dB, FEEDBACK ≤ 100. **Même combo dans les 3 s = annulé**
+  (photo exacte avant : alt_tcu, alt_tc_snap/alt_tc_undo ; le dé redevient propre). Les tours des SHIFT et le REVERSE
+  du combo sont annulés/muets (au.sh_app, au.tc_combo). Tests : 2 contrôles dans alter_emu_test.mjs.
 - **CHAOS = DÉ 1+2+3 ensemble** : moteur, preset, 8 réglages, effets + LFO, rythme (immédiat), dé DOSE 127, gamme et
   notes de base, sur les 3 cercles. PAS le tempo, ni les modes, ni les mutes. DÉFINITIF (pas d'annulation).
 - Vue **DEEP** (EDIT) : tous les réglages. Effets Felucca (DIST, INSERT FOLD, delay, reverb), ADSR Felucca.

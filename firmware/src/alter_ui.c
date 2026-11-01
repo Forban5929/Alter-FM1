@@ -103,6 +103,10 @@ static struct {
     const char *msg;             /* the middle's word .. */
     uint32_t msg_ms;             /* .. shown since */
     uint32_t sig, hits_seen[AS_NCIRC], flash_ms[AS_NCIRC], handed_ms;   /* handed_ms: when every Felucca button was up */
+    uint8_t mute_tog, mute_combo;   /* the mutes these held keys toggled; MUTE 1+2+3 held (none of them toggles) */
+    uint8_t tc_combo;            /* SHIFT -1 + SHIFT +1 + REVERSE held: TOTAL CHAOS done (they do nothing else) */
+    int8_t sh_app[2];            /* the turn each held SHIFT key gave (undone if it was the start of the combo) */
+    uint32_t tc_ms;              /* the last TOTAL CHAOS (fm1_ms | 1): the same combo within 3 s undoes it */
 } au;
 
 /* quick page q's name (LFO: the chosen circle's LFO 1) */
@@ -661,6 +665,8 @@ static uint32_t alt_page(void)
 }
 
 #define ALT_DICE_KEYS ((1u << 7) | (1u << 9) | (1u << 11))   /* DICE 1 2 3 (ALT_KEY) */
+#define ALT_MUTE_KEYS ((1u << 0) | (1u << 2) | (1u << 4))    /* MUTE 1 2 3 */
+#define ALT_TC_KEYS ((1u << 14) | (1u << 16) | (1u << 25))   /* SHIFT -1, SHIFT +1, REVERSE */
 
 static uint32_t alt_cr(uint32_t n)               /* 0 .. n-1 */
 {
@@ -741,6 +747,230 @@ static void alt_chaos(void)
         alt_roll_cnt[c]++;                       /* and the die at full DOSE */
     }
     alt_say("CHAOS");
+}
+
+/* MUTE 1+2+3 (Romain, 01/11): the chosen circle's VELO, CHANCE and PITCH lanes drawn anew on their 16 steps, single
+ * values (no RANGE), as the SEQ menu's SHUFFLE draws them (VELO and CHANCE kept audible: 30 % and up) */
+static void alt_lanes_random(void)
+{
+    static const uint8_t LN[3] = {LN_VELO, LN_CHANCE, LN_PITCH};
+    as_circ_t *sc = &alt_seq.c[au.sel % AS_NCIRC];
+    uint32_t i, k;
+    alt_crng ^= fm1_ms * 0x9E3779B9u;
+    for (i = 0; i < 3u; i++) {
+        int32_t lo, hi, st;
+        alt_lane_lim(LN[i], &lo, &hi, &st);
+        if (LN[i] != LN_PITCH)
+            lo = 38;
+        for (k = 0; k < AS_NLANE; k++) {
+            int32_t v = lo + (int32_t)alt_cr((uint32_t)(hi - lo + 1));
+            if (LN[i] == LN_VELO)
+                sc->svel[k] = (uint8_t)v;
+            else if (LN[i] == LN_CHANCE)
+                sc->chance[k] = sc->chance[k + AS_NLANE] = (uint8_t)v;
+            else
+                sc->spitch[k] = (int8_t)v;
+        }
+        sc->rmask[LN[i]] = 0;
+    }
+    alt_say("SHUFFLE");
+}
+
+/* TOTAL CHAOS (SHIFT -1 + SHIFT +1 + REVERSE, Romain 01/11): CHAOS without its limits, on the three circles: engine and
+ * sound, the eight values, ADSR, envelope mode and its settings, DIST and INSERT (any type), sends, the three LFOs
+ * (any DEST), the matrix (one slot 50 %, two 25 %, three 5 %), rhythm (EUCLID / TURING, LEN, HITS, ..), the six lanes,
+ * chord, root, the scale, the shared delay and reverb; the die at full DOSE. Not: tempo, swing, mutes, the MASTER.
+ * The volume kept (Romain): each sound's LEVEL as it is, INSERT LEVEL at most 0 dB, delay FEEDBACK under the howl.
+ * The same combo within 3 s puts everything back as it was (alt_tc_undo) */
+#define ALT_TC_UNDO_MS 3000u
+static const uint8_t ALT_DT[11] = {3, 5, 2, 11, 4, 1, 10, 0, 12, 6, 7};   /* (the delay's times: params.c N_DTIME) */
+static const uint8_t ALT_TC_G[7] = {G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX, G_RTYPE, G_RSIZE, G_RDAMP};
+static struct {
+    uint8_t ok;
+    uint8_t eng[AS_NCIRC], pre[AS_NCIRC], mode[AS_NCIRC], scale;
+    int16_t p[AS_NCIRC][P_COUNT];
+    as_cfg_t cfg[AS_NCIRC];
+    alt_cl_t cl[AS_NCIRC][CL_N];
+    uint8_t env[AS_NCIRC][AE_N];
+    uint8_t svel[AS_NCIRC][AS_NLANE], chance[AS_NCIRC][AS_MAXLEN], sdly[AS_NCIRC][AS_NLANE], srev[AS_NCIRC][AS_NLANE];
+    int8_t spitch[AS_NCIRC][AS_NLANE];
+    uint8_t srat[AS_NCIRC][AS_NLANE];
+    uint16_t rmask[AS_NCIRC][AS_NLR];
+    int8_t rlo[AS_NCIRC][AS_NLR][AS_NLANE], rhi[AS_NCIRC][AS_NLR][AS_NLANE];
+    int16_t g[sizeof ALT_TC_G];
+    uint8_t afx_sel[AFX_NS], afx_edit;
+} alt_tcu __attribute__((section(".pool")));   /* (main loop only) */
+
+static void alt_tc_snap(void)
+{
+    uint32_t c, k;
+    for (c = 0; c < AS_NCIRC; c++) {
+        as_circ_t *sc = &alt_seq.c[c];
+        alt_tcu.eng[c] = trk[c].eng_req;
+        alt_tcu.pre[c] = au.pre[c];
+        alt_tcu.mode[c] = alt_emode[c];
+        for (k = 0; k < P_COUNT; k++)
+            alt_tcu.p[c][k] = (int16_t)alt_base(c, k);   /* (without the die's offsets) */
+        alt_tcu.cfg[c] = au.cfg[c];
+        for (k = 0; k < CL_N; k++)
+            alt_tcu.cl[c][k] = alt_cl[c][k];
+        for (k = 0; k < AE_N; k++)
+            alt_tcu.env[c][k] = alt_envp[c][k];
+        memcpy(alt_tcu.svel[c], sc->svel, sizeof sc->svel);
+        memcpy(alt_tcu.chance[c], sc->chance, sizeof sc->chance);
+        memcpy(alt_tcu.sdly[c], sc->sdly, sizeof sc->sdly);
+        memcpy(alt_tcu.srev[c], sc->srev, sizeof sc->srev);
+        memcpy(alt_tcu.spitch[c], sc->spitch, sizeof sc->spitch);
+        memcpy(alt_tcu.srat[c], sc->srat, sizeof sc->srat);
+        memcpy(alt_tcu.rmask[c], sc->rmask, sizeof sc->rmask);
+        memcpy(alt_tcu.rlo[c], sc->rlo, sizeof sc->rlo);
+        memcpy(alt_tcu.rhi[c], sc->rhi, sizeof sc->rhi);
+    }
+    alt_tcu.scale = alt_seq.scale;
+    for (k = 0; k < sizeof ALT_TC_G; k++)
+        alt_tcu.g[k] = song.g[ALT_TC_G[k]];
+    memcpy(alt_tcu.afx_sel, afx_sel, sizeof afx_sel);
+    alt_tcu.afx_edit = afx_edit;
+    alt_tcu.ok = 1;
+}
+
+static void alt_tc_undo(void)
+{
+    uint32_t c, k;
+    for (c = 0; c < AS_NCIRC; c++) {
+        track_t *t = &trk[c];
+        as_circ_t *sc = &alt_seq.c[c];
+        uint8_t mute = au.cfg[c].mute;
+        if (t->eng_req != alt_tcu.eng[c])
+            set_engine_of(t, alt_tcu.eng[c]);
+        fm1_irq_off();
+        for (k = 0; k < P_COUNT; k++)
+            t->p[k] = alt_tcu.p[c][k];
+        for (k = 0; k < ALT_NSLOT; k++)
+            alt_applied[c][k] = 0;
+        alt_note[c][0] = alt_note[c][1] = alt_note[c][2] = 0;
+        alt_gate_left[c] = 0;
+        fm1_irq_on();
+        au.pre[c] = alt_tcu.pre[c];
+        alt_emode[c] = alt_tcu.mode[c];
+        au.cfg[c] = alt_tcu.cfg[c];
+        au.cfg[c].mute = mute;                   /* (the mutes are the player's: as they are now) */
+        for (k = 0; k < CL_N; k++)
+            alt_cl[c][k] = alt_tcu.cl[c][k];
+        for (k = 0; k < AE_N; k++)
+            alt_envp[c][k] = alt_tcu.env[c][k];
+        memcpy(sc->svel, alt_tcu.svel[c], sizeof sc->svel);
+        memcpy(sc->chance, alt_tcu.chance[c], sizeof sc->chance);
+        memcpy(sc->sdly, alt_tcu.sdly[c], sizeof sc->sdly);
+        memcpy(sc->srev, alt_tcu.srev[c], sizeof sc->srev);
+        memcpy(sc->spitch, alt_tcu.spitch[c], sizeof sc->spitch);
+        memcpy(sc->srat, alt_tcu.srat[c], sizeof sc->srat);
+        memcpy(sc->rmask, alt_tcu.rmask[c], sizeof sc->rmask);
+        memcpy(sc->rlo, alt_tcu.rlo[c], sizeof sc->rlo);
+        memcpy(sc->rhi, alt_tcu.rhi[c], sizeof sc->rhi);
+        alt_preset_cnt[c]++;
+        alt_post_now |= (uint8_t)(1u << c);
+        alt_post_circle(c);
+        alt_clear_cnt[c]++;                      /* (the die CHAOS rolled: clean again) */
+    }
+    alt_seq.scale = alt_tcu.scale;
+    for (k = 0; k < sizeof ALT_TC_G; k++)
+        song.g[ALT_TC_G[k]] = alt_tcu.g[k];
+    memcpy(afx_sel, alt_tcu.afx_sel, sizeof afx_sel);
+    afx_edit = alt_tcu.afx_edit;
+    alt_say("CHAOS UNDONE");
+}
+
+static void alt_total_chaos(void)
+{
+    uint32_t c, k;
+    if (au.tc_ms && alt_tcu.ok && (int32_t)(fm1_ms - au.tc_ms) < (int32_t)ALT_TC_UNDO_MS) {
+        au.tc_ms = 0;
+        alt_tc_undo();
+        return;
+    }
+    alt_tc_snap();
+    au.tc_ms = fm1_ms | 1u;
+    alt_crng ^= fm1_ms * 0x9E3779B9u;
+    alt_seq.scale = (uint8_t)alt_cr(AS_NSCALE);
+    song.g[G_DTIME] = ALT_DT[alt_cr(sizeof ALT_DT)];   /* the shared delay and reverb, anywhere (FEEDBACK under the */
+    song.g[G_DFDBK] = (int16_t)alt_cr(101u);            /* howl: 0..100 of 120) */
+    song.g[G_DCOLOR] = (int16_t)alt_cr(128u);
+    song.g[G_DMIX] = (int16_t)(40u + alt_cr(88u));
+    song.g[G_RTYPE] = (int16_t)alt_cr(3u);
+    song.g[G_RSIZE] = (int16_t)alt_cr(128u);
+    song.g[G_RDAMP] = (int16_t)alt_cr(128u);
+    afx_edit |= 1u << AFX_S_DLY | 1u << AFX_S_REV;
+    for (c = 0; c < AS_NCIRC; c++) {
+        track_t *t = &trk[c];
+        uint32_t pi = alt_cr(ALT_NPRE), e = ALT_ENGS[ALT_PRE[pi].eng % AS_NCIRC], n, r;
+        const engine_t *en = ENGINES[e];
+        as_cfg_t *cf = &au.cfg[c];
+        as_circ_t *sc = &alt_seq.c[c];
+        alt_load_sound(c, pi);                   /* any engine, any sound, then everything in it drawn */
+        fm1_irq_off();
+        for (k = 0; k < 8u; k++)
+            t->p[P_E0 + k] = alt_crange(&en->edit[k], 1);
+        for (k = 0; k < 4u; k++)                 /* ATK DEC SUS REL */
+            t->p[P_ATK + k] = (int16_t)alt_cr(128u);
+        t->p[P_DIST] = (int16_t)alt_cr(128u);
+        t->p[P_ITYPE] = (int16_t)alt_cr(IT_N);
+        t->p[P_IA] = (int16_t)alt_cr(128u);
+        t->p[P_IB] = (int16_t)alt_cr(128u);
+        t->p[P_IC] = (int16_t)alt_cr(113u);      /* (its LEVEL: 112 = 0 dB at most) */
+        t->p[P_IMIX] = (int16_t)alt_cr(128u);
+        t->p[P_DLY] = (int16_t)alt_cr(128u);
+        t->p[P_REV] = (int16_t)alt_cr(128u);
+        r = alt_cr(100u);                        /* the matrix: 1 slot 50 %, 2 slots 25 %, 3 slots 5 %, none 20 % */
+        n = r < 50u ? 1u : r < 75u ? 2u : r < 80u ? 3u : 0u;
+        for (k = 0; k < NMSLOT; k++) {
+            t->p[P_M1SRC + 3u * k] = (int16_t)(k < n ? 1u + alt_cr(MS_N - 1u) : 0u);
+            t->p[P_M1DST + 3u * k] = (int16_t)(k < n ? 1u + alt_cr(MD_DEPTH - 1u) : 0u);
+            t->p[P_M1AMT + 3u * k] = (int16_t)(k < n ? (int32_t)alt_cr(128u) - 64 : 0);
+        }
+        for (k = 0; k < CL_N; k++) {             /* the three LFOs: anything, any DEST */
+            alt_cl[c][k].wave = (uint8_t)alt_cr(GW_N);
+            alt_cl[c][k].rate = (uint8_t)alt_cr(GL_NRATE);
+            alt_cl[c][k].dst = (uint8_t)alt_cr(GD_N);
+            alt_cl[c][k].depth = (int8_t)((int32_t)alt_cr(128u) - 64);
+        }
+        for (k = 0; k < ALT_NSLOT; k++)
+            alt_applied[c][k] = 0;
+        alt_note[c][0] = alt_note[c][1] = alt_note[c][2] = 0;
+        alt_gate_left[c] = 0;
+        fm1_irq_on();
+        afx_edit |= (uint8_t)(1u << c);
+        alt_emode[c] = (uint8_t)alt_cr(AM_N);    /* FREE PERC STAB DRONE, and its settings */
+        for (k = 0; k < AE_N; k++)
+            alt_envp[c][k] = (uint8_t)alt_cr(128u);
+        cf->type = (uint8_t)alt_cr(AS_NTYPE);    /* the rhythm: EUCLID or TURING, anything in it, at once */
+        n = cf->type == AS_T_EUCLID ? 1u + alt_cr(32u) : 1u + alt_cr(16u);
+        cf->len = (uint8_t)n;
+        cf->hits = (uint8_t)(1u + alt_cr(n));
+        cf->rot = (uint8_t)alt_cr(n);
+        cf->frot = (uint8_t)alt_cr(n);
+        cf->prob = (uint8_t)(64u + alt_cr(64u));
+        cf->tlock = (uint8_t)alt_cr(128u);
+        cf->tdens = (uint8_t)alt_cr(128u);
+        cf->trange = (uint8_t)alt_cr(15u);
+        cf->dose = 127;
+        cf->chord = (uint8_t)alt_cr(AS_NCHORD);
+        cf->root = (uint8_t)(24u + alt_cr(49u)); /* C1 .. C5 */
+        for (k = 0; k < AS_NLR; k++)
+            sc->rmask[k] = 0;
+        for (k = 0; k < AS_NLANE; k++) {         /* the six lanes, every step (CHANCE: something still plays) */
+            sc->svel[k] = (uint8_t)(1u + alt_cr(127u));
+            sc->chance[k] = sc->chance[k + AS_NLANE] = (uint8_t)(20u + alt_cr(108u));
+            sc->sdly[k] = (uint8_t)alt_cr(128u);
+            sc->srev[k] = (uint8_t)alt_cr(128u);
+            sc->spitch[k] = (int8_t)((int32_t)alt_cr(15u) - 7);
+            sc->srat[k] = (uint8_t)alt_cr(4u);
+        }
+        alt_post_now |= (uint8_t)(1u << c);
+        alt_post_circle(c);
+        alt_roll_cnt[c]++;                       /* and the die at full DOSE */
+    }
+    alt_say("TOTAL CHAOS");
 }
 
 static void alt_select(uint32_t i)
@@ -936,15 +1166,44 @@ static int alter_ui_input(uint32_t pressed)
         au.keys = keys;
         return 1;
     }
+    /* the combos: MUTE 1+2+3 = the chosen circle's lanes drawn (the mutes they toggled put back); SHIFT -1 + SHIFT +1 +
+     * REVERSE = TOTAL CHAOS (the turns they gave put back) */
+    if ((keys & ALT_MUTE_KEYS) == ALT_MUTE_KEYS && (down & ALT_MUTE_KEYS) && !au.mute_combo) {
+        for (i = 0; i < AS_NCIRC; i++)
+            if ((au.mute_tog >> i) & 1u) {
+                au.cfg[i].mute ^= 1u;
+                alt_post_circle(i);
+            }
+        au.mute_tog = 0;
+        au.mute_combo = 1;
+        alt_lanes_random();
+    }
+    if ((keys & ALT_TC_KEYS) == ALT_TC_KEYS && (down & ALT_TC_KEYS) && !au.tc_combo) {
+        int32_t d = au.sh_app[0] + au.sh_app[1];
+        if (d) {
+            alt_shift_tot[au.sel] -= d;
+            if (au.cfg[au.sel].type != AS_T_TURING)
+                au.cfg[au.sel].rot = (uint8_t)(((int32_t)au.cfg[au.sel].rot - d + 4 * AS_MAXLEN) % au.cfg[au.sel].len);
+        }
+        au.sh_app[0] = au.sh_app[1] = 0;
+        au.tc_combo = 1;
+        alt_total_chaos();
+    }
     /* the keys */
     for (k = 0; k < 27u; k++) {
         const alt_key_t *a = &ALT_KEY[k];
         uint32_t i2 = a->arg;
         int tur = au.cfg[au.sel].type == AS_T_TURING;
         if ((down >> k) & 1u && a->kind && (a->kind != AK_TLOCK || tur)) {
-            alt_say(a->kind == AK_SHIFT && tur ? (i2 ? "NEXT" : "PREV") : a->name);
-            if (a->kind == AK_MUTE) {
+            int combo = (a->kind == AK_MUTE && au.mute_combo) || (au.tc_combo && ((ALT_TC_KEYS >> k) & 1u));
+            if (!combo && a->kind != AK_MUTE && a->kind != AK_SHIFT)
+                alt_say(a->name);
+            if (combo) {
+                ;                                /* (part of a combo: nothing else) */
+            } else if (a->kind == AK_MUTE) {
+                alt_say(a->name);
                 au.cfg[i2].mute ^= 1u;
+                au.mute_tog |= (uint8_t)(1u << i2);
                 alt_post_circle(i2);
             } else if (a->kind == AK_DIE && octs) {   /* OCT- + OCT+ + DICE n: circle n's LOCKS */
                 au.lockc = (uint8_t)(i2 + 1u);
@@ -967,6 +1226,8 @@ static int alter_ui_input(uint32_t pressed)
                 au.tap_ms[k] = fm1_ms | 1u;
             } else if (a->kind == AK_SHIFT) {
                 int32_t d = i2 ? 1 : -1;
+                alt_say(tur ? (i2 ? "NEXT" : "PREV") : a->name);
+                au.sh_app[i2 & 1u] = (int8_t)d;
                 alt_shift_tot[au.sel] += d;      /* (TURING: the audio side takes it as NEXT / PREV) */
                 if (!tur)
                     au.cfg[au.sel].rot = (uint8_t)(((int32_t)au.cfg[au.sel].rot + d + 4 * AS_MAXLEN) % au.cfg[au.sel].len);
@@ -996,12 +1257,23 @@ static int alter_ui_input(uint32_t pressed)
     {
         uint32_t h = 0;
         for (k = 0; k < 27u; k++)
-            if ((keys >> k) & 1u && ALT_KEY[k].kind == AK_FILL)
+            if ((keys >> k) & 1u && ALT_KEY[k].kind == AK_FILL && !(au.tc_combo && ((ALT_TC_KEYS >> k) & 1u)))
                 h |= 1u << ALT_KEY[k].arg;
         alt_hold = (uint16_t)h;
         if (h && au.msg)                         /* a fill held: its name stays in the middle */
             au.msg_ms = fm1_ms;
     }
+    for (i = 0; i < AS_NCIRC; i++)               /* the combos' keys let go */
+        if (!((keys >> (2u * i)) & 1u))
+            au.mute_tog &= (uint8_t)~(1u << i);
+    if (!(keys & ALT_MUTE_KEYS))
+        au.mute_combo = 0;
+    if (!((keys >> 14) & 1u))
+        au.sh_app[0] = 0;
+    if (!((keys >> 16) & 1u))
+        au.sh_app[1] = 0;
+    if (!(keys & ALT_TC_KEYS))
+        au.tc_combo = 0;
     au.keys = keys;
     return 1;
 }

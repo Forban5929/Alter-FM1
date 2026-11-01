@@ -484,6 +484,21 @@ play();
   check(`SETTINGS THEME: DAY lights the screen (brightness ${night.toFixed(0)} -> ${day.toFixed(0)}, circles ${dayc.toFixed(0)}), NIGHT as before`,
         day > 60 && night < 20 && dayc > 60 && back === circles);
 }
+{                                                               // the combos (Romain, 01/11)
+  ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
+  const shot = (w = FS * 3) => { render(w); let h = 2166136261; const a = new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240); for (let i = 0; i < a.length; i++) h = Math.imul(h ^ a[i], 16777619); return h >>> 0; };
+  const chord = (ks) => { let m = 0; for (const k of ks) { m |= 1 << k; K(m); render(2000); } render(4000); K(0); render(2000); };
+  const seqMenu = () => { ex.web_buttons(1 << SEQB); render(Math.round(FS * 0.8)); ex.web_buttons(0); render(4000); const h = shot(); ex.web_buttons(1 << 6); render(2000); ex.web_buttons(0); return h; };
+  const p0 = shot(), l0 = seqMenu(), p1 = shot();
+  chord([0, 2, 4]);
+  const p2 = shot(), l1 = seqMenu();
+  check("MUTE 1+2+3: the chosen circle's lanes drawn anew, no circle muted", p2 === p1 && l1 !== l0);
+  chord([25, 14, 16]);
+  const c1 = shot(FS / 2);
+  chord([14, 16, 25]);                                           // (within 3 s of the first: the undo)
+  const c2 = shot();
+  check("SHIFT -1 + SHIFT +1 + REVERSE: TOTAL CHAOS; again within 3 s: everything back", c1 !== p2 && c2 === p2);
+}
 if (wavPath) {                                                  // 4 bars from a fresh start, all three circles
   ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
   play();
