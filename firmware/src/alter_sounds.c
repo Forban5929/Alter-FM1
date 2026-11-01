@@ -96,10 +96,10 @@ static const alt_scene_t ALT_SCENE[] = {
       {"CRUSH", 0, 16, 11, 0, 110, 60, AS_CH_OFF, 0, 0}}, 0, 0, 0},
     {"HOUSE", "DEEP: KICK 4 . WARM CHORDS . OPEN HAT", 122, AS_SC_DOR, 8,
      {{"KICK", 1, 16, 4, 0, 127, 36, AS_CH_OFF, -6, 0, 45, 85, 0, 0},   /* four to the floor */
-      {"WARM", 2, 16, 3, 3, 127, 48, AS_CH_TRI, -4, 0},     /* minor chords off the beat (steps 3 9 14) */
+      {"WARM", 2, 16, 3, 3, 127, 48, AS_CH_7TH, -4, 0},     /* minor 7th stabs off the beat (steps 3 9 14) */
       {"OPEN HAT", 0, 16, 4, 2, 127, 60, AS_CH_OFF, -6, 0}}, 0, 0, 0},   /* between the kicks */
     {"AMBIENT", "ROMAIN'S USER 01", 70, AS_SC_MIN, 0,
-     {{"PAD", 3, 32, 1, 0, 127, 48, AS_CH_OPEN, 0, 0}, {"PAD", 3, 24, 1, 12, 127, 55, AS_CH_OFF, 0, 0},
+     {{"PAD", 3, 32, 1, 0, 127, 48, AS_CH_OCT, 0, 0}, {"PAD", 3, 24, 1, 12, 127, 55, AS_CH_OFF, 0, 0},
       {"RAIN", 0, 16, 3, 0, 70, 72, AS_CH_OFF, 0, 0}}, 0, 0, 0, ALT_USER_AMBIENT},   /* (the rest unused: user) */
     {"INDUS", "METAL . NOISE . GONG", 128, AS_SC_PHRY, 0,
      {{"ANVIL", 1, 16, 5, 0, 127, 36, AS_CH_OFF, 0, 0},

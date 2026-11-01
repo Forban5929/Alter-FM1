@@ -16,8 +16,11 @@
  * envelope offset (the host moves decay and release) and four timbre offsets (the host maps them to its engine's
  * parameters). Kept until the next roll; as_clear forgets it (the clean pattern). DOSE (0..127) is how far a draw
  * reaches: low for small variations, high for sound design. A circle's lock (AS_LK_*) keeps that part out of its draws.
- * CHORD (as_cfg_t.chord): each hit plays two more notes of the scale above its own (TRIAD, SUS, OPEN), moved
- * by the die's pitch with it.
+ * CHORD (as_cfg_t.chord): each hit plays up to two more notes (3 voices), moved by the die's pitch with it:
+ *   OCT  the note an octave up · 5TH  a power chord (+7, +12 semitones, whatever the scale)
+ *   TRIAD  the scale's third and fifth above the note · 7TH  third and seventh (no fifth: a house stab)
+ *   9TH  rootless: third, seventh and ninth (the hit's note itself is left out; the bass plays it)
+ *   TRIAD 7TH 9TH follow the scale (each tone: the scale note nearest that interval, so a 5-note scale works too).
  * DENSITY (as_density): +-1 HITS at once and kept (the keys are quantised to the grid: they act at the next step).
  *
  * Integers only, no allocation: as_step() runs once per sixteenth, in the audio interrupt if the host wants. */
@@ -41,10 +44,25 @@ static const char *const AS_TYPE_NAME[AS_NTYPE] = {"EUCLID", "TURING"};
 #define AS_THIST 2                        /* TURING: the patterns kept to go back to */
 #define AS_NLR 6                          /* the lanes with a RANGE: VELO CHANCE DELAY REVERB PITCH RATCH */
 #define AS_NLANE 16                       /* the lanes' steps (VELO CHANCE DELAY REVERB PITCH): a longer circle repeats them */
-/* chords: a hit's degree, then these degrees above it in the scale (0 = none) */
-enum { AS_CH_OFF, AS_CH_TRI, AS_CH_SUS, AS_CH_OPEN, AS_NCHORD };
-static const char *const AS_CHORD_NAME[AS_NCHORD] = {"OFF", "TRIAD", "SUS", "OPEN"};
-static const int8_t AS_CHORD[AS_NCHORD][2] = {{0, 0}, {2, 4}, {3, 4}, {4, 7}};
+/* chords. The values are what scenes store (2 was SUS: now 5TH; 3 was OPEN: now OCT); the knob steps through
+ * AS_CH_ORDER */
+enum { AS_CH_OFF, AS_CH_TRI, AS_CH_5TH, AS_CH_OCT, AS_CH_7TH, AS_CH_9TH, AS_NCHORD };
+static const char *const AS_CHORD_NAME[AS_NCHORD] = {"OFF", "TRIAD", "5TH", "OCT", "7TH", "9TH"};
+static const uint8_t AS_CH_ORDER[AS_NCHORD] = {AS_CH_OFF, AS_CH_OCT, AS_CH_5TH, AS_CH_TRI, AS_CH_7TH, AS_CH_9TH};
+/* chord ch's place on the knob, and the chord s places further (kept in 0..AS_NCHORD-1) */
+static uint32_t as_ch_pos(uint32_t ch)
+{
+    uint32_t i;
+    for (i = 0; i < AS_NCHORD; i++)
+        if (AS_CH_ORDER[i] == ch)
+            return i;
+    return 0;
+}
+static uint8_t as_ch_step(uint32_t ch, int32_t s)
+{
+    int32_t i = (int32_t)as_ch_pos(ch) + (s > 0 ? 1 : -1);
+    return AS_CH_ORDER[i < 0 ? 0 : i >= AS_NCHORD ? AS_NCHORD - 1 : i];
+}
 
 typedef struct {
     uint8_t len, hits, rot, prob;   /* 1..32, 0..len, 0..len-1, 0..127 */
@@ -364,6 +382,24 @@ static uint32_t as_note(const as_seq_t *q, uint32_t root, int32_t deg)
     return (uint32_t)(note < 1 ? 1 : note > 127 ? 127 : note);
 }
 
+/* the scale note above degree deg nearest t2/2 semitones over it (a tie: the lower) */
+static uint32_t as_cnote(const as_seq_t *q, uint32_t root, int32_t deg, int32_t t2)
+{
+    int32_t base = (int32_t)as_note(q, root, deg), best = base + t2 / 2, bd = 999, d;
+    for (d = deg + 1; d <= deg + 26; d++) {
+        int32_t iv = (int32_t)as_note(q, root, d) - base, e = 2 * iv - t2;
+        if (e < 0)
+            e = -e;
+        if (e < bd) {
+            bd = e;
+            best = base + iv;
+        }
+        if (2 * iv > t2 + bd)
+            break;
+    }
+    return (uint32_t)(best < 1 ? 1 : best > 127 ? 127 : best);
+}
+
 /* the velocity a step of circle c plays with: its VELO lane (turned by FROT), the draw a ghost / accent away */
 static int32_t as_svel(const as_circ_t *c, uint32_t k)
 {
@@ -524,9 +560,27 @@ static void as_step(as_seq_t *q, as_event_t ev[AS_NCIRC])
                     e->timb[j] = c->timb[k][j];
             }
             e->note = (uint8_t)as_note(q, c->cfg.root, deg);
-            if (c->cfg.chord) {                         /* the chord moves with the hit's degree */
-                e->chord[0] = (uint8_t)as_note(q, c->cfg.root, deg + AS_CHORD[c->cfg.chord][0]);
-                e->chord[1] = (uint8_t)as_note(q, c->cfg.root, deg + AS_CHORD[c->cfg.chord][1]);
+            switch (c->cfg.chord) {                     /* the chord moves with the hit's degree */
+            case AS_CH_OCT:
+                e->chord[0] = (uint8_t)(e->note + 12 > 127 ? 127 : e->note + 12);
+                break;
+            case AS_CH_5TH:
+                e->chord[0] = (uint8_t)(e->note + 7 > 127 ? 127 : e->note + 7);
+                e->chord[1] = (uint8_t)(e->note + 12 > 127 ? 127 : e->note + 12);
+                break;
+            case AS_CH_TRI:                             /* (third ~3.5, fifth 7, seventh ~10.5, ninth 14 semitones) */
+                e->chord[0] = (uint8_t)as_cnote(q, c->cfg.root, deg, 7);
+                e->chord[1] = (uint8_t)as_cnote(q, c->cfg.root, deg, 14);
+                break;
+            case AS_CH_7TH:
+                e->chord[0] = (uint8_t)as_cnote(q, c->cfg.root, deg, 7);
+                e->chord[1] = (uint8_t)as_cnote(q, c->cfg.root, deg, 21);
+                break;
+            case AS_CH_9TH:
+                e->chord[0] = (uint8_t)as_cnote(q, c->cfg.root, deg, 21);
+                e->chord[1] = (uint8_t)as_cnote(q, c->cfg.root, deg, 28);
+                e->note = (uint8_t)as_cnote(q, c->cfg.root, deg, 7);
+                break;
             }
             e->vel = (uint8_t)(vel < 1 ? 1 : vel > 127 ? 127 : vel);
         }

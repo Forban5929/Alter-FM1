@@ -280,7 +280,7 @@ static void alt_env_turn(uint32_t i, int32_t s)
         alt_envp[c][k] = (uint8_t)clamp((int32_t)alt_envp[c][k] + s * 2, 0, 127);
     } else {                                     /* STAB's CHORD */
         as_cfg_t *cf = &au.cfg[c];
-        cf->chord = (uint8_t)clamp((int32_t)cf->chord + (s > 0 ? 1 : -1), 0, AS_NCHORD - 1);
+        cf->chord = as_ch_step(cf->chord, s);
         alt_post_circle(c);
     }
 }
@@ -313,7 +313,7 @@ static void alt_turn(uint32_t q, uint32_t i, int32_t s)
         alt_post_circle(au.sel);
         return;
     case QK_CHORD:
-        c->chord = (uint8_t)clamp((int32_t)c->chord + (s > 0 ? 1 : -1), 0, AS_NCHORD - 1);
+        c->chord = as_ch_step(c->chord, s);
         alt_post_circle(au.sel);
         return;
     case QK_BPM:

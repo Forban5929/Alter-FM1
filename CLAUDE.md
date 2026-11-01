@@ -124,7 +124,11 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
   as_repat = motif joué) ; `as_clear` = motif propre ; `as_density` = ±1 HITS gardé ; `as_step(q, ev[3])`.
   DOSE par défaut AS_DOSE_DEF = 100 (drastique). Gamme partagée (OCT 5TH MPEN MIN PHRY DOR CHR), verrous PAR CERCLE
   (c->locks) AS_LK_PITCH/VEL/GLIDE/FORCE/TIMB/RHYTHM/ENV. Accord : cfg.chord (AS_CH_*), ev.chord[2].
-- `tools/alter/alter_seq_test.c` : 29 contrôles (motifs, cycle suivant, mute, force+FROT, chance, dé drastique, verrous,
+  **ACCORDS (01/11, choix Romain)** : knob = OFF OCT 5TH TRIAD 7TH 9TH (AS_CH_ORDER, as_ch_step) ; 3 voix max :
+  OCT +12, 5TH +7 +12 (fixe), TRIAD 3ce+5te, 7TH 3ce+7e (sans quinte), 9TH SANS FONDAMENTALE 3ce 7e 9e (ev.note = 3ce).
+  TRIAD/7TH/9TH suivent la gamme (as_cnote : note de gamme la plus proche de l'intervalle, marche en pentatonique).
+  Valeurs stockées : 2 (ex-SUS) = 5TH, 3 (ex-OPEN) = OCT → AMBIENT (USER 01, ex-OPEN) joue maintenant OCT. HOUSE WARM = 7TH.
+- `tools/alter/alter_seq_test.c` : 35 contrôles (accords, cycle suivant, mute, force+FROT, chance, dé drastique, verrous,
   SHIFT, DENSITÉ, polyrythmie). `cc -std=c99 -O2 -Wall -o build/alter/alter_seq_test tools/alter/alter_seq_test.c && build/alter/alter_seq_test`
 - (`alter_seq_demo.c` supprimé : ancien modèle. Nouvelles démos à faire en 3d-3.)
 - `tools/alter/make_listen_page.py build/alter` : page d'écoute HTML (MP3 via ffmpeg depuis wav/ dans mp3/).

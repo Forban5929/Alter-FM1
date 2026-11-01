@@ -231,6 +231,35 @@ int main(void)
         as_step(&q, ev);
         check("CHORD TRIAD on C2: C2 + Eb2 + G2", ev[0].on && ev[0].note == 36 && ev[0].chord[0] == 39 &&
                                                     ev[0].chord[1] == 43);
+        {
+            static const struct { uint8_t ch, n, a, b; const char *what; } T[] = {
+                {AS_CH_OCT, 36, 48, 0, "CHORD OCT on C2: C2 + C3"},
+                {AS_CH_5TH, 36, 43, 48, "CHORD 5TH on C2: C2 + G2 + C3"},
+                {AS_CH_7TH, 36, 39, 46, "CHORD 7TH on C2 (MIN): C2 + Eb2 + Bb2"},
+                {AS_CH_9TH, 39, 46, 50, "CHORD 9TH on C2 (MIN), rootless: Eb2 + Bb2 + D3"},
+            };
+            uint32_t t;
+            for (t = 0; t < 4; t++) {
+                as_init(&q, 1);
+                c = q.c[0].next;
+                c.chord = T[t].ch;
+                as_set(&q, 0, c);
+                as_step(&q, ev);
+                check(T[t].what, ev[0].on && ev[0].note == T[t].n && ev[0].chord[0] == T[t].a && ev[0].chord[1] == T[t].b);
+            }
+            q.scale = AS_SC_MPEN;
+            as_init(&q, 1);
+            q.scale = AS_SC_MPEN;
+            c = q.c[0].next;
+            c.chord = AS_CH_7TH;
+            as_set(&q, 0, c);
+            as_step(&q, ev);
+            check("CHORD 7TH in MPEN (5 notes): C2 + Eb2 + Bb2", ev[0].note == 36 && ev[0].chord[0] == 39 && ev[0].chord[1] == 46);
+            check("CHORD knob order OFF OCT 5TH TRIAD 7TH 9TH", as_ch_step(AS_CH_OFF, 1) == AS_CH_OCT &&
+                  as_ch_step(AS_CH_OCT, 1) == AS_CH_5TH && as_ch_step(AS_CH_5TH, 1) == AS_CH_TRI &&
+                  as_ch_step(AS_CH_TRI, 1) == AS_CH_7TH && as_ch_step(AS_CH_9TH, 1) == AS_CH_9TH &&
+                  as_ch_step(AS_CH_OFF, -1) == AS_CH_OFF);
+        }
     }
     /* lanes, TURING: LOCK 127 keeps its pattern, LOCK 0 renews it, the LOCK key freezes it; NEXT / PREV */
     {

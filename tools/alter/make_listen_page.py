@@ -12,7 +12,7 @@ SCENES = [
     ("scene_1_TECHNO", "TECHNO", "132 BPM · phrygien", "PERC · STAB · TEXTURE",
      "KICK (plein, gras) en PERC sur les noires, le 4e envoyé à 40 % dans le delay pour le groove, STAB en accord (triade) sur 3 coups décalés, CRUSH en texture sur 11 pas sur 16 avec un peu de hasard."),
     ("scene_2_HOUSE", "HOUSE", "122 BPM · dorien · swing léger", "KICK · ACCORDS · OPEN HAT",
-     "Deep house : KICK sur les 4 temps, WARM en accords mineurs chauds sur les contretemps, OPEN HAT entre les kicks."),
+     "Deep house : KICK sur les 4 temps, WARM en accords de septième (mineur 7, 3 notes sans la quinte) sur les contretemps, OPEN HAT entre les kicks."),
     ("scene_3_AMBIENT", "AMBIENT", "70 BPM · mineur", "NAPPE · NAPPE · TEXTURE",
      "Ta scène USER 01, reprise telle que tu l'as enregistrée (sons, rythmes, modes, effets)."),
     ("scene_4_INDUS", "INDUS", "128 BPM · phrygien", "MÉTAL · BRUIT · GONG",
