@@ -319,7 +319,7 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         onglets + aire hachurée. Polices : `assets/fonts/alter/` TeX Gyre Pagella Bold (GUST) à la place de Cinzel (pas de
         réseau pour la télécharger) + IBM Plex Mono (OFL) → build/gen/alter_fonts.h (tools/build.py ; ALT_FS 11 px, ALT_FM
         16, ALT_FL 26, ALT_FV 12, ALT_FN 16 ; +63 Ko de flash, NON vérifié sur FM-1). Couleurs : ALT_BG/INK/DIM/GREY/DARK/
-        GOLD/FRAME/RIB/RIBTX ; grain sur les 2 thèmes (alt_paper). Pas fait : noms d'arcanes sous le chiffre, phases de lune.
+        GOLD/FRAME/RIB/RIBTX ; grain sur les 2 thèmes (alt_paper). **Lissage (01/11, retour Romain « pixelisé, pas moderne »)** : lignes/anneaux/disques ANTI-CRÉNELÉS (alter_look.c alt_plot, alt_aaline16 Wu en 1/16 px, alt_aaring16 ; alt_disc par couverture) ; libellés en Inter (AF_S/AF_L), serif Pagella seulement dans le bandeau titre ; page navigateur en image-rendering auto (agrandissement lissé). Pas fait : noms d'arcanes sous le chiffre, phases de lune.
   - [ ] 3c : vue DEEP (EDIT ouvre encore la page EDIT de Felucca). Puis retirer l'interface Felucca. Reste : SCL → gamme
         des cercles, touches blanches libres, DESTROY assignable, verrous du dé, DOSE.
 - [ ] Étape 4 (après le séquenceur) : tranche de console PAR PISTE, ordre FIXE validé :

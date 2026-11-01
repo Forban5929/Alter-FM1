@@ -1109,13 +1109,19 @@ static uint16_t alt_mixc(uint16_t a, uint16_t c, int32_t pct)
     return (uint16_t)out;
 }
 
+static void alt_plot(int32_t x, int32_t y, uint16_t c, int32_t a);   /* (alter_look.c) */
+/* a disc, its edge anti-aliased (each edge pixel as much of c as the disc covers of it) */
 static void alt_disc(int32_t cx, int32_t cy, int32_t r, uint16_t c)
 {
-    int32_t dy;
-    for (dy = -r; dy <= r; dy++) {
-        int32_t dx = (int32_t)alt_isqrt((uint32_t)(r * r - dy * dy));
-        cv_rect(cx - dx, cy + dy, 2 * dx + 1, 1, c);
-    }
+    int32_t dy, dx, r16 = r * 16 + 8;
+    for (dy = -r - 1; dy <= r + 1; dy++)
+        for (dx = -r - 1; dx <= r + 1; dx++) {
+            int32_t d = (int32_t)alt_isqrt((uint32_t)((dx * dx + dy * dy) * 256)), a = (r16 - d) * 16 + 128;
+            if (a >= 256)
+                cv_rect(cx + dx, cy + dy, 1, 1, c);
+            else if (a > 0)
+                alt_plot(cx + dx, cy + dy, c, a);
+        }
 }
 
 static void alt_at(uint32_t turn, int32_t r, int32_t *x, int32_t *y)   /* turn: 0 = top, clockwise */
@@ -1847,15 +1853,8 @@ static void alt_scl_scene(void)
         }
         cv_text(23, y, ALT_FS, AS_SCALE_NAME[i], i == sc ? ALT_INK : ALT_DIM);
     }
-    for (k = 0; k < 160u; k++) {                 /* the wheel */
-        int32_t x, y;
-        alt_pt(wx, wy, k * (0xFFFFFFFFu / 160u), 46, &x, &y);
-        cv_pset(x, y, alt_gold_line(55));
-        if (!(k & 1u)) {
-            alt_pt(wx, wy, k * (0xFFFFFFFFu / 160u), 50, &x, &y);
-            cv_pset(x, y, alt_gold_line(25));
-        }
-    }
+    alt_aaring16(wx * 16, wy * 16, 46 * 16, alt_gold_line(60));   /* the wheel */
+    alt_aaring16(wx * 16, wy * 16, 50 * 16, alt_gold_line(25));
     for (k = 0; k < 12u; k++)
         alt_pt(wx, wy, k * (0xFFFFFFFFu / 12u), 46, &px[k], &py[k]);
     {                                            /* the scale's sigil, then the chord's, dashed */
@@ -1865,13 +1864,13 @@ static void alt_scl_scene(void)
             if (!((lit >> n) & 1u))
                 continue;
             if (prev >= 0)
-                cv_line(px[prev], py[prev], px[n], py[n], col);
+                alt_aaline(px[prev], py[prev], px[n], py[n], col);
             else
                 first = (int32_t)n;
             prev = (int32_t)n;
         }
         if (prev >= 0 && first >= 0 && prev != first)
-            cv_line(px[prev], py[prev], px[first], py[first], col);
+            alt_aaline(px[prev], py[prev], px[first], py[first], col);
         first = prev = -1;
         for (k = 0; k < 12u; k++) {
             uint32_t n = (root + k) % 12u;
@@ -1880,7 +1879,7 @@ static void alt_scl_scene(void)
             if (prev >= 0) {
                 int32_t j;
                 for (j = 0; j < 16; j += 2)       /* (dashed) */
-                    cv_line(px[prev] + (px[n] - px[prev]) * j / 16, py[prev] + (py[n] - py[prev]) * j / 16,
+                    alt_aaline(px[prev] + (px[n] - px[prev]) * j / 16, py[prev] + (py[n] - py[prev]) * j / 16,
                             px[prev] + (px[n] - px[prev]) * (j + 1) / 16, py[prev] + (py[n] - py[prev]) * (j + 1) / 16,
                             ALT_INK);
             } else
@@ -1890,7 +1889,7 @@ static void alt_scl_scene(void)
         if (prev >= 0 && first >= 0 && prev != first) {
             int32_t j;
             for (j = 0; j < 16; j += 2)
-                cv_line(px[prev] + (px[first] - px[prev]) * j / 16, py[prev] + (py[first] - py[prev]) * j / 16,
+                alt_aaline(px[prev] + (px[first] - px[prev]) * j / 16, py[prev] + (py[first] - py[prev]) * j / 16,
                         px[prev] + (px[first] - px[prev]) * (j + 1) / 16, py[prev] + (py[first] - py[prev]) * (j + 1) / 16,
                         ALT_INK);
         }
@@ -1962,15 +1961,8 @@ static void alt_set_scene(void)
         cv_text_on(24, y, ALT_FM, SET_NAME[r], ALT_INK, r == au.set_row ? hl : ALT_BG);
         cv_text_r(226, y, ALT_FM, alt_set_text(r), r == au.set_row ? col : ALT_DIM, r == au.set_row ? hl : ALT_BG);
     }
-    for (k = 0; k < 240u; k++) {                 /* the emblem: the moon and the sun, the side in use lit */
-        int32_t x, y;
-        alt_pt(120, 122, k * (0xFFFFFFFFu / 240u), 52, &x, &y);
-        cv_pset(x, y, alt_gold_line(55));
-        if (!(k % 6u)) {
-            alt_pt(120, 122, k * (0xFFFFFFFFu / 240u), 47, &x, &y);
-            cv_rect(x, y, 1, 1, alt_gold_line(35));
-        }
-    }
+    alt_aaring16(120 * 16, 122 * 16, 52 * 16, alt_gold_line(60));   /* the emblem: the moon and the sun, the side in use lit */
+    alt_aaring16(120 * 16, 122 * 16, 47 * 16, alt_gold_line(25));
     cv_rect(120, 72, 1, 100, alt_gold_line(45));
     alt_disc(97, 122, 15, moon);
     alt_disc(103, 117, 13, ALT_BG);
@@ -1979,7 +1971,7 @@ static void alt_set_scene(void)
         int32_t xa, ya, xb, yb;
         alt_pt(143, 122, k * 0x20000000u, 12, &xa, &ya);
         alt_pt(143, 122, k * 0x20000000u, 17, &xb, &yb);
-        cv_line(xa, ya, xb, yb, sun);
+        alt_aaline(xa, ya, xb, yb, sun);
     }
     cv_text(97 - text_w(ALT_FS, "NIGHT") / 2, 180, ALT_FS, "NIGHT", ALT_DAY ? ALT_DIM : ALT_INK);
     cv_text(143 - text_w(ALT_FS, "DAY") / 2, 180, ALT_FS, "DAY", ALT_DAY ? ALT_INK : ALT_DIM);
@@ -2055,7 +2047,7 @@ static void alt_prism(void)
         alt_tri(px[0], py[0], px[1], py[1], px[2], py[2], alt_fade(col, au.cfg[i].mute ? 45 : 32 + (int32_t)lv * 11));
         for (k = 0; k < 3; k++) {                /* set in gold */
             int32_t k2 = (k + 1) % 3;
-            cv_line((px[k] + 8) / 16, (py[k] + 8) / 16, (px[k2] + 8) / 16, (py[k2] + 8) / 16, alt_gold_line(75));
+            alt_aaline((px[k] + 8) / 16, (py[k] + 8) / 16, (px[k2] + 8) / 16, (py[k2] + 8) / 16, alt_gold_line(75));
         }
         if (i == au.sel)                         /* the chosen circle: a dot in its piece */
             alt_disc((cx + gx + ox) / 16, (cy + gy + oy) / 16, 2, col);
@@ -2108,7 +2100,7 @@ static void alt_scene(uint32_t q, uint32_t flash)
             r1 = (76 << 15) / -cs;
         alt_pt(ALT_CX, ALT_CY, tn, 46, &x0, &y0);
         alt_pt(ALT_CX, ALT_CY, tn, r1, &x1, &y1);
-        cv_line(x0, y0, x1, y1, alt_gold_line(12));
+        alt_aaline(x0, y0, x1, y1, alt_gold_line(12));
     }
     /* the head: the card, the sound's name in its ribbon, the arcana of the page shown; the tempo, the engine, the
      * mode */
@@ -2139,7 +2131,7 @@ static void alt_scene(uint32_t q, uint32_t flash)
         uint32_t len = c->cfg.len ? c->cfg.len : 1u, now = (c->pos + len - 1u) % len;
         int32_t x, y;
         alt_at((uint32_t)(((uint64_t)now << 32) / len), 90, &x, &y);
-        cv_line(ALT_CX, ALT_CY, x, y, alt_gold_line(45));
+        alt_aaline(ALT_CX, ALT_CY, x, y, alt_gold_line(45));
     }
     /* the circles, each a sigil: its ring, its hits joined (a square, a triangle, a star ..), its hits as marks: a
      * diamond (outer), a sun (middle), a dot (inner) */
@@ -2151,14 +2143,9 @@ static void alt_scene(uint32_t q, uint32_t flash)
         int32_t r = ALT_R[i], x, y, hx[32], hy[32];
         if (dim)
             col = alt_fade(col, 30);
-        for (j = 0; j < 240u; j++) {             /* the ring: gold, the chosen circle's in its colour */
-            alt_at(j * (0xFFFFFFFFu / 240u), r, &x, &y);
-            cv_pset(x, y, chosen ? col : alt_gold_line(muted ? 25 : 45));
-            if (chosen && !(j & 1u)) {
-                alt_at(j * (0xFFFFFFFFu / 240u), r - 3, &x, &y);
-                cv_pset(x, y, alt_fade(col, 35));
-            }
-        }
+        alt_aaring16(ALT_CX * 16, ALT_CY * 16, r * 16, chosen ? col : alt_gold_line(muted ? 30 : 55));   /* the ring: gold, */
+        if (chosen)                              /* the chosen circle's in its colour, doubled */
+            alt_aaring16(ALT_CX * 16, ALT_CY * 16, r * 16 - 48, alt_fade(col, 35));
         for (j = 0; j < len && j < 32u; j++)
             if ((c->pat >> j) & 1u)
                 alt_at((uint32_t)(((uint64_t)j << 32) / len), r, &hx[m], &hy[m]), m++;
@@ -2178,7 +2165,7 @@ static void alt_scene(uint32_t q, uint32_t flash)
             }
             for (k = 0; k < (m == 2u ? 1u : m); k++) {
                 uint32_t nx = (cur + st) % m;
-                cv_line(hx[cur], hy[cur], hx[nx], hy[nx], i ? alt_fade(col, 40) : alt_gold_line(muted ? 20 : 40));
+                alt_aaline(hx[cur], hy[cur], hx[nx], hy[nx], i ? alt_fade(col, 40) : alt_gold_line(muted ? 20 : 40));
                 cur = nx;
             }
         }
@@ -2215,11 +2202,7 @@ static void alt_scene(uint32_t q, uint32_t flash)
         cv_frame(ALT_CX - w / 2 - 5, ALT_CY - 10, w + 10, 20, ALT_GOLD);
         cv_text_on(ALT_CX - w / 2, ALT_CY - 7, ALT_FS, au.msg, ALT_INK, ALT_BG);
     } else {
-        for (j = 0; j < 120u; j++) {
-            int32_t x, y;
-            alt_at(j * (0xFFFFFFFFu / 120u), 27, &x, &y);
-            cv_pset(x, y, alt_gold_line(40));
-        }
+        alt_aaring16(ALT_CX * 16, ALT_CY * 16, 27 * 16, alt_gold_line(45));
         alt_prism();
     }
     alt_foot(q);

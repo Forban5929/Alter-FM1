@@ -94,7 +94,7 @@ static const alt_scene_t ALT_SCENE[] = {
      {{"KICK", 1, 16, 4, 0, 127, 36, AS_CH_OFF, -6, 0, 45, 85, 13, 51},   /* the 4th kick 40 % into the delay */
       {"STAB", 2, 16, 3, 3, 127, 48, AS_CH_TRI, 0, 0},
       {"CRUSH", 0, 16, 11, 0, 110, 60, AS_CH_OFF, 0, 0}}, 0, 0, 0},
-    {"HOUSE", "DEEP: KICK 4 . WARM CHORDS . OPEN HAT", 122, AS_SC_DOR, 8,
+    {"HOUSE", "DEEP . WARM CHORDS . OPEN HAT", 122, AS_SC_DOR, 8,
      {{"KICK", 1, 16, 4, 0, 127, 36, AS_CH_OFF, -6, 0, 45, 85, 0, 0},   /* four to the floor */
       {"WARM", 2, 16, 3, 3, 127, 48, AS_CH_7TH, -4, 0},     /* minor 7th stabs off the beat (steps 3 9 14) */
       {"OPEN HAT", 0, 16, 4, 2, 127, 60, AS_CH_OFF, -6, 0}}, 0, 0, 0},   /* between the kicks */

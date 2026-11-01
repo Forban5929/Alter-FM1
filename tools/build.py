@@ -102,10 +102,8 @@ def generate():
     tools = SRC / "tools"
     af = SRC / "assets" / "fonts" / "alter"          # ALTER's tarot faces (TeX Gyre Pagella Bold: GUST font licence;
     cmds = [[tools / "gen_aa_font.py", GEN / "ui_fonts.h", "--preset", "inter-tight"],   # IBM Plex Mono: SIL OFL)
-            [tools / "gen_aa_font.py", GEN / "alter_fonts.h", "--tracking", "0.02", "--huff", "TT,TC,TV,TN,TL",
+            [tools / "gen_aa_font.py", GEN / "alter_fonts.h", "--tracking", "0.02", "--huff", "TT,TV,TN",
              "--face", f"TT={af}/texgyrepagella-bold.otf:16:32-95+0xB7",
-             "--face", f"TC={af}/texgyrepagella-bold.otf:11:32-126+0xB7",
-             "--face", f"TL={af}/texgyrepagella-bold.otf:26:32-95",
              "--face", f"TV={af}/IBMPlexMono-Regular.ttf:12:32-126+0xB7",
              "--face", f"TN={af}/IBMPlexMono-Bold.ttf:16:32-95"],
             [tools / "gen_aa_icons.py", GEN / "ui_icons.h"],

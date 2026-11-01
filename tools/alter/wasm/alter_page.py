@@ -7,6 +7,9 @@ import sys
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
 s = s.replace("<title>Felucca</title>", "<title>ALTER</title>")
+# the screen scaled up smooth, as the eye sees the real 240 x 240 one (Romain, 01/11: "pixelise, pas moderne")
+s = s.replace(".device canvas { position: absolute; image-rendering: crisp-edges; image-rendering: pixelated;",
+              ".device canvas { position: absolute; image-rendering: auto;")
 s = s.replace('content="Felucca, the multi-engine synth firmware for the FM-1, running in your browser: the same code the instrument runs."',
               'content="ALTER, un instrument pour le M-VAVE FM-1 (fork de Felucca), dans le navigateur : le même code que la machine."')
 s = s.replace('<p class="keys">',

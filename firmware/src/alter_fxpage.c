@@ -177,7 +177,7 @@ static uint16_t afp_dim(uint16_t c, int32_t pct)   /* c towards the background (
 /* knob value k of the tab: its name, its text, a fill of 50 px (-1: text only) */
 static void afp_kv(uint32_t k, const char **name, char *txt, int32_t *fill)
 {
-    static const char *const KN[3][4] = {{"DRIVE", "TYPE", "AMOUNT", "MIX"}, {"TIME", "FEEDBK", "COLOR", "SEND"},
+    static const char *const KN[3][4] = {{"DRIVE", "TYPE", "AMNT", "MIX"}, {"TIME", "FEEDBK", "COLOR", "SEND"},
                                          {"TYPE", "SIZE", "DAMP", "SEND"}};
     uint32_t c = au.sel % AS_NCIRC;
     const track_t *t = &trk[c];
@@ -319,7 +319,7 @@ static void afp_dist_pic(int32_t y0, int32_t h, uint16_t col)   /* one cycle of 
             v = v + (((w - v) * clamp(mix, 0, 127)) >> 7);
         y = y0 + h / 2 - (clamp(v, -32767, 32767) * (h / 2 - 2)) / 32767;
         if (x)
-            cv_line(8 + x - 1, py, 8 + x, y, col);
+            alt_aaline(8 + x - 1, py, 8 + x, y, col);
         py = y;
     }
 }
