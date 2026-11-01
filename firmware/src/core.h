@@ -13,13 +13,6 @@
 #define NTRK NPART               /* tracks (the formats and the protocol count these): every track is a part */
 #define NSTEP 64
 #define HALF_FRAMES 128          /* I2S half buffer: 2.9 ms at 44.1 kHz (a key waits 0..1 half, then plays 1 half later) */
-#ifndef FELUCCA_SLICE
-#define FELUCCA_SLICE 1          /* the SLICE engine (eng_slice.c), engine 13; FELUCCA_SLICE=0 builds without it */
-#endif
-#ifndef FELUCCA_FM4
-#define FELUCCA_FM4 0            /* the DIGITAL engine (eng_digital.c, four-operator FM): kept in the tree, not built
-                                  * by default; replaced by FM6, its sounds convert (fm4_convert.c) */
-#endif
 #ifndef FELUCCA_CPU2
 #define FELUCCA_CPU2 1           /* the second core (src/felucca.c): 1 = built in, MENU > 2ND CORE ON lets it render
                                   * some parts; 0 = none of it */
@@ -28,19 +21,10 @@
                                             * second core (mod.c, voice.c SPREAD, eng_formant.c): one each with two cores,
                                             * one for all with one, as up to 1.6 */
 #define C1_PI(t) ((uint32_t)((t) - trk) % C1_NP)   /* a part's copy */
-#ifndef FELUCCA_ADPCM
-#define FELUCCA_ADPCM 0          /* the ADPCM engine (eng_adpcm.c), engine 14: not built by default (FELUCCA_ADPCM=1 builds
-                                  * it): on the FM-1 it costs about three ANALOG voices a voice (eng_adpcm.c, the figures) */
-#endif
-#if FELUCCA_ADPCM && !FELUCCA_SLICE
-#error "FELUCCA_ADPCM needs FELUCCA_SLICE (ADPCM is engine 14, after SLICE)"
-#endif
-#define NENGINES (14 + FELUCCA_SLICE + FELUCCA_ADPCM)   /* SLICE (13), ADPCM (14), then ALTER, always last */
-#define ENGI_ALTER (NENGINES - 1u)
-#define ENGI_ADPCM 14u
-#define ENGI_DIGITAL 1u          /* reserved without FELUCCA_FM4: never selectable (eng_ok), its sounds load as FM6 */
-#define NENG_SHOWN (NENGINES - !FELUCCA_FM4)   /* the engines one can pick: PRESETS, the EDIT layer, the editor,
-                                                * in the display order of engines.c ENGINE_ORDER */
+#define NENGINES 15u             /* engine numbers 0..14: ALTER 14, PHYS 9, NOISE 11, the others empty (engines.c) */
+#define ENGI_ALTER 14u
+#define ENGI_NOISE 11u
+#define NENG_SHOWN 3u            /* the engines one can pick: ALTER PHYS NOISE (engines.c ENGINE_ORDER) */
 #define UP_SLOTS 32u             /* user presets (upreset.c) */
 
 /* ------------------------------------------------------- parameters --- */

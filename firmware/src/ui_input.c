@@ -293,9 +293,6 @@ static uint32_t step_leds(void)
 static int keys_own(void)
 {
     return (name_on() && !ui.menu) || ui.layer || grid_on()
-#if FELUCCA_SLICE
-           || (!ui.menu && !name_on() && slice_page_on())
-#endif
         ;
 }
 
@@ -365,10 +362,6 @@ static uint32_t key_leds(uint32_t *br)                 /* (*br: a layer's keys t
         *br = 0;
     c = name_on() && !ui.menu ? name_leds() : ui.layer ? layer_leds(br) : grid_on() ? grid_leds() :
                  (fm1_in.notes & ~kb_layer) | play_leds() | step_leds() | (song_keys_on() ? song_leds() : 0u);
-#if FELUCCA_SLICE
-    if (!ui.layer && !ui.menu && !name_on() && slice_page_on())
-        c |= slice_leds();                              /* SLICES: and the keys of the selected slice */
-#endif
     return c;
 }
 
@@ -1002,13 +995,6 @@ static void edit_param(uint32_t slot, int32_t steps)
         }
         return;
     }
-#if FELUCCA_SLICE
-    if (pg->graph == GR_SLICES && slot < 2u) {           /* SLICES: KNOB 1 the marker, 2 moves it (ui_slice.c) */
-        if (slice_page_ok())                              /* (the engine changed before ui_draw left the page) */
-            slice_knob(slot, steps);
-        return;
-    }
-#endif
     if (pg->graph == GR_TOOLS && slot == 1u) {           /* TOOLS' KNOB 2 (1.5.5, #190): right INIT, on CLEAN INIT; */
         if (steps > 0) {                                  /* left back, then none */
             ui.tl_clean = ui.act == 2u;
@@ -1033,10 +1019,6 @@ static void edit_param(uint32_t slot, int32_t steps)
     if (pg->graph == GR_PATS) {                          /* KNOB 1 the pattern */
         if (slot == 0u)
             ui.ppick = (uint8_t)clamp((int32_t)pat_pick() + steps, 0, (int32_t)pat_count() - 1);
-        return;
-    }
-    if (fop_page(pg->graph)) {                           /* FM6's operators: KNOB 1 OP, 2..4 its bytes (ui_fm6op.c) */
-        fop_knob(slot, steps);
         return;
     }
     if (pg->graph == GR_MOD && slot == 0u) {             /* MOD: KNOB 1 the slot, 2..4 its SRC DST AMT */
@@ -1088,13 +1070,6 @@ static void act_do(void)
             pat_load_ui(TSEL, pat_pick());
         return;
     }
-#if FELUCCA_SLICE
-    if (cur_page()->graph == GR_SLICES) {                 /* SPLIT / JOIN: stays picked (split again, join again) */
-        if (slice_page_ok())
-            slice_act(c);
-        return;
-    }
-#endif
     if (cur_page()->graph == GR_USER) {                   /* 1 LOAD, 2 ERASE, 3 SAVE (the NAME screen first) */
         if (c > 1u)
             ui.act = 0;
@@ -1380,25 +1355,6 @@ static int page_tap(uint32_t b)
  * it plays a sine): the no-file icon and NO SAMPLE (ui.c MSG_NO_SAMPLE). Once per track and source: at power-on, a sound
  * or project load, SRC / SET turned, a slot erased; again after another source or a project load. One a frame; after
  * a message already showing (LOADED) as the second message. Not on notes: nothing in the audio path */
-static void sample_notice(void)
-{
-    uint32_t k, code;
-    for (k = 0; k < NTRK; k++) {
-        code = 0;
-        if (!snd_missing(&trk[k], &code)) {
-            snd_said[k] = 0;
-            continue;
-        }
-        if (snd_said[k] == code)
-            continue;
-        snd_said[k] = (uint8_t)code;
-        if (ui.msg_t)
-            str_cpy(ui.msg2, MSG_NO_SAMPLE, sizeof ui.msg2);
-        else
-            ui_message(MSG_NO_SAMPLE);
-        return;
-    }
-}
 
 /* 1.5.5 (#208): MIDI IN notes since the last frame (seq.c midi_seen): their tracks light (midi_lit), and with MENU > MIDI >
  * AUTO SELECT ON a track that is not selected becomes the selected one, but not while the selected track has had notes
@@ -1454,7 +1410,6 @@ static int midi_follow(void)
 static void ui_notices(void)
 {
     static uint32_t midi_t, midi_last;
-    sample_notice();
     ml_poll();                                          /* (MIDI LEARN: a CC came for the picked parameter) */
     if (motion_full) { motion_full = 0; ui_message("AUTOMATION FULL"); }
     if (midi_follow())                                  /* (AUTO SELECT took the track: no "MIDI IN -> Tn") */
@@ -1481,12 +1436,6 @@ static void ui_input(void)
     static uint32_t lock_ms;                            /* BPM LOCK: the last locked SELECT turn (fm1_ms | 1; 0 none) */
     midi_take();                                        /* (MIDI IN notes: lights, SCREEN WAKE, AUTO SELECT's) */
     midi_pc_poll();                                     /* MIDI Program Change (before fm6_poll: a bank voice) */
-    fm6_poll();                                         /* FM6: PTCH turned -> its patch */
-#if !FELUCCA_FM4
-    for (k = 0; k < NTRK; k++)                          /* a DIGITAL sound any other way (the paths convert it */
-        if (trk[k].eng_req == ENGI_DIGITAL)             /* already): FM6 (fm4_convert.c) */
-            fm4_track(&trk[k]);
-#endif
     perf_latch_on = fx_latch & 1u;                      /* (MENU > FX LATCH; a settings load sets it too) */
     fx_map_sync();                                      /* (the FX layer's key map: ui_layer.c, a settings load too) */
     fx_usb_fixed = (ui_prefs & PREF_USB_FIXED) != 0u;   /* (MENU > USB LEVEL: fx.c, audio.c) */
@@ -1731,10 +1680,6 @@ static void ui_input(void)
         ml_oct(oct);
     }
     song.grid = (uint8_t)keys_mode();                 /* (seq.c: the keys are the grid's) */
-#if FELUCCA_SLICE
-    if (notes && slice_page_on())                       /* SLICES: a key picks the slice it plays */
-        slice_keys_pick(notes);
-#endif
     lock_keys();                                        /* (a grid key on a hit let go: the hit goes) */
     if (song.grid == 3u) {
         song_keys(notes);
@@ -1799,7 +1744,7 @@ static void ui_input(void)
         }
         if (ui.home || pg->scope == SC_STEP || pg->scope == SC_TRK || page_desc(pg, k, &hv) ||
             ((pg->graph == GR_USER || pg->graph == GR_MOD || pg->graph == GR_PATS) && k == 0u)
-            || pg->graph == GR_SONG || (pg->graph == GR_SLICES && k < 2u) || fop_page(pg->graph)) {   /* (not an empty
+            || pg->graph == GR_SONG || (pg->graph == GR_SLICES && k < 2u)) {   /* (not an empty
                                                                                                           * column) */
             ui.hot_col = (uint8_t)k;
             ui.hot_t = 40;

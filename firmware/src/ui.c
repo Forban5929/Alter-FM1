@@ -8,7 +8,7 @@ static int project_save(uint32_t slot);
 static void panel_setup(void);
 static void project_load(uint32_t slot);
 static int project_used(uint32_t slot);
-static uint32_t chain_prepare(void);
+
 static int up_used(uint32_t k);              /* user presets: upreset.c */
 static int up_load(uint32_t k);
 static uint32_t up_count(void);
@@ -420,26 +420,15 @@ static int layer_locked(void);
 static uint32_t layer_leds(uint32_t *br);
 static uint32_t layer_btn(void);
 
-/* FM operator pages belong to DIGITAL; they never appear on other instruments (without FELUCCA_FM4: never). SLICES:
- * a SLICE track's (ui_slice.c); LANES / LANES 2 a DRUM track's (its lane levels); FILTER an ANALOG track's; OPERATOR, OP ENV, OPERATOR 2 an FM6
- * track's (its patch's operators, ui_fm6op.c) */
 static int page_visible(uint32_t i)
 {
+    /* the pages of the engines ALTER took out (DRUM's lanes, ANALOG's filter, FM6's operators, SLICE, DIGITAL) */
     if (PAGES[i].scope == SC_TRACK && PAGES[i].id[0] >= P_LN0 && PAGES[i].id[0] <= P_LN7)
-        return TSEL->eng_req % NENGINES == ENGI_DRUM;
-    if (PAGES[i].id[0] == P_FTYPE)                    /* FILTER (1.5, #104): ANALOG's */
-        return ENGINES[TSEL->eng_req % NENGINES] == &ENG_ANALOG;
-    if (PAGES[i].graph >= GR_FMOP && PAGES[i].graph <= GR_FMENV)
-        return TSEL->eng_req % NENGINES == ENGI_FM6;
-#if FELUCCA_SLICE
-    if (PAGES[i].graph == GR_SLICES)
-        return ENGINES[TSEL->eng_req % NENGINES] == &ENG_SLICE;
-#else
-    if (PAGES[i].graph == GR_SLICES)
         return 0;
-#endif
-    return !(PAGES[i].fam == FAM_EDIT && PAGES[i].id[0] >= P_FM1_ATK &&
-             PAGES[i].id[0] <= P_FM4_LEVEL) || (FELUCCA_FM4 && TSEL->eng_req % NENGINES == ENGI_DIGITAL);
+    if (PAGES[i].id[0] == P_FTYPE || (PAGES[i].graph >= GR_FMOP && PAGES[i].graph <= GR_FMENV) ||
+        PAGES[i].graph == GR_SLICES)
+        return 0;
+    return !(PAGES[i].fam == FAM_EDIT && PAGES[i].id[0] >= P_FM1_ATK && PAGES[i].id[0] <= P_FM4_LEVEL);
 }
 
 static uint32_t page_first(uint32_t fam)
@@ -866,8 +855,6 @@ static struct {
     uint8_t keep;                /* the track is as the last load left it (undo.after): a next load keeps the copy */
     uint8_t what;                /* UNDO_SOUND | UNDO_PAT: what the loads since the copy changed (undo_swap) */
     uint8_t eng, preset, user, patn;
-    uint8_t fm6_slot;            /* the track's FM6 patch and its SLOT (eng_fm6.c): an edited or a project's */
-    uint8_t fm6[FP_SIZE + 1u];   /* patch is the track's own, not a factory one */
     int16_t p[P_COUNT];
     step_t step[NSTEP];
     motion_store_t motion_backup; /* one track only, swaps with the shared event pool on undo */
@@ -902,7 +889,6 @@ static uint32_t track_sig(const track_t *t)      /* the sound (an FM6 track's pa
 {
     uint8_t id[3] = {t->eng_req, t->preset, t->user};
     uint32_t h = fnv(fnv(steps_sig(t), t->p, sizeof t->p), id, 3), k = trk_index(t);
-    h = fnv(h, fm6_patch[k], sizeof fm6_patch[k]); /* (a patch the editor sent between two loads) */
     for (uint32_t j = 0; j < motion.count; j++)
         if ((motion.event[j].place >> 6) == k) h = fnv(h, &motion.event[j], sizeof motion.event[j]);
     return h ^ ((motion.on >> k) & 1u);
@@ -993,8 +979,6 @@ static void load_begin(track_t *t, uint32_t what)
     undo.user = t->user;
     memcpy(undo.p, t->p, sizeof undo.p);
     memcpy(undo.step, t->step, sizeof undo.step);
-    memcpy(undo.fm6, fm6_patch[i], FP_SIZE);
-    undo.fm6_slot = fm6_slot[i];
     undo.pat = pat_sig[i];
     undo.from = pat_from[i];
     undo.from_h = pat_from_h[i];
@@ -1051,8 +1035,6 @@ static void edit_undo_take(track_t *t, uint32_t tag, uint32_t what)
     undo.user = t->user;
     memcpy(undo.p, t->p, sizeof undo.p);
     memcpy(undo.step, t->step, sizeof undo.step);
-    memcpy(undo.fm6, fm6_patch[i], FP_SIZE);
-    undo.fm6_slot = fm6_slot[i];
     undo.pat = pat_sig[i];
     undo.from = pat_from[i];
     undo.from_h = pat_from_h[i];
@@ -1136,17 +1118,6 @@ static void undo_swap(void)
         }
     }
     fm1_irq_on();
-    if (undo.what & UNDO_SOUND) {                 /* FM6: the track's patch as it was (edited, a project's, a
-                                                   * converted DIGITAL sound), not a factory one */
-        uint32_t tr = trk_index(t);
-        uint8_t v[FP_SIZE + 1u], sl = fm6_slot[tr];
-        memcpy(v, fm6_patch[tr], FP_SIZE);
-        fm6_set_patch(tr, undo.fm6);
-        fm6_slot[tr] = undo.fm6_slot;             /* (fm6_poll: the patch stays) */
-        fm6_own_ok &= (uint8_t)~(1u << tr);
-        memcpy(undo.fm6, v, FP_SIZE);
-        undo.fm6_slot = sl;
-    }
     undo.keep = 0;                                /* the next load copies the track as it is now */
     if (t == TSEL)
         sync_reload = 1;
@@ -1200,40 +1171,10 @@ static void track_defaults_steps(track_t *t)
         step_clear(&t->step[i]);
 }
 
-/* SAVE > PHRASES: the factory patterns (PATTERNS[], "01".."13"), then the used user presets that hold
- * one ("U07"): list index n. Loading one replaces the track's steps 1..16 (the rest cleared) and LEN;
- * a user preset's pattern brings its stored LEN (at most 16), DIV, SWING and GATE too. The notes are
- * loaded as they are: the patterns are written for the register of their kind of sound, DRUM and
- * SLICE patterns are drum and slice numbers, and SCL TRANS / OCT transpose what plays */
-static uint32_t pat_count(void) { return NPATTERNS + up_pat_count(); }
-
-static void pat_label(uint32_t n, char *tag, char *name)   /* tag: 4 bytes ("01", "U07"), name: 13 */
-{
-    if (n < NPATTERNS) {
-        tag[0] = (char)('0' + (n + 1u) / 10u);
-        tag[1] = (char)('0' + (n + 1u) % 10u);
-        tag[2] = 0;
-        str_cpy(name, PATTERNS[n].name, 13);
-    } else {
-        uint32_t k = up_pat_nth(n - NPATTERNS);
-        up_slot_label(tag, k);
-        up_name(k, name);
-    }
-}
-
-static void pat_load(track_t *t, uint32_t n)
-{
-    load_begin(t, UNDO_PAT);
-    if (n < NPATTERNS)
-        load_pat16(t, PATTERNS[n].note, PATTERNS[n].flags);
-    else
-        up_pat_load(t, up_pat_nth(n - NPATTERNS));
-    pat_sig[trk_index(t)] = steps_sig(t);
-    pat_last[trk_index(t)] = (uint8_t)(n + 1u);
-    pat_from[trk_index(t)] = 0;                     /* (a phrase: no PROJECT slot) */
-    load_end(t);
-    ui.force = 1;
-}
+/* SAVE > PHRASES (the old page): Felucca's factory phrases and user presets are gone, so the list is empty */
+static uint32_t pat_count(void) { return 0; }
+static void pat_label(uint32_t n, char *tag, char *name) { (void)n; tag[0] = 0; name[0] = 0; }
+static void pat_load(track_t *t, uint32_t n) { (void)t; (void)n; }
 
 /* a pattern load would throw away steps of the user's (recorded, edited, from a project): ask first */
 static int pat_needs_confirm(const track_t *t)
@@ -1269,68 +1210,9 @@ static int param_kept(uint32_t i)
            (i >= P_SLCR && i <= P_SLDEPTH) || i == P_CHRD || i == P_VOIC || i == P_SQNT;
 }
 
-/* a retired preset kept as an alias, so stored preset numbers stay valid: SAMPLE 1, once TRANH, is PIANO
- * (tools/gen_samples.py SMP_SET_ORIG). It loads as the original; browsing skips it. -> the preset k stands for.
- * (SAMPLE 4, once PERC, is past SMP_NPRESETS: apply_preset_to loads it as DRUM) */
-static uint32_t preset_orig(const engine_t *e, uint32_t k)
-{
-    return e->presets == SMP_PRESET_TABLE && k < SMP_NSETS ? SMP_SET_ORIG[k] : k;
-}
-
-/* the presets of engine e that browsing shows before preset k (k = npresets: all of them) */
-static uint32_t preset_rank(const engine_t *e, uint32_t k)
-{
-    uint32_t i, n = 0;
-    if (e->presets != SMP_PRESET_TABLE)
-        return k;
-    for (i = 0; i < k; i++)
-        n += preset_orig(e, i) == i;
-    return n;
-}
-
-#define preset_shown(e) (ENGINES[e]->npresets - (ENGINES[e]->presets == SMP_PRESET_TABLE ? SMP_NALIAS : 0u))
-
-#if !FELUCCA_FM4
-/* DIGITAL (engine 1, retired): t's sound = p, values as DIGITAL has them, converted to FM6 with a patch of its own
- * (fm4_convert.c). Every path that brings a DIGITAL sound into a track ends here: a track never keeps engine 1 */
-static void fm4_apply(track_t *t, int16_t *p)
-{
-    uint8_t v[FP_SIZE + 1u];
-    uint32_t pr = fm4_convert(p, v), tr = trk_index(t), f;
-    fm6_set_patch(tr, v);
-    f = motion_guard();                               /* the audio ISR sees the old sound or the new one */
-    memcpy(t->p, p, sizeof t->p);
-    t->eng_req = ENGI_FM6;
-    t->preset = (uint8_t)pr;
-    motion_unguard(f);
-    fm6_adopt(tr);                                    /* SLOT OWN: the converted patch is the track's own */
-}
-static void fm4_track(track_t *t)                     /* t holds a DIGITAL sound (engine 1): convert it */
-{
-    int16_t p[P_COUNT];
-    memcpy(p, t->p, sizeof p);
-    fm4_apply(t, p);
-}
-/* DIGITAL preset k (a stored preset number of engine 1: the editor's PRESET, SET G_ENGSEL, an old project's
- * power-on sound): its sound as a preset load sets it, converted. The sound only (not the steps, not param_kept) */
-static void fm4_load_preset(track_t *t, uint32_t k)
-{
-    int16_t p[P_COUNT];
-    uint32_t i;
-    load_begin(t, UNDO_SOUND);
-    panic_req |= (uint8_t)(1u << trk_index(t));
-    t->user = 0;
-    if (t == TSEL)
-        sync_reload = 1;
-    memcpy(p, t->p, sizeof p);
-    for (i = 0; i < P_E0; i++)
-        if (!param_kept(i))
-            p[i] = TP[i].def;
-    fm4_preset_values(p, k);
-    fm4_apply(t, p);
-    load_end(t);
-}
-#endif
+static uint32_t preset_orig(const engine_t *e, uint32_t k) { (void)e; return k; }
+static uint32_t preset_rank(const engine_t *e, uint32_t k) { (void)e; return k; }
+#define preset_shown(e) (ENGINES[e]->npresets)
 
 static void set_engine_of(track_t *t, uint32_t ei);
 /* preset pi of the engine the track asked for: the sound only (not the steps, not param_kept) */
@@ -1338,16 +1220,6 @@ static void apply_preset_to(track_t *t, uint32_t pi)
 {
     const engine_t *e = ENGINES[t->eng_req % NENGINES];
     uint32_t i;
-#if !FELUCCA_FM4
-    if (t->eng_req % NENGINES == ENGI_DIGITAL) {
-        fm4_load_preset(t, pi);
-        return;
-    }
-#endif
-    if (t->eng_req % NENGINES == ENGI_SAMPLE && pi == SMP_SET_PERC) {   /* SAMPLE preset 4 was PERC (retired, a stored */
-        set_engine_of(t, ENGI_DRUM);                  /* number: the editor's PRESET, a favourite): DRUM's kit */
-        return;                                       /* (core.h drum_from_perc) */
-    }
     load_begin(t, UNDO_SOUND);
     panic_req |= (uint8_t)(1u << trk_index(t));       /* MONO/POLY may change: release what sounds */
     t->user = 0;
@@ -1376,7 +1248,6 @@ static void apply_preset_to(track_t *t, uint32_t pi)
         for (i = 0; i < 4u; i++)
             t->p[P_DIST + i] = (int16_t)(pr->fx[i] ? pr->fx[i] - 1 : FX_DEF[i]);
     }
-    fm6_track_loaded(t);                              /* FM6: the preset's patch (its SLOT) */
     load_end(t);
 }
 
@@ -1386,12 +1257,6 @@ static void set_engine_of(track_t *t, uint32_t ei)
 {
     const engine_t *e = ENGINES[ei % NENGINES];
     uint32_t i;
-#if !FELUCCA_FM4
-    if (ei % NENGINES == ENGI_DIGITAL) {             /* DIGITAL (retired): its first preset, as FM6 */
-        fm4_load_preset(t, 0);
-        return;
-    }
-#endif
     load_begin(t, UNDO_SOUND);
     fm1_irq_off();
     t->eng_req = (uint8_t)(ei % NENGINES);
@@ -1416,12 +1281,6 @@ static void clean_engine_of(track_t *t)
 {
     uint32_t ei = t->eng_req % NENGINES, i;
     const engine_t *e = ENGINES[ei];
-#if !FELUCCA_FM4
-    if (ei == ENGI_DIGITAL) {                         /* (retired: it becomes FM6, fm4_track) */
-        set_engine_of(t, ei);
-        return;
-    }
-#endif
     load_begin(t, UNDO_SOUND);
     set_engine_of(t, ei);                             /* (nested in this load: one undo copy, from before) */
     fm1_irq_off();
@@ -1430,23 +1289,12 @@ static void clean_engine_of(track_t *t)
             t->p[i] = TP[i].def;
     for (i = 0; i < 8u; i++)
         t->p[P_E0 + i] = e->edit[i].def;
-    if (ei == ENGI_DRUM && e->npresets) {
-        t->p[P_ATK] = e->presets[0].env[0];
-        t->p[P_DEC] = e->presets[0].env[1];
-        t->p[P_SUS] = e->presets[0].env[2];
-        t->p[P_REL] = e->presets[0].env[3];
-    } else {
+    {
         t->p[P_ATK] = 0;
         t->p[P_SUS] = TP[P_SUS].max;
         t->p[P_REL] = CLEAN_REL;
     }
     fm1_irq_on();
-    if (ei == ENGI_FM6) {                             /* the init voice as the track's own patch (SLOT: OWN) */
-        uint8_t v[FP_SIZE + 1u];
-        fm6_unpack(FM6_INIT, v);
-        fm6_set_patch(trk_index(t), v);
-        fm6_adopt(trk_index(t));
-    }
     load_end(t);
 }
 static void clean_engine(void) { clean_engine_of(TSEL); }
@@ -1460,20 +1308,8 @@ static volatile uint8_t *const mpc_io = ui.mpc;
 static void midi_pc_load(track_t *t, uint32_t n)
 {
     uint32_t e = t->eng_req % NENGINES, k;
-    if (e == ENGI_DRUM) {
-        const param_desc_t *d = param_desc_of(e, P_E0);
-        for (k = (uint32_t)d->min; k <= (uint32_t)d->max && (enum_orig(d, (int32_t)k) != (int32_t)k || n--); k++)
-            ;
-        if (k <= (uint32_t)d->max)
-            t->p[P_E0] = (int16_t)k;
+    if (n >= preset_shown(e))
         return;
-    }
-    if (n >= preset_shown(e)) {
-        int32_t s = (int32_t)(FM6_OWN + 1u + n - preset_shown(e));
-        if (e == ENGI_FM6 && fm6_bank_slot(s) >= 0 && fm6_slot_ok(s))
-            t->p[P_E7] = (int16_t)s;
-        return;
-    }
     for (k = 0; preset_orig(ENGINES[e], k) != k || n--; k++)   /* the n-th shown preset */
         ;
     apply_preset_to(t, k);
@@ -1634,17 +1470,7 @@ static void preset_mark(int on)
 
 /* the pattern the selected track's sound suggests: its index in the SAVE > PHRASES list, or -1. A factory
  * preset's PAT(n); a user preset that holds a pattern: that one ("U07") */
-static int32_t preset_pat_hint(void)
-{
-    const engine_t *e = ENGINES[TSEL->eng_req % NENGINES];
-    uint32_t u = user_of(TSEL);
-    if (u < UP_SLOTS)
-        return up_has_pat(u) ? (int32_t)(NPATTERNS + up_pat_rank(u)) : -1;
-    if (!e->npresets)
-        return -1;
-    u = e->presets[TSEL->preset % e->npresets].pat;
-    return u && u <= NPATTERNS ? (int32_t)u - 1 : -1;
-}
+static int32_t preset_pat_hint(void) { return -1; }
 
 static void preset_hinted(void)                     /* after a sound load: SAVE > PHRASES starts at the suggested pattern */
 {
@@ -1754,7 +1580,6 @@ static void track_select(uint32_t i)
     ui.force = 1;
 }
 
-#include "ui_slice.c"                             /* EDIT > SLICES: SLICE's slices by hand (an action page too) */
 #include "ui_events.c"                            /* SEQ > AUTOMATION: locks, events, CHANCE, RATCH as a list (an action page) */
 #include "midi_learn.c"                           /* MIDI LEARN (1.5): GLO + D4, a knob, a CC */
 
@@ -1778,8 +1603,6 @@ static uint32_t act_cols(void)                   /* the columns that are actions
         return 2u;                               /* LOAD */
     if (pg->graph == GR_USER)
         return 14u;                              /* LOAD ERASE SAVE */
-    if (pg->graph == GR_SLICES)
-        return slice_page_ok() ? 12u : 0u;       /* SPLIT JOIN (a SLICE track only) */
     if (pg->graph == GR_SLOTS)
         return 14u;                              /* PROJECT: ERASE (1.5.5, #199) LOAD SAVE */
     if (pg->scope == SC_GLOBAL)
@@ -1836,10 +1659,6 @@ static int act_ready(void)
         return pat_last[s] != pat_pick() + 1u || steps_sig(TSEL) != pat_sig[s];
     if (cur_page()->graph == GR_USER)
         return c == 3u ? !song.playing : up_used(ui.uslot) && (c == 1u || !song.playing);
-#if FELUCCA_SLICE
-    if (cur_page()->graph == GR_SLICES)
-        return slice_act_ready(c);
-#endif
     if (cur_page()->graph == GR_SLOTS && c == 1u)       /* PROJECT ERASE: a used slot, stopped */
         return !song.playing && project_used((uint32_t)song.g[G_SLOT] - 1u);
     id = cur_page()->id[c & 3u];

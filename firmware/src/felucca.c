@@ -47,8 +47,15 @@
                                     * main.c turns 2ND CORE off), not a restart: as Felucca's own second core did */
 #define FM1_CRASH_CTX_N 1u         /* chip/fm1_irq.h: the registers of the last crash only (80 B of .noinit; four would
                                     * not fit beside the project slots) */
+#ifndef FELUCCA_USB_PRODUCT
+#define FELUCCA_USB_PRODUCT "ALTER FM-1"   /* the USB name (bsp/chip/usb.c): "FM-1" in it, so the updaters still find it
+                                            * (web/fm1ota.js, tools/fm1_install.py: /fm-1|felucca|.../) */
+#endif
+#ifndef FELUCCA_USB_MANUFACTURER
+#define FELUCCA_USB_MANUFACTURER "ALTER"
+#endif
 #ifndef FELUCCA_VERSION
-#define FELUCCA_VERSION "v1.7.0" /* shown in the menu, the console and the editor; build.py --release X.Y */
+#define FELUCCA_VERSION "0.3"      /* ALTER's version: the splash, the menu, the console (build.py --release X.Y) */
 #endif
 #if FELUCCA_OTA && !FELUCCA_FLASH
 #error "FELUCCA_OTA needs FELUCCA_FLASH"
@@ -115,12 +122,10 @@ static __attribute__((noinline)) int c1_wait(void) { return fm1_cpu1_wait(); }  
 #include "storage_hw.c"
 #include "storage.c"
 #endif
-#include "upreset.c"             /* user presets (RAM mirror; flash with FELUCCA_FLASH) */
-#include "project.c"
+#include "alter_persist.c"       /* the settings in flash (Felucca's projects are gone) */
 #if FELUCCA_OTA
 #include "../bsp/chip/ota.c"
 #include "ota_hw.c"
-#include "editor.c"              /* web editor SysEx (needs the OTA SysEx plumbing) */
 #endif
 #if FELUCCA_CDC
 #include "console.c"

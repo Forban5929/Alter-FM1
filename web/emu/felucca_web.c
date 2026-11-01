@@ -199,12 +199,10 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)       /* NOR: a wr
 }
 static uint32_t irq_save(void) { return 0; }
 static void irq_restore(uint32_t f) { (void)f; }
-static uint32_t fl_jedec_ram(void) { return 0x856014u; }             /* the FM-1's part (project.c) */
-static void fl_plain_window_init(void) {}
+static uint32_t fl_jedec_ram(void) { return 0x856014u; }             /* the FM-1's part (alter_persist.c) */
 #define FL_FAR(fn) (fn)
 #include "../../firmware/src/storage.c"
-#include "../../firmware/src/upreset.c"
-#include "../../firmware/src/project.c"
+#include "../../firmware/src/alter_persist.c"
 
 /* ------------------------------------------------- main.c and its HAL --- */
 #if FELUCCA_CPU2
@@ -278,7 +276,6 @@ static void web_power_on(void)
     kb_boot_hold = 1;                     /* main.c (#137): the keys silent under the splash */
     audio_init();
     boot_leds();                          /* main.c: the power-on LED sweep, from the scan's start */
-    autosave_boot(boot_clean);            /* main.c: the last session's music (1.2, project.c) */
     web_boot_ms = fm1_ms + 430u;         /* main.c: 30 + 400 ms before the first frame */
     web_booted = 1;
 }
@@ -293,7 +290,6 @@ static void web_frame(void)
     felucca_dbg.ui_frames++;
     ui_input();
     settings_poll();
-    autosave_poll();
     ui_leds();
     ui_draw();
 }
