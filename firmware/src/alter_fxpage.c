@@ -209,6 +209,7 @@ static void afp_kv(uint32_t k, const char **name, char *txt, int32_t *fill)
             return;
         }
         *fill = v * 50 / 127;
+        alt_num(txt, v, 0);
         return;
     }
     *name = KN[afp.tab][k & 3u];
@@ -248,6 +249,7 @@ static void afp_kv(uint32_t k, const char **name, char *txt, int32_t *fill)
     default: v = t->p[P_REV]; break;
     }
     *fill = clamp(v, 0, max) * 50 / max;
+    alt_num(txt, v, 0);
 }
 
 static void afp_knob(int32_t x, int32_t y, uint32_t k, uint16_t col, int lit)
@@ -256,12 +258,7 @@ static void afp_knob(int32_t x, int32_t y, uint32_t k, uint16_t col, int lit)
     char txt[12];
     int32_t fill;
     afp_kv(k, &name, txt, &fill);
-    cv_text(x, y, &AF_S, name, lit ? ALT_DIM : ALT_GREY);
-    if (fill >= 0) {
-        cv_rect(x, y + 21, 50, 5, ALT_DARK);
-        cv_rect(x, y + 21, fill, 5, lit ? col : ALT_GREY);
-    } else
-        cv_text(x, y + 16, &AF_S, txt, lit ? ALT_INK : ALT_GREY);
+    alt_dialk(x, y, name, txt, fill, -1, -1, lit, col, 0);
 }
 
 /* the preset's name, big, with its place in the list (and a * once a knob moved it) */
@@ -269,17 +266,17 @@ static void afp_head(const char *name, uint32_t i, uint32_t n, int edited, uint1
 {
     char b[8];
     int32_t w;
-    cv_text(8, 36, &AF_S, "PRESET", ALT_DIM);
+    cv_text(8, 44, ALT_FS, "PRESET", ALT_DIM);
     b[0] = (char)('0' + (i + 1u) / 10u);
     b[1] = (char)('0' + (i + 1u) % 10u);
     b[2] = '/';
     b[3] = (char)('0' + n / 10u);
     b[4] = (char)('0' + n % 10u);
     b[5] = 0;
-    cv_text_r(232, 36, &AF_S, b[0] == '0' ? b + 1 : b, ALT_GREY, ALT_BG);
-    w = cv_text(8, 52, &AF_L, name, col);
+    cv_text_r(232, 44, ALT_FV, b[0] == '0' ? b + 1 : b, ALT_DIM, ALT_BG);
+    w = cv_text(8, 56, ALT_FL, name, col);
     if (edited)
-        cv_text(8 + text_w(&AF_L, name) + 4, 52, &AF_M, "*", ALT_DIM);
+        cv_text(8 + text_w(ALT_FL, name) + 4, 56, ALT_FM, "*", ALT_DIM);
     (void)w;
 }
 
@@ -287,7 +284,7 @@ static void afp_head(const char *name, uint32_t i, uint32_t n, int edited, uint1
 static void afp_sends(uint32_t id, int32_t y)
 {
     uint32_t c;
-    cv_text(8, y, &AF_S, "SENDS", ALT_DIM);
+    cv_text(8, y, ALT_FS, "SENDS", ALT_DIM);
     for (c = 0; c < AS_NCIRC; c++) {
         int32_t x = 64 + (int32_t)c * 58, v = clamp(trk[c].p[id], 0, 127) * 50 / 127;
         cv_rect(x, y + 6, 50, 5, ALT_DARK);
@@ -356,32 +353,24 @@ static void afp_rev_pic(int32_t y0, int32_t h, uint16_t col)    /* the tail's fa
 static void afp_meter(int32_t x, int32_t y, const char *name, uint32_t pct, uint16_t col)
 {
     char b[8];
-    cv_text(x, y, &AF_S, name, ALT_DIM);
+    cv_text(x, y, ALT_FS, name, ALT_DIM);
     cv_rect(x, y + 20, 100, 6, ALT_DARK);
     cv_rect(x, y + 20, (int32_t)(pct > 100u ? 100u : pct), 6, col);
     b[0] = '-';
     alt_num(b + 1, (int32_t)pct, 1);
-    cv_text_r(x + 100, y, &AF_S, pct ? b : "0", ALT_INK, ALT_BG);
+    cv_text_r(x + 100, y, ALT_FS, pct ? b : "0", ALT_INK, ALT_BG);
 }
 
 static void afp_scene(void)
 {
     uint32_t i, c = au.sel % AS_NCIRC;
     uint16_t cc = ALT_COL[c];
-    int32_t x = 8;
-    for (i = 0; i < AFP_N; i++) {                /* the tabs: DIST in the chosen circle's colour */
-        int32_t w = text_w(&AF_S, AFP_TAB[i]);
-        uint16_t tc = i == AFP_DIST ? cc : ALT_INK;
-        cv_text(x, 4, &AF_S, AFP_TAB[i], i == afp.tab ? tc : ALT_GREY);
-        if (i == afp.tab)
-            cv_rect(x, 20, w, 2, tc);
-        x += w + 18;
-    }
+    alt_menu_head("FX", "XVI");
+    alt_tabs(23, AFP_TAB, AFP_N, afp.tab, afp.tab == AFP_DIST ? cc : ALT_GOLD);
     switch (afp.tab) {
     case AFP_DIST:
         afp_head(AFX_DIST[afx_sel[c] % AFX_NDIST].name, afx_sel[c], AFX_NDIST, (afx_edit >> c) & 1u, cc);
-        alt_disc(231, 12, 5, cc);                /* (whose: the chosen circle) */
-        afp_dist_pic(92, 92, cc);
+        afp_dist_pic(94, 92, cc);
         break;
     case AFP_DLY:
         afp_head(AFX_DLY[afx_sel[AFX_S_DLY] % AFX_NDLY].name, afx_sel[AFX_S_DLY], AFX_NDLY, (afx_edit >> AFX_S_DLY) & 1u, ALT_INK);
@@ -399,9 +388,9 @@ static void afp_scene(void)
         for (r = 0; r < 2u; r++) {               /* the two rows; the one the knobs move lit, a bar at its left */
             int32_t y = 96 + (int32_t)r * 46;
             if (r == afp.row)
-                cv_rect(0, y, 3, 34, ALT_INK);
+                alt_diamond(4, y + 16, 2, 4, ALT_GOLD);
             for (i = 0; i < 4u; i++)
-                afp_knob(8 + (int32_t)i * 58, y, r * 4u + i, ALT_INK, r == afp.row);
+                afp_knob(8 + (int32_t)i * 57, y, r * 4u + i, ALT_INK, r == afp.row);
         }
         afp_meter(8, 196, "COMP", am_gr, ALT_COL[2]);
         afp_meter(128, 196, amx[AMX_DUCK] ? "DUCK" : "DUCK OFF", am_dk, ALT_COL[1]);
@@ -409,7 +398,7 @@ static void afp_scene(void)
     }
     }
     for (i = 0; i < 4u; i++)                     /* the four knobs (DIST: AMOUNT and MIX grey with no insert) */
-        afp_knob(8 + (int32_t)i * 58, 196, i, i == 3u || afp.tab == AFP_DIST ? cc : ALT_INK,
+        afp_knob(8 + (int32_t)i * 57, 200, i, i == 3u || afp.tab == AFP_DIST ? cc : ALT_INK,
                  !(afp.tab == AFP_DIST && i >= 2u && !trk[c].p[P_ITYPE]));
 }
 

@@ -38,8 +38,7 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
   GLO = TEMPO VOLUME PAN SWING. Code : alter_ui.c alt_menu_cur/alt_menu_set (seq_open, afp.open, mat_open, au.mn),
   au.mhold, ALT_MENU_HOLD_MS ; écrans alt_env_scene, alt_scl_scene, alt_set_scene, pied commun alt_foot.
   **THÈME** : ALT_DAY = ux.light ; DAY = palette Felucca PAPER, NIGHT = GREY (palette_choose + settings_save : gardé).
-  DAY = **papier crème texturé** (retour Romain : « pas un blanc aussi blanc ») : ALT_BG (234,224,204) + grain fixe alt_paper.
-  Couleurs ALTER = macros ALT_BG/INK/DIM/GREY/DARK/GO + ALT_COLS[2][3] ; fondus en couleur alt_mixc (jamais RGB(0,0,0)).
+  Style TAROT (voir Refonte graphique) ; fondus en couleur alt_mixc (jamais RGB(0,0,0)).
   **OCT− + OCT+ tenus + bouton = vraie page Felucca** (HOME pour sortir). **OCT− + OCT+ + DÉ n = page VERROUS du cercle n** (7 touches blanches = rythme,
   hauteur, glide, enveloppe, timbre, force, vélocité ; HOME pour sortir). Verrous PAR CERCLE. En-tête : pointe de
   couleur du cercle au lieu de son numéro.
@@ -308,14 +307,19 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         ⚠ Le son du navigateur a ~0,3 s de retard sur les réglages : attendre ≥ 1 s avant de mesurer.
         Police AF_L : « Z » ajouté (tools/gen_aa_font.py ; supprimer build/gen pour régénérer).
         Pas fait : delay ping-pong stéréo (le delay Felucca est mono), EQ/compresseur PAR piste (étape 4).
-  - [ ] **Refonte graphique (01/11, PROPOSITION, rien codé)** : canvas https://claude.ai/artifact/ATmBQMPtQ33hEiNbvVJkCD
-        A ALCHIMIE (cercles-sigils : polygones des coups, symboles, alidade) · B ORBITES (3 étoiles au centre, coups = lunes,
-        queue de comète) ; NIGHT très sombre, DAY = carte de tarot crème (bandeau titre, chiffre romain, knobs en phases de lune).
-        **CHOIX DE ROMAIN (01/11) : A ALCHIMIE**, NIGHT = tarot sombre (noir, dorure, bandeau bordeaux, rayons gravés,
-        cadrans à aiguille), DAY = tarot crème. Un ARCANE par menu (chiffre romain + nom sous le chiffre) : PLAY XIV,
-        SEQ X La Roue, FX XVI La Tour, LFO XVIII La Lune, ENV XIII Sans nom, SCL XVII L'Étoile (roue des 12 notes, gamme
-        = polygone), SAVE XX Le Jugement (INVOQUER / GRAVER), RÉGLAGES I Le Bateleur. Maquettes sur le canvas, PAS CODÉ.
-        Firmware : polices Cinzel + IBM Plex Mono à générer (gen_aa_font.py), pas de texte courbe.
+  - [x] **Refonte graphique « A · ALCHIMIE » (01/11, CODÉE, testée, publiée ; ATTEND L'AVIS)**. Maquettes :
+        https://claude.ai/artifact/ATmBQMPtQ33hEiNbvVJkCD. Chaque écran = une CARTE DE TAROT (`firmware/src/alter_look.c`,
+        inclus dans alter_ui.c) : alt_card (cadre double, coins en éventail, bandeau titre, chiffre romain), alt_chip /
+        alt_chip_txt (cercle choisi en haut à droite), alt_tabs (onglets gravés), alt_dialk (knob = cadran doré à aiguille,
+        plage LFO = arc couleur), alt_diamond, alt_star, alt_arc, alt_pt. Arcanes : PLAY XIV (ou celui de la page rapide),
+        SEQ X, ENV XIII, FX XVI, LFO XVIII, EDIT I, SCL XVII, GLO XXI, SAVE XX, LOCKS XI, SETTINGS I.
+        PLAY : rayons gravés, anneaux dorés (choisi = sa couleur), coups reliés en SIGIL (carré, triangle, étoile {n/k} dès
+        5 coups), marques : losange (cercle 1), soleil (2), point (3), étoile sur le pas joué, aiguille dorée du cercle choisi,
+        triangle serti d'or dans un cercle. SCL = roue des 12 notes (gamme = polygone, accord en pointillé). ENV = modes en
+        onglets + aire hachurée. Polices : `assets/fonts/alter/` TeX Gyre Pagella Bold (GUST) à la place de Cinzel (pas de
+        réseau pour la télécharger) + IBM Plex Mono (OFL) → build/gen/alter_fonts.h (tools/build.py ; ALT_FS 11 px, ALT_FM
+        16, ALT_FL 26, ALT_FV 12, ALT_FN 16 ; +63 Ko de flash, NON vérifié sur FM-1). Couleurs : ALT_BG/INK/DIM/GREY/DARK/
+        GOLD/FRAME/RIB/RIBTX ; grain sur les 2 thèmes (alt_paper). Pas fait : noms d'arcanes sous le chiffre, phases de lune.
   - [ ] 3c : vue DEEP (EDIT ouvre encore la page EDIT de Felucca). Puis retirer l'interface Felucca. Reste : SCL → gamme
         des cercles, touches blanches libres, DESTROY assignable, verrous du dé, DOSE.
 - [ ] Étape 4 (après le séquenceur) : tranche de console PAR PISTE, ordre FIXE validé :

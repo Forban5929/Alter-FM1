@@ -5,7 +5,7 @@
 # The tiny libc (include/, libc.c) only covers what the page reaches; the wasm must import nothing.
 set -e
 cd "$(dirname "$0")/../../.."
-[ -f build/gen/felucca_tables.h ] || python3 -c "import sys; sys.argv=['x']; sys.path.insert(0, 'tools'); import build; build.generate()"
+[ -f build/gen/felucca_tables.h ] && [ -f build/gen/alter_fonts.h ] || python3 -c "import sys; sys.argv=['x']; sys.path.insert(0, 'tools'); import build; build.generate()"
 VERSION=$(sed -n 's/^#define FELUCCA_VERSION "\([^"]*\)".*/\1/p' firmware/src/felucca.c | head -n 1)
 O=build/emu
 mkdir -p $O/fonts

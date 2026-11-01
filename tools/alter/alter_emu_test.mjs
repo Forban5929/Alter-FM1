@@ -142,7 +142,7 @@ bar();
 check("SHIFT -1: back", same(bar().steps, euclid(16, 8, 0)));
 // the die's mark on the screen, a triangle at the left of circle 1 (alter_ui.c alt_scene: ALT_CX 120, ALT_CY 116,
 // radius 80: x 24..30)
-const mark = () => { render(4000); const v = new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240)[116 * 240 + 26]; return v !== 0; };
+const mark = () => { render(4000); const v = new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240)[116 * 240 + 26]; return v === 0x89CA || v === 0x29E3; };   // (circle 1's colour, NIGHT / DAY, bytes swapped)
 // DICE 1: a draw at once (drastic: rhythm, bursts, pitch, lengths, envelope, timbre), held 0.6 s: clean
 check("no draw at first (no mark)", !mark());
 tap(7);
@@ -190,7 +190,7 @@ check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().
           played > 0 && played < 10 && back);
     // SHUFFLE: two steps held + KNOB 2 = the lane shown drawn anew (here CHANCE, black key 3); one step held + KNOB 2:
     // nothing. The screen's lane changes with two, not with one
-    const scr = () => { render(4000); return Array.from(new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240).slice(240 * 50, 240 * 163)).join(); };   // (the bars only: not the moving playhead under them)
+    const scr = () => { render(4000); return Array.from(new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240).slice(240 * 46, 240 * 157)).join(); };   // (the bars only: not the moving playhead under them)
     seqTap(FS * 0.7); K(1 << 3); render(1500); K(0); render(1500);
     const l0 = scr();
     K(1 << 0); render(1500); enc(4, 1); K(0); render(1500);
@@ -482,7 +482,7 @@ play();
   H(4); ex.web_enc(3, -1); render(4000); T(4); render(FS * 1.5);
   const back = key(scr());
   check(`SETTINGS THEME: DAY lights the screen (brightness ${night.toFixed(0)} -> ${day.toFixed(0)}, circles ${dayc.toFixed(0)}), NIGHT as before`,
-        day > 60 && night < 10 && dayc > 60 && back === circles);
+        day > 60 && night < 20 && dayc > 60 && back === circles);
 }
 if (wavPath) {                                                  // 4 bars from a fresh start, all three circles
   ex.web_nor_erase(); ex.web_boot(); render(FS * 2);

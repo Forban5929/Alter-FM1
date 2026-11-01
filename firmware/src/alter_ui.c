@@ -1077,21 +1077,26 @@ static void alter_leds(uint8_t *nl, uint8_t *nd, uint8_t *nb, uint8_t *nm)
 #define ALT_CX 120
 #define ALT_CY 116
 static const uint8_t ALT_R[AS_NCIRC] = {80, 60, 40};
-/* the two themes (EDIT held: SETTINGS > THEME, Romain 01/11): NIGHT (dark, as before) and DAY (light). The theme is
- * Felucca's palette setting (settings.palette, saved with the settings): DAY = PAPER, NIGHT = GREY; ALTER draws in
- * its own colours, light when the palette is (ux.light) */
+/* the two themes (EDIT held: SETTINGS > THEME, Romain 01/11): NIGHT and DAY, both tarot cards (alter_look.c). The
+ * theme is Felucca's palette setting (settings.palette, saved with the settings): DAY = PAPER, NIGHT = GREY; ALTER
+ * draws in its own colours, light when the palette is (ux.light). NIGHT: crimson, verdigris, old gold on black and
+ * gold leaf; DAY: coral, teal, sun on cream, indigo ink */
 #define ALT_DAY (ux.light != 0)
 static const uint16_t ALT_COLS[2][AS_NCIRC] = {
-    {RGB(240, 153, 123), RGB(93, 202, 165), RGB(250, 199, 117)},
-    {RGB(201, 86, 47), RGB(31, 138, 106), RGB(168, 116, 15)},
+    {RGB(201, 80, 74), RGB(79, 168, 140), RGB(212, 174, 82)},
+    {RGB(224, 102, 74), RGB(42, 157, 143), RGB(217, 154, 34)},
 };
 #define ALT_COL (ALT_COLS[ALT_DAY])
-#define ALT_BG (ALT_DAY ? RGB(234, 224, 204) : RGB(0, 0, 0))   /* DAY: cream paper (Romain: beige, textured) */
-#define ALT_GREY (ALT_DAY ? RGB(196, 184, 162) : RGB(70, 70, 74))
-#define ALT_DARK (ALT_DAY ? RGB(218, 206, 184) : RGB(40, 40, 44))
-#define ALT_INK (ALT_DAY ? RGB(42, 34, 26) : RGB(235, 235, 235))
-#define ALT_DIM (ALT_DAY ? RGB(112, 100, 86) : RGB(150, 150, 155))
-#define ALT_GO (ALT_DAY ? RGB(30, 140, 70) : RGB(95, 224, 138))   /* PLAY */
+#define ALT_BG (ALT_DAY ? RGB(243, 230, 200) : RGB(14, 12, 16))     /* the card (DAY: cream paper, textured) */
+#define ALT_GREY (ALT_DAY ? RGB(172, 152, 112) : RGB(100, 86, 60))  /* what rests (inactive words, marks) */
+#define ALT_DARK (ALT_DAY ? RGB(232, 216, 184) : RGB(30, 26, 22))   /* faint fills */
+#define ALT_INK (ALT_DAY ? RGB(46, 43, 85) : RGB(235, 217, 168))    /* indigo / ivory */
+#define ALT_DIM (ALT_DAY ? RGB(111, 96, 75) : RGB(154, 132, 92))
+#define ALT_GOLD (ALT_DAY ? RGB(200, 150, 46) : RGB(201, 162, 77))
+#define ALT_FRAME (ALT_DAY ? RGB(46, 43, 85) : RGB(201, 162, 77))
+#define ALT_RIB (ALT_DAY ? RGB(46, 43, 85) : RGB(74, 26, 31))      /* the title's ribbon */
+#define ALT_RIBTX (ALT_DAY ? RGB(243, 230, 200) : RGB(235, 217, 168))
+#define ALT_GO ALT_GOLD                                             /* PLAY */
 /* c towards the background by (100 - pct) %, in colour whatever the palette (a grey palette's ux_mix would grey it) */
 static uint16_t alt_mixc(uint16_t a, uint16_t c, int32_t pct)
 {
@@ -1121,6 +1126,8 @@ static void alt_at(uint32_t turn, int32_t r, int32_t *x, int32_t *y)   /* turn: 
 
 static uint16_t alt_fade(uint16_t c, int32_t pct) { return alt_mixc(ALT_BG, c, pct); }
 
+#include "alter_look.c"
+
 static void alt_num(char *d, int32_t q, int pct)
 {
     int32_t n = 0;
@@ -1138,7 +1145,8 @@ static void alt_num(char *d, int32_t q, int pct)
     d[n] = 0;
 }
 
-/* knob i of quick page q as shown: its name, and its value as text (txt[0] set) or as a bar (*fill of 50 px);
+/* knob i of quick page q as shown: its name, and its value as text (txt[0] set), or as a dial (*fill of 50; its
+ * number in txt too);
  * the return: a number the picture depends on */
 static uint32_t c_chord_of(uint32_t c) { return au.cfg[c % AS_NCIRC].chord % AS_NCHORD; }
 static int32_t alt_kv(uint32_t q, uint32_t i, const char **name, char *txt, int32_t *fill)
@@ -1159,6 +1167,7 @@ static int32_t alt_kv(uint32_t q, uint32_t i, const char **name, char *txt, int3
         if (m == AM_FREE) {
             v = clamp(t->p[P_ATK + i] - alt_applied[c][alt_slot(P_ATK + i)], 0, 127);
             *fill = v * 50 / 127;
+            alt_num(txt, v, 0);
             return v;
         }
         if (k < 0)
@@ -1174,6 +1183,7 @@ static int32_t alt_kv(uint32_t q, uint32_t i, const char **name, char *txt, int3
         }
         v = alt_envp[c][k];
         *fill = v * 50 / 127;
+            alt_num(txt, v, 0);
         return v;
     }
     case QK_RHY: {
@@ -1230,6 +1240,7 @@ static int32_t alt_kv(uint32_t q, uint32_t i, const char **name, char *txt, int3
         *name = "DOSE";
         v = c->dose;
         *fill = v * 50 / 127;
+            alt_num(txt, v, 0);
         return v;
     case QK_BPM:
         *name = "TEMPO";
@@ -1257,8 +1268,10 @@ static int32_t alt_kv(uint32_t q, uint32_t i, const char **name, char *txt, int3
                 k++;
             }
             txt[k] = 0;
-        } else
+        } else {
             *fill = span > 0 ? (v - d->min) * 50 / span : 0;
+            alt_num(txt, v, 0);
+        }
         return v;
     }
     }
@@ -1333,14 +1346,16 @@ static void alt_mini_wave(int32_t x, int32_t y, uint16_t col)
 static void alt_locks_scene(void)
 {
     uint32_t c = au.lockc - 1u, i, lk = alt_seq.c[c].locks;
-    alt_disc(14, 13, 5, ALT_COL[c]);
-    cv_text(26, 2, &AF_M, "LOCKS", ALT_INK);
-    cv_text(8, 26, &AF_S, "WHITE KEYS F3..E4   HOME: BACK", ALT_DIM);
+    alt_card("LOCKS", "XI");
+    alt_disc(226, 11, 5, ALT_COL[c]), alt_disc(226, 11, 3, ALT_BG), alt_disc(226, 11, 1, ALT_COL[c]);
+    cv_text(8, 24, ALT_FS, "WHITE KEYS F3..E4   HOME: BACK", ALT_DIM);
     for (i = 0; i < 7u; i++) {
-        int32_t y = 52 + (int32_t)i * 24, on = (lk & ALT_LK_BIT[i]) != 0;
-        cv_rect(12, y + 2, 10, 10, on ? ALT_COL[c] : ALT_DARK);
-        cv_text(32, y, &AF_S, ALT_LK_NAME[i], on ? ALT_INK : ALT_DIM);
-        cv_text_r(228, y, &AF_S, on ? "LOCKED" : "FREE", on ? ALT_COL[c] : ALT_DIM, cv_bg);
+        int32_t y = 46 + (int32_t)i * 22, on = (lk & ALT_LK_BIT[i]) != 0;
+        alt_diamond(17, y + 6, 5, 5, on ? ALT_COL[c] : alt_gold_line(40));
+        if (!on)
+            alt_diamond(17, y + 6, 3, 3, ALT_BG);
+        cv_text(32, y, ALT_FS, ALT_LK_NAME[i], on ? ALT_INK : ALT_DIM);
+        cv_text_r(228, y, ALT_FS, on ? "LOCKED" : "FREE", on ? ALT_COL[c] : ALT_DIM, cv_bg);
     }
 }
 
@@ -1349,29 +1364,31 @@ static void alt_scenes_scene(void)
     static const char *const TAB[2] = {"SCENES", "PATTERNS"};
     uint32_t t = au.tab, r = au.row[t], i, top;
     char nb[12];
-    for (i = 0; i < 2u; i++) {                   /* the tabs */
-        int32_t x = 8 + (int32_t)i * 100, w = text_w(&AF_M, TAB[i]);
-        cv_text(x, 4, &AF_M, TAB[i], i == t ? ALT_INK : ALT_GREY);
-        if (i == t)
-            cv_rect(x, 26, w, 2, ALT_COL[0]);
-    }
+    alt_card("SAVE", "XX");
+    alt_tabs(23, TAB, 2, t, ALT_COL[0]);
     if (au.msg && fm1_ms - au.msg_ms < 1500u)   /* SAVED, PROTECTED, EMPTY .. */
-        cv_text(8, 216, &AF_S, au.msg, ALT_COL[1]);
+        cv_text(8, 214, ALT_FS, au.msg, ALT_COL[1]);
     else
-        cv_text(8, 216, &AF_S, "SELECT  SAVE: LOAD  HOLD: STORE", ALT_DIM);
+        cv_text(8, 214, ALT_FS, "SELECT  SAVE: LOAD  HOLD: STORE", ALT_DIM);
     top = r < 2u ? 0u : r - 2u;                  /* five rows, the chosen one second or third */
     if (top > ALT_NLIST - 5u)
         top = ALT_NLIST - 5u;
     for (i = 0; i < 5u; i++) {
         uint32_t row = top + i;
-        int32_t y = 40 + (int32_t)i * 34, on = row == r, user = row > ALT_NFACT;
+        int32_t y = 48 + (int32_t)i * 30, on = row == r, user = row > ALT_NFACT;
         const char *nm = alt_row_name(t, row, nb);
-        if (on)
-            cv_rect(4, y - 3, 232, 32, ALT_DARK);
-        if (row && !user)                        /* the factory ones: a lock */
-            cv_rect(14, y + 4, 6, 7, on ? ALT_DIM : ALT_GREY);
-        cv_text(26, y, &AF_S, nm, on ? ALT_INK : (nm[0] == 'E' ? ALT_GREY : ALT_DIM));
-        cv_text(26, y + 14, &AF_S, alt_row_about(t, row), on ? ALT_COL[t + 1u] : ALT_GREY);
+        uint16_t rb = on ? alt_gold_line(16) : ALT_BG;
+        if (on) {
+            cv_rect(6, y - 3, 228, 29, rb);
+            alt_diamond(12, y + 5, 3, 3, ALT_COL[0]);
+        }
+        if (row && !user) {                      /* the factory ones: a gold lock */
+            int32_t lx = 220, ly = y + 2;
+            alt_arc(lx + 3, ly + 3, 3, 0xC0000000u, 0x80000000u, ALT_GOLD, 1);
+            cv_rect(lx - 1, ly + 3, 9, 7, on ? ALT_GOLD : alt_gold_line(60));
+        }
+        cv_text_on(22, y - 1, ALT_FS, nm, on ? ALT_INK : (nm[0] == 'E' ? ALT_GREY : ALT_DIM), rb);
+        cv_text_in(22, y + 11, 192, ALT_FS, alt_row_about(t, row), on ? ALT_COL[t + 1u] : ALT_GREY, rb);
     }
 }
 
@@ -1457,7 +1474,7 @@ static void alt_dropdown(int32_t lx, int32_t ly, int32_t cur, int32_t n, uint16_
             continue;
         if (!k)
             cv_rect(lx, yy, 80, 15, ALT_DARK);
-        cv_text(lx + 4, yy + 1, &AF_S, tb == ALT_TAB_MTX ? alt_mtx_name(ki, v, b) : alt_lfo_text(3, v, b),
+        cv_text(lx + 4, yy + 1, ALT_FS, tb == ALT_TAB_MTX ? alt_mtx_name(ki, v, b) : alt_lfo_text(3, v, b),
                 k ? ALT_DIM : col);
     }
 }
@@ -1466,27 +1483,24 @@ static void alt_dropdown(int32_t lx, int32_t ly, int32_t cur, int32_t n, uint16_
  * edge: it comes in from there), its four settings (KNOB 1-4) */
 static void alt_lfo_tab(uint32_t tb, uint16_t col)
 {
-    char b[8], t[24] = "CIRCLE 1  LFO 1";
-    uint32_t i, w, r, seed, c = au.sel % AS_NCIRC, p = alt_lfo_p ? alt_lfo_p : 1u, now = alt_gl_n, bar = 16u * p;
+    char b[8];
+    uint32_t i, w, r, seed, p = alt_lfo_p ? alt_lfo_p : 1u, now = alt_gl_n, bar = 16u * p;
     int on = alt_lfo_acts(tb);
-    int32_t x, py = 0, y0 = 46, h = 84, mid = y0 + h / 2;
+    int32_t x, py = 0, y0 = 50, h = 112, mid = y0 + h / 2;
     uint16_t wc = on ? col : ALT_DIM;
     alt_lfo_def(tb, &w, &r, &seed);
-    if (tb == ALT_TAB_GL)
-        cv_text(8, 28, &AF_S, "GLOBAL  THE THREE CIRCLES", col);
-    else {
-        t[7] = (char)('1' + c);
-        t[14] = (char)('1' + tb);
-        cv_text(8, 28, &AF_S, t, col);
-    }
     /* the grid: a bar, steps faint, beats brighter, the bar's ends; fixed to the beat as time scrolls past */
     for (i = 0; i <= 16u; i++) {
         uint32_t back = (now % p) + (16u - i) * p;     /* samples before now of the step line i */
         int32_t xx = ALT_WAVE_X + ALT_WAVE_W - (int32_t)((uint64_t)back * ALT_WAVE_W / bar), beat = ((now / p) + i) % 4u == 0u;
-        if (xx >= ALT_WAVE_X && xx <= ALT_WAVE_X + ALT_WAVE_W)
-            cv_rect(xx, y0, 1, h, beat ? ALT_GREY : ALT_DARK);
+        if (xx >= ALT_WAVE_X && xx <= ALT_WAVE_X + ALT_WAVE_W) {
+            cv_rect(xx, y0, 1, h, beat ? alt_gold_line(45) : alt_gold_line(16));
+            if (beat)                            /* a beat: a gold diamond over its line */
+                alt_diamond(xx, y0 - 4, 3, 3, ALT_GOLD);
+        }
     }
-    cv_rect(ALT_WAVE_X, mid, ALT_WAVE_W, 1, ALT_DARK);
+    for (x = 0; x < ALT_WAVE_W; x += 3)
+        cv_pset(ALT_WAVE_X + x, mid, alt_gold_line(35));
     {                                            /* the wave over the last bar, now at the right: as DEPTH scales it
                                                  * (smaller, upside down below 0), over its full shape faint */
         int32_t dep = alt_lfo_val(tb, 2), ghost[ALT_WAVE_W];
@@ -1497,7 +1511,8 @@ static void alt_lfo_tab(uint32_t tb, uint16_t col)
                 ghost[x] = clamp(ghost[x], -32767, 32767);
         }
         for (x = 0; x < ALT_WAVE_W; x++)         /* the full shape, faint */
-            cv_pset(ALT_WAVE_X + x, mid - ((ghost[x] * (h / 2 - 3)) >> 15), ALT_GREY);
+            if (!(x & 1))
+                cv_pset(ALT_WAVE_X + x, mid - ((ghost[x] * (h / 2 - 3)) >> 15), ALT_DIM);
         for (x = 0; x < ALT_WAVE_W; x++) {       /* the wave as it moves the sound */
             int32_t y = mid - (((ghost[x] * dep / 64) * (h / 2 - 3)) >> 15);
             if (x && (y - py > 1 || py - y > 1))
@@ -1508,22 +1523,17 @@ static void alt_lfo_tab(uint32_t tb, uint16_t col)
         }
     }
     cv_rect(ALT_WAVE_X + ALT_WAVE_W, y0, 2, h, wc);   /* now */
-    for (i = 0; i < 4u; i++) {                   /* the four settings, as the knobs below them */
-        int32_t v = alt_lfo_val(tb, i), xx = 8 + (int32_t)i * 58;
-        cv_text(xx, 142, &AF_S, ALT_LFO_KNOB[i], ALT_DIM);
-        cv_text(xx, 158, &AF_M, alt_lfo_text(i, v, b), i == 3 && !v ? ALT_DIM : ALT_INK);
-        if (i == 2) {                            /* DEPTH: a bar from the middle */
-            int32_t bw = (v < 0 ? -v : v) * 24 / 64;
-            cv_rect(xx, 182, 50, 3, ALT_DARK);
-            cv_rect(xx + 25, 180, 1, 7, ALT_GREY);
-            cv_rect(v >= 0 ? xx + 25 : xx + 25 - bw, 182, bw, 3, col);
-        }
-    }
     if (tb < ALT_TAB_GL && alt_lfo_val(tb, 3) && alt_lfo_val(tb, 2) && !on)
-        cv_text(8, 196, &AF_S, "THE GLOBAL LEADS ON THIS DEST", ALT_GREY);
+        cv_text(8, 176, ALT_FS, "THE GLOBAL LEADS ON THIS DEST", ALT_DIM);
     else if (!on)
-        cv_text(8, 196, &AF_S, "SET A DEST AND A DEPTH", ALT_GREY);
-    cv_text(8, 216, &AF_S, "SELECT: CIRCLE   KNOBS 1-4: SETTINGS", ALT_DIM);
+        cv_text(8, 176, ALT_FS, "SET A DEST AND A DEPTH", ALT_DIM);
+    cv_rect(8, 196, 224, 1, alt_gold_line(30));
+    alt_diamond(120, 196, 2, 2, ALT_GOLD);
+    for (i = 0; i < 4u; i++) {                   /* the four settings, as dials (DEPTH: its middle at the top) */
+        int32_t v = alt_lfo_val(tb, i);
+        alt_dialk(8 + (int32_t)i * 57, 200, ALT_LFO_KNOB[i], alt_lfo_text(i, v, b), i == 2u ? (v + 64) * 50 / 127 : -1,
+                  -1, -1, !(i == 3u && !v), col, 0);
+    }
     if (au.dd == 4u && fm1_ms - au.dd_ms < ALT_DD_MS)
         alt_dropdown(150, 62, alt_lfo_val(tb, 3), GD_N, col, tb, 3);
 }
@@ -1531,41 +1541,38 @@ static void alt_lfo_tab(uint32_t tb, uint16_t col)
 /* the MTX tab: the chosen circle's four slots, under its own title */
 static void alt_mtx_tab(uint16_t col)
 {
-    char b0[8], b1[8], b2[8], t[24] = "MATRIX  CIRCLE 1";
-    uint32_t c = au.sel % AS_NCIRC, row = au.mrow[0] % NMSLOT, r, take = alt_gl_take();
-    t[15] = (char)('1' + c);
-    cv_text(8, 30, &AF_S, t, col);
-    cv_rect(8, 46, 224, 1, alt_fade(col, 50));
+    char b0[8], b1[8], b2[8];
+    uint32_t row = au.mrow[0] % NMSLOT, r, take = alt_gl_take();
     for (r = 0; r < NMSLOT; r++) {
-        int32_t y = 54 + (int32_t)r * 36, on = r == row;
+        int32_t y = 48 + (int32_t)r * 38, on = r == row;
         int32_t v0 = alt_mtx_val(r, 0), v1 = alt_mtx_val(r, 1), v2 = alt_mtx_val(r, 2);
         int led = ((take >> v1) & 1u) && (v0 == MS_LFO || v0 == MS_SH || v0 == MS_SLEW), act = v0 && v1 && v2;
         int32_t bw = (v2 < 0 ? -v2 : v2) * 24 / 64;
-        uint16_t rb = on ? ALT_DARK : cv_bg, vc = led ? ALT_GREY : act ? col : ALT_DIM;
+        uint16_t rb = on ? alt_gold_line(16) : cv_bg, vc = led ? ALT_GREY : act ? col : ALT_DIM;
         if (on)
-            cv_rect(2, y - 2, 236, 34, ALT_DARK);
+            cv_rect(6, y - 2, 228, 34, rb);
         b0[0] = (char)('1' + r);
         b0[1] = 0;
-        cv_text_on(8, y + 3, &AF_S, b0, ALT_GREY, rb);
-        cv_text_on(24, y + 3, &AF_S, alt_mtx_name(0, v0, b1), on ? ALT_INK : ALT_DIM, rb);
-        cv_text_on(88, y + 3, &AF_S, ">", ALT_GREY, rb);
-        cv_text_on(100, y + 3, &AF_S, alt_mtx_name(1, v1, b2), on ? ALT_INK : ALT_DIM, rb);
+        cv_text_on(8, y + 3, ALT_FS, b0, ALT_GREY, rb);
+        cv_text_on(24, y + 3, ALT_FS, alt_mtx_name(0, v0, b1), on ? ALT_INK : ALT_DIM, rb);
+        cv_text_on(88, y + 3, ALT_FS, ">", ALT_GREY, rb);
+        cv_text_on(100, y + 3, ALT_FS, alt_mtx_name(1, v1, b2), on ? ALT_INK : ALT_DIM, rb);
         cv_rect(168, y + 9, 1, 7, ALT_GREY);     /* the amount: a bar from the middle, and its number */
         if (v2 > 0)
             cv_rect(169, y + 10, bw, 5, vc);
         else if (v2 < 0)
             cv_rect(168 - bw, y + 10, bw, 5, vc);
         alt_num(b0, v2, 0);
-        cv_text_r(234, y + 3, &AF_S, b0, vc, rb);
+        cv_text_r(234, y + 3, ALT_FS, b0, vc, rb);
         if (led)
-            cv_text_on(24, y + 17, &AF_S, "GLOBAL LEADS: THIS SLOT RESTS", ALT_GREY, rb);
+            cv_text_on(24, y + 17, ALT_FS, "GLOBAL LEADS: THIS SLOT RESTS", ALT_GREY, rb);
         else if (on)
-            cv_text_on(24, y + 17, &AF_S, ALT_SRC_ABOUT[clamp(v0, 0, MS_N - 1)], ALT_GREY, rb);
+            cv_text_on(24, y + 17, ALT_FS, ALT_SRC_ABOUT[clamp(v0, 0, MS_N - 1)], ALT_GREY, rb);
     }
-    cv_text(8, 216, &AF_S, "SELECT SLOT  K1 SRC  K2 DEST  K3 AMT", ALT_DIM);
+    cv_text(8, 216, ALT_FS, "SELECT SLOT  K1 SRC  K2 DEST  K3 AMT", ALT_DIM);
     if (au.dd && au.dd <= 2u && fm1_ms - au.dd_ms < ALT_DD_MS) {   /* the list, dropped down over its column */
         uint32_t ki = au.dd - 1u;
-        int32_t ly = 54 + (int32_t)row * 36 + 6 - 2 * 15;
+        int32_t ly = 48 + (int32_t)row * 38 + 6 - 2 * 15;
         ly = clamp(ly, 26, 206 - 5 * 15);
         alt_dropdown(ki == 0 ? 20 : 96, ly, alt_mtx_val(row, ki), ki == 0 ? MS_N : MD_N, col, ALT_TAB_MTX, ki);
     }
@@ -1579,34 +1586,17 @@ static void alt_seq_scene(void)
     const as_cfg_t *cf = &au.cfg[c];
     uint32_t len = cf->len ? cf->len : 1u, n = len < 16u ? len : 16u, now = (sc->pos + sc->cfg.len - 1u) % sc->cfg.len;
     uint16_t col = ALT_COL[c];
-    int32_t x = 8, w = 224 / 16, y0 = 66, h = 96, mid = y0 + h / 2;
-    alt_disc(14, 13, 5, col);                    /* the head: the circle, SEQ, its engine (SEQ held + ALGORITHM) */
-    cv_text(26, 2, &AF_M, "SEQ", ALT_INK);
-    for (i = 0; i < AS_NTYPE; i++) {
-        int32_t tw = text_w(&AF_S, AS_TYPE_NAME[i]);
-        cv_text(x + 54 + (int32_t)i * 58, 6, &AF_S, AS_TYPE_NAME[i], i == cf->type ? col : ALT_GREY);
-        if (i == cf->type)
-            cv_rect(x + 54 + (int32_t)i * 58, 21, tw, 2, col);
-    }
-    {                                            /* the lanes (ALGORITHM), spread over the width */
-        int32_t tot = 0, lx = 8, gap;
-        for (i = 0; i < LN_N; i++)
-            tot += text_w(&AF_S, ALT_LANE_TAB[i]);
-        gap = (224 - tot) / (LN_N - 1);
-        for (i = 0; i < LN_N; i++) {
-            int32_t tw = text_w(&AF_S, ALT_LANE_TAB[i]);
-            cv_text(lx, 32, &AF_S, ALT_LANE_TAB[i], i == ln ? ALT_INK : ALT_GREY);
-            if (i == ln)
-                cv_rect(lx, 47, tw, 2, col);
-            lx += tw + gap;
-        }
-    }
+    int32_t x = 8, w = 224 / 16, y0 = 50, h = 104, mid = y0 + h / 2;
+    alt_card("SEQ", "X");                        /* the head: the card, the circle and its engine (SEQ held +
+                                                  * ALGORITHM) at the right */
+    alt_chip_txt(AS_TYPE_NAME[cf->type % AS_NTYPE], col);
+    alt_tabs(23, ALT_LANE_TAB, LN_N, ln, col);  /* the lanes (ALGORITHM) */
     if (ln == LN_PITCH)
         cv_rect(x, mid, 224, 1, ALT_DARK);
     for (k = 0; k < 16u; k++) {                  /* the steps: a bar each, their lane's value */
         int32_t bx = x + (int32_t)k * w, v = alt_lane_val(c, ln, k), on = k < n && ((sc->pat >> k) & 1u);
         int held = (au.step_down >> k) & 1u, here = song.playing && k == now % 16u && k < n;
-        uint16_t bc = k >= n ? ALT_DARK : on ? col : ALT_GREY;
+        uint16_t bc = k >= n ? ALT_DARK : on ? col : alt_gold_line(45);
         if (k >= n) {
             cv_rect(bx + 2, y0 + h - 2, w - 4, 2, ALT_DARK);
             continue;
@@ -1631,13 +1621,19 @@ static void alt_seq_scene(void)
             int32_t j2, bhh = (h - 6) / 4;
             for (j2 = 0; j2 <= v; j2++)
                 cv_rect(bx + 2, y0 + h - (j2 + 1) * (bhh + 2), w - 4, bhh, bc);
-        } else {
-            int32_t bh = v * (h - 2) / 127;
-            cv_rect(bx + 2, y0 + h - bh, w - 4, bh ? bh : 1, bc);
+        } else {                                 /* a pillar with a diamond on top */
+            int32_t bh = v * (h - 10) / 127;
+            cv_rect(bx + 4, y0 + h - bh, w - 8, bh ? bh : 1, bc);
+            alt_diamond(bx + w / 2, y0 + h - bh - 4, 3, 3, bc);
         }
-        if (held)                                /* held: a white frame */
-            cv_rect(bx + 1, y0 - 2, w - 2, 2, ALT_INK), cv_rect(bx + 1, y0 + h + 1, w - 2, 2, ALT_INK);
-        cv_rect(bx + 2, y0 + h + 6, w - 4, 3, here ? ALT_INK : on ? alt_fade(col, 60) : ALT_DARK);   /* hit, playhead */
+        if (held)                                /* held: the column lit, a gold frame */
+            cv_frame(bx, y0 - 2, w, h + 4, ALT_GOLD);
+        if (here)                                /* the beats under them, the playing step a star */
+            alt_star(bx + w / 2, y0 + h + 8, 4, ALT_INK);
+        else if (k % 4u == 0u)
+            alt_diamond(bx + w / 2, y0 + h + 8, 2, 2, ALT_GOLD);
+        else
+            cv_rect(bx + w / 2 - 1, y0 + h + 7, 2, 2, ALT_DIM);
     }
     {
         char b[8];
@@ -1647,7 +1643,7 @@ static void alt_seq_scene(void)
             int32_t vv[2], x2 = 8;
             vv[0] = rg ? sc->rlo[ln][k0] : v;
             vv[1] = rg ? sc->rhi[ln][k0] : v;
-            x2 = cv_text(x2, 178, &AF_S, ALT_LANE_NAME[ln], ALT_DIM) + 6;   /* (cv_text: the x after the text) */
+            x2 = cv_text(x2, 176, ALT_FS, ALT_LANE_NAME[ln], ALT_DIM) + 6;   /* (cv_text: the x after the text) */
             for (j2 = 0; j2 < (rg ? 2u : 1u); j2++) {
                 int32_t w2 = vv[j2];
                 if (ln == LN_PITCH) {
@@ -1662,21 +1658,14 @@ static void alt_seq_scene(void)
                 } else
                     alt_num(b, w2 * 100 / 127, 1);
                 if (j2)
-                    x2 = cv_text(x2, 178, &AF_S, "..", ALT_DIM) + 2;
-                x2 = cv_text(x2, 178, &AF_S, b, ALT_INK) + 2;
+                    x2 = cv_text(x2, 174, ALT_FV, "..", ALT_DIM) + 2;
+                x2 = cv_text(x2, 174, ALT_FV, b, ALT_INK) + 2;
             }
             if (rg)
-                cv_text(x2 + 6, 178, &AF_S, "RANDOM", ALT_DIM);
+                cv_text(x2 + 6, 176, ALT_FS, "RANDOM", ALT_COL[c]);
         }
     }
-    for (i = 0; i < 4u; i++) {                   /* the engine's four knobs */
-        int32_t kx = 8 + (int32_t)i * 58, fill;
-        const char *name;
-        char txt[12];
-        alt_kv(QP_SEQ, i, &name, txt, &fill);
-        cv_text(kx, 200, &AF_S, name, ALT_DIM);
-        cv_text(kx, 216, &AF_S, txt, ALT_INK);
-    }
+    alt_foot(QP_SEQ);                            /* the engine's four knobs */
 }
 
 /* what the SEQ menu's picture depends on */
@@ -1702,84 +1691,59 @@ static uint32_t alt_seq_sig(void)
 static void alt_matrix_scene(void)
 {
     static const char *const TAB[5] = {"LFO 1", "LFO 2", "LFO 3", "GLOBAL", "MTX"};
-    uint32_t tb = au.mtab, i;
+    uint32_t tb = au.mtab;
     uint16_t sc = ALT_COL[au.sel % AS_NCIRC], col = tb == ALT_TAB_GL ? ALT_INK : sc;
-    int32_t x = 4;
-    for (i = 0; i < 5u; i++) {                   /* the tabs: the chosen circle's colour, MTX set apart by a bar */
-        int32_t w = text_w(&AF_S, TAB[i]);
-        uint16_t c = i == ALT_TAB_GL ? ALT_INK : sc;
-        if (i == ALT_TAB_MTX) {
-            cv_rect(x - 2, 4, 1, 16, ALT_GREY);
-            x += 6;
-        }
-        cv_text(x, 4, &AF_S, TAB[i], i == tb ? c : ALT_GREY);
-        if (i < ALT_TAB_GL)                      /* LFO 1 2 3: a line in the circle's colour, full under the one shown */
-            cv_rect(x, 20, w, i == tb ? 2 : 1, i == tb ? c : alt_fade(c, 45));
-        else if (i == tb)
-            cv_rect(x, 20, w, 2, c);
-        x += w + 10;
-    }
+    alt_menu_head("LFO", "XVIII");
+    alt_tabs(23, TAB, 5, tb, tb == ALT_TAB_GL ? ALT_GOLD : sc);
     if (tb == ALT_TAB_MTX)
         alt_mtx_tab(col);
     else
         alt_lfo_tab(tb, col);
 }
 
-/* the foot: the page's name, its four knobs (the circles, the ENV and SCL menus) */
+/* the foot: the page's four knobs as gold dials (the circles, the ENV and SCL menus) */
 static void alt_foot(uint32_t q)
 {
     uint32_t i;
-    if (q)
-        cv_text(8, 194, &AF_S, alt_qp_name(q), ALT_COL[au.sel]);
+    cv_rect(8, 196, 224, 1, alt_gold_line(30));
+    alt_diamond(120, 196, 2, 2, ALT_GOLD);
     for (i = 0; i < 4u; i++) {
-        int32_t x = 8 + (int32_t)i * 58, fill;
+        int32_t x = 8 + (int32_t)i * 57, fill, lo = -1, hi = -1, pct = -1;
         const char *name;
         char txt[12];
-        int32_t lo = -1, hi = -1, pct = -1;
         alt_kv(q, i, &name, txt, &fill);
         if (fill >= 0)
             alt_live_bar(q, i, fill, &lo, &hi, &pct);
-        cv_text(x, 209, &AF_S, name, ALT_DIM);
-        if (pct < 0 && alt_knob_lfo(q, i))       /* an LFO on it the bar cannot show: a small wave by its name */
-            alt_mini_wave(x + text_w(&AF_S, name) + 4, 213, ALT_COL[au.sel]);
-        if (fill >= 0) {
-            cv_rect(x, 227, 50, 5, ALT_DARK);
-            if (pct >= 0) {                      /* an LFO moves it: the range it reaches, in the circle's colour */
-                cv_rect(x + lo, 226, (hi > lo ? hi - lo : 1) + 1, 7, ALT_COL[au.sel]);
-                cv_rect(x, 228, fill, 3, ALT_INK);
-            } else
-                cv_rect(x, 227, fill, 5, ALT_INK);
-        } else
-            cv_text(x, 222, &AF_S, txt, ALT_INK);
+        alt_dialk(x, 200, name, txt, fill, pct >= 0 ? lo : -1, hi, 1, ALT_COL[au.sel % AS_NCIRC],
+                  pct < 0 && alt_knob_lfo(q, i));
     }
 }
 
 
 /* ---- the ENV, EDIT and SCL menus (their button held 0.5 s) ---- */
 /* the head: the chosen circle's point, the menu's name, a word in its colour */
-static void alt_menu_head(const char *name, const char *what)
+static void alt_menu_head(const char *name, const char *num)
 {
-    alt_disc(14, 13, 5, ALT_COL[au.sel % AS_NCIRC]);
-    cv_text(26, 2, &AF_M, name, ALT_INK);
-    if (what)
-        cv_text(26, 22, &AF_S, what, ALT_COL[au.sel % AS_NCIRC]);
+    alt_card(name, num);
+    alt_chip();
 }
 
-/* ENVELOPE: the chosen circle's envelope as its mode shapes it (the ENV page's four knobs, the same names), a
- * picture, not a measure: the times drawn longer as the knobs go up. PERC: PUNCH as a falling line; STAB / DRONE:
- * PLUCK / OPEN (the filter the envelope opens) dotted */
+/* ENV (XIII): the chosen circle's envelope as its mode shapes it (the ENV page's four knobs, the same names), a
+ * picture, not a measure: the times drawn longer as the knobs go up, the area under it engraved. The modes as tabs
+ * (ALGORITHM). PERC: PUNCH as a falling line; STAB / DRONE: PLUCK / OPEN (the filter the envelope opens) dotted */
 static void alt_env_scene(void)
 {
     uint32_t c = au.sel % AS_NCIRC, m = alt_emode[c] % AM_N, i;
     const track_t *t = &trk[c];
     uint16_t col = ALT_COL[c];
-    int32_t v[4], a, d, h, sus, r, x0 = 10, y0 = 176, top = 56, H = y0 - top, px, x, prev = y0, filt = -1;
+    int32_t v[4], a, d, h, sus, r, x0 = 10, y0 = 184, top = 54, H = y0 - top, px, x, prev = y0, filt = -1;
     for (i = 0; i < 4u; i++) {
         int32_t k = ALT_ENV_K[m][i];
         v[i] = m == AM_FREE ? clamp(t->p[P_ATK + i] - alt_applied[c][alt_slot(P_ATK + i)], 0, 127) :
                k >= 0 ? (int32_t)alt_envp[c][k] : 0;
     }
-    alt_menu_head("ENVELOPE", ALT_MODE_NAME[m]);
+    alt_menu_head("ENV", "XIII");
+    alt_tabs(23, ALT_MODE_NAME, AM_N, m, col);
     switch (m) {                                 /* segment widths (px) and the sustain level (0..H) */
     case AM_PERC:  a = 2 + v[0] * 20 / 127; h = v[1] * 60 / 127; d = 8 + v[2] * 120 / 127; sus = 0; r = 0; break;
     case AM_STAB:  a = 2; d = 8 + v[0] * 60 / 127; h = 30; sus = v[1] * H / 127; r = 6 + v[0] * 50 / 127; filt = v[2]; break;
@@ -1789,12 +1753,21 @@ static void alt_env_scene(void)
     if (m == AM_PERC) {                          /* (hold: up there, then the decay down to nothing) */
         sus = H;
     }
-    cv_rect(x0, y0 + 1, 220, 1, ALT_GREY);       /* the ground */
+    cv_rect(x0, y0 + 1, 220, 1, alt_gold_line(60));   /* the ground */
     px = a + d + h + r;
     if (m == AM_PERC)
         px = a + h + d;
+    if (m == AM_PERC || m == AM_FREE) {          /* the segments' ends, dotted */
+        int32_t e1 = x0 + a, e2 = x0 + a + (m == AM_PERC ? h : d), yy;
+        for (yy = top; yy < y0; yy += 4) {
+            cv_pset(e1, yy, alt_gold_line(40));
+            cv_pset(e2, yy, alt_gold_line(40));
+        }
+        alt_diamond(e1, top - 4, 3, 3, ALT_GOLD);
+        alt_diamond(e2, top - 4, 3, 3, ALT_GOLD);
+    }
     for (x = 0; x <= px && x0 + x < 232; x++) {  /* the curve: rises straight, falls as a square law (faster first) */
-        int32_t lv, y;
+        int32_t lv, y, yy;
         if (x < a)
             lv = H * x / (a ? a : 1);
         else if (m == AM_PERC) {
@@ -1815,78 +1788,130 @@ static void alt_env_scene(void)
             lv = sus * w / r * w / r;
         }
         y = y0 - lv;
-        cv_rect(x0 + x, y, 1, y0 - y, alt_fade(col, 22));   /* (the area under it, faint) */
+        for (yy = y + 2; yy < y0; yy++)          /* (the area under it, engraved: diagonal hatching) */
+            if (((x + yy) & 3) == 0)
+                cv_pset(x0 + x, yy, alt_fade(col, 55));
         cv_rect(x0 + x, y < prev ? y : prev, 2, (y < prev ? prev - y : y - prev) + 2, col);
         prev = y;
     }
     if (filt >= 0)                               /* PLUCK / OPEN: the filter the envelope opens, dotted */
         for (x = 0; x < px && x0 + x < 232; x += 4) {
             int32_t w = px - x, lv = H * filt / 127 * w / px * w / px;
-            cv_rect(x0 + x, y0 - lv, 2, 2, ALT_DIM);
+            cv_rect(x0 + x, y0 - lv, 2, 2, ALT_INK);
         }
     if (m == AM_PERC && v[3])                    /* PUNCH: the pitch dives at the hit */
         for (x = 0; x < 40; x += 3)
-            cv_rect(x0 + 4 + x, top - 6 + x * x * v[3] / 127 / 40, 2, 2, ALT_DIM);
+            cv_rect(x0 + 4 + x, top + 4 + x * x * v[3] / 127 / 40, 2, 2, ALT_INK);
     if (m == AM_STAB) {                          /* CHORD: its name */
         char b[8];
         const char *n = AS_CHORD_NAME[c_chord_of(c)];
         for (i = 0; n[i] && i < 7u; i++)
             b[i] = n[i];
         b[i] = 0;
-        cv_text_r(232, 22, &AF_S, b, ALT_DIM, ALT_BG);
+        cv_text_r(230, 46, ALT_FS, b, ALT_DIM, ALT_BG);
     }
     alt_foot(QP_ENV);
 }
 
-/* SCALES: the scale list (KNOB 1 picks, as on the quick page), an octave with the scale's notes from the chosen
- * circle's root lit (the root in full colour) */
+/* SCL (XVII, the Star): the scale list (KNOB 1 picks, as on the quick page) and the wheel of the twelve notes: the
+ * scale's notes from the chosen circle's root joined into its sigil, the root in full colour, the chord on the root
+ * inside it, dashed */
 static void alt_scl_scene(void)
 {
     static const char *const NN[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
-    static const uint8_t BLACK = 0x2Au | 0x540u;   /* (C# D# F# G# A#: bits 1 3 6 8 10) */
-    uint32_t c = au.sel % AS_NCIRC, sc = alt_seq.scale % AS_NSCALE, root = au.cfg[c].root % 12u, i, k;
+    uint32_t c = au.sel % AS_NCIRC, sc = alt_seq.scale % AS_NSCALE, root = au.cfg[c].root % 12u, i, k, ch;
     uint16_t col = ALT_COL[c];
-    uint16_t lit = 0;
-    char b[16];
-    (void)BLACK;
+    uint16_t lit = 0, chm = 0;
+    int32_t wx = 168, wy = 112, px[12], py[12];
     for (k = 0; AS_SCALES[sc][k] >= 0; k++)
         lit |= (uint16_t)(1u << ((root + (uint32_t)AS_SCALES[sc][k]) % 12u));
-    {
-        uint32_t n = 0;
-        const char *r = NN[root], *nm = AS_SCALE_NAME[sc];
-        while (*r) b[n++] = *r++;
-        b[n++] = ' ';
-        while (*nm && n < 15u) b[n++] = *nm++;
-        b[n] = 0;
+    ch = au.cfg[c].chord % AS_NCHORD;            /* the chord on the root (alter_seq.c as_step) */
+    if (ch) {
+        static const int8_t T2[AS_NCHORD][3] = {{0, 0, 0}, {0, 7, 14}, {0, 14, 24}, {0, 24, 0}, {0, 7, 21}, {7, 21, 28}};
+        uint32_t r0 = au.cfg[c].root;
+        for (k = 0; k < 3u; k++) {
+            int32_t t2 = T2[ch][k], n;
+            if (k && !t2)
+                continue;
+            n = ch == AS_CH_5TH || ch == AS_CH_OCT ? (int32_t)r0 + t2 / 2 :
+                t2 ? (int32_t)as_cnote(&alt_seq, r0, 0, t2) : (int32_t)r0;
+            chm |= (uint16_t)(1u << ((uint32_t)n % 12u));
+        }
     }
-    alt_menu_head("SCALES", b);
+    alt_menu_head("SCL", "XVII");
     for (i = 0; i < AS_NSCALE; i++) {            /* the list */
-        int32_t y = 44 + (int32_t)i * 19;
+        int32_t y = 28 + (int32_t)i * 22;
         if (i == sc) {
-            cv_rect(8, y - 1, 78, 17, alt_fade(col, 25));
-            cv_rect(8, y - 1, 3, 17, col);
+            cv_rect(8, y - 3, 84, 19, alt_fade(col, 22));
+            alt_diamond(15, y + 6, 3, 3, col);
         }
-        cv_text(16, y, &AF_S, AS_SCALE_NAME[i], i == sc ? ALT_INK : ALT_DIM);
+        cv_text(23, y, ALT_FS, AS_SCALE_NAME[i], i == sc ? ALT_INK : ALT_DIM);
     }
-    {                                            /* an octave from C: the scale's notes in the circle's colour */
-        static const uint8_t WK[7] = {0, 2, 4, 5, 7, 9, 11}, BK[5] = {1, 3, 6, 8, 10}, BX[5] = {1, 2, 4, 5, 6};
-        int32_t kx = 98, ky = 56, kw = 19, kh = 84;
-        for (i = 0; i < 7u; i++) {
-            uint32_t n = WK[i], on = (lit >> n) & 1u;
-            cv_rect(kx + (int32_t)i * kw, ky, kw - 2, kh, on ? (n == root ? col : alt_fade(col, 60)) : ALT_GREY);
-            cv_text(kx + (int32_t)i * kw + 4, ky + kh + 4, &AF_S, NN[n], n == root ? col : ALT_DIM);
-        }
-        for (i = 0; i < 5u; i++) {
-            uint32_t n = BK[i], on = (lit >> n) & 1u;
-            int32_t x = kx + (int32_t)BX[i] * kw - 6;
-            cv_rect(x - 1, ky - 1, 12, 52, ALT_BG);
-            cv_rect(x, ky, 10, 50, on ? (n == root ? col : alt_fade(col, 40)) : ALT_DARK);
+    for (k = 0; k < 160u; k++) {                 /* the wheel */
+        int32_t x, y;
+        alt_pt(wx, wy, k * (0xFFFFFFFFu / 160u), 46, &x, &y);
+        cv_pset(x, y, alt_gold_line(55));
+        if (!(k & 1u)) {
+            alt_pt(wx, wy, k * (0xFFFFFFFFu / 160u), 50, &x, &y);
+            cv_pset(x, y, alt_gold_line(25));
         }
     }
+    for (k = 0; k < 12u; k++)
+        alt_pt(wx, wy, k * (0xFFFFFFFFu / 12u), 46, &px[k], &py[k]);
+    {                                            /* the scale's sigil, then the chord's, dashed */
+        int32_t first = -1, prev = -1;
+        for (k = 0; k < 12u; k++) {
+            uint32_t n = (root + k) % 12u;
+            if (!((lit >> n) & 1u))
+                continue;
+            if (prev >= 0)
+                cv_line(px[prev], py[prev], px[n], py[n], col);
+            else
+                first = (int32_t)n;
+            prev = (int32_t)n;
+        }
+        if (prev >= 0 && first >= 0 && prev != first)
+            cv_line(px[prev], py[prev], px[first], py[first], col);
+        first = prev = -1;
+        for (k = 0; k < 12u; k++) {
+            uint32_t n = (root + k) % 12u;
+            if (!((chm >> n) & 1u))
+                continue;
+            if (prev >= 0) {
+                int32_t j;
+                for (j = 0; j < 16; j += 2)       /* (dashed) */
+                    cv_line(px[prev] + (px[n] - px[prev]) * j / 16, py[prev] + (py[n] - py[prev]) * j / 16,
+                            px[prev] + (px[n] - px[prev]) * (j + 1) / 16, py[prev] + (py[n] - py[prev]) * (j + 1) / 16,
+                            ALT_INK);
+            } else
+                first = (int32_t)n;
+            prev = (int32_t)n;
+        }
+        if (prev >= 0 && first >= 0 && prev != first) {
+            int32_t j;
+            for (j = 0; j < 16; j += 2)
+                cv_line(px[prev] + (px[first] - px[prev]) * j / 16, py[prev] + (py[first] - py[prev]) * j / 16,
+                        px[prev] + (px[first] - px[prev]) * (j + 1) / 16, py[prev] + (py[first] - py[prev]) * (j + 1) / 16,
+                        ALT_INK);
+        }
+    }
+    for (k = 0; k < 12u; k++) {                  /* the notes: the scale's in gold, the root in its colour */
+        int32_t lx, ly, on = (lit >> k) & 1u;
+        if (k == root)
+            alt_diamond(px[k], py[k], 5, 5, col);
+        else if (on)
+            alt_diamond(px[k], py[k], 3, 3, ALT_GOLD);
+        else
+            cv_rect(px[k] - 1, py[k] - 1, 2, 2, ALT_DIM);
+        alt_pt(wx, wy, k * (0xFFFFFFFFu / 12u), 60, &lx, &ly);
+        cv_text(lx - text_w(ALT_FS, NN[k]) / 2, ly - 6, ALT_FS, NN[k], k == root ? col : on ? ALT_INK : ALT_DIM);
+    }
+    alt_star(wx, wy, 6, ALT_GOLD);
     alt_foot(QP_SCL);
 }
 
-/* SETTINGS (EDIT held): rows, SELECT picks one, KNOB 1 or ALGORITHM changes it. THEME: NIGHT (dark) / DAY (light) */
+/* SETTINGS (I, the Magician; EDIT held): rows, SELECT picks one, KNOB 1 or ALGORITHM changes it. THEME: NIGHT / DAY,
+ * its emblem (the moon, the sun) under it */
 enum { SET_THEME, SET_N };
 static const char *const SET_NAME[SET_N] = {"THEME"};
 #define ALT_PAL_NIGHT UI_GREY_INDEX
@@ -1924,20 +1949,44 @@ static void alt_set_input(void)
 }
 static void alt_set_scene(void)
 {
-    uint32_t r;
-    uint16_t col = ALT_COL[au.sel % AS_NCIRC];
-    alt_menu_head("SETTINGS", 0);
+    uint32_t r, k;
+    uint16_t col = ALT_COL[au.sel % AS_NCIRC], hl = alt_gold_line(16), moon = ALT_DAY ? ALT_GREY : ALT_INK,
+             sun = ALT_DAY ? ALT_GOLD : ALT_GREY;
+    alt_card("SETTINGS", "I");
     for (r = 0; r < SET_N; r++) {
-        int32_t y = 48 + (int32_t)r * 24;
+        int32_t y = 32 + (int32_t)r * 24;
         if (r == au.set_row) {
-            cv_rect(8, y - 3, 224, 21, alt_fade(col, 25));
-            cv_rect(8, y - 3, 3, 21, col);
+            cv_rect(8, y - 3, 224, 21, hl);
+            alt_diamond(15, y + 7, 3, 3, col);
         }
-        cv_text(18, y, &AF_M, SET_NAME[r], ALT_INK);
-        cv_text_r(226, y, &AF_M, alt_set_text(r), r == au.set_row ? col : ALT_DIM, r == au.set_row ? alt_fade(col, 25) : ALT_BG);
+        cv_text_on(24, y, ALT_FM, SET_NAME[r], ALT_INK, r == au.set_row ? hl : ALT_BG);
+        cv_text_r(226, y, ALT_FM, alt_set_text(r), r == au.set_row ? col : ALT_DIM, r == au.set_row ? hl : ALT_BG);
     }
-    cv_text(8, 209, &AF_S, "KNOB 1", ALT_DIM);
-    cv_text(8, 222, &AF_S, alt_set_text(au.set_row), ALT_INK);
+    for (k = 0; k < 240u; k++) {                 /* the emblem: the moon and the sun, the side in use lit */
+        int32_t x, y;
+        alt_pt(120, 122, k * (0xFFFFFFFFu / 240u), 52, &x, &y);
+        cv_pset(x, y, alt_gold_line(55));
+        if (!(k % 6u)) {
+            alt_pt(120, 122, k * (0xFFFFFFFFu / 240u), 47, &x, &y);
+            cv_rect(x, y, 1, 1, alt_gold_line(35));
+        }
+    }
+    cv_rect(120, 72, 1, 100, alt_gold_line(45));
+    alt_disc(97, 122, 15, moon);
+    alt_disc(103, 117, 13, ALT_BG);
+    alt_disc(143, 122, 9, sun);
+    for (k = 0; k < 8u; k++) {
+        int32_t xa, ya, xb, yb;
+        alt_pt(143, 122, k * 0x20000000u, 12, &xa, &ya);
+        alt_pt(143, 122, k * 0x20000000u, 17, &xb, &yb);
+        cv_line(xa, ya, xb, yb, sun);
+    }
+    cv_text(97 - text_w(ALT_FS, "NIGHT") / 2, 180, ALT_FS, "NIGHT", ALT_DAY ? ALT_DIM : ALT_INK);
+    cv_text(143 - text_w(ALT_FS, "DAY") / 2, 180, ALT_FS, "DAY", ALT_DAY ? ALT_INK : ALT_DIM);
+    cv_rect(8, 196, 224, 1, alt_gold_line(30));
+    cv_frame(8, 208, text_w(ALT_FV, "KNOB 1") + 8, 18, ALT_GOLD);
+    cv_text(12, 208, ALT_FV, "KNOB 1", ALT_INK);
+    cv_text(26 + text_w(ALT_FV, "KNOB 1"), 211, ALT_FS, "CHANGE", ALT_INK);
 }
 
 #include "alter_fxpage.c"
@@ -1975,8 +2024,8 @@ static void alt_tri(int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x2, 
 }
 /* the middle (Romain, 01/11): a triangle cut from its centre into three, one piece per circle in its colour, faint at
  * rest; a hit of that circle lights its piece a little and pushes it out 2 px at most, both fading over a quarter
- * second (Romain: smaller, a discreet pulse). Muted:
- * grey. The chosen circle's piece carries a dot */
+ * second (Romain: smaller, a discreet pulse). Muted: grey. Each piece set in gold (the tarot look); the chosen
+ * circle's piece carries a dot */
 static void alt_prism(void)
 {
     static const int32_t V[3][2] = {{0, -22 * 16}, {-19 * 16, 11 * 16}, {19 * 16, 11 * 16}};   /* top, left, right */
@@ -2004,6 +2053,10 @@ static void alt_prism(void)
             py[k] = gy + (py[k] - gy) * 7 / 8 + cy + oy;
         }
         alt_tri(px[0], py[0], px[1], py[1], px[2], py[2], alt_fade(col, au.cfg[i].mute ? 45 : 32 + (int32_t)lv * 11));
+        for (k = 0; k < 3; k++) {                /* set in gold */
+            int32_t k2 = (k + 1) % 3;
+            cv_line((px[k] + 8) / 16, (py[k] + 8) / 16, (px[k2] + 8) / 16, (py[k2] + 8) / 16, alt_gold_line(75));
+        }
         if (i == au.sel)                         /* the chosen circle: a dot in its piece */
             alt_disc((cx + gx + ox) / 16, (cy + gy + oy) / 16, 2, col);
     }
@@ -2047,49 +2100,106 @@ static void alt_scene(uint32_t q, uint32_t flash)
         alt_set_scene();
         return;
     }
-    /* the head: a point of the chosen circle's colour, its sound, the transport */
-    alt_disc(14, 13, 5, ALT_COL[au.sel]);
-    cv_text(26, 2, &AF_M, ALT_PRE[au.pre[au.sel] % ALT_NPRE].name, ALT_INK);
-    cv_text(8, 22, &AF_S, e->name, ALT_DIM);
-    cv_text(8 + text_w(&AF_S, e->name) + 10, 22, &AF_S, ALT_MODE_NAME[alt_emode[au.sel] % AM_N],
-            alt_emode[au.sel] ? ALT_COL[au.sel] : ALT_DIM);
+    /* the card's engraving: rays from the centre (under everything, kept off the knobs) */
+    for (i = 0; i < 48u; i++) {
+        uint32_t tn = i * (0xFFFFFFFFu / 48u);
+        int32_t cs = sine_i(tn + 0x40000000u), r1 = 98, x0, y0, x1, y1;
+        if (cs < 0 && r1 * -cs > (76 << 15))
+            r1 = (76 << 15) / -cs;
+        alt_pt(ALT_CX, ALT_CY, tn, 46, &x0, &y0);
+        alt_pt(ALT_CX, ALT_CY, tn, r1, &x1, &y1);
+        cv_line(x0, y0, x1, y1, alt_gold_line(12));
+    }
+    /* the head: the card, the sound's name in its ribbon, the arcana of the page shown; the tempo, the engine, the
+     * mode */
     {
-        uint32_t bpm = (uint32_t)song.g[G_BPM], n = 0;
-        const char *st = song.playing ? "PLAY " : "STOP ";
-        while (*st)
-            b[n++] = *st++;
+        static const char *const ARC[QP_N] = {"XIV", "X", "XIII", "XVI", "XVIII", "I", "XVII", "XXI"};
+        uint32_t bpm = (uint32_t)song.g[G_BPM], n = 0, m = alt_emode[au.sel] % AM_N;
+        int32_t x;
+        alt_card(ALT_PRE[au.pre[au.sel] % ALT_NPRE].name, ARC[q % QP_N]);
+        if (q)
+            cv_text(9, 19, ALT_FS, alt_qp_name(q), ALT_COL[au.sel]);
         if (bpm >= 100u)
             b[n++] = (char)('0' + bpm / 100u);
         b[n++] = (char)('0' + bpm / 10u % 10u);
         b[n++] = (char)('0' + bpm % 10u);
         b[n] = 0;
+        x = cv_text_r(231, 3, ALT_FV, b, ALT_INK, ALT_BG) - text_w(ALT_FV, b) - 9;
+        if (song.playing)
+            alt_tri(x * 16, 7 * 16, x * 16, 15 * 16, (x + 6) * 16, 11 * 16, ALT_GO);
+        else
+            cv_rect(x, 8, 6, 6, ALT_DIM);
+        x = cv_text_r(231, 19, ALT_FS, ALT_MODE_NAME[m], m ? ALT_COL[au.sel] : ALT_DIM, ALT_BG);
+        cv_text_r(231 - text_w(ALT_FS, ALT_MODE_NAME[m]) - 6, 19, ALT_FS, e->name, ALT_DIM, ALT_BG);
+        (void)x;
     }
-    cv_text_r(234, 4, &AF_S, b, song.playing ? ALT_GO : ALT_DIM, cv_bg);
-    /* the circles */
+    /* the alidade: the chosen circle's step, a gold hand from the centre */
+    if (song.playing) {
+        const as_circ_t *c = &alt_seq.c[au.sel];
+        uint32_t len = c->cfg.len ? c->cfg.len : 1u, now = (c->pos + len - 1u) % len;
+        int32_t x, y;
+        alt_at((uint32_t)(((uint64_t)now << 32) / len), 90, &x, &y);
+        cv_line(ALT_CX, ALT_CY, x, y, alt_gold_line(45));
+    }
+    /* the circles, each a sigil: its ring, its hits joined (a square, a triangle, a star ..), its hits as marks: a
+     * diamond (outer), a sun (middle), a dot (inner) */
     for (i = 0; i < AS_NCIRC; i++) {
         const as_circ_t *c = &alt_seq.c[i];
-        uint32_t len = c->cfg.len ? c->cfg.len : 1u, now = (c->pos + len - 1u) % len;
+        uint32_t len = c->cfg.len ? c->cfg.len : 1u, now = (c->pos + len - 1u) % len, m = 0, st;
         int muted = au.cfg[i].mute, dim = q == QP_SEQ && i != au.sel, chosen = i == au.sel;
         uint16_t col = muted ? ALT_GREY : ALT_COL[i];
-        int32_t r = ALT_R[i], x, y;
+        int32_t r = ALT_R[i], x, y, hx[32], hy[32];
         if (dim)
             col = alt_fade(col, 30);
-        if (chosen) {                            /* the ring: solid, full colour for the chosen circle, dotted else */
-            for (j = 0; j < 360u; j++) {
-                alt_at(j * (0xFFFFFFFFu / 360u), r, &x, &y);
-                cv_rect(x, y, 2, 2, col);
+        for (j = 0; j < 240u; j++) {             /* the ring: gold, the chosen circle's in its colour */
+            alt_at(j * (0xFFFFFFFFu / 240u), r, &x, &y);
+            cv_pset(x, y, chosen ? col : alt_gold_line(muted ? 25 : 45));
+            if (chosen && !(j & 1u)) {
+                alt_at(j * (0xFFFFFFFFu / 240u), r - 3, &x, &y);
+                cv_pset(x, y, alt_fade(col, 35));
             }
-        } else
-            for (j = 0; j < 96u; j++) {
-                alt_at(j * (0xFFFFFFFFu / 96u), r, &x, &y);
-                cv_pset(x, y, alt_fade(col, 30));
+        }
+        for (j = 0; j < len && j < 32u; j++)
+            if ((c->pat >> j) & 1u)
+                alt_at((uint32_t)(((uint64_t)j << 32) / len), r, &hx[m], &hy[m]), m++;
+        if (m >= 2u) {                           /* the sigil: the hits joined, a star once there are five */
+            uint32_t k, cur = 0;
+            st = 1u;
+            if (m >= 5u) {
+                st = (m * 2u + 2u) / 5u;
+                while (st > 1u) {
+                    uint32_t a2 = m, b2 = st;
+                    while (b2)
+                        a2 %= b2, a2 ^= b2, b2 ^= a2, a2 ^= b2;
+                    if (a2 == 1u)
+                        break;
+                    st--;
+                }
             }
+            for (k = 0; k < (m == 2u ? 1u : m); k++) {
+                uint32_t nx = (cur + st) % m;
+                cv_line(hx[cur], hy[cur], hx[nx], hy[nx], i ? alt_fade(col, 40) : alt_gold_line(muted ? 20 : 40));
+                cur = nx;
+            }
+        }
         for (j = 0; j < len; j++) {              /* the steps */
             int on = (int)((c->pat >> j) & 1u), here = song.playing && j == now;
             alt_at((uint32_t)(((uint64_t)j << 32) / len), r, &x, &y);
-            if (here)
-                alt_disc(x, y, (flash >> i) & 1u ? 7 : 5, on ? ALT_INK : ALT_DIM);
-            alt_disc(x, y, on ? 4 : 1, on ? col : ALT_GREY);
+            if (here && on)
+                alt_star(x, y, (flash >> i) & 1u ? 9 : 7, ALT_INK);
+            if (!on) {
+                cv_rect(x - 1, y - 1, 2, 2, here ? ALT_INK : alt_gold_line(muted ? 25 : 45));
+                continue;
+            }
+            if (i == 0u) {
+                alt_diamond(x, y, 4, 6, alt_mixc(ALT_BG, ALT_INK, 70));
+                alt_diamond(x, y, 3, 5, col);
+            } else if (i == 1u) {
+                alt_disc(x, y, 4, col);
+                alt_disc(x, y, 2, ALT_BG);
+                cv_rect(x, y, 1, 1, ALT_INK);
+            } else
+                alt_disc(x, y, 2, col);
         }
         if (c->die) {                            /* a draw on: a small triangle at the circle's left, pointing in */
             int32_t k2;
@@ -2098,27 +2208,34 @@ static void alt_scene(uint32_t q, uint32_t flash)
                 cv_rect(x - 16 + k2, y - (6 - k2), 1, 2 * (6 - k2) + 1, ALT_COL[i]);
         }
     }
-    /* the middle: the key held or tapped, else the three circles' triangle */
+    /* the middle: the key held or tapped, else the three circles' triangle in its gold circle */
     if (au.msg && fm1_ms - au.msg_ms < 900u) {
-        int32_t w = text_w(&AF_S, au.msg);
-        cv_rect(ALT_CX - w / 2 - 4, ALT_CY - 9, w + 8, 18, ALT_BG);
-        cv_text(ALT_CX - w / 2, ALT_CY - 8, &AF_S, au.msg, ALT_INK);
-    } else
+        int32_t w = text_w(ALT_FS, au.msg);
+        cv_rect(ALT_CX - w / 2 - 5, ALT_CY - 10, w + 10, 20, ALT_BG);
+        cv_frame(ALT_CX - w / 2 - 5, ALT_CY - 10, w + 10, 20, ALT_GOLD);
+        cv_text_on(ALT_CX - w / 2, ALT_CY - 7, ALT_FS, au.msg, ALT_INK, ALT_BG);
+    } else {
+        for (j = 0; j < 120u; j++) {
+            int32_t x, y;
+            alt_at(j * (0xFFFFFFFFu / 120u), 27, &x, &y);
+            cv_pset(x, y, alt_gold_line(40));
+        }
         alt_prism();
+    }
     alt_foot(q);
 }
 
 
-/* DAY's paper: a grain over the cream, the same every frame (a hash of the pixel's place, not a random draw), in
+/* the card's grain (DAY: paper over the cream; NIGHT: ink over the black), the same every frame (a hash of the pixel's place, not a random draw), in
  * three tones near ALT_BG; half h of the screen (rows h*120 ..), straight into the canvas just cleared */
 static void alt_paper(uint32_t h)
 {
     uint16_t t[4];
     uint32_t x, y, i = 0;
     t[0] = swap16(ALT_BG);
-    t[1] = swap16(RGB(226, 215, 194));
-    t[2] = swap16(RGB(216, 204, 182));
-    t[3] = swap16(RGB(240, 232, 214));
+    t[1] = swap16(ALT_DAY ? RGB(234, 220, 188) : RGB(19, 16, 20));
+    t[2] = swap16(ALT_DAY ? RGB(225, 209, 175) : RGB(9, 8, 10));
+    t[3] = swap16(ALT_DAY ? RGB(249, 239, 213) : RGB(23, 20, 22));
     for (y = 0; y < 120u; y++) {
         uint32_t yy = (y + h * 120u) * 0x9E3779B1u;
         for (x = 0; x < 240u; x++, i++) {
@@ -2175,8 +2292,7 @@ static void alter_draw(void)
     au.drawn = 1;
     for (i = 0; i < 2u; i++) {                   /* two halves: the canvas holds 240 x 124 */
         cv_begin(240, 120, ALT_BG);
-        if (ALT_DAY)
-            alt_paper(i);
+        alt_paper(i);                            /* (both cards have a grain: paper, ink) */
         cv_oy = -(int32_t)i * 120;
         alt_scene(q, flash);
         cv_oy = 0;
