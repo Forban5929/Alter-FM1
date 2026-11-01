@@ -12,7 +12,7 @@
 
 typedef struct {
     const char *name;
-    uint8_t eng;                 /* 0 ALTER, 1 PHYS, 2 NOISE */
+    uint8_t eng;                 /* 0 ALTER, 1 PHYS, 2 NOISE, 3 RESO (alter_ui.c ALT_ENGS) */
     int8_t e[8];
     uint8_t env[4];              /* ATK DEC SUS REL */
     uint8_t fx[4];               /* DIST CHOR DLY REV */
@@ -56,6 +56,13 @@ static const alt_pre_t ALT_PRE[] = {
     {"OPEN HAT", 2, {0, 0, 115, 80, 64, 0, 0, 0}, {0, 62, 0, 55}, {0, 0, 10, 20}, 126, 0},
     {"KICK", 0, {0, 0, 0, AL_L, 64, 10, 0, 0}, {0, 85, 0, 70}, {25, 0, 0, 0}, 118, 1},   /* a full kick: a sine, a short
                                   * drop (~2 octaves, ~14 ms), a long body, DIST for the fat */
+    /* RESO {MATR SPRD RES DIRT OUT DCAY PING FINE} (eng_reso.c): the four main knobs MATTER SPREAD RESONANCE DIRT */
+    {"PING", 3, {10, 40, 90, 10, RESO_MIX, 8, RP_ALL, 10}, {0, 90, 127, 70}, {0, 0, 20, 30}, 110, 1},
+    {"GLASS", 3, {64, 90, 100, 20, RESO_MIX, 12, RP_CYCLE, 20}, {0, 100, 127, 80}, {0, 0, 30, 45}, 102, 0},
+    {"HOLLOW", 3, {100, 60, 95, 30, RESO_NOTCH, 30, RP_ALL, 30}, {0, 80, 127, 60}, {10, 0, 20, 30}, 118, 1},
+    {"SIREN", 3, {30, 20, 118, 60, RESO_MIX, 10, RP_ALL, 25}, {20, 100, 110, 60}, {0, 0, 20, 40}, 114, 2},
+    {"SCRAP", 3, {127, 127, 80, 70, RESO_MIX, 40, RP_RAND, 60}, {0, 70, 127, 50}, {20, 0, 15, 25}, 118, 1},
+    {"TUBE", 3, {0, 0, 105, 40, RESO_MIX, 5, RP_ALL, 50}, {0, 100, 127, 80}, {10, 0, 10, 30}, 126, 1},
 };
 #define ALT_NPRE (sizeof ALT_PRE / sizeof ALT_PRE[0])
 

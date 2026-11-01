@@ -563,5 +563,26 @@ if (wavPath) {                                                  // 4 bars from a
   fs.writeFileSync(wavPath, b);
   console.log(`alter: wrote ${wavPath}`);
 }
+// RESO (eng_reso.c): its sounds play; the PING keys (white keys 19 21 23 24) strike one filter of the chosen circle on the
+// grid: PING 1 and PING 4 ring at different pitches
+{
+  const W = (op, a, b) => ex.web_alter(op, a, b);
+  const zc = (a) => { let n = 0; for (let i = 1; i < a.length; i++) if (a[i - 1] < 0 && a[i] >= 0) n++; return n; };
+  W(1, 0, 0); W(4, BPM, 0); render(FS);
+  if (peak(render(FS, true)) < 0.002) play();                     // (the transport on)
+  for (let c = 0; c < 3; c++) W(2, c, 1);                         // the three muted: only the keys sound
+  W(0, 0, 23); W(3, 0, 0);                                        // circle 1: RESO PING, FREE
+  render(FS);
+  const quiet = peak(render(FS / 2, true));
+  K(1 << 19); render(STEP * 2); K(0);
+  const p1 = render(FS / 4, true);
+  render(FS);
+  K(1 << 24); render(STEP * 2); K(0);
+  const p4 = render(FS / 4, true);
+  check(`RESO: muted ${quiet.toFixed(3)}; PING 1 rings (${peak(p1).toFixed(3)}, ${zc(p1) * 4} Hz), PING 4 higher (${zc(p4) * 4} Hz)`,
+        quiet < 0.002 && peak(p1) > 0.01 && peak(p4) > 0.01 && zc(p4) > zc(p1) * 1.5);
+  for (let c = 0; c < 3; c++) W(2, c, 0);
+  W(1, 0, 0); render(FS);
+}
 console.log(fails ? `alter: ${fails} FAIL` : "alter: all ok");
 process.exit(fails ? 1 : 0);

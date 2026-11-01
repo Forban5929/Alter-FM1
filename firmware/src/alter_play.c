@@ -440,6 +440,29 @@ static void alt_env_apply(uint32_t c, uint32_t m, int32_t die)
     }
 }
 
+/* the PING keys (alter_ui.c AK_PING): a hit of the circle now, on the grid; on RESO that key's filter alone
+ * (eng_reso.c reso_force), on the other engines a plain hit */
+static volatile uint8_t alt_ping_tot[AS_NCIRC][4];       /* (the UI counts the taps) */
+static uint8_t alt_ping_seen[AS_NCIRC][4];
+static void alt_pads(void)
+{
+    uint32_t c, f, mask;
+    for (c = 0; c < AS_NCIRC; c++) {
+        for (f = 0, mask = 0; f < 4u; f++)
+            if (alt_ping_tot[c][f] != alt_ping_seen[c][f]) {
+                alt_ping_seen[c][f] = alt_ping_tot[c][f];
+                mask |= 1u << f;
+            }
+        if (!mask)
+            continue;
+        if (trk[c].eng_req == ENGI_RESO)
+            reso_force[c] = (uint8_t)mask;
+        alt_on(c, alt_seq.c[c].cfg.root, 112, 0, 0);
+        if (alt_gate_left[c] < 1u)
+            alt_gate_left[c] = 1;
+    }
+}
+
 static void alter_step(void)
 {
     as_event_t ev[AS_NCIRC];
@@ -512,6 +535,7 @@ static void alter_step(void)
         }
         alt_rat_at[c] = alt_rat_dt[c];
     }
+    alt_pads();                                  /* (the PING keys: on the grid) */
 }
 
 static void alt_ratchets(uint32_t upto)

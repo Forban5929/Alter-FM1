@@ -237,7 +237,10 @@ static void alt_scene_get(alt_scene_rec_t *s, alt_rhy_t *alt_scene_rhy)
     for (c = 0; c < AS_NCIRC; c++) {
         alt_scirc_t *o = &s->c[c];
         const track_t *t = &trk[c];
-        o->eng = (uint8_t)(t->eng_req == ALT_ENGS[1] ? 1 : t->eng_req == ALT_ENGS[2] ? 2 : 0);
+        o->eng = 0;
+        for (k = 0; k < ALT_NENG; k++)
+            if (t->eng_req == ALT_ENGS[k])
+                o->eng = (uint8_t)k;
         o->pre = au.pre[c];
         o->mode = alt_emode[c];
         o->locks = alt_seq.c[c].locks;
@@ -278,8 +281,8 @@ static void alt_scene_put(const alt_scene_rec_t *s, const alt_rhy_t *rhy)
         const alt_scirc_t *o = &s->c[c];
         track_t *t = &trk[c];
         alt_load_sound(c, o->pre);               /* the engine and everything else at a known place .. */
-        if (t->eng_req != ALT_ENGS[o->eng % AS_NCIRC])
-            set_engine_of(t, ALT_ENGS[o->eng % AS_NCIRC]);
+        if (t->eng_req != ALT_ENGS[o->eng % ALT_NENG])
+            set_engine_of(t, ALT_ENGS[o->eng % ALT_NENG]);
         fm1_irq_off();                           /* .. then the scene's own values */
         for (k = 0; k < 8u; k++)
             t->p[P_E0 + k] = o->e[k];

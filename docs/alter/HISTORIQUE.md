@@ -295,3 +295,17 @@ sauvé dans la scène seulement s'il est allumé.
   `afl_ab` (barre A–B). OCT− / OCT+ seuls = édite A / B (afp.ab) et MORPH saute à ce côté. afp_input reçoit `pressed`.
 - Scènes : alter_store.c `alt_bank_f` (objet 1, magic "ATLF") ; `afl_off` dans alt_load_scene / alt_new_scene.
 - Non vérifié sur FM-1 : coût CPU (2 × 2 SVF + 4 divisions 64 bits tous les 8 échantillons).
+
+## Nouveaux moteurs — RESO (01/11)
+Romain veut plus de moteurs, tous indus, sous une logique commune à 4 knobs. Choix (AskUserQuestion) : RESO, PLATE,
+RING, CHAOS + « corde froissée » (Karplus brutalisé) ; grammaire MATIÈRE · ÉCART · RÉSONANCE · SALETÉ pour les nouveaux
+seulement ; drones dans une voix à part (partie 4) ; RESO frappable par 4 touches libres.
+- `eng_reso.c` (moteur 10, ENGI_RESO) : 4 SVF TPT, g = tan via sine_i (sin/cos), 4 divisions par bloc ; excitation
+  impulsion / clic plié (sinus ×3 plié) / bruit, chute DCAY ; RES → k (≥ 112 : k < 0, souffle de bruit pour démarrer) ;
+  tanh sur l'état bande à plafond `lim` (DIRT plus bas et plus poussé) ; sortie 8√k × bande (k ≥ 0,03), NOTCH = Σ(x − k·v1).
+  PING : reso_note_on choisit le masque (ALL, CYCL reso_cyc, RAND, 1-4) ou `reso_force` posé par une touche.
+- Touches PING : alter_ui.c AK_PING (19 21 23 24) → alt_ping_tot ; alter_play.c `alt_pads` (fin d'alter_step) joue un
+  coup sur la grille (note = ROOT du cercle, vél. 112, au moins un pas).
+- Liste des moteurs : ALT_ENGS/ALT_NENG (4), stockage scène `o->eng` 0..3, alter_render.mjs lit les moteurs 0-9.
+- 6 sons à la fin d'ALT_PRE (23..28), niveaux réglés par alter_render (−32,8..−34,7 dBFS). Les 23 anciens sons et 4 scènes :
+  identiques au bit près. Test : 1 contrôle « RESO » dans alter_emu_test.mjs.

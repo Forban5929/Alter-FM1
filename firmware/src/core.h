@@ -24,7 +24,8 @@
 #define NENGINES 15u             /* engine numbers 0..14: ALTER 14, PHYS 9, NOISE 11, the others empty (engines.c) */
 #define ENGI_ALTER 14u
 #define ENGI_NOISE 11u
-#define NENG_SHOWN 3u            /* the engines one can pick: ALTER PHYS NOISE (engines.c ENGINE_ORDER) */
+#define NENG_SHOWN 4u            /* the engines one can pick: ALTER PHYS NOISE RESO (engines.c ENGINE_ORDER) */
+#define ENGI_RESO 10u            /* RESO: four struck resonant filters (eng_reso.c) */
 #define UP_SLOTS 32u             /* user presets (upreset.c) */
 
 /* ------------------------------------------------------- parameters --- */

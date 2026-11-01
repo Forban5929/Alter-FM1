@@ -55,7 +55,7 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
   coup, gardé. REVERSE relâché = retombe sur la grille.
 - **CLAVIER LIVE (01/11, alter_ui.c ALT_KEY)** — gauche = quel cercle, milieu = son rythme, droite = effets tenus :
   blanches F G A = MUTE 1 2 3 · (B noire) · C D E = DÉ 1 2 3 · (F noire) · G A = SHIFT −1 +1 · B = LOCK (TURING) ·
-  C..G hautes = **libres**. Noires : F# G# A# = **CERCLE 1 2 3** (= SELECT ; les 3 ensemble = CHAOS TOTAL) ·
+  C..G hautes : G A B C = **PING 1-4** (01/11), D = libre. Noires : F# G# A# = **CERCLE 1 2 3** (= SELECT ; les 3 ensemble = CHAOS TOTAL) ·
   C# D# = DENSITÉ − + · F# G# A# = DUB DELAY, DUB REVERB, DESTROY (tenus) · C# D# = ROLL 1/16, ROLL 1/8T · F# = RATCHET ×2.
   Retirés du clavier : RATCHET ×3, REVERSE, BUILD UP (le code audio AF_* reste dans alter_play.c). Fills = cercle choisi.
 - **SHIFT −1/+1 = tourne le cercle sélectionné d'un pas par appui, gardé.** Écran : cercle choisi = anneau plein ; dé actif =
@@ -120,6 +120,20 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
   **Réglages A et B + MORPH** : OCT− = édite A (MORPH à A), OCT+ = B. 9 presets. MIX 0 = éteint = son identique au bit
   près. **Sauvé dans la scène USER seulement s'il est allumé** (objet flash 1) ; scènes d'usine/NEW = éteint.
   Tests : 7 contrôles « FILTER » dans alter_fx_test.mjs ; web_alter op 12/13, web_alter_flt.
+- **NOUVEAUX MOTEURS (01/11, choix de Romain)** — tous indus. **Grammaire commune des 4 knobs, pour les NOUVEAUX
+  seulement** (ALTER/PHYS/NOISE gardent les leurs) : E0 **MATIÈRE** · E1 **ÉCART** (harmonique→inharmonique) ·
+  E2 **RÉSONANCE** · E3 **SALETÉ** ; E4..E7 sur EDIT. Feuille de route, dans l'ordre :
+  [x] **RESO** (eng_reso.c, moteur 10) : 4 SVF TPT frappés ; MATR impulsion→clic plié→bruit, SPRD 0..3 oct.,
+  RES (> ~111 = auto-oscillation), DIRT (tanh dans la boucle) ; EDIT OUT MIX/NOTCH, DCAY, PING ALL/CYCL/RAND/1-4, FINE.
+  6 sons (PING GLASS HOLLOW SIREN SCRAP TUBE, niveaux mesurés ≈ −33 dBFS). Touches blanches 19 21 23 24 = **PING 1-4**
+  (un coup du cercle choisi sur la grille ; RESO = ce filtre seul : alter_play.c alt_pads → reso_force).
+  [ ] **PLATE** (Crucible : 4-6 lignes de retard inharmoniques + filtre, cymbale/fêlée/courbe ; mémoire OK : 12,9 Ko/cercle ;
+  entrée = un autre cercle, la FM-1 n'a pas d'entrée audio) · [ ] **CORDE FROISSÉE** (Karplus brutalisé : burst de bruit,
+  distorsion + passe-haut + fold dans la boucle, allpass = inharmonique) · [ ] **RING** (2 carrés désaccordés → ring mod →
+  disto lampe, interférence radio) **dans une VOIX DRONE à part = partie 4** (muette aujourd'hui, hors cercles ; détails à
+  demander) · [ ] **CHAOS** = source de mouvement (forme d'onde LFO + source MTX), pas une voix.
+  Ajouter un moteur : core.h ENGI_x + NENG_SHOWN, engines.c (include, case libre 0-8/12/13, ENGINE_ORDER, eng_ok),
+  alter_ui.c ALT_ENGS/ALT_NENG, sons à la FIN d'ALT_PRE (numéros gardés), alter_render.mjs ENG.
 - Vue **DEEP** (EDIT) : tous les réglages. Effets Felucca (DIST, INSERT FOLD, delay, reverb), ADSR Felucca.
 
 ## Spécification moteur ALTER (`eng_alter.c`)
@@ -134,7 +148,7 @@ E3 MODE SKIN/LIQUID/METAL · E4 AMOUNT (DETUNE / PUNCH / FM DEPTH selon MODE) ·
   la version navigateur passe par `web/emu/felucca_web.c` + `tests/hostsim.c` (garder les deux listes d'inclusion en phase).
 - Sous-modules (ne pas toucher) : `firmware/engines/` (Felucca-Engines, MIT : NOISE vient de là), `firmware/bsp/`
   (matériel, MPL-2.0). Licence GPL-3.0 : le code reste ouvert, la page **ABOUT** (menu) doit garder les mentions légales.
-- **Moteurs : ALTER (14), PHYS (9), NOISE (11) seulement.** `NENGINES` = 15 fixe dans core.h : les autres numéros sont
+- **Moteurs : ALTER (14), PHYS (9), NOISE (11), RESO (10).** `NENGINES` = 15 fixe dans core.h : les autres numéros sont
   des cases vides muettes (`ENG_GONE`, engines.c) pour ne pas décaler les numéros. Partie 4 : silencieuse.
 - **Mémoire flash** (`storage.c`) : objet 0 = réglages (`alter_persist.c`) · objets 2, 3, 4 = banques ALTER
   (`alter_store.c` : rythmes des scènes USER, scènes, patterns + enveloppes) · objet 1 = MASTER FILTER des scènes USER ·
@@ -149,7 +163,7 @@ E3 MODE SKIN/LIQUID/METAL · E4 AMOUNT (DETUNE / PUNCH / FM DEPTH selon MODE) ·
 - `alter_ui.c` vue PLAY + pages rapides/menus (inclus dans ui_input.c) · `alter_look.c` style tarot · `alter_fxpage.c` page FX
 - `alter_fx.c` presets FX + MASTER (inclus dans fx.c ; inclut `alter_filter.c` = MASTER FILTER) · `alter_lfo.c` LFO + enveloppes par mode (inclus dans mod.c)
 - `alter_sounds.c` 23 sons + 4 scènes d'usine · `alter_store.c` SAVE/LOAD · `alter_user_ambient.h` scène AMBIENT de Romain
-- `alter_persist.c` réglages en flash · `eng_alter.c` le moteur · `alter_legacy.c` **restes** (voir ci-dessous)
+- `alter_persist.c` réglages en flash · `eng_alter.c` / `eng_reso.c` les moteurs · `alter_legacy.c` **restes** (voir ci-dessous)
 - Outils : `tools/alter/` (tests, rendu, captures, page d'écoute, `alter_wav.c`).
 
 ## Restes de Felucca (à retirer à l'étape 3c)

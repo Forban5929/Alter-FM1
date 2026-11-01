@@ -24,6 +24,7 @@ static uint8_t eng_mem_owner[NPART];       /* engine index + 1 whose state is in
 #include "../engines/src/eng_noise.c"   /* Felucca-Engines (MIT): NOISE */
 #include "eng_phys.c"           /* PHYS: DaisySP physical models (phys_dsp.c, MIT) */
 #include "eng_alter.c"          /* ALTER: six struck oscillators (after the Basimilus Iteritas Alter) */
+#include "eng_reso.c"           /* RESO: four struck resonant filters (after a QMMF) */
 #include "alter_legacy.c"       /* what the old Felucca pages still name of the engines taken out */
 
 /* ALTER plays three engines; the other numbers are kept empty (a silent engine nobody can pick), so the engine
@@ -48,7 +49,7 @@ static const engine_t ENG_GONE = {
 static const engine_t *const ENGINES[NENGINES] = {
     &ENG_GONE, &ENG_GONE, &ENG_GONE, &ENG_GONE, &ENG_GONE, &ENG_GONE, &ENG_GONE, &ENG_GONE, &ENG_GONE,
     &ENG_PHYS,                   /* 9 (ENGI_PHYS) */
-    &ENG_GONE,
+    &ENG_RESO,                   /* 10 (ENGI_RESO) */
     &ENG_NOISE,                  /* 11 (ENGI_NOISE) */
     &ENG_GONE, &ENG_GONE,
     &ENG_ALTER,                  /* 14 (ENGI_ALTER) */
@@ -79,11 +80,11 @@ static void eng_mem_claim(const track_t *t)
 /* the order the engines are shown in (PRESETS browsing and its ENG knob, the EDIT layer's keys, the editor's list):
  * engine indices, never DIGITAL's reserved 1 (with FELUCCA_FM4 it follows FM6). The indices stay as they are (the
  * stores and the protocol hold them); only this table orders them */
-static const uint8_t ENGINE_ORDER[NENG_SHOWN] = {ENGI_ALTER, ENGI_PHYS, ENGI_NOISE};
+static const uint8_t ENGINE_ORDER[NENG_SHOWN] = {ENGI_ALTER, ENGI_PHYS, ENGI_NOISE, ENGI_RESO};
 
 /* the engines one can pick (engine 1 only with FELUCCA_FM4), in ENGINE_ORDER: eng_ok(e), the n-th of them
  * eng_vis(n), e's place among them eng_rank(e), the next / previous one eng_step(e, dir) (wraps) */
-static int eng_ok(uint32_t e) { return e == ENGI_ALTER || e == ENGI_PHYS || e == ENGI_NOISE; }
+static int eng_ok(uint32_t e) { return e == ENGI_ALTER || e == ENGI_PHYS || e == ENGI_NOISE || e == ENGI_RESO; }
 static uint32_t eng_vis(uint32_t n) { return ENGINE_ORDER[n % NENG_SHOWN]; }
 static uint32_t eng_rank(uint32_t e)
 {

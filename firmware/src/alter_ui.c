@@ -36,7 +36,7 @@
  * solid ring, the others dotted; a draw on: a small triangle at the circle's left, its colour; the chosen
  * circle's sound at the top, its knobs (or its rhythm, SEQ held) at the bottom. Drawn only when something changed. */
 
-enum { AK_NONE, AK_MUTE, AK_DIE, AK_SHIFT, AK_DENS, AK_FILL, AK_TLOCK, AK_SEL };
+enum { AK_NONE, AK_MUTE, AK_DIE, AK_SHIFT, AK_DENS, AK_FILL, AK_TLOCK, AK_SEL, AK_PING };
 typedef struct {
     uint8_t kind, arg;
     const char *name;
@@ -46,6 +46,8 @@ static const alt_key_t ALT_KEY[27] = {    /* k: semitones above F3 (whites 0 2 4
     [7] = {AK_DIE, 0, "DICE 1"}, [9] = {AK_DIE, 1, "DICE 2"}, [11] = {AK_DIE, 2, "DICE 3"},
     [14] = {AK_SHIFT, 0, "SHIFT -1"}, [16] = {AK_SHIFT, 1, "SHIFT +1"},   /* (TURING: PREV, NEXT) */
     [18] = {AK_TLOCK, 0, "LOCK"},                                           /* (TURING only: frozen / free) */
+    [19] = {AK_PING, 0, "PING 1"}, [21] = {AK_PING, 1, "PING 2"}, [23] = {AK_PING, 2, "PING 3"},   /* a hit of the chosen */
+    [24] = {AK_PING, 3, "PING 4"},          /* circle on the grid; RESO: that filter alone (alter_play.c alt_pads) */
     /* the blacks (Romain, 01/11): which circle | its rhythm | the held fills */
     [1] = {AK_SEL, 0, "CIRCLE 1"}, [3] = {AK_SEL, 1, "CIRCLE 2"}, [5] = {AK_SEL, 2, "CIRCLE 3"},
     [8] = {AK_DENS, 0, "DENSITY -"}, [10] = {AK_DENS, 1, "DENSITY +"},
@@ -157,7 +159,8 @@ static void alt_say(const char *s)
 }
 
 /* the presets of the three engines in a row: the n-th as (engine, preset); the place of (engine, preset) */
-static const uint8_t ALT_ENGS[AS_NCIRC] = {ENGI_ALTER, ENGI_PHYS, 11};   /* 11: NOISE (engines.c ENGINES) */
+#define ALT_NENG 4u
+static const uint8_t ALT_ENGS[ALT_NENG] = {ENGI_ALTER, ENGI_PHYS, 11, ENGI_RESO};   /* 11: NOISE (engines.c ENGINES) */
 #include "alter_sounds.c"
 
 /* circle c's sound: ALT_PRE[i] on its part (the engine, its defaults, then the sound's values) */
@@ -177,7 +180,7 @@ static void alt_load_sound(uint32_t c, uint32_t i)
 {
     track_t *t = &trk[c];
     const alt_pre_t *pr = &ALT_PRE[i % ALT_NPRE];
-    uint32_t e = ALT_ENGS[pr->eng % AS_NCIRC], j;
+    uint32_t e = ALT_ENGS[pr->eng % ALT_NENG], j;
     au.pre[c] = (uint8_t)(i % ALT_NPRE);
     if (t->eng_req != e)
         set_engine_of(t, e);                     /* (the IRQ off inside: the engine and its values together) */
@@ -713,7 +716,7 @@ static void alt_chaos(void)
         alt_gl.amt[k] = 0;
     for (c = 0; c < AS_NCIRC; c++) {
         track_t *t = &trk[c];
-        uint32_t pi = alt_cr(ALT_NPRE), e = ALT_ENGS[ALT_PRE[pi].eng % AS_NCIRC], ei;
+        uint32_t pi = alt_cr(ALT_NPRE), e = ALT_ENGS[ALT_PRE[pi].eng % ALT_NENG], ei;
         const engine_t *en = ENGINES[e];
         as_cfg_t *cf = &au.cfg[c];
         alt_load_sound(c, pi);                   /* a sound of ours, then everything in it drawn */
@@ -951,7 +954,7 @@ static void alt_total_chaos(void)
     afx_edit |= 1u << AFX_S_DLY | 1u << AFX_S_REV;
     for (c = 0; c < AS_NCIRC; c++) {
         track_t *t = &trk[c];
-        uint32_t pi = alt_cr(ALT_NPRE), e = ALT_ENGS[ALT_PRE[pi].eng % AS_NCIRC], n;
+        uint32_t pi = alt_cr(ALT_NPRE), e = ALT_ENGS[ALT_PRE[pi].eng % ALT_NENG], n;
         const engine_t *en = ENGINES[e];
         as_cfg_t *cf = &au.cfg[c];
         as_circ_t *sc = &alt_seq.c[c];
@@ -1320,6 +1323,9 @@ static int alter_ui_input(uint32_t pressed)
                 if (!tur)
                     au.cfg[au.sel].rot = as_wrap((int32_t)au.cfg[au.sel].rot + d, au.cfg[au.sel].len);
                 au.tap_ms[k] = fm1_ms | 1u;
+            } else if (a->kind == AK_PING) {     /* PING n: a hit on the grid (RESO: filter n) */
+                alt_ping_tot[au.sel % AS_NCIRC][i2 & 3u]++;
+                au.tap_ms[k] = fm1_ms | 1u;
             } else if (a->kind == AK_SEL) {      /* CIRCLE n: chosen (as SELECT) */
                 if (au.sel != i2)
                     alt_select(i2);
@@ -1420,7 +1426,7 @@ static void alter_leds(uint8_t *nl, uint8_t *nd, uint8_t *nb, uint8_t *nm)
             lit = au.cfg[a->arg].mute;
         else if (a->kind == AK_SEL)              /* the chosen circle's key lit */
             lit = au.sel == a->arg;
-        else if (a->kind == AK_DIE || a->kind == AK_SHIFT || a->kind == AK_DENS)
+        else if (a->kind == AK_DIE || a->kind == AK_SHIFT || a->kind == AK_DENS || a->kind == AK_PING)
             lit = (int)((fm1_in.notes >> k) & 1u) || (au.tap_ms[k] && (int32_t)(fm1_ms - au.tap_ms[k]) < (int32_t)ALT_TAP_MS);
         else if (a->kind == AK_FILL)
             lit = (int)((fm1_in.notes >> k) & 1u);
