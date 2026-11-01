@@ -277,3 +277,21 @@ juste à côté : une colonne par cercle), milieu = rythme (DÉ blanches, DENSIT
 Demande de Romain : trop de texte. alter_page.py : GUIDE = « Démarrer », le SCHÉMA DU CLAVIER (SVG : couleurs
 quel cercle / rythme / effet tenu, lettre de l’ordinateur sur chaque touche), 3 lignes BOUTONS, 2 lignes COMBOS ;
 l’ancien texte complet (DETAIL) est replié sous « Tout le détail ». Si le clavier change : régénérer la constante SVG.
+
+## MASTER FILTER (01/11)
+Demande de Romain : un filtre master façon Rodec Sherman Restyler / Ministyler, pour le **mastering** (couleur tonale,
+saturation), pas pour jouer en continu, jamais randomisé. Choix validés : sur tout le mix (échos compris), vraie
+auto-oscillation saturée, onglet FILTER sans touche dédiée, pas de REC, réglages A/B + MORPH gardés, drive doux puis sale,
+sauvé dans la scène seulement s'il est allumé.
+- `alter_filter.c` (inclus par alter_fx.c) : `afl_block` appelé dans fx.c mix_block juste avant `am_master` (le wet est
+  plié dedans). DRIVE (tanh + biais asymétrique, au-delà de 64 écrêtage dur mélangé ; `AFL_DRV` gain, `AFL_MK` volume
+  gardé : -0,85 × le gain, mesuré sur TECHNO, ±2,5 dB) → anti-continu → 2 étages SVF TPT (Simper) : 1er Butterworth
+  (mélangé par `w24` : 12/24 dB sans clic), 2e résonant (`k` = 2 → −0,4) dont l'état bande passe dans un tanh à
+  plafond `afl_lim` qui baisse avec RES (auto-oscillation ≈ −28 dB RMS, comme le mix). TYPE = fondu LP/BP/HP, BP ×2 k.
+  Fréquence : table `AFL_G` (tan, 257 points, 20 Hz–18 kHz), recalculée tous les 8 échantillons (MOD, FM, DETUNE).
+  Suiveur 5/100 ms sur le mix, un cercle (`afl_take` depuis ac_measure) ou le temps (`afl_beat`). MIX sin/cos, rampe 10 ms ;
+  MIX 0 = `afs.run` 0 = rien ne tourne (rendu des 27 WAV identique au bit près).
+- Page : alter_fxpage.c onglet AFP_FLT, `afl_kv` (valeurs), `afl_pic` (courbe calculée en entiers : `afl_resp`, `afl_l2`),
+  `afl_ab` (barre A–B). OCT− / OCT+ seuls = édite A / B (afp.ab) et MORPH saute à ce côté. afp_input reçoit `pressed`.
+- Scènes : alter_store.c `alt_bank_f` (objet 1, magic "ATLF") ; `afl_off` dans alt_load_scene / alt_new_scene.
+- Non vérifié sur FM-1 : coût CPU (2 × 2 SVF + 4 divisions 64 bits tous les 8 échantillons).

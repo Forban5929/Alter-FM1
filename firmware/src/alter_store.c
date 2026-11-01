@@ -118,7 +118,17 @@ static struct {
     uint8_t prat[ALT_NUSER][AS_NCIRC][AS_NLANE / 4];   /* the USER patterns' RATCH lanes, 2 bits a step */
 } alt_bank_p;
 #define ALT_BANK_P_OLD (sizeof alt_bank_p - sizeof alt_bank_p.prat)   /* (before the RATCH lane: still read) */
-_Static_assert(sizeof alt_bank_s <= 3840u && sizeof alt_bank_p <= 3840u && sizeof alt_bank_r <= 3840u,
+/* the USER scenes' MASTER FILTER (alter_filter.c), object 1 (OBJ_PROJECT0, free since Felucca's projects left):
+ * kept only when one was on at SAVE (used = 0: the scene loads with the filter off) */
+#define ALT_OBJ_FILT 1u
+#define ALT_MAGIC_F 0x464C5441u                  /* "ATLF" */
+static struct {
+    uint32_t magic;
+    uint8_t used[ALT_NUSER];
+    uint8_t r[ALT_NUSER][AFL_REC];
+} alt_bank_f;
+_Static_assert(sizeof alt_bank_s <= 3840u && sizeof alt_bank_p <= 3840u && sizeof alt_bank_r <= 3840u &&
+               sizeof alt_bank_f <= 3840u,
                "ALTER's banks fit a storage object");
 
 /* the factory patterns: per circle LEN HITS ROT PROB */
@@ -310,6 +320,7 @@ static void alt_load_scene(uint32_t n)
 {
     const alt_scene_t *sc = &ALT_SCENE[n % ALT_NSCENE];
     uint32_t c;
+    afl_off();                                   /* (the factory scenes: no MASTER FILTER) */
     if (sc->user) {                              /* a USER scene of Romain's, as he stored it (alter_ui.c alt_dump_user) */
         static alt_scene_rec_t rec;
         static alt_rhy_t rhy[AS_NCIRC];
@@ -366,6 +377,7 @@ static void alt_new_scene(void)
     static const char *const PRE[AS_NCIRC] = {"THUD", "TOMS", "HAT"};
     static const uint8_t ROOT[AS_NCIRC] = {36, 48, 60};
     uint32_t c;
+    afl_off();
     song.g[G_BPM] = 120;
     song.g[G_SWING] = 0;
     alt_seq.scale = AS_SC_MIN;
@@ -429,6 +441,13 @@ static void alt_banks_load(void)
             ((uint8_t *)&alt_bank_p)[i] = 0;
         alt_bank_p.magic = ALT_MAGIC_P;
     }
+    if (st_load(ALT_OBJ_FILT, &alt_bank_f, sizeof alt_bank_f) != (int)sizeof alt_bank_f ||
+        alt_bank_f.magic != ALT_MAGIC_F) {       /* (none yet, or an old Felucca project there) */
+        uint32_t i;
+        for (i = 0; i < sizeof alt_bank_f; i++)
+            ((uint8_t *)&alt_bank_f)[i] = 0;
+        alt_bank_f.magic = ALT_MAGIC_F;
+    }
 }
 
 /* ---- the list: row i of tab t (0 SCENES, 1 PATTERNS) --------------------------------------------------------- */
@@ -479,6 +498,10 @@ static int alt_row_load(uint32_t t, uint32_t i)
                 alt_fx_put(alt_bank_r.fx[u]);
             for (c = 0; c < AS_NCIRC; c++)       /* its RATCH lanes */
                 alt_rat_put(c, alt_bank_r.rat[u][c]);
+            if (alt_bank_f.used[u])              /* its MASTER FILTER, or none */
+                afl_put(alt_bank_f.r[u]);
+            else
+                afl_off();
         } else
             return 0;
         return 1;
@@ -526,6 +549,9 @@ static int alt_row_save(uint32_t t, uint32_t i)
         alt_bank_p.envok[u] = 1;
         alt_bank_r.fxok[u] = 1;
         alt_fx_get(alt_bank_r.fx[u]);
+        alt_bank_f.used[u] = (uint8_t)afl_active();   /* the MASTER FILTER: kept when one is on */
+        if (alt_bank_f.used[u])
+            afl_get(alt_bank_f.r[u]);
         for (c = 0; c < AS_NCIRC; c++)
             alt_rat_get(c, alt_bank_r.rat[u][c]);
         for (c = 0; c < AS_NCIRC; c++)
@@ -533,7 +559,8 @@ static int alt_row_save(uint32_t t, uint32_t i)
                 alt_bank_p.env[u][c][k] = alt_envp[c][k];
         return st_save(ALT_OBJ_SCENES, &alt_bank_s, sizeof alt_bank_s) == 0 &&
                st_save(ALT_OBJ_SRHY, &alt_bank_r, sizeof alt_bank_r) == 0 &&
-               st_save(ALT_OBJ_PATS, &alt_bank_p, sizeof alt_bank_p) == 0 ? 1 : -1;
+               st_save(ALT_OBJ_PATS, &alt_bank_p, sizeof alt_bank_p) == 0 &&
+               st_save(ALT_OBJ_FILT, &alt_bank_f, sizeof alt_bank_f) == 0 ? 1 : -1;
     }
     alt_bank_p.p[u].used = 1;
     for (c = 0; c < AS_NCIRC; c++) {

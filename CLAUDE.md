@@ -112,6 +112,14 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
   notes de base, sur les 3 cercles. PAS le tempo, ni les modes, ni les mutes. DÉFINITIF (pas d'annulation).
   **Adouci (01/11, « pas musical »)** : LFO 1 seul, DEPTH −16..16 (sur 64), LFO 2/3 et GLOBAL coupés ; MTX : 1 case
   une fois sur 2 (SRC LFO ENV VEL RAND SLEW FORCE → CUT SHP PAN E1 E2, jamais la hauteur), AMT ±6..25.
+- **MASTER FILTER (01/11, alter_filter.c)** — façon Sherman/Ministyler, outil de **mastering** (réglé puis laissé),
+  sur TOUT le mix (échos compris), avant EQ/COMP/CLIP/limiteur. **5e onglet FILTER** de la page FX (pas de touche, pas de
+  REC, **jamais touché par DÉ/CHAOS/CHAOS TOTAL**). 3 rangées (SELECT) : FREQ RES TYPE DRIVE / MOD SRC FM MIX /
+  SLOPE DETUNE MODTYP MORPH. DRIVE 0..30 dB doux→sale, volume gardé (AFL_MK mesuré) ; RES > ~106 = vraie auto-oscillation,
+  plafond qui baisse avec RES (≈ niveau du mix) ; SRC MIX/CIRC 1-3/1/4/1/8 (suiveur 5/100 ms ; FM = l'audio de la source).
+  **Réglages A et B + MORPH** : OCT− = édite A (MORPH à A), OCT+ = B. 9 presets. MIX 0 = éteint = son identique au bit
+  près. **Sauvé dans la scène USER seulement s'il est allumé** (objet flash 1) ; scènes d'usine/NEW = éteint.
+  Tests : 7 contrôles « FILTER » dans alter_fx_test.mjs ; web_alter op 12/13, web_alter_flt.
 - Vue **DEEP** (EDIT) : tous les réglages. Effets Felucca (DIST, INSERT FOLD, delay, reverb), ADSR Felucca.
 
 ## Spécification moteur ALTER (`eng_alter.c`)
@@ -129,8 +137,8 @@ E3 MODE SKIN/LIQUID/METAL · E4 AMOUNT (DETUNE / PUNCH / FM DEPTH selon MODE) ·
 - **Moteurs : ALTER (14), PHYS (9), NOISE (11) seulement.** `NENGINES` = 15 fixe dans core.h : les autres numéros sont
   des cases vides muettes (`ENG_GONE`, engines.c) pour ne pas décaler les numéros. Partie 4 : silencieuse.
 - **Mémoire flash** (`storage.c`) : objet 0 = réglages (`alter_persist.c`) · objets 2, 3, 4 = banques ALTER
-  (`alter_store.c` : rythmes des scènes USER, scènes, patterns + enveloppes) · **objet 1 et objets 5.. LIBRES**
-  (ex-projets, presets, banque FM6, autosave Felucca) → place pour les PLAGES du menu SEQ, plus de slots…
+  (`alter_store.c` : rythmes des scènes USER, scènes, patterns + enveloppes) · objet 1 = MASTER FILTER des scènes USER ·
+  **objets 5.. LIBRES** (ex-presets, banque FM6, autosave Felucca) → place pour les PLAGES, les REC, plus de slots…
 - **Mise à jour USB** (M-UPGRADE, `bsp/chip/ota.c`, `ota_hw.c`) : INTACTE. Ne pas changer l'identité `FM-1_900`
   (build.py PRODUCT) ni retirer « FM-1 » du nom USB (« ALTER FM-1 » : les outils de mise à jour cherchent /fm-1|felucca/).
   Le chargeur de mise à jour (bsp) s'annonce encore « Felucca Update » : on n'y touche pas (risque de brique).
@@ -139,7 +147,7 @@ E3 MODE SKIN/LIQUID/METAL · E4 AMOUNT (DETUNE / PUNCH / FM DEPTH selon MODE) ·
 - `alter_seq.c` séquenceur pur (3 cercles EUCLID/TURING, dé, couloirs, plages, accords, gammes) · `alter_play.c` côté audio
   (inclus en tête de seq.c : cercle i → partie i, fills, modes PERC/STAB/DRONE, file UI→audio `alt_q`)
 - `alter_ui.c` vue PLAY + pages rapides/menus (inclus dans ui_input.c) · `alter_look.c` style tarot · `alter_fxpage.c` page FX
-- `alter_fx.c` presets FX + MASTER (inclus dans fx.c) · `alter_lfo.c` LFO + enveloppes par mode (inclus dans mod.c)
+- `alter_fx.c` presets FX + MASTER (inclus dans fx.c ; inclut `alter_filter.c` = MASTER FILTER) · `alter_lfo.c` LFO + enveloppes par mode (inclus dans mod.c)
 - `alter_sounds.c` 23 sons + 4 scènes d'usine · `alter_store.c` SAVE/LOAD · `alter_user_ambient.h` scène AMBIENT de Romain
 - `alter_persist.c` réglages en flash · `eng_alter.c` le moteur · `alter_legacy.c` **restes** (voir ci-dessous)
 - Outils : `tools/alter/` (tests, rendu, captures, page d'écoute, `alter_wav.c`).
@@ -160,10 +168,10 @@ La vue DEEP (3c) doit d'abord offrir en ALTER : GLIDE, canal/horloge MIDI, 2e c�
   **ATTEND L'ÉCOUTE de Romain** : 3a navigateur · 3b vue PLAY · 3d-1 3 voix ALTER/PHYS/NOISE · 3d-3 scènes + 23 sons ·
   3d-4 SAVE/LOAD scènes/patterns · 3e LFO (3 par cercle + GLOBAL + MTX) · 3f enveloppes par mode · 3g menu SEQ
   (EUCLID/TURING, couloirs VELO CHNC DLY REV PITCH RATCH, plages, SHUFFLE, FLAT) · 3h page FX + MASTER ·
-  refonte graphique tarot (lune, sablier, lissage) · **nettoyage Felucca phase 1 (01/11)**.
+  refonte graphique tarot (lune, sablier, lissage) · **nettoyage Felucca phase 1 (01/11)** · **MASTER FILTER (01/11)**.
   Retours connus : TECHNO « parfait » (ne pas toucher) ; NOISE METAL un peu doux dans le mélange.
 - [ ] **3c** : vue DEEP (EDIT) + écran SYSTEM ALTER, puis **retirer l'interface et le séquenceur Felucca** (phase 2 du
-  nettoyage). Reste aussi : sauver les mouvements REC dans la scène (objet 1 libre), touches blanches libres, DESTROY assignable, verrous du dé, DOSE, sauver les PLAGES (objet 1 libre).
+  nettoyage). Reste aussi : sauver les mouvements REC dans la scène (objets 5..), touches blanches libres, DESTROY assignable, verrous du dé, DOSE, sauver les PLAGES (objets 5..).
 - [ ] Étape 4 : tranche de console PAR PISTE, ordre fixe validé : son → disto/fold → EQ 3 bandes → compresseur → delay
   (echo, ping-pong stéréo à créer, dub) → reverb. Réutiliser alter_fx.c. Coût CPU à mesurer.
 

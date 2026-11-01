@@ -125,5 +125,51 @@ const dip = () => {
   check(`USER 01 keeps the MASTER (pump ${ref.toFixed(2)}, FLAT ${flat.toFixed(2)}, loaded ${back.toFixed(2)})`,
         Math.abs(back - ref) < 0.06 && flat - back > 0.08);
 }
+// the MASTER FILTER (alter_filter.c): off = untouched; LP takes the highs, HP the lows; DRIVE keeps the loudness;
+// RES past 1 screams on silence at the cutoff, held to about the mix's level; a USER scene keeps it, a factory one has none
+{
+  const F = (k, v) => W(12, k, v), FA = (a) => a.forEach((v, k) => F(k, v));
+  const lp = (a, f) => { const k = 1 - Math.exp(-2 * Math.PI * f / FS); let y = 0; return a.map((x) => (y += (x - y) * k)); };
+  const hp = (a, f) => { const b = lp(a, f); return a.map((x, i) => x - b[i]); };
+  const lows = (a) => rms(lp(lp(lp(a, 150), 150), 150)), highs = (a) => rms(hp(hp(hp(a, 4000), 4000), 4000));
+  const db = (x) => 20 * Math.log10(x + 1e-9);
+  W(1, 0, 0); W(4, BPM, 0); solo(-1); render(FS * 2);
+  const take = () => { render(FS); return render(FS * 3, true); };
+  const off = take();
+  FA([127, 0, 0, 0, 64, 0, 0, 127, 0, 64, 64]);                  // on, open: LP 18 kHz, no drive
+  const open = take();
+  check(`FILTER open: the level kept (${db(rms(off)).toFixed(1)} -> ${db(rms(open)).toFixed(1)} dB)`,
+        Math.abs(db(rms(open)) - db(rms(off))) < 1.5);
+  F(0, 60); const low = take();                                  // LP ~450 Hz
+  check(`FILTER LP 450 Hz: the highs go (${db(highs(open)).toFixed(1)} -> ${db(highs(low)).toFixed(1)} dB)`,
+        db(highs(open)) - db(highs(low)) > 20);
+  F(0, 73); F(2, 127); const hi = take(); F(2, 0); F(0, 127);    // HP 1 kHz
+  check(`FILTER HP 1 kHz: the lows go (${db(lows(open)).toFixed(1)} -> ${db(lows(hi)).toFixed(1)} dB)`,
+        db(lows(open)) - db(lows(hi)) > 20);
+  F(3, 127); const drv = take(); F(3, 0);
+  check(`FILTER DRIVE 127: the loudness kept (${db(rms(drv)).toFixed(1)} dB)`, Math.abs(db(rms(drv)) - db(rms(open))) < 3);
+  FA([60, 0, 0, 0, 64, 0, 0, 127, 0, 64, 64]);                   // A: LP 450 Hz ..
+  [127, 0, 0, 0, 64, 0, 0, 127, 0, 64, 64].forEach((v, k) => F(11 + k, v));   // .. B: open
+  F(22, 0); const ma = take(); F(22, 127); const mb = take(); F(22, 0);
+  check(`FILTER MORPH A -> B: from closed to open (highs ${db(highs(ma)).toFixed(1)} -> ${db(highs(mb)).toFixed(1)} dB)`,
+        db(highs(mb)) - db(highs(ma)) > 20);
+  [127, 0, 0, 0, 64, 0, 0, 0, 0, 64, 64].forEach((v, k) => F(11 + k, v));    // (B off again)
+  for (let c = 0; c < 3; c++) W(2, c, 1);                        // silence
+  FA([73, 127, 0, 0, 64, 0, 0, 127, 0, 64, 64]); render(FS * 2);
+  const osc = render(FS, true); let zc = 0;
+  for (let i = 1; i < osc.length; i++) if (osc[i - 1] < 0 && osc[i] >= 0) zc++;
+  check(`FILTER RES 127 on silence: it screams at the cutoff (${zc} Hz, ${db(rms(osc)).toFixed(1)} dB)`,
+        zc > 850 && zc < 1150 && db(rms(osc)) > -40 && db(rms(osc)) < db(rms(open)) + 6);
+  solo(-1);
+  W(13, 0, 2); F(22, 0); render(FS);                             // TAPE into A (B too: it was off)
+  const row = (n) => { enc(0, -25); enc(0, n); };
+  B(SAVEB); row(6); B(SAVEB, FS * 1.2); B(6);                    // USER 02: SAVE held 1.2 s; HOME
+  W(1, 0, 0); render(FS);
+  const fac = ex.web_alter_flt(1);                               // a factory scene: none (-1)
+  B(SAVEB); row(6); B(SAVEB); render(FS);                        // USER 02 loaded
+  const back = ex.web_alter_flt(1);
+  check(`FILTER: a factory scene has none (${fac}), USER 02 brings it back (${back})`, fac === -1 && back >= 0);
+  W(1, 0, 0); render(FS);
+}
 console.log(fails ? `fx: ${fails} FAIL` : "fx: all ok");
 process.exit(fails ? 1 : 0);

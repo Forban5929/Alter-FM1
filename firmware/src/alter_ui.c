@@ -1060,7 +1060,7 @@ static const char *alt_menu_name(uint32_t q)
            q == QP_EDIT ? "SETTINGS" : q == QP_SCL ? "SCALES" : "";
 }
 
-static void afp_input(void);                     /* the FX page (alter_fxpage.c, with the screen below) */
+static void afp_input(uint32_t pressed);                     /* the FX page (alter_fxpage.c, with the screen below) */
 static void alt_set_input(void);                 /* SETTINGS (with the screens below) */
 static int alter_ui_input(uint32_t pressed)
 {
@@ -1236,7 +1236,7 @@ static int alter_ui_input(uint32_t pressed)
     }
     q = alt_page();
     if (afp.open)                                /* the FX page: its encoders (the keys play on: mutes, dice, fills) */
-        afp_input();
+        afp_input(pressed);
     for (i = 0; i < 4u; i++)
         if ((s = panel_enc(EN_K1 + i)) != 0 && !au.lockc)
             alt_turn(q, i, s);
@@ -2667,7 +2667,8 @@ static void alter_draw(void)
  * (b = 0 / 1), 3 circle a's envelope mode b, 4 tempo a, 5 circle a's mode: its sound's own, 6 Felucca's phrase b on
  * part a (as its own SAVE page would: the test that ALTER keeps Felucca's sequencer quiet), 7 the FX page's preset b
  * of slot a (alter_fx.c AFX_S_*: 0..2 a circle's DIST), 8 MASTER setting a (amx) to b, 9 circle a's
- * DELAY lane at step b off, 10 circle a's envelope mode settings to their defaults */
+ * DELAY lane at step b off, 10 circle a's envelope mode settings to their defaults, 11 circle a aligns its level,
+ * 12 the MASTER FILTER's setting a (0..10 A, 11..21 B, 22 MORPH) to b, 13 its preset b into snapshot a */
 /* the browser build's tool: USER scene u's records as bytes (its scene, its three rhythms, its effects, its envelope
  * settings), so tools/alter/alter_user_scene.mjs can turn a USER scene into a factory one (alter_sounds.c) */
 #define ALT_DUMP_N (sizeof(alt_scene_rec_t) + sizeof(alt_rhy_t) * AS_NCIRC + 1u + ALT_FXREC + 1u + AS_NCIRC * AE_N)
@@ -2709,6 +2710,10 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
     case 9: alt_seq.c[a % AS_NCIRC].sdly[b % AS_NLANE] = 0; break;   /* (a test: a step's DELAY lane off) */
     case 10: alt_env_default(a % AS_NCIRC); break;   /* (a test: circle a's mode settings back to the defaults) */
     case 11: alt_cal(a % AS_NCIRC); break;       /* (a test: circle a aligns its level) */
+    case 12:                                     /* (a test: the MASTER FILTER's setting a: 0..10 A, 11..21 B, 22 MORPH) */
+        if (a < 2u * AFL_N) afl[a / AFL_N][a % AFL_N] = (uint8_t)b; else afl_morph = (uint8_t)b;
+        break;
+    case 13: afl_pre_apply(a & 1u, b); break;    /* (a test: the MASTER FILTER's preset b into snapshot a) */
     default: break;
     }
 }

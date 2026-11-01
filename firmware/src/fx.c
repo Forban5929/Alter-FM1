@@ -1071,6 +1071,8 @@ static void mix_block(int32_t *out, uint32_t n)
     fx_buses(send_c, send_d, send_r, wet, n);
     if (hl.side)
         rev_side_mix(mix_l, mix_r, n);                  /* HALL: stereo */
+    if (afl_p(AFL_MIX) || afs.run)
+        afl_block(mix_l, mix_r, wet, n);                /* ALTER's MASTER FILTER (alter_filter.c): wet folded in */
     if (am_on())
         am_master(mix_l, mix_r, wet, n);                /* ALTER's MASTER block (alter_fx.c): wet folded in */
     if (scope_mix)

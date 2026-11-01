@@ -270,6 +270,8 @@ static __attribute__((noinline)) void am_master(int32_t *l, int32_t *r, int32_t 
     am_gr = (uint8_t)(comp ? (uint32_t)(32768 - (gmin > 32768 ? 32768 : gmin)) * 100u / 32768u : 0u);
 }
 
+#include "alter_filter.c"                         /* the MASTER FILTER (before the MASTER block) */
+
 /* the FX page's presets in use (the UI's: alter_fxpage.c, the scenes): 0..2 each circle's DIST, 3 DELAY, 4 REVERB,
  * 5 MASTER; afx_edit bit k: a knob moved since (the name shown with a *) */
 enum { AFX_S_DLY = 3, AFX_S_REV, AFX_S_MST, AFX_NS };
@@ -277,6 +279,7 @@ static uint8_t afx_sel[AFX_NS];
 static uint8_t afx_edit;
 static struct {
     uint8_t open, hold, tab, row;    /* the FX page: open; opened by this hold (its release keeps it); the tab; MASTER's row */
+    uint8_t ab;                      /* the FILTER tab: the snapshot the knobs edit (0 A, 1 B) */
 } afp;
 
 /* ---- the circles' level alignment (Romain, 01/11): after a random draw (CHAOS, TOTAL CHAOS, a DICE, MUTE 1+2+3) a
@@ -340,6 +343,7 @@ static void ac_poll(uint32_t c, uint32_t bn)   /* once a block of bn samples, ev
 static void ac_measure(uint32_t c, const int32_t *b, int32_t lvl, uint32_t n)   /* mix_part: the circle's block */
 {
     uint32_t i;
+    afl_take(c, b, lvl, n);                             /* (the MASTER FILTER's sidechain: alter_filter.c) */
     if (c >= AM_NC || !(ac[c].on | ac[c].guard))
         return;
     for (i = 0; i < n; i++) {
