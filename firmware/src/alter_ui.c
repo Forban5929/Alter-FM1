@@ -1942,6 +1942,72 @@ static void alt_set_scene(void)
 
 #include "alter_fxpage.c"
 
+
+/* how bright circle i's piece of the middle is: 4 just hit .. 0 at rest (about a quarter second) */
+static uint32_t alt_glow(uint32_t i)
+{
+    uint32_t t = fm1_ms - au.flash_ms[i % AS_NCIRC];
+    return t < 50u ? 4u : t < 100u ? 3u : t < 160u ? 2u : t < 240u ? 1u : 0u;
+}
+/* a filled triangle (screen coordinates, 1/16 px), each row from edge to edge */
+static void alt_tri(int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x2, int32_t y2, uint16_t c)
+{
+    int32_t t, y;
+#define ALT_SWAP(a, b) (t = a, a = b, b = t)
+    if (y1 < y0) { ALT_SWAP(x0, x1); ALT_SWAP(y0, y1); }
+    if (y2 < y0) { ALT_SWAP(x0, x2); ALT_SWAP(y0, y2); }
+    if (y2 < y1) { ALT_SWAP(x1, x2); ALT_SWAP(y1, y2); }
+#undef ALT_SWAP
+    if (y2 == y0)
+        return;
+    for (y = (y0 + 15) / 16; y * 16 <= y2; y++) {
+        int32_t yy = y * 16, xa, xb, xl, xr;
+        xa = x0 + (x2 - x0) * (yy - y0) / (y2 - y0);                     /* the long edge */
+        if (yy < y1)
+            xb = y1 == y0 ? x1 : x0 + (x1 - x0) * (yy - y0) / (y1 - y0);
+        else
+            xb = y2 == y1 ? x1 : x1 + (x2 - x1) * (yy - y1) / (y2 - y1);
+        xl = (xa < xb ? xa : xb) + 8;
+        xr = (xa < xb ? xb : xa) + 8;
+        if (xr / 16 > xl / 16)
+            cv_rect(xl / 16, y, xr / 16 - xl / 16, 1, c);
+    }
+}
+/* the middle (Romain, 01/11): a triangle cut from its centre into three, one piece per circle in its colour, faint at
+ * rest; a hit of that circle lights its piece and pushes it out a little, both fading over a quarter second. Muted:
+ * grey. The chosen circle's piece carries a dot */
+static void alt_prism(void)
+{
+    static const int32_t V[3][2] = {{0, -30 * 16}, {-26 * 16, 15 * 16}, {26 * 16, 15 * 16}};   /* top, left, right */
+    static const uint8_t E[AS_NCIRC][2] = {{0, 1}, {0, 2}, {1, 2}};   /* circle i's piece: the centre + these two */
+    int32_t cx = ALT_CX * 16, cy = ALT_CY * 16;
+    uint32_t i;
+    for (i = 0; i < AS_NCIRC; i++) {
+        const int32_t *a = V[E[i][0]], *b = V[E[i][1]];
+        int32_t mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;      /* out: towards its outer edge's middle */
+        int32_t gx = (a[0] + b[0]) / 3, gy = (a[1] + b[1]) / 3;      /* its own centre (the triangle's is 0, 0) */
+        uint32_t lv = alt_glow(i);
+        int32_t len = mx * mx + my * my, push = (int32_t)lv * 16, ox, oy, k;
+        int32_t px[3], py[3];
+        uint16_t col = au.cfg[i].mute ? ALT_GREY : ALT_COL[i];
+        {                                        /* (the unit outward step: |m| is 15 px for every piece) */
+            (void)len;
+            ox = mx * push / (15 * 16);
+            oy = my * push / (15 * 16);
+        }
+        px[0] = 0; py[0] = 0;
+        px[1] = a[0]; py[1] = a[1];
+        px[2] = b[0]; py[2] = b[1];
+        for (k = 0; k < 3; k++) {                /* drawn a little smaller than its place: a gap between the pieces */
+            px[k] = gx + (px[k] - gx) * 7 / 8 + cx + ox;
+            py[k] = gy + (py[k] - gy) * 7 / 8 + cy + oy;
+        }
+        alt_tri(px[0], py[0], px[1], py[1], px[2], py[2], alt_fade(col, au.cfg[i].mute ? 45 : 28 + (int32_t)lv * 18));
+        if (i == au.sel)                         /* the chosen circle: a dot in its piece */
+            alt_disc((cx + gx + ox) / 16, (cy + gy + oy) / 16, 2, col);
+    }
+}
+
 static void alt_scene(uint32_t q, uint32_t flash)
 {
     const track_t *t = &trk[au.sel];
@@ -2031,13 +2097,13 @@ static void alt_scene(uint32_t q, uint32_t flash)
                 cv_rect(x - 16 + k2, y - (6 - k2), 1, 2 * (6 - k2) + 1, ALT_COL[i]);
         }
     }
-    /* the middle: the key held or tapped, else the chosen circle's flash */
+    /* the middle: the key held or tapped, else the three circles' triangle */
     if (au.msg && fm1_ms - au.msg_ms < 900u) {
         int32_t w = text_w(&AF_S, au.msg);
         cv_rect(ALT_CX - w / 2 - 4, ALT_CY - 9, w + 8, 18, ALT_BG);
         cv_text(ALT_CX - w / 2, ALT_CY - 8, &AF_S, au.msg, ALT_INK);
     } else
-        alt_disc(ALT_CX, ALT_CY, (flash >> au.sel) & 1u ? 9 : 3, (flash >> au.sel) & 1u ? ALT_COL[au.sel] : ALT_GREY);
+        alt_prism();
     alt_foot(q);
 }
 
@@ -2075,6 +2141,7 @@ static void alter_draw(void)
         }
         if (fm1_ms - au.flash_ms[i] < 70u)
             flash |= 1u << i;
+        sig = sig * 7u + alt_glow(i);
     }
     for (i = 0; i < AS_NCIRC; i++)               /* what the picture depends on */
         sig = sig * 31u + alt_seq.c[i].pos + alt_seq.c[i].pat * 7u + (uint32_t)alt_seq.c[i].cfg.len * 131u +
