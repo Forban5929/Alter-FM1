@@ -308,6 +308,10 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
         ⚠ Le son du navigateur a ~0,3 s de retard sur les réglages : attendre ≥ 1 s avant de mesurer.
         Police AF_L : « Z » ajouté (tools/gen_aa_font.py ; supprimer build/gen pour régénérer).
         Pas fait : delay ping-pong stéréo (le delay Felucca est mono), EQ/compresseur PAR piste (étape 4).
+  - [ ] **Refonte graphique (01/11, PROPOSITION, rien codé)** : canvas https://claude.ai/artifact/ATmBQMPtQ33hEiNbvVJkCD
+        A ALCHIMIE (cercles-sigils : polygones des coups, symboles, alidade) · B ORBITES (3 étoiles au centre, coups = lunes,
+        queue de comète) ; NIGHT très sombre, DAY = carte de tarot crème (bandeau titre, chiffre romain, knobs en phases de lune).
+        ATTEND LE CHOIX DE ROMAIN. Firmware : polices à regénérer (gen_aa_font.py), pas de texte courbe.
   - [ ] 3c : vue DEEP (EDIT ouvre encore la page EDIT de Felucca). Puis retirer l'interface Felucca. Reste : SCL → gamme
         des cercles, touches blanches libres, DESTROY assignable, verrous du dé, DOSE.
 - [ ] Étape 4 (après le séquenceur) : tranche de console PAR PISTE, ordre FIXE validé :
