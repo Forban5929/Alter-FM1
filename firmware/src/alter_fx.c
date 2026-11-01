@@ -278,3 +278,96 @@ static uint8_t afx_edit;
 static struct {
     uint8_t open, hold, tab, row;    /* the FX page: open; opened by this hold (its release keeps it); the tab; MASTER's row */
 } afp;
+
+/* ---- the circles' level alignment (Romain, 01/11): after a random draw (CHAOS, TOTAL CHAOS, a DICE, MUTE 1+2+3) a
+ * circle measures what it really gives (after DIST and INSERT, at its LEVEL) over its first hits, then its own gain
+ * (apart from LEVEL: the player's VOLUME stays his) brings it to AC_TARGET and stays there. The measure: the RMS of
+ * windows of 1024 samples (23 ms) while it sounds, the mean of the four loudest (so a sparse rhythm counts as a dense
+ * one); done once it has 8 such windows and 4 s (a slow swell, a slow LFO), or after 8 s (silent: unchanged). Too loud on the way
+ * (1.5 x the target): down at once. Within -18 .. +18 dB. Once frozen, a guard: a window over 2 x the target
+ * (+6 dB, a slow swell the measure missed) lowers it, never up again. A sound chosen by hand (PRESETS, a scene) gets 0 dB again.
+ * The UI asks through alt_cal_cmd (a gain Q15, 0 = measure) and alt_cal_cnt (it writes both, the audio side reads) */
+#define AC_WIN 1024u
+#define AC_TARGET 5600                    /* the RMS aimed at: the median of the 23 sounds, in the mix's units (tools/alter/alter_level.mjs) */
+#define AC_UNITY 32768
+#define AC_MIN 4129                       /* -18 dB */
+#define AC_MAX 260200                     /* +18 dB */
+static volatile int32_t alt_cal_cmd[AM_NC];
+static volatile uint32_t alt_cal_cnt[AM_NC];
+static uint32_t ac_seen[AM_NC];
+static volatile int32_t ac_tg[AM_NC] = {AC_UNITY, AC_UNITY, AC_UNITY};   /* the gain it heads for (the UI reads it) */
+static int32_t ac_g[AM_NC] = {AC_UNITY, AC_UNITY, AC_UNITY};             /* the gain now, Q15 (gliding) */
+static volatile uint32_t ac_last[AM_NC];  /* the last measure (tests) */
+static struct {
+    uint8_t on, nw;                       /* measuring; windows with sound */
+    uint8_t guard;                        /* after a random draw: louder than 2 x the target (+6 dB) lowers it, for good */
+    uint32_t t, wn;                       /* samples since it began; samples in the window */
+    uint64_t e;                           /* the window's energy */
+    uint32_t top[4];                      /* the four loudest windows' RMS */
+} ac[AM_NC];
+#define AC_G(t) ((uint32_t)((t) - trk) < AM_NC ? ac_g[(t) - trk] : AC_UNITY)
+
+static void ac_poll(uint32_t c, uint32_t bn)   /* once a block of bn samples, every circle (sounding or not) */
+{
+    uint32_t n = alt_cal_cnt[c];
+    if (n != ac_seen[c]) {
+        int32_t g = alt_cal_cmd[c];
+        ac_seen[c] = n;
+        if (g) {
+            ac_tg[c] = clamp(g, AC_MIN, AC_MAX);
+            ac[c].on = ac[c].guard = 0;
+        } else {
+            ac[c].on = ac[c].guard = 1;
+            ac[c].nw = 0;
+            ac[c].t = ac[c].wn = 0;
+            ac[c].e = 0;
+            ac[c].top[0] = ac[c].top[1] = ac[c].top[2] = ac[c].top[3] = 0;
+        }
+    }
+    if (ac[c].on && (ac[c].t += bn) >= FS * 8u) {   /* 8 s: what it has (none: unchanged) */
+        ac[c].on = 0;
+        if (ac[c].nw) {
+            uint32_t L = (ac[c].top[0] + ac[c].top[1] + ac[c].top[2] + ac[c].top[3]) / (ac[c].nw < 4u ? ac[c].nw : 4u);
+            ac_last[c] = L;
+            ac_tg[c] = clamp((int32_t)((int64_t)AC_TARGET * AC_UNITY / (L | 1u)), AC_MIN, AC_MAX);
+        }
+    }
+    ac_g[c] += (ac_tg[c] - ac_g[c]) >> 3;  /* (glides over ~8 blocks: no click) */
+    if ((ac_tg[c] - ac_g[c]) * (ac_tg[c] - ac_g[c]) < 64)
+        ac_g[c] = ac_tg[c];
+}
+
+static void ac_measure(uint32_t c, const int32_t *b, int32_t lvl, uint32_t n)   /* mix_part: the circle's block */
+{
+    uint32_t i;
+    if (c >= AM_NC || !(ac[c].on | ac[c].guard))
+        return;
+    for (i = 0; i < n; i++) {
+        int32_t x = (((b[i] >> 2) * lvl) >> 10) >> 2;
+        ac[c].e += (uint64_t)((int64_t)x * x);
+    }
+    if ((ac[c].wn += n) >= AC_WIN) {
+        uint32_t r = am_isqrt((uint32_t)(ac[c].e / ac[c].wn)) * 4u, k, j;
+        ac[c].wn = 0;
+        ac[c].e = 0;
+        if (!ac[c].on) {                  /* frozen: only the guard (never up again: the hits keep their nuances) */
+            if ((int64_t)r * ac_g[c] > (int64_t)AC_TARGET * 2 * AC_UNITY)
+                ac_tg[c] = ac_g[c] = clamp((int32_t)((int64_t)AC_TARGET * 2 * AC_UNITY / r), AC_MIN, AC_MAX);
+            return;
+        }
+        if (r > 40u) {                    /* (-58 dB: sound, not a tail's last breath) */
+            if (ac[c].nw < 255u)
+                ac[c].nw++;
+            for (k = 0; k < 4u && r <= ac[c].top[k]; k++)
+                ;
+            for (j = 3u; k < 4u && j > k; j--)
+                ac[c].top[j] = ac[c].top[j - 1u];
+            if (k < 4u)
+                ac[c].top[k] = r;
+            if ((int64_t)r * ac_g[c] > (int64_t)AC_TARGET * 3 / 2 * AC_UNITY)   /* too loud: down now */
+                ac_tg[c] = ac_g[c] = clamp((int32_t)((int64_t)AC_TARGET * AC_UNITY / r), AC_MIN, AC_MAX);
+            if (ac[c].nw >= 8u && ac[c].t >= FS * 4u)
+                ac[c].t = FS * 8u;        /* enough: done at the next poll */
+        }
+    }
+}

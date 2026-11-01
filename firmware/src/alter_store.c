@@ -510,6 +510,18 @@ static int alt_row_save(uint32_t t, uint32_t i)
     u = i - 1u - ALT_NFACT;
     if (t == 0) {
         uint32_t k;
+        for (c = 0; c < AS_NCIRC; c++)           /* a circle's alignment gain folded into its LEVEL (a scene keeps */
+            if (ac_tg[c] != AC_UNITY) {          /* LEVEL only): it reloads as loud as it plays */
+                int32_t want = (int32_t)(((int64_t)LEVEL_Q12[trk[c].p[P_LEVEL] & 127] * ac_tg[c]) >> 15), best = 1, j;
+                for (j = 1; j < 128; j++)
+                    if ((LEVEL_Q12[j] > want ? LEVEL_Q12[j] - want : want - LEVEL_Q12[j]) <
+                        (LEVEL_Q12[best] > want ? LEVEL_Q12[best] - want : want - LEVEL_Q12[best]))
+                        best = j;
+                fm1_irq_off();
+                trk[c].p[P_LEVEL] = (int16_t)best;
+                fm1_irq_on();
+                alt_cal_to(c, AC_UNITY);
+            }
         alt_scene_get(&alt_bank_s.s[u], alt_bank_r.r[u]);
         alt_bank_p.envok[u] = 1;
         alt_bank_r.fxok[u] = 1;

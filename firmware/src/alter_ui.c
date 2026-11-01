@@ -156,6 +156,18 @@ static const uint8_t ALT_ENGS[AS_NCIRC] = {ENGI_ALTER, ENGI_PHYS, 11};   /* 11: 
 #include "alter_sounds.c"
 
 /* circle c's sound: ALT_PRE[i] on its part (the engine, its defaults, then the sound's values) */
+/* the circles' level alignment (alter_fx.c): measure anew after a random draw, or a gain as it is (Q15, 0 dB = AC_UNITY) */
+static void alt_cal(uint32_t c)
+{
+    alt_cal_cmd[c % AS_NCIRC] = 0;
+    alt_cal_cnt[c % AS_NCIRC]++;
+}
+static void alt_cal_to(uint32_t c, int32_t g)
+{
+    alt_cal_cmd[c % AS_NCIRC] = g;
+    alt_cal_cnt[c % AS_NCIRC]++;
+}
+
 static void alt_load_sound(uint32_t c, uint32_t i)
 {
     track_t *t = &trk[c];
@@ -185,6 +197,7 @@ static void alt_load_sound(uint32_t c, uint32_t i)
     alt_gate_left[c] = 0;
     fm1_irq_on();
     afx_sel[c] = 0;                              /* (its DIST: the sound's own again, alter_fx.c) */
+    alt_cal_to(c, AC_UNITY);                     /* (a sound chosen: its own level, 0 dB; a random draw measures after) */
     afx_edit &= (uint8_t)~(1u << c);
     alt_preset_cnt[c]++;
 }
@@ -745,6 +758,7 @@ static void alt_chaos(void)
         alt_post_now |= (uint8_t)(1u << c);
         alt_post_circle(c);
         alt_roll_cnt[c]++;                       /* and the die at full DOSE */
+        alt_cal(c);                              /* (its level aligned on its first hits) */
     }
     alt_say("CHAOS");
 }
@@ -783,6 +797,7 @@ static void alt_lanes_random(void)
         cf->frot = (uint8_t)(cf->frot % n);
         alt_post_now |= (uint8_t)(1u << c);
         alt_post_circle(c);
+        alt_cal(c);
     }
     alt_say("SHUFFLE");
 }
@@ -810,6 +825,7 @@ static struct {
     int8_t rlo[AS_NCIRC][AS_NLR][AS_NLANE], rhi[AS_NCIRC][AS_NLR][AS_NLANE];
     int16_t g[sizeof ALT_TC_G];
     uint8_t afx_sel[AFX_NS], afx_edit;
+    int32_t cal[AS_NCIRC];
 } alt_tcu __attribute__((section(".pool")));   /* (main loop only) */
 
 static void alt_tc_snap(void)
@@ -823,6 +839,7 @@ static void alt_tc_snap(void)
         for (k = 0; k < P_COUNT; k++)
             alt_tcu.p[c][k] = (int16_t)alt_base(c, k);   /* (without the die's offsets) */
         alt_tcu.cfg[c] = au.cfg[c];
+        alt_tcu.cal[c] = ac_tg[c];
         for (k = 0; k < CL_N; k++)
             alt_tcu.cl[c][k] = alt_cl[c][k];
         for (k = 0; k < AE_N; k++)
@@ -883,6 +900,7 @@ static void alt_tc_undo(void)
         alt_post_now |= (uint8_t)(1u << c);
         alt_post_circle(c);
         alt_clear_cnt[c]++;                      /* (the die CHAOS rolled: clean again) */
+        alt_cal_to(c, alt_tcu.cal[c]);           /* (its level as it was) */
     }
     alt_seq.scale = alt_tcu.scale;
     for (k = 0; k < sizeof ALT_TC_G; k++)
@@ -980,6 +998,7 @@ static void alt_total_chaos(void)
         alt_post_now |= (uint8_t)(1u << c);
         alt_post_circle(c);
         alt_roll_cnt[c]++;                       /* and the die at full DOSE */
+        alt_cal(c);                              /* (its level aligned on its first hits) */
     }
     alt_say("TOTAL CHAOS");
 }
@@ -1254,11 +1273,13 @@ static int alter_ui_input(uint32_t pressed)
             if (au.die_t0[i2] && (int32_t)(fm1_ms - au.die_t0[i2]) >= (int32_t)ALT_DIE_HOLD_MS && !((au.die_clean_done >> i2) & 1u)) {
                 au.die_clean_done |= (uint8_t)(1u << i2);
                 alt_clear_cnt[i2]++;
+                alt_cal(i2);
                 alt_say("CLEAN");
             }
         } else if (au.die_t0[i2]) {              /* let go: a tap rolls, at once */
             if (!((au.die_clean_done >> i2) & 1u)) {
                 alt_roll_cnt[i2]++;
+                alt_cal(i2);
                 au.tap_ms[k] = fm1_ms | 1u;
                 alt_say("NEW DRAW");
             }
@@ -2616,6 +2637,7 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
     case 8: amx[a % AMX_N] = (uint8_t)b; break;  /* (a test: MASTER setting a) */
     case 9: alt_seq.c[a % AS_NCIRC].sdly[b % AS_NLANE] = 0; break;   /* (a test: a step's DELAY lane off) */
     case 10: alt_env_default(a % AS_NCIRC); break;   /* (a test: circle a's mode settings back to the defaults) */
+    case 11: alt_cal(a % AS_NCIRC); break;       /* (a test: circle a aligns its level) */
     default: break;
     }
 }

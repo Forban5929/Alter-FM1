@@ -827,7 +827,7 @@ static __attribute__((noinline)) void mix_spread(track_t *t, int32_t *b, uint32_
 {
     int32_t *d = SPREAD_BUF(t);
     uint32_t i;
-    int32_t lvl = LEVEL_Q12[t->p[P_LEVEL] & 127], pan = t->p[P_PAN], s = (t->p[P_SPRD] + 1) >> 1;
+    int32_t lvl = (int32_t)(((int64_t)LEVEL_Q12[t->p[P_LEVEL] & 127] * AC_G(t)) >> 15), pan = t->p[P_PAN], s = (t->p[P_SPRD] + 1) >> 1;
     int32_t pa = clamp(pan - s, -64, 63), pb = clamp(pan + s, -64, 63);
     int32_t gla = 4096 - (pa > 0 ? pa * 64 : 0), gra = 4096 + (pa < 0 ? pa * 64 : 0);
     int32_t glb = 4096 - (pb > 0 ? pb * 64 : 0), grb = 4096 + (pb < 0 ? pb * 64 : 0);
@@ -843,6 +843,7 @@ static __attribute__((noinline)) void mix_spread(track_t *t, int32_t *b, uint32_
     slicer_track_sd(t, b, d, n);
     if ((pf.mute >> (t - trk)) & 1u)
         perf_mute_sd((uint32_t)(t - trk), b, d, n);
+    ac_measure((uint32_t)(t - trk), b, LEVEL_Q12[t->p[P_LEVEL] & 127], n);   /* (ALTER's alignment) */
     for (i = 0; i < n; i++) {
         int32_t x = ((b[i] >> 2) * lvl) >> 10, a = x < 0 ? -x : x, y = ((d[i] >> 2) * lvl) >> 10;
         int32_t xs = clamp(x, -xmax, xmax);
@@ -910,6 +911,8 @@ static void mix_part(track_t *t, uint32_t n SM_DECL)
     if (!T_SPREAD(t)) {                                /* (the mix's values read after the calls: none is held over
                                                          * them, no spill in the loop: the ISR's cost as before 1.5) */
         int32_t lvl = (LEVEL_Q12[t->p[P_LEVEL] & 127] * AM_DG(t)) >> 15, pan = t->p[P_PAN];   /* (ALTER's duck) */
+        ac_measure((uint32_t)(t - trk), b, LEVEL_Q12[t->p[P_LEVEL] & 127], n);   /* (ALTER's alignment: its measure */
+        lvl = (int32_t)(((int64_t)lvl * AC_G(t)) >> 15);                          /* and its gain) */
         int32_t gl = 4096 - (pan > 0 ? pan * 64 : 0), gr = 4096 + (pan < 0 ? pan * 64 : 0);
         int32_t c = t->p[P_CHOR] * 258, d = t->p[P_DLY] * 258, r = t->p[P_REV] * 258, pk = t->peak;
         int32_t xmax = c > d ? c : d;
@@ -1034,6 +1037,8 @@ static void mix_block(int32_t *out, uint32_t n)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
     events_block(n);
     am_duck_block(n);                                   /* ALTER: the duck's gains (alter_fx.c) */
+    for (uint32_t ci = 0; ci < AM_NC; ci++)
+        ac_poll(ci, n);                                 /* ALTER: the circles' alignment (alter_fx.c) */
     perf = perf_begin(n);                               /* the FX hold layer at work (perform.c) */
 #if FELUCCA_CPU2
     uint32_t m = C1_ON() ? C1_SPLIT() & ((1u << NPART) - 1u) : 0u;

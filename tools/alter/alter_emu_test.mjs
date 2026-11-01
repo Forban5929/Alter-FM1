@@ -509,6 +509,18 @@ play();
   const c2 = shot();
   check("SHIFT -1 + SHIFT +1 + REVERSE: TOTAL CHAOS; again within 3 s: everything back", c1 !== p2 && c2 === p2);
 }
+{                                                               // the level alignment after a random draw (alter_fx.c)
+  const g = () => [0, 1, 2].map((c) => ex.web_alter_cal(c, 1));
+  [0, 1, 2].forEach((c) => ex.web_alter(2, c, 0));
+  if (peak(render(FS, true)) < 0.001) play();                    // (playing: the measure listens)
+  K(1 << 7); render(1000); K(1 << 7 | 1 << 9); render(1000); K(1 << 7 | 1 << 9 | 1 << 11); render(4000); K(0);
+  render(FS * 9);
+  const ga = g();
+  ex.web_alter(0, 0, 0); render(FS / 2);                         // (a sound chosen by hand: 0 dB again)
+  const gb = g();
+  check(`CHAOS: each circle's level aligned (gains ${ga.map((x) => (20 * Math.log10(x / 32768)).toFixed(1)).join(" / ")} dB); a sound chosen: 0 dB`,
+        ga.some((x) => x !== 32768) && ga.every((x) => x >= 4129 && x <= 260200) && gb[0] === 32768);
+}
 if (wavPath) {                                                  // 4 bars from a fresh start, all three circles
   ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
   play();

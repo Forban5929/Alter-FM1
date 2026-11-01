@@ -79,6 +79,16 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
   mutes, MASTER. Volume gardé : LEVEL du son, INSERT LEVEL ≤ 0 dB, FEEDBACK ≤ 100. **Même combo dans les 3 s = annulé**
   (photo exacte avant : alt_tcu, alt_tc_snap/alt_tc_undo ; le dé redevient propre). Les tours des SHIFT et le REVERSE
   du combo sont annulés/muets (au.sh_app, au.tc_combo). Tests : 2 contrôles dans alter_emu_test.mjs.
+- **ALIGNEMENT DES NIVEAUX (01/11)** après un hasard (DÉ tapé ou tenu, 3 MUTE, CHAOS, CHAOS TOTAL) : le cercle mesure
+  son vrai niveau (après DIST/INSERT, à son LEVEL ; RMS par fenêtres de 23 ms, moyenne des 4 plus fortes) pendant ≥ 4 s
+  et 8 fenêtres sonores (8 s max), puis un GAIN À PART (pas LEVEL : le VOLUME reste à Romain) le ramène à AC_TARGET
+  (5600 = médiane des 23 sons, `tools/alter/alter_level.mjs`, `… chaos` = 10 tirages avec/sans) et le FIGE ; −18..+18 dB ;
+  trop fort pendant la mesure (×1,5) = baisse immédiate ; ensuite GARDE-FOU : au-delà de +6 dB il baisse, jamais ne
+  remonte. Son/scène choisis à la main = 0 dB (sons et scènes identiques au bit près). Sauver une scène intègre le gain
+  dans son LEVEL. Annuler le CHAOS TOTAL remet les gains d'avant. Code : alter_fx.c ac_* (ac_poll dans mix_block,
+  ac_measure dans mix_part/mix_spread, AC_G dans le niveau), alter_ui.c alt_cal/alt_cal_to (alt_cal_cmd/cnt).
+  Mesuré : écart entre cercles 15-24 dB → 1-5 dB sur 8 tirages sur 10 ; restent faibles : sons à la limite +18 dB
+  ou dont les coups se raréfient après la mesure.
 - **CHAOS = DÉ 1+2+3 ensemble** : moteur, preset, 8 réglages, effets + LFO, rythme (immédiat), dé DOSE 127, gamme et
   notes de base, sur les 3 cercles. PAS le tempo, ni les modes, ni les mutes. DÉFINITIF (pas d'annulation).
 - Vue **DEEP** (EDIT) : tous les réglages. Effets Felucca (DIST, INSERT FOLD, delay, reverb), ADSR Felucca.

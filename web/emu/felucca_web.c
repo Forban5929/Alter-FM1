@@ -496,3 +496,4 @@ EXPORT uint32_t web_sample_rate(void) { return FS; }
 EXPORT void web_alter(uint32_t op, uint32_t a, uint32_t b) { alt_web_cmd(op, a, b); }
 EXPORT uint32_t web_alter_dump(uint32_t u) { return alt_dump_user(u); }   /* (USER scene u's bytes: alter_ui.c) */
 EXPORT uint8_t *web_alter_dump_buf(void) { return alt_dump; }
+EXPORT uint32_t web_alter_cal(uint32_t c, uint32_t what) { return what ? (uint32_t)ac_tg[c % 3u] : ac_last[c % 3u]; }   /* (tests: alter_fx.c) */
