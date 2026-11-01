@@ -52,6 +52,7 @@ static const alt_key_t ALT_KEY[27] = {    /* k: semitones above F3 (whites 0 2 4
     [25] = {AK_FILL, AF_REVERSE, "REVERSE"},
 };
 #define ALT_DIE_HOLD_MS 600u
+#define ALT_REC_CLEAR_MS 1000u                   /* REC held: the chosen circle's moves cleared */
 #define ALT_TAP_MS 150u                   /* a tapped key's bright LED */
 #define ALT_SAVE_HOLD_MS 1000u            /* SAVE held this long on its page: store */
 
@@ -107,6 +108,8 @@ static struct {
     uint8_t tc_combo;            /* SHIFT -1 + SHIFT +1 + REVERSE held: TOTAL CHAOS done (they do nothing else) */
     int8_t sh_app[2];            /* the turn each held SHIFT key gave (undone if it was the start of the combo) */
     uint32_t tc_ms;              /* the last TOTAL CHAOS (fm1_ms | 1): the same combo within 3 s undoes it */
+    uint32_t rec_t0;             /* REC's press (fm1_ms | 1), 0 = up */
+    uint8_t rec_done;            /* REC: its hold (or OCT- + OCT+) has cleared (its release does nothing) */
 } au;
 
 /* quick page q's name (LFO: the chosen circle's LFO 1) */
@@ -125,7 +128,7 @@ static const char *alt_qp_name(uint32_t q)
 static uint32_t alt_ours(void)
 {
     static const uint8_t OURS[] = {B_SEQ, B_ENV, B_FX, B_LFO, B_EDIT, B_SCL, B_GLO, B_HOME, B_SAVE, B_PLAY, B_OCTDN,
-                                   B_OCTUP, B_REC, B_ARP};   /* (REC, ARP: nothing yet, and not Felucca's) */
+                                   B_OCTUP, B_REC, B_ARP};   /* (REC: alter_rec.c; ARP: nothing yet, and not Felucca's) */
     uint32_t i, m = 0;
     for (i = 0; i < sizeof OURS; i++)
         m |= 1u << panel.btn[OURS[i]];
@@ -1119,6 +1122,31 @@ static int alter_ui_input(uint32_t pressed)
         au.sel = alt_sel = song.sel;
     if ((pressed >> panel.btn[B_PLAY]) & 1u)
         transport_req = song.playing || seq_counting() ? 2u : 1u;
+    {                                            /* REC (alter_rec.c): tap = overdub on / off; held 1 s = the chosen
+                                                  * circle cleared; OCT- + OCT+ + REC = every circle cleared */
+        uint32_t rd = (fm1_in.buttons >> panel.btn[B_REC]) & 1u;
+        if ((pressed >> panel.btn[B_REC]) & 1u) {
+            au.rec_t0 = fm1_ms | 1u;
+            au.rec_done = 0;
+            if (octs) {
+                for (i = 0; i < AS_NCIRC; i++)
+                    ar_clr_cnt[i]++;
+                ar_on = 0;
+                au.rec_done = 1;
+                alt_say("REC CLEAR ALL");
+            }
+        } else if (rd && au.rec_t0 && !au.rec_done && (int32_t)(fm1_ms - au.rec_t0) >= (int32_t)ALT_REC_CLEAR_MS) {
+            ar_clr_cnt[au.sel % AS_NCIRC]++;
+            au.rec_done = 1;
+            alt_say("REC CLEAR");
+        } else if (!rd && au.rec_t0) {
+            if (!au.rec_done) {
+                ar_on ^= 1u;
+                alt_say(ar_on ? "REC ON" : "REC OFF");
+            }
+            au.rec_t0 = 0;
+        }
+    }
     if ((pressed >> panel.btn[B_HOME]) & 1u) {   /* HOME: the circles, no page */
         au.qp = QP_NONE;
         au.lockc = 0;
@@ -1410,6 +1438,10 @@ static void alter_leds(uint8_t *nl, uint8_t *nd, uint8_t *nb, uint8_t *nm)
         led_put(nl, 14u + k, lit);
         led_put(nd, 14u + k, faint);
     }
+    led_clear(nl, panel.btn[B_REC]);             /* REC: lit while it writes, faint when the chosen circle has moves */
+    led_clear(nd, panel.btn[B_REC]);
+    led_put(nl, panel.btn[B_REC], ar_on != 0);
+    led_put(nd, panel.btn[B_REC], !ar_on && ar_n[au.sel % AS_NCIRC]);
 }
 
 /* ------------------------------------------------------------------ the screen --- */
@@ -1436,6 +1468,7 @@ static const uint16_t ALT_COLS[2][AS_NCIRC] = {
 #define ALT_RIB (ALT_DAY ? RGB(46, 43, 85) : RGB(74, 26, 31))      /* the title's ribbon */
 #define ALT_RIBTX (ALT_DAY ? RGB(243, 230, 200) : RGB(235, 217, 168))
 #define ALT_GO ALT_GOLD                                             /* PLAY */
+#define ALT_RED (ALT_DAY ? RGB(200, 40, 40) : RGB(226, 60, 52))     /* REC */
 /* c towards the background by (100 - pct) %, in colour whatever the palette (a grey palette's ux_mix would grey it) */
 static uint16_t alt_mixc(uint16_t a, uint16_t c, int32_t pct)
 {
@@ -2464,6 +2497,12 @@ static void alt_scene(uint32_t q, uint32_t flash)
             alt_tri(x * 16, 7 * 16, x * 16, 15 * 16, (x + 6) * 16, 11 * 16, ALT_GO);
         else
             cv_rect(x, 8, 6, 6, ALT_DIM);
+        if (ar_on)                               /* REC: a red dot while it writes, a ring when the chosen circle has moves */
+            alt_disc(x - 9, 11, 4, ALT_RED);
+        else if (ar_n[au.sel % AS_NCIRC]) {
+            alt_disc(x - 9, 11, 4, ALT_RED);
+            alt_disc(x - 9, 11, 2, ALT_BG);
+        }
         x = cv_text_r(231, 19, ALT_FS, ALT_MODE_NAME[m], m ? ALT_COL[au.sel] : ALT_DIM, ALT_BG);
         cv_text_r(231 - text_w(ALT_FS, ALT_MODE_NAME[m]) - 6, 19, ALT_FS, e->name, ALT_DIM, ALT_BG);
         (void)x;
@@ -2608,7 +2647,8 @@ static void alter_draw(void)
     sig = sig * 31u + (au.mat_open ? alt_mat_sig() * 2u + 1u : 0u) + (au.seq_open ? alt_seq_sig() * 4u + 3u : 0u) +
           (afp.open ? afp_sig() * 8u + 5u : 0u);
     sig = sig * 31u + au.mn * 61u + au.set_row * 67u + (uint32_t)ALT_DAY * 71u + au.cfg[au.sel % AS_NCIRC].chord * 73u;
-    sig = sig * 31u + alt_dial_live() * 83u;     /* (a number shown while its knob turns, then gone) */
+    sig = sig * 31u + alt_dial_live() * 83u;
+    sig = sig * 31u + (uint32_t)ar_on * 89u + (ar_n[au.sel % AS_NCIRC] != 0) * 97u;   /* (REC's mark) */     /* (a number shown while its knob turns, then gone) */
     sig = sig * 31u + q * 19u + au.lockc * 23u + alt_seq.c[au.lockc ? au.lockc - 1u : 0u].locks * 29u;
     sig = sig * 31u + au.sel * 3u + flash * 5u + (uint32_t)song.playing * 7u + trk[au.sel].preset * 11u +
           (uint32_t)song.g[G_BPM] * 13u + (au.msg && fm1_ms - au.msg_ms < 1500u ? (uint32_t)(uintptr_t)au.msg + (fm1_ms - au.msg_ms < 900u) : 1u);

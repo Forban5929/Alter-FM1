@@ -241,6 +241,8 @@ static void alt_move(uint32_t c, uint32_t p, int32_t d)
         t->p[p] = (int16_t)clamp(t->p[p] + d, lo, hi);
 }
 
+#include "alter_rec.c"                          /* REC: the knob moves on the steps (after alt_move) */
+
 static uint32_t alt_roll_period(uint32_t h, uint32_t p);
 
 /* a dub send of the target: up while held (v), back on release */
@@ -269,6 +271,7 @@ static void alt_take(void)
             t->p[P_IMIX] = 127;
         }
         alt_move(q.c % AS_NCIRC, q.p, q.d);
+        ar_moved(q.c % AS_NCIRC, q.p, alt_run && song.playing);
         alt_qr = (uint8_t)((alt_qr + 1u) % ALT_QN);
     }
     for (c = 0; c < AS_NCIRC; c++) {
@@ -276,6 +279,7 @@ static void alt_take(void)
         int32_t sh;
         if (pr != alt_preset_seen[c]) {          /* a preset: its values are the base, nothing applied on them */
             alt_preset_seen[c] = pr;
+            ar_clear(c);                         /* (REC's moves: of the sound before) */
             for (j = 0; j < ALT_NSLOT; j++)
                 alt_applied[c][j] = 0;
         }
@@ -305,6 +309,7 @@ static void alt_take(void)
         if ((n = alt_roll_cnt[c]) != alt_roll_seen[c]) {
             alt_roll_seen[c] = n;
             as_roll(&alt_seq, c);
+            ar_clear(c);                         /* (a draw: REC's moves gone, Romain 01/11) */
         }
         if ((n = alt_clear_cnt[c]) != alt_clear_seen[c]) {
             alt_clear_seen[c] = n;
@@ -438,11 +443,15 @@ static void alt_env_apply(uint32_t c, uint32_t m, int32_t die)
 static void alter_step(void)
 {
     as_event_t ev[AS_NCIRC];
-    uint32_t c, j, h = alt_hold;
+    uint32_t c, j, h = alt_hold, kk[AS_NCIRC];
     for (c = 0; c < AS_NCIRC; c++)               /* the LFOs on PROB */
         alt_seq.pmod[c] = (int16_t)alt_prob_of(c);
+    for (c = 0; c < AS_NCIRC; c++)               /* (the step each circle plays: REC) */
+        kk[c] = alt_seq.c[c].pos;
     as_step(&alt_seq, ev);
     alt_gstep++;
+    for (c = 0; c < AS_NCIRC; c++)
+        ar_step(c, kk[c] < alt_seq.c[c].cfg.len ? kk[c] : 0u, alt_seq.c[c].cfg.len, div_samples(2));
     if ((h >> AF_REVERSE) & 1u) {                /* back two: the next step is the one before this one */
         as_circ_t *r = &alt_seq.c[alt_tgt];
         r->pos = (uint8_t)((r->pos + 2u * r->cfg.len - 2u) % r->cfg.len);
@@ -533,6 +542,7 @@ static void alter_tick_(uint32_t n)
         alt_ready = 1;
     }
     alt_take();
+    ar_tick(n);
     alt_gl_tick(n, p);
     h = alt_hold;
     if (!song.playing) {

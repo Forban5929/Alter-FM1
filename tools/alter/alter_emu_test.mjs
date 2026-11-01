@@ -521,6 +521,37 @@ play();
   check(`CHAOS: each circle's level aligned (gains ${ga.map((x) => (20 * Math.log10(x / 32768)).toFixed(1)).join(" / ")} dB); a sound chosen: 0 dB`,
         ga.some((x) => x !== 32768) && ga.every((x) => x >= 4129 && x <= 260200) && gb[0] === 32768);
 }
+{                                                               // REC (Romain 01/11): the knob moves on the steps, in a loop
+  ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
+  const REC = 11, OD = 12, OU = 13, kp = () => ex.web_alter_knobp(0, 0);
+  const tapB = (n) => { ex.web_buttons(1 << n); render(2000); ex.web_buttons(0); render(2000); };
+  const vals = (n, every) => { const v = []; for (let i = 0; i < n; i++) { render(every); v.push(kp()); } return v; };
+  tapB(6); if (!ex.web_playing()) play(); render(BAR);       // (HOME: no page left open by the tests before)
+  if ((ex.web_lit_buttons() >> REC) & 1) tapB(REC);           // (REC left on by the test of Felucca's REC above)
+  const span = (a) => Math.max(...a) - Math.min(...a), base = span(vals(32, STEP / 2));   // (the scene's own movement: its LFOs)
+  tapB(REC);
+  const litOn = (ex.web_lit_buttons() >> REC) & 1;
+  render(BAR - 4000 - (BAR % STEP));                             // (from about the cycle's start)
+  for (let i = 0; i < 8; i++) { ex.web_enc(3, i < 4 ? 6 : -6); render(STEP); }   // up over 4 steps, down over 4
+  render(BAR);
+  tapB(REC);
+  const n1 = ex.web_alter_rec(0), litOff = (ex.web_lit_buttons() >> REC) & 1, dimOff = (ex.web_dim_buttons() >> REC) & 1;
+  const v = vals(64, STEP / 4), lo = Math.min(...v), hi = Math.max(...v), uniq = new Set(v).size;
+  check(`REC tapped: lit; knob 1 turned for 8 steps: ${n1} steps written; REC again: faint, the move plays on its own (${lo}..${hi}, ${uniq} values)`,
+        litOn && !litOff && dimOff && n1 >= 6 && hi - lo >= 20 && uniq >= 8);
+  ex.web_buttons(1 << REC); render(Math.floor(FS * 1.15)); ex.web_buttons(0); render(2000);
+  const n2 = ex.web_alter_rec(0), still = span(vals(32, STEP / 2));
+  check(`REC held 1 s: the chosen circle's moves cleared (${n2} steps), the knob back to its own movement (${still}, ${base} before)`, n2 === 0 && still <= base + 2 && !((ex.web_lit_buttons() >> REC) & 1));
+  tapB(REC); ex.web_enc(3, 5); render(STEP * 2); tapB(REC);
+  const n3 = ex.web_alter_rec(0);
+  tap(7);                                                        // DICE 1: a new draw
+  const n4 = ex.web_alter_rec(0);
+  tapB(REC); ex.web_enc(3, 5); render(STEP * 2); tapB(REC);
+  const n5 = ex.web_alter_rec(0);
+  ex.web_buttons(1 << OD | 1 << OU); render(2000); ex.web_buttons(1 << OD | 1 << OU | 1 << REC); render(2000); ex.web_buttons(0); render(4000);
+  check(`DICE 1 clears its circle's moves (${n3} -> ${n4}); OCT- + OCT+ + REC: all cleared (${n5} -> ${ex.web_alter_rec(0)})`,
+        n3 > 0 && n4 === 0 && n5 > 0 && ex.web_alter_rec(0) === 0 && !((ex.web_lit_buttons() >> REC) & 1));
+}
 if (wavPath) {                                                  // 4 bars from a fresh start, all three circles
   ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
   play();

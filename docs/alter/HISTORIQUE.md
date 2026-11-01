@@ -250,3 +250,14 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
 - Cause 2 : `au.sh_app` (le tour d'un SHIFT, à défaire si c'est le début du combo) n'était jamais effacé : un SHIFT
   tapé longtemps avant était « défait » au combo suivant. Effacé désormais au relâchement de la touche (alter_ui.c).
 - Test ajouté : alter_seq_test « SHIFT -1 then +1 on every LEN 1..32 ».
+
+## 01/11 — REC : les knobs enregistrés sur les pas (choix de Romain)
+- Choix : overdub tant que REC est allumé ; knobs de la page ouverte ; une valeur par pas, en douceur ; effacé par REC
+  tenu 1 s (cercle), OCT− + OCT+ + REC (tout), DÉ / CHAOS. Pas de sauvegarde dans la scène (pas demandé, à faire).
+- Pas réutilisé motion.c (Felucca, lié à son séquenceur qu'on retire en 3c) : nouveau `alter_rec.c`, inclus par
+  alter_play.c après alt_move. ar_moved (dans alt_take, après chaque mouvement de la file) écrit la base au pas ar_now ;
+  ar_step (dans alter_step, le pas joué de chaque cercle, kk[c] lu avant as_step) lance une rampe vers la valeur du pas
+  suivant (ar_value : interpolation entre pas écrits autour du cercle) ; ar_tick (chaque bloc) avance les rampes et
+  traite les effacements (ar_clr_cnt). ar_clear sur alt_roll_cnt / alt_preset_cnt.
+- UI (alter_ui.c) : au.rec_t0 / rec_done, ALT_REC_CLEAR_MS ; LED REC dans alter_leds ; point rouge ALT_RED à côté du
+  triangle PLAY (alt_scene) ; sig. Export test web_alter_rec / web_alter_knobp. Son des 27 scènes/sons identique au bit près.

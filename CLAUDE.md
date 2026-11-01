@@ -84,6 +84,13 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
   du combo sont annulés/muets (au.sh_app, au.tc_combo). Tests : 2 contrôles dans alter_emu_test.mjs.
   Corrigé 01/11 : rotation fausse sur LEN ≠ 1/2/4/8/16/32 (SHIFT −1, knob ROT, annulation) → `as_wrap` (alter_seq.c) ;
   la note du tour SHIFT (au.sh_app) s'efface au relâchement.
+- **REC (01/11) = enregistrement des knobs sur les pas** (alter_rec.c, côté audio, branché sur la file alt_q dans alt_take) :
+  REC tapé = overdub sur le cercle choisi (LED allumée, point rouge à l'écran) : tout knob de la page ouverte (son 8, ADSR,
+  DIST, INSERT, envois DLY/REV ; pas LFO/MTX/ENV des modes/GLO) s'écrit au pas qui joue (ar_moved, ar_live = les pas
+  traversés en tournant) ; REC retapé = rejoue en boucle, lissé (rampe d'un pas vers la valeur du pas suivant, ligne droite
+  entre pas écrits ; ENUM = saut). Valeurs = base (sans le dé). 64 pas écrits / 6 paramètres par cercle. REC tenu 1 s =
+  efface le cercle ; OCT− + OCT+ + REC = tout ; DÉ tapé, CHAOS, son/scène chargé = efface (ar_clear). LED faible = cercle
+  avec mouvements. **PAS encore sauvé dans les scènes.** Test : 3 contrôles « REC » dans alter_emu_test.mjs.
 - **ALIGNEMENT DES NIVEAUX (01/11)** après un hasard (DÉ tapé ou tenu, 3 MUTE, CHAOS, CHAOS TOTAL) : le cercle mesure
   son vrai niveau (après DIST/INSERT, à son LEVEL ; RMS par fenêtres de 23 ms, moyenne des 4 plus fortes) pendant ≥ 4 s
   et 8 fenêtres sonores (8 s max), puis un GAIN À PART (pas LEVEL : le VOLUME reste à Romain) le ramène à AC_TARGET
@@ -149,7 +156,7 @@ La vue DEEP (3c) doit d'abord offrir en ALTER : GLIDE, canal/horloge MIDI, 2e c�
   refonte graphique tarot (lune, sablier, lissage) · **nettoyage Felucca phase 1 (01/11)**.
   Retours connus : TECHNO « parfait » (ne pas toucher) ; NOISE METAL un peu doux dans le mélange.
 - [ ] **3c** : vue DEEP (EDIT) + écran SYSTEM ALTER, puis **retirer l'interface et le séquenceur Felucca** (phase 2 du
-  nettoyage). Reste aussi : touches blanches libres, DESTROY assignable, verrous du dé, DOSE, sauver les PLAGES (objet 1 libre).
+  nettoyage). Reste aussi : sauver les mouvements REC dans la scène (objet 1 libre), touches blanches libres, DESTROY assignable, verrous du dé, DOSE, sauver les PLAGES (objet 1 libre).
 - [ ] Étape 4 : tranche de console PAR PISTE, ordre fixe validé : son → disto/fold → EQ 3 bandes → compresseur → delay
   (echo, ping-pong stéréo à créer, dub) → reverb. Réutiliser alter_fx.c. Coût CPU à mesurer.
 
