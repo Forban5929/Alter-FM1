@@ -1974,11 +1974,12 @@ static void alt_tri(int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x2, 
     }
 }
 /* the middle (Romain, 01/11): a triangle cut from its centre into three, one piece per circle in its colour, faint at
- * rest; a hit of that circle lights its piece and pushes it out a little, both fading over a quarter second. Muted:
+ * rest; a hit of that circle lights its piece a little and pushes it out 2 px at most, both fading over a quarter
+ * second (Romain: smaller, a discreet pulse). Muted:
  * grey. The chosen circle's piece carries a dot */
 static void alt_prism(void)
 {
-    static const int32_t V[3][2] = {{0, -30 * 16}, {-26 * 16, 15 * 16}, {26 * 16, 15 * 16}};   /* top, left, right */
+    static const int32_t V[3][2] = {{0, -22 * 16}, {-19 * 16, 11 * 16}, {19 * 16, 11 * 16}};   /* top, left, right */
     static const uint8_t E[AS_NCIRC][2] = {{0, 1}, {0, 2}, {1, 2}};   /* circle i's piece: the centre + these two */
     int32_t cx = ALT_CX * 16, cy = ALT_CY * 16;
     uint32_t i;
@@ -1987,13 +1988,13 @@ static void alt_prism(void)
         int32_t mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;      /* out: towards its outer edge's middle */
         int32_t gx = (a[0] + b[0]) / 3, gy = (a[1] + b[1]) / 3;      /* its own centre (the triangle's is 0, 0) */
         uint32_t lv = alt_glow(i);
-        int32_t len = mx * mx + my * my, push = (int32_t)lv * 16, ox, oy, k;
+        int32_t len = mx * mx + my * my, push = (int32_t)lv * 8, ox, oy, k;
         int32_t px[3], py[3];
         uint16_t col = au.cfg[i].mute ? ALT_GREY : ALT_COL[i];
-        {                                        /* (the unit outward step: |m| is 15 px for every piece) */
+        {                                        /* (the unit outward step: |m| is 11 px for every piece) */
             (void)len;
-            ox = mx * push / (15 * 16);
-            oy = my * push / (15 * 16);
+            ox = mx * push / (11 * 16);
+            oy = my * push / (11 * 16);
         }
         px[0] = 0; py[0] = 0;
         px[1] = a[0]; py[1] = a[1];
@@ -2002,7 +2003,7 @@ static void alt_prism(void)
             px[k] = gx + (px[k] - gx) * 7 / 8 + cx + ox;
             py[k] = gy + (py[k] - gy) * 7 / 8 + cy + oy;
         }
-        alt_tri(px[0], py[0], px[1], py[1], px[2], py[2], alt_fade(col, au.cfg[i].mute ? 45 : 28 + (int32_t)lv * 18));
+        alt_tri(px[0], py[0], px[1], py[1], px[2], py[2], alt_fade(col, au.cfg[i].mute ? 45 : 32 + (int32_t)lv * 11));
         if (i == au.sel)                         /* the chosen circle: a dot in its piece */
             alt_disc((cx + gx + ox) / 16, (cy + gy + oy) / 16, 2, col);
     }

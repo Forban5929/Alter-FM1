@@ -27,8 +27,8 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
 - **Fills = sur le cercle SÉLECTIONNÉ** (ROLL, RATCHET, DUB DELAY/REVERB, DESTROY, DENSITÉ, REVERSE).
 - **SHIFT −1/+1 = tourne le cercle sélectionné d'un pas par appui, gardé.** Écran : cercle choisi = anneau plein ; dé actif =
   petit triangle à gauche du cercle, à sa couleur.
-  **Centre (01/11)** : triangle coupé en 3 depuis son centre, une pièce par cercle (pâle au repos ; un coup l'allume et
-  la pousse vers l'extérieur ~0,25 s ; muet = gris ; point = cercle choisi) : alter_ui.c alt_prism/alt_tri/alt_glow.
+  **Centre (01/11)** : triangle coupé en 3 depuis son centre, une pièce par cercle (petit, ~22 px ; pâle au repos ; un coup l'éclaire un peu
+  et la pousse de 2 px max, ~0,25 s ; « plus petit, plus discret » ; muet = gris ; point = cercle choisi) : alter_ui.c alt_prism/alt_tri/alt_glow.
 - **Boutons de page = UNE règle (01/11)** : **appui court = page rapide** (4 KNOBS sur les cercles ; 2e appui ou HOME =
   fermée) · **tenu 0,5 s = MENU** du bouton (reste ouvert ; même bouton tapé, HOME ou autre bouton = sortie). Menus :
   SEQ (couloirs), FX (page FX), LFO (LFO 1 2 3 GLOBAL MTX), **ENV = enveloppe dessinée** selon le mode (knobs = page
