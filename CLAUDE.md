@@ -53,7 +53,11 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
   enveloppe PAR COUP, timbre, force. Tenir 0,6 s = motif propre. Verrous par paramètre (plus tard, vue DEEP).
 - **Toutes les touches du clavier agissent sur la GRILLE (pas suivant), jamais en fin de boucle.** DENSITÉ = APPUI ±1
   coup, gardé. REVERSE relâché = retombe sur la grille.
-- **Fills = sur le cercle SÉLECTIONNÉ** (ROLL, RATCHET, DUB DELAY/REVERB, DESTROY, DENSITÉ, REVERSE).
+- **CLAVIER LIVE (01/11, alter_ui.c ALT_KEY)** — gauche = quel cercle, milieu = son rythme, droite = effets tenus :
+  blanches F G A = MUTE 1 2 3 · (B noire) · C D E = DÉ 1 2 3 · (F noire) · G A = SHIFT −1 +1 · B = LOCK (TURING) ·
+  C..G hautes = **libres**. Noires : F# G# A# = **CERCLE 1 2 3** (= SELECT ; les 3 ensemble = CHAOS TOTAL) ·
+  C# D# = DENSITÉ − + · F# G# A# = DUB DELAY, DUB REVERB, DESTROY (tenus) · C# D# = ROLL 1/16, ROLL 1/8T · F# = RATCHET ×2.
+  Retirés du clavier : RATCHET ×3, REVERSE, BUILD UP (le code audio AF_* reste dans alter_play.c). Fills = cercle choisi.
 - **SHIFT −1/+1 = tourne le cercle sélectionné d'un pas par appui, gardé.** Écran : cercle choisi = anneau plein ; dé actif =
   petit triangle à gauche du cercle, à sa couleur.
   **Centre (01/11)** : triangle coupé en 3 depuis son centre, une pièce par cercle (petit, ~22 px ; pâle au repos ; un coup l'éclaire un peu
@@ -80,14 +84,13 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
 - **3 MUTE ensemble (01/11)** = cercle choisi : LEN 4..16 + HITS 1..LEN tout de suite, et VELO, CHANCE, PITCH tirés
   (valeurs fixes comme SHUFFLE) ;
   les mutes déclenchés par le combo sont annulés (alter_ui.c alt_lanes_random, au.mute_tog/mute_combo).
-- **CHAOS TOTAL (01/11) = SHIFT −1 + SHIFT +1 + REVERSE** : tout SANS limite sur les 3 cercles (moteur, son, 8 réglages,
+- **CHAOS TOTAL (01/11) = CERCLE 1 + 2 + 3 (3 premières noires)** : tout SANS limite sur les 3 cercles (moteur, son, 8 réglages,
   ADSR, mode + ses réglages, DIST/INSERT tout type, envois, **LFO 1 SEUL (DEPTH −20..20 sur 64, toute DEST sauf PITCH),
   MTX : 1 case max (70 %), AMT ±4..25, jamais PITCH/VIB** (adouci 01/11 : « pas musical »), rythme EUCLID/TURING, 6 couloirs, accord, note, gamme, delay/reverb partagés, dé DOSE 127). PAS tempo, swing,
   mutes, MASTER. Volume gardé : LEVEL du son, INSERT LEVEL ≤ 0 dB, FEEDBACK ≤ 100. **Même combo dans les 3 s = annulé**
-  (photo exacte avant : alt_tcu, alt_tc_snap/alt_tc_undo ; le dé redevient propre). Les tours des SHIFT et le REVERSE
-  du combo sont annulés/muets (au.sh_app, au.tc_combo). Tests : 2 contrôles dans alter_emu_test.mjs.
-  Corrigé 01/11 : rotation fausse sur LEN ≠ 1/2/4/8/16/32 (SHIFT −1, knob ROT, annulation) → `as_wrap` (alter_seq.c) ;
-  la note du tour SHIFT (au.sh_app) s'efface au relâchement.
+  (photo exacte avant : alt_tcu, alt_tc_snap/alt_tc_undo ; le dé redevient propre). Le combo remet le cercle choisi
+  d'avant (au.sel_was, au.tc_combo). Tests : 2 contrôles dans alter_emu_test.mjs.
+  Corrigé 01/11 : rotation fausse sur LEN ≠ 1/2/4/8/16/32 (SHIFT −1, knob ROT, annulation) → `as_wrap` (alter_seq.c).
 - **REC (01/11) = enregistrement des knobs sur les pas** (alter_rec.c, côté audio, branché sur la file alt_q dans alt_take) :
   REC tapé = overdub sur le cercle choisi (LED allumée, point rouge à l'écran) : tout knob de la page ouverte (son 8, ADSR,
   DIST, INSERT, envois DLY/REV ; pas LFO/MTX/ENV des modes/GLO) s'écrit au pas qui joue (ar_moved, ar_live = les pas

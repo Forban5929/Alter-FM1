@@ -261,3 +261,14 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
   traite les effacements (ar_clr_cnt). ar_clear sur alt_roll_cnt / alt_preset_cnt.
 - UI (alter_ui.c) : au.rec_t0 / rec_done, ALT_REC_CLEAR_MS ; LED REC dans alter_leds ; point rouge ALT_RED à côté du
   triangle PLAY (alt_scene) ; sig. Export test web_alter_rec / web_alter_knobp. Son des 27 scènes/sons identique au bit près.
+
+## Clavier live réorganisé (01/11)
+Demande de Romain : un clavier logique où l'on ne se perd pas. Gauche = quel cercle (MUTE blanches, CERCLE noires
+juste à côté : une colonne par cercle), milieu = rythme (DÉ blanches, DENSITÉ noires au-dessus), droite = effets tenus
+(toutes en noires). Choix de Romain : CHAOS TOTAL = les 3 CERCLE ensemble (comme 3 MUTE, 3 DÉ), dernière noire = RATCHET ×2,
+5 dernières blanches libres pour plus tard. RATCHET ×3, REVERSE, BUILD UP retirés du clavier (code audio gardé).
+- alter_ui.c : ALT_KEY (AK_SEL), ALT_TC_KEYS = noires 1 3 5, au.sel_was (le combo remet le cercle d'avant), LED de la
+  touche CERCLE du cercle choisi allumée ; au.sh_app supprimé (plus besoin d'annuler les tours SHIFT).
+- Tests alter_emu_test.mjs mis à jour (fills, DENSITÉ, CERCLE 2, CHAOS TOTAL) ; le contrôle « REC tenu 1 s » mesurait
+  le mouvement du LFO de la scène avec 2 points de marge : il dépendait du moment (72 ↔ 77 selon le décalage) →
+  mesure sur 4 mesures et marge de 6. Aide de la page (alter_page.py) mise à jour.

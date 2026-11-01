@@ -154,8 +154,7 @@ check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().
 // the fills: on the selected circle (1)
 {
   const before = bar().steps.length;
-  const FILLS = { 1: "ROLL 1/8T", 3: "ROLL 1/16", 5: "BUILD UP", 8: "RATCHET X2", 10: "RATCHET X3", 13: "DUB DELAY",
-                  15: "DUB REVERB", 17: "DESTROY", 25: "REVERSE" };
+  const FILLS = { 13: "DUB DELAY", 15: "DUB REVERB", 17: "DESTROY", 20: "ROLL 1/16", 22: "ROLL 1/8T", 25: "RATCHET X2" };
   const got = {}, n = {};
   let worst = 0;
   for (const [k, name] of Object.entries(FILLS)) {
@@ -167,8 +166,8 @@ check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().
   }
   console.log("alter: attacks in a bar held: " + Object.entries(n).map(([k, v]) => `${k} ${v}`).join(", "));
   check(`every fill plays and none clips (peak ${worst.toFixed(3)})`, Object.values(n).every((v) => v > 0) && worst < 0.999);
-  check(`ROLL 1/16 ~ 16 attacks, 1/8T ~ 12, BUILD UP faster than 1/8T (${n["ROLL 1/16"]} ${n["ROLL 1/8T"]} ${n["BUILD UP"]})`,
-        n["ROLL 1/16"] >= 14 && n["ROLL 1/8T"] >= 9 && n["ROLL 1/8T"] <= 14 && n["BUILD UP"] > n["ROLL 1/8T"]);
+  check(`ROLL 1/16 ~ 16 attacks, 1/8T ~ 12, RATCHET X2 more than the bar alone (${n["ROLL 1/16"]} ${n["ROLL 1/8T"]} ${n["RATCHET X2"]})`,
+        n["ROLL 1/16"] >= 14 && n["ROLL 1/8T"] >= 9 && n["ROLL 1/8T"] <= 14 && n["RATCHET X2"] > before);
   // the SEQ menu's RATCH lane: black key 13 = RATCH, step 1 held + KNOB 1 up: that hit plays x4
   {
     const seqTap = (hold) => { ex.web_buttons(1 << SEQB); render(hold); ex.web_buttons(0); render(2000); };
@@ -209,16 +208,16 @@ check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().
     seqTap(FS * 0.7); K(1 << 3); render(1500); K(0); render(1500);
     K(0x5ad5ad5); render(1500); enc(3, 20); K(0); render(1500); seqTap(2000);   // (all 16 step keys held)
   }
-  check("RATCHET X2 / X3 add attacks", n["RATCHET X2"] > before && n["RATCHET X3"] > n["RATCHET X2"]);
+  check("RATCHET X2 adds attacks", n["RATCHET X2"] > before);
 
   check(`let go: the pattern is back`, same(bar().steps, euclid(16, 8, 0)));
 }
 // DENSITY: taps, kept
-tap(22); bar();
+tap(10); bar();
 check("DENSITY + tapped: 9 hits, kept", same(bar().steps, euclid(16, 9, 0)));
-tap(20); tap(20); bar();
+tap(8); tap(8); bar();
 check("DENSITY - tapped twice: 7 hits", same(bar().steps, euclid(16, 7, 0)));
-tap(22); bar();
+tap(10); bar();
 // quick pages: a tap on ENV keeps the circles, KNOB 2 = DEC (shorter notes: less sound), ENV again closes it
 {
   const B = (n) => { ex.web_buttons(1 << n); render(2000); ex.web_buttons(0); render(2000); };
@@ -347,11 +346,11 @@ tap(22); bar();
   bar();
   check("nothing left on: 8 hits as before", same(bar().steps, euclid(16, 8, 0)));
 }
-// a fill on another circle leaves this one alone: SELECT circle 2 (muted), RATCHET X3 held
-enc(0, 1);
+// a fill on another circle leaves this one alone: CIRCLE 2 tapped (the 2nd black key; muted), RATCHET X2 held
+tap(3);
 {
-  K(1 << 10); render(2000); const b = bar(); K(0);
-  check(`SELECT circle 2: RATCHET X3 does not touch circle 1 ${b.steps.join(",")}`, same(b.steps, euclid(16, 8, 0)));
+  K(1 << 25); render(2000); const b = bar(); K(0);
+  check(`CIRCLE 2 key: RATCHET X2 does not touch circle 1 ${b.steps.join(",")}`, same(b.steps, euclid(16, 8, 0)));
 }
 // PRESETS on circle 2: through the engines (PHYS's last presets, then NOISE's)
 tap(2);                                                          // circle 2 back on
@@ -384,7 +383,7 @@ const holdSave = () => { ex.web_buttons(1 << 7); render(FS * 1.2); ex.web_button
 // store a scene: circle 1 to 6 hits, SAVE page, row USER 01 (NEW + 4 factory + 1), SAVE held 1 s
 {
   enc(0, -1);                                                   // (circle 1 chosen again)
-  tap(22); tap(22); bar();                                      // (DENSITY + twice: 6 hits)
+  tap(10); tap(10); bar();                                      // (DENSITY + twice: 6 hits)
   const b6 = bar().steps;
   check(`before storing: 6 hits ${b6.join(",")}`, same(b6, euclid(16, 6, 0)));
   B(7); row(5); holdSave(); B(6);
@@ -503,11 +502,11 @@ play();
   tap(0); const mm = prism(); render(FS); tap(0); render(FS * 2);   // (MUTE 1 alone: the measure sees a mute)
   check(`MUTE 1+2+3: the chosen circle's rhythm and lanes drawn anew, no circle muted (colour ${m1} -> ${m2}, muted ${mm})`,
         p2 !== p1 && Math.abs(m2 - m1) < (m1 - mm) / 2 && l1 !== l0);
-  chord([25, 14, 16]);
+  chord([5, 1, 3]);
   const c1 = shot(FS / 2);
-  chord([14, 16, 25]);                                           // (within 3 s of the first: the undo)
+  chord([1, 3, 5]);                                           // (within 3 s of the first: the undo)
   const c2 = shot();
-  check("SHIFT -1 + SHIFT +1 + REVERSE: TOTAL CHAOS; again within 3 s: everything back", c1 !== p2 && c2 === p2);
+  check("CIRCLE 1 + 2 + 3: TOTAL CHAOS; again within 3 s: everything back", c1 !== p2 && c2 === p2);
 }
 {                                                               // the level alignment after a random draw (alter_fx.c)
   const g = () => [0, 1, 2].map((c) => ex.web_alter_cal(c, 1));
@@ -528,7 +527,7 @@ play();
   const vals = (n, every) => { const v = []; for (let i = 0; i < n; i++) { render(every); v.push(kp()); } return v; };
   tapB(6); if (!ex.web_playing()) play(); render(BAR);       // (HOME: no page left open by the tests before)
   if ((ex.web_lit_buttons() >> REC) & 1) tapB(REC);           // (REC left on by the test of Felucca's REC above)
-  const span = (a) => Math.max(...a) - Math.min(...a), base = span(vals(32, STEP / 2));   // (the scene's own movement: its LFOs)
+  const span = (a) => Math.max(...a) - Math.min(...a), base = span(vals(64, STEP));   // (4 bars: a whole LFO swing)   // (the scene's own movement: its LFOs)
   tapB(REC);
   const litOn = (ex.web_lit_buttons() >> REC) & 1;
   render(BAR - 4000 - (BAR % STEP));                             // (from about the cycle's start)
@@ -540,8 +539,8 @@ play();
   check(`REC tapped: lit; knob 1 turned for 8 steps: ${n1} steps written; REC again: faint, the move plays on its own (${lo}..${hi}, ${uniq} values)`,
         litOn && !litOff && dimOff && n1 >= 6 && hi - lo >= 20 && uniq >= 8);
   ex.web_buttons(1 << REC); render(Math.floor(FS * 1.15)); ex.web_buttons(0); render(2000);
-  const n2 = ex.web_alter_rec(0), still = span(vals(32, STEP / 2));
-  check(`REC held 1 s: the chosen circle's moves cleared (${n2} steps), the knob back to its own movement (${still}, ${base} before)`, n2 === 0 && still <= base + 2 && !((ex.web_lit_buttons() >> REC) & 1));
+  const n2 = ex.web_alter_rec(0), still = span(vals(64, STEP));
+  check(`REC held 1 s: the chosen circle's moves cleared (${n2} steps), the knob back to its own movement (${still}, ${base} before)`, n2 === 0 && still <= base + 6 &&   /* (the scene's LFO swing varies a few points with the phase) */ !((ex.web_lit_buttons() >> REC) & 1));
   tapB(REC); ex.web_enc(3, 5); render(STEP * 2); tapB(REC);
   const n3 = ex.web_alter_rec(0);
   tap(7);                                                        // DICE 1: a new draw

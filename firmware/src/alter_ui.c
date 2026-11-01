@@ -27,15 +27,16 @@
  *   PLAY  start / stop      ARP REC: nothing yet (REC stays disarmed: no count-in, no click)
  * The keys (no notes here: alt_kb_own): the whites in lit blocks with a dark key between: MUTE 1 2 3 (a tap),
  * DICE 1 2 3 (a tap: a new draw at once; held 0.6 s: the clean pattern again), SHIFT -1 +1 (a tap: the chosen
- * circle turned a step, kept); the blacks in their groups 3-2-3-2-1, on the chosen circle: held ROLL 1/16 1/32
- * triplet | RATCHET x2 x3 | DUB DELAY, DUB REVERB, DESTROY | tapped DENSITY - + (a hit less / more, kept) | held
- * REVERSE. All on the grid (alter_play.c). LEDs: the keys that act faint, bright when engaged (a circle muted, a
+ * circle turned a step, kept), LOCK (TURING); the blacks in their groups 3-2-3-2-1 (Romain, 01/11): CIRCLE 1 2 3 (a tap:
+ * that circle chosen, as SELECT; the three together: TOTAL CHAOS) | tapped DENSITY - + (a hit less / more, kept) |
+ * held, on the chosen circle: DUB DELAY, DUB REVERB, DESTROY | ROLL 1/16, ROLL 1/8T | RATCHET x2. The whites C4..G5
+ * after LOCK: free. All on the grid (alter_play.c). LEDs: the keys that act faint, bright when engaged (a circle muted, a
  * fill held, a tap just made); the others dark.
  * The screen: three concentric circles (circle 1 outside), each a voice's hits, lit as they play; the chosen one a
  * solid ring, the others dotted; a draw on: a small triangle at the circle's left, its colour; the chosen
  * circle's sound at the top, its knobs (or its rhythm, SEQ held) at the bottom. Drawn only when something changed. */
 
-enum { AK_NONE, AK_MUTE, AK_DIE, AK_SHIFT, AK_DENS, AK_FILL, AK_TLOCK };
+enum { AK_NONE, AK_MUTE, AK_DIE, AK_SHIFT, AK_DENS, AK_FILL, AK_TLOCK, AK_SEL };
 typedef struct {
     uint8_t kind, arg;
     const char *name;
@@ -45,11 +46,12 @@ static const alt_key_t ALT_KEY[27] = {    /* k: semitones above F3 (whites 0 2 4
     [7] = {AK_DIE, 0, "DICE 1"}, [9] = {AK_DIE, 1, "DICE 2"}, [11] = {AK_DIE, 2, "DICE 3"},
     [14] = {AK_SHIFT, 0, "SHIFT -1"}, [16] = {AK_SHIFT, 1, "SHIFT +1"},   /* (TURING: PREV, NEXT) */
     [18] = {AK_TLOCK, 0, "LOCK"},                                           /* (TURING only: frozen / free) */
-    [1] = {AK_FILL, AF_ROLLT8, "ROLL 1/8T"}, [3] = {AK_FILL, AF_ROLL16, "ROLL 1/16"}, [5] = {AK_FILL, AF_BUILD, "BUILD UP"},
-    [8] = {AK_FILL, AF_RAT2, "RATCHET X2"}, [10] = {AK_FILL, AF_RAT3, "RATCHET X3"},
+    /* the blacks (Romain, 01/11): which circle | its rhythm | the held fills */
+    [1] = {AK_SEL, 0, "CIRCLE 1"}, [3] = {AK_SEL, 1, "CIRCLE 2"}, [5] = {AK_SEL, 2, "CIRCLE 3"},
+    [8] = {AK_DENS, 0, "DENSITY -"}, [10] = {AK_DENS, 1, "DENSITY +"},
     [13] = {AK_FILL, AF_DLY, "DUB DELAY"}, [15] = {AK_FILL, AF_REV, "DUB REVERB"}, [17] = {AK_FILL, AF_DESTROY, "DESTROY"},
-    [20] = {AK_DENS, 0, "DENSITY -"}, [22] = {AK_DENS, 1, "DENSITY +"},
-    [25] = {AK_FILL, AF_REVERSE, "REVERSE"},
+    [20] = {AK_FILL, AF_ROLL16, "ROLL 1/16"}, [22] = {AK_FILL, AF_ROLLT8, "ROLL 1/8T"},
+    [25] = {AK_FILL, AF_RAT2, "RATCHET X2"},
 };
 #define ALT_DIE_HOLD_MS 600u
 #define ALT_REC_CLEAR_MS 1000u                   /* REC held: the chosen circle's moves cleared */
@@ -105,8 +107,8 @@ static struct {
     uint32_t msg_ms;             /* .. shown since */
     uint32_t sig, hits_seen[AS_NCIRC], flash_ms[AS_NCIRC], handed_ms;   /* handed_ms: when every Felucca button was up */
     uint8_t mute_tog, mute_combo;   /* the mutes these held keys toggled; MUTE 1+2+3 held (none of them toggles) */
-    uint8_t tc_combo;            /* SHIFT -1 + SHIFT +1 + REVERSE held: TOTAL CHAOS done (they do nothing else) */
-    int8_t sh_app[2];            /* the turn each held SHIFT key gave (undone if it was the start of the combo) */
+    uint8_t tc_combo;            /* CIRCLE 1 + 2 + 3 held: TOTAL CHAOS done (they do nothing else) */
+    uint8_t sel_was;             /* the chosen circle before the first CIRCLE key went down (put back by the combo) */
     uint32_t tc_ms;              /* the last TOTAL CHAOS (fm1_ms | 1): the same combo within 3 s undoes it */
     uint32_t rec_t0;             /* REC's press (fm1_ms | 1), 0 = up */
     uint8_t rec_done;            /* REC: its hold (or OCT- + OCT+) has cleared (its release does nothing) */
@@ -682,7 +684,7 @@ static uint32_t alt_page(void)
 
 #define ALT_DICE_KEYS ((1u << 7) | (1u << 9) | (1u << 11))   /* DICE 1 2 3 (ALT_KEY) */
 #define ALT_MUTE_KEYS ((1u << 0) | (1u << 2) | (1u << 4))    /* MUTE 1 2 3 */
-#define ALT_TC_KEYS ((1u << 14) | (1u << 16) | (1u << 25))   /* SHIFT -1, SHIFT +1, REVERSE */
+#define ALT_TC_KEYS ((1u << 1) | (1u << 3) | (1u << 5))     /* CIRCLE 1 2 3 (the first three blacks) */
 
 static uint32_t alt_cr(uint32_t n)               /* 0 .. n-1 */
 {
@@ -1256,8 +1258,8 @@ static int alter_ui_input(uint32_t pressed)
         au.keys = keys;
         return 1;
     }
-    /* the combos: MUTE 1+2+3 = the chosen circle's lanes drawn (the mutes they toggled put back); SHIFT -1 + SHIFT +1 +
-     * REVERSE = TOTAL CHAOS (the turns they gave put back) */
+    /* the combos: MUTE 1+2+3 = the chosen circle's lanes drawn (the mutes they toggled put back); CIRCLE 1+2+3 = TOTAL
+     * CHAOS (the chosen circle put back) */
     if ((keys & ALT_MUTE_KEYS) == ALT_MUTE_KEYS && (down & ALT_MUTE_KEYS) && !au.mute_combo) {
         for (i = 0; i < AS_NCIRC; i++)
             if ((au.mute_tog >> i) & 1u) {
@@ -1268,17 +1270,11 @@ static int alter_ui_input(uint32_t pressed)
         au.mute_combo = 1;
         alt_lanes_random();
     }
-    for (k = 0; k < 27u; k++)                    /* a SHIFT let go: its turn is no longer a combo's start */
-        if (ALT_KEY[k].kind == AK_SHIFT && !((keys >> k) & 1u))
-            au.sh_app[ALT_KEY[k].arg & 1u] = 0;
+    if ((down & ALT_TC_KEYS) && !(au.keys & ALT_TC_KEYS))   /* the first CIRCLE key: where the selection was */
+        au.sel_was = au.sel;
     if ((keys & ALT_TC_KEYS) == ALT_TC_KEYS && (down & ALT_TC_KEYS) && !au.tc_combo) {
-        int32_t d = au.sh_app[0] + au.sh_app[1];
-        if (d) {
-            alt_shift_tot[au.sel] -= d;
-            if (au.cfg[au.sel].type != AS_T_TURING)
-                au.cfg[au.sel].rot = as_wrap((int32_t)au.cfg[au.sel].rot - d, au.cfg[au.sel].len);
-        }
-        au.sh_app[0] = au.sh_app[1] = 0;
+        if (au.sel != au.sel_was)
+            alt_select(au.sel_was);
         au.tc_combo = 1;
         alt_total_chaos();
     }
@@ -1289,7 +1285,7 @@ static int alter_ui_input(uint32_t pressed)
         int tur = au.cfg[au.sel].type == AS_T_TURING;
         if ((down >> k) & 1u && a->kind && (a->kind != AK_TLOCK || tur)) {
             int combo = (a->kind == AK_MUTE && au.mute_combo) || (au.tc_combo && ((ALT_TC_KEYS >> k) & 1u));
-            if (!combo && a->kind != AK_MUTE && a->kind != AK_SHIFT)
+            if (!combo && a->kind != AK_MUTE && a->kind != AK_SHIFT && a->kind != AK_SEL)
                 alt_say(a->name);
             if (combo) {
                 ;                                /* (part of a combo: nothing else) */
@@ -1320,11 +1316,13 @@ static int alter_ui_input(uint32_t pressed)
             } else if (a->kind == AK_SHIFT) {
                 int32_t d = i2 ? 1 : -1;
                 alt_say(tur ? (i2 ? "NEXT" : "PREV") : a->name);
-                au.sh_app[i2 & 1u] = (int8_t)d;
                 alt_shift_tot[au.sel] += d;      /* (TURING: the audio side takes it as NEXT / PREV) */
                 if (!tur)
                     au.cfg[au.sel].rot = as_wrap((int32_t)au.cfg[au.sel].rot + d, au.cfg[au.sel].len);
                 au.tap_ms[k] = fm1_ms | 1u;
+            } else if (a->kind == AK_SEL) {      /* CIRCLE n: chosen (as SELECT) */
+                if (au.sel != i2)
+                    alt_select(i2);
             } else if (a->kind == AK_TLOCK) {    /* TURING: frozen, or back to its LOCK knob */
                 alt_seq.c[au.sel].tfreeze ^= 1u;
                 alt_say(alt_seq.c[au.sel].tfreeze ? "LOCKED" : "FREE");
@@ -1363,10 +1361,6 @@ static int alter_ui_input(uint32_t pressed)
             au.mute_tog &= (uint8_t)~(1u << i);
     if (!(keys & ALT_MUTE_KEYS))
         au.mute_combo = 0;
-    if (!((keys >> 14) & 1u))
-        au.sh_app[0] = 0;
-    if (!((keys >> 16) & 1u))
-        au.sh_app[1] = 0;
     if (!(keys & ALT_TC_KEYS))
         au.tc_combo = 0;
     au.keys = keys;
@@ -1424,6 +1418,8 @@ static void alter_leds(uint8_t *nl, uint8_t *nd, uint8_t *nb, uint8_t *nm)
         }
         if (a->kind == AK_MUTE)
             lit = au.cfg[a->arg].mute;
+        else if (a->kind == AK_SEL)              /* the chosen circle's key lit */
+            lit = au.sel == a->arg;
         else if (a->kind == AK_DIE || a->kind == AK_SHIFT || a->kind == AK_DENS)
             lit = (int)((fm1_in.notes >> k) & 1u) || (au.tap_ms[k] && (int32_t)(fm1_ms - au.tap_ms[k]) < (int32_t)ALT_TAP_MS);
         else if (a->kind == AK_FILL)
