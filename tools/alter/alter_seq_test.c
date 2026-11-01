@@ -302,6 +302,24 @@ int main(void)
         check("TURING NEXT after PREV: forward to the one undone", r.c[0].treg == b2);
     }
 
+    {                                                   /* SHIFT on any LEN: a step back from 0 is LEN - 1, and back again */
+        int ok = 1;
+        uint32_t n;
+        for (n = 1; n <= AS_MAXLEN; n++) {
+            as_seq_t w;
+            as_cfg_t c;
+            as_init(&w, 7);
+            c = w.c[0].cfg;
+            c.len = (uint8_t)n;
+            c.rot = 0;
+            w.c[0].cfg = w.c[0].next = c;
+            as_turn(&w, 0, -1);
+            ok &= w.c[0].cfg.rot == n - 1u;
+            as_turn(&w, 0, 1);
+            ok &= w.c[0].cfg.rot == 0;
+        }
+        check("SHIFT -1 then +1 on every LEN 1..32: LEN-1, then 0 again", ok);
+    }
     printf(fails ? "%d FAILED\n" : "all ok\n", fails);
     return fails != 0;
 }

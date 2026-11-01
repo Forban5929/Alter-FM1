@@ -242,3 +242,11 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
       Existant Felucca (vérifié dans fx.c) : DIST, INSERT (SOFT/HARD/FOLD/FUZZ/CRUSH…), delay MONO à 1 ligne avec
       retour filtré (base possible pour le dub), reverb HALL/ROOM/SPRING, limiteur master.
       À créer : EQ 3 bandes et compresseur par piste (réutiliser alter_fx.c), delay ping-pong (stéréo). Coût CPU à mesurer.
+
+## 01/11 — Bug « annulation du CHAOS TOTAL » corrigé
+- Cause 1 : les rotations faisaient `(rot + d + 4*AS_MAXLEN) % len` ; 128 n'est multiple que de 1/2/4/8/16/32, donc sur
+  un cercle de 3, 5, 6, 7, 9… pas, SHIFT −1, le knob ROT tourné à gauche et la correction du combo tombaient faux
+  (ex. LEN 6 : SHIFT −1 donnait ROT 1 au lieu de 5). Remplacé partout par `as_wrap(v, len)` (alter_seq.c).
+- Cause 2 : `au.sh_app` (le tour d'un SHIFT, à défaire si c'est le début du combo) n'était jamais effacé : un SHIFT
+  tapé longtemps avant était « défait » au combo suivant. Effacé désormais au relâchement de la touche (alter_ui.c).
+- Test ajouté : alter_seq_test « SHIFT -1 then +1 on every LEN 1..32 ».

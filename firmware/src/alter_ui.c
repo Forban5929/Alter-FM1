@@ -231,7 +231,7 @@ static void alt_edit_circle(uint32_t i, int32_t s)
     } else if (i == 3u && t != AS_T_TURING) {
         c->prob = (uint8_t)clamp((int32_t)c->prob + s * 8, 0, 127);
     } else if (i == 2u && t != AS_T_TURING) {
-        c->rot = (uint8_t)(((int32_t)c->rot + s + 4 * AS_MAXLEN) % c->len);
+        c->rot = as_wrap((int32_t)c->rot + s, c->len);
     } else if (t == AS_T_EUCLID) {
         c->hits = (uint8_t)clamp((int32_t)c->hits + s, 0, c->len);
     } else if (i == 1u) {
@@ -1240,12 +1240,15 @@ static int alter_ui_input(uint32_t pressed)
         au.mute_combo = 1;
         alt_lanes_random();
     }
+    for (k = 0; k < 27u; k++)                    /* a SHIFT let go: its turn is no longer a combo's start */
+        if (ALT_KEY[k].kind == AK_SHIFT && !((keys >> k) & 1u))
+            au.sh_app[ALT_KEY[k].arg & 1u] = 0;
     if ((keys & ALT_TC_KEYS) == ALT_TC_KEYS && (down & ALT_TC_KEYS) && !au.tc_combo) {
         int32_t d = au.sh_app[0] + au.sh_app[1];
         if (d) {
             alt_shift_tot[au.sel] -= d;
             if (au.cfg[au.sel].type != AS_T_TURING)
-                au.cfg[au.sel].rot = (uint8_t)(((int32_t)au.cfg[au.sel].rot - d + 4 * AS_MAXLEN) % au.cfg[au.sel].len);
+                au.cfg[au.sel].rot = as_wrap((int32_t)au.cfg[au.sel].rot - d, au.cfg[au.sel].len);
         }
         au.sh_app[0] = au.sh_app[1] = 0;
         au.tc_combo = 1;
@@ -1292,7 +1295,7 @@ static int alter_ui_input(uint32_t pressed)
                 au.sh_app[i2 & 1u] = (int8_t)d;
                 alt_shift_tot[au.sel] += d;      /* (TURING: the audio side takes it as NEXT / PREV) */
                 if (!tur)
-                    au.cfg[au.sel].rot = (uint8_t)(((int32_t)au.cfg[au.sel].rot + d + 4 * AS_MAXLEN) % au.cfg[au.sel].len);
+                    au.cfg[au.sel].rot = as_wrap((int32_t)au.cfg[au.sel].rot + d, au.cfg[au.sel].len);
                 au.tap_ms[k] = fm1_ms | 1u;
             } else if (a->kind == AK_TLOCK) {    /* TURING: frozen, or back to its LOCK knob */
                 alt_seq.c[au.sel].tfreeze ^= 1u;

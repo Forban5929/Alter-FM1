@@ -82,9 +82,8 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
   mutes, MASTER. Volume gardé : LEVEL du son, INSERT LEVEL ≤ 0 dB, FEEDBACK ≤ 100. **Même combo dans les 3 s = annulé**
   (photo exacte avant : alt_tcu, alt_tc_snap/alt_tc_undo ; le dé redevient propre). Les tours des SHIFT et le REVERSE
   du combo sont annulés/muets (au.sh_app, au.tc_combo). Tests : 2 contrôles dans alter_emu_test.mjs.
-  ⚠ BUG OUVERT (01/11) : le test « again within 3 s: everything back » ÉCHOUE depuis l'adoucissement du CHAOS (DÉ 1+2+3) :
-  dans l'état laissé par les tests précédents (transport arrêté), l'annulation décale la rotation du cercle 1 d'un pas à
-  chaque paire CHAOS TOTAL + annulation. Un essai propre (alter_shot, 3 graines) annule bien. Piste : SHIFT pendant le combo.
+  Corrigé 01/11 : rotation fausse sur LEN ≠ 1/2/4/8/16/32 (SHIFT −1, knob ROT, annulation) → `as_wrap` (alter_seq.c) ;
+  la note du tour SHIFT (au.sh_app) s'efface au relâchement.
 - **ALIGNEMENT DES NIVEAUX (01/11)** après un hasard (DÉ tapé ou tenu, 3 MUTE, CHAOS, CHAOS TOTAL) : le cercle mesure
   son vrai niveau (après DIST/INSERT, à son LEVEL ; RMS par fenêtres de 23 ms, moyenne des 4 plus fortes) pendant ≥ 4 s
   et 8 fenêtres sonores (8 s max), puis un GAIN À PART (pas LEVEL : le VOLUME reste à Romain) le ramène à AC_TARGET

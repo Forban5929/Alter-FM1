@@ -148,6 +148,13 @@ static uint32_t as_rand(uint32_t *s)                     /* xorshift32 */
     return x;
 }
 
+/* v turned into 0..len-1, whatever its sign (a step back from 0 is len - 1, for any LEN) */
+static uint8_t as_wrap(int32_t v, uint32_t len)
+{
+    int32_t n = len ? (int32_t)len : 1, r = v % n;
+    return (uint8_t)(r < 0 ? r + n : r);
+}
+
 /* the euclidean pattern: k hits on n steps, turned by r (step 0 is a hit at r = 0) */
 static uint32_t as_euclid(uint32_t n, uint32_t k, uint32_t r)
 {
@@ -331,8 +338,8 @@ static void as_turn(as_seq_t *q, uint32_t i, int32_t d)
     if (i >= AS_NCIRC)
         return;
     c = &q->c[i];
-    c->cfg.rot = (uint8_t)(((int32_t)c->cfg.rot + d + 4 * AS_MAXLEN) % c->cfg.len);
-    c->next.rot = (uint8_t)(((int32_t)c->next.rot + d + 4 * AS_MAXLEN) % c->next.len);
+    c->cfg.rot = as_wrap((int32_t)c->cfg.rot + d, c->cfg.len);
+    c->next.rot = as_wrap((int32_t)c->next.rot + d, c->next.len);
     as_repat(c);
 }
 
