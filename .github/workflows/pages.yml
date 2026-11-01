@@ -26,7 +26,9 @@ jobs:
         with:
           submodules: true
       - name: Outils (clang, wasm-ld)
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq clang lld
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq clang lld
+          pip install --quiet pillow fonttools numpy
       - name: Construire la version navigateur
         run: sh tools/alter/wasm/build_emu.sh
       - name: Test ALTER
