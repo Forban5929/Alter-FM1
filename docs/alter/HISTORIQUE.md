@@ -272,3 +272,8 @@ juste à côté : une colonne par cercle), milieu = rythme (DÉ blanches, DENSIT
 - Tests alter_emu_test.mjs mis à jour (fills, DENSITÉ, CERCLE 2, CHAOS TOTAL) ; le contrôle « REC tenu 1 s » mesurait
   le mouvement du LFO de la scène avec 2 points de marge : il dépendait du moment (72 ↔ 77 selon le décalage) →
   mesure sur 4 mesures et marge de 6. Aide de la page (alter_page.py) mise à jour.
+
+## Page web simplifiée (01/11)
+Demande de Romain : trop de texte. alter_page.py : GUIDE = « Démarrer », le SCHÉMA DU CLAVIER (SVG : couleurs
+quel cercle / rythme / effet tenu, lettre de l’ordinateur sur chaque touche), 3 lignes BOUTONS, 2 lignes COMBOS ;
+l’ancien texte complet (DETAIL) est replié sous « Tout le détail ». Si le clavier change : régénérer la constante SVG.
