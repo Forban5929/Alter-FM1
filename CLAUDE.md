@@ -311,7 +311,11 @@ Démarrer une session : attacher `Forban5929/alter-fm1` (add_repo, push), cloner
   - [ ] **Refonte graphique (01/11, PROPOSITION, rien codé)** : canvas https://claude.ai/artifact/ATmBQMPtQ33hEiNbvVJkCD
         A ALCHIMIE (cercles-sigils : polygones des coups, symboles, alidade) · B ORBITES (3 étoiles au centre, coups = lunes,
         queue de comète) ; NIGHT très sombre, DAY = carte de tarot crème (bandeau titre, chiffre romain, knobs en phases de lune).
-        ATTEND LE CHOIX DE ROMAIN. Firmware : polices à regénérer (gen_aa_font.py), pas de texte courbe.
+        **CHOIX DE ROMAIN (01/11) : A ALCHIMIE**, NIGHT = tarot sombre (noir, dorure, bandeau bordeaux, rayons gravés,
+        cadrans à aiguille), DAY = tarot crème. Un ARCANE par menu (chiffre romain + nom sous le chiffre) : PLAY XIV,
+        SEQ X La Roue, FX XVI La Tour, LFO XVIII La Lune, ENV XIII Sans nom, SCL XVII L'Étoile (roue des 12 notes, gamme
+        = polygone), SAVE XX Le Jugement (INVOQUER / GRAVER), RÉGLAGES I Le Bateleur. Maquettes sur le canvas, PAS CODÉ.
+        Firmware : polices Cinzel + IBM Plex Mono à générer (gen_aa_font.py), pas de texte courbe.
   - [ ] 3c : vue DEEP (EDIT ouvre encore la page EDIT de Felucca). Puis retirer l'interface Felucca. Reste : SCL → gamme
         des cercles, touches blanches libres, DESTROY assignable, verrous du dé, DOSE.
 - [ ] Étape 4 (après le séquenceur) : tranche de console PAR PISTE, ordre FIXE validé :
