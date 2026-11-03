@@ -56,6 +56,8 @@
   8765e894…). **Confirmé par Romain (03/11) : tout marche, SAVE gardé, mise à jour depuis /install/ OK sous ALTER.**
   OCT− seul à l'allumage = fonction de Melodee (son propre chargeur), PAS de Felucca/ALTER (info du Hub relayée à tort).
   Filets de secours d'ALTER : OCT− + OCT+ 5 s = UBOOT (puce) + kit /secours/.
+  Felucca publié (sans le correctif #320) installé puis coincé : sorti par UBOOT + kit (RESTORE VERIFIED, 129 secteurs).
+  → Sur cette FM-1 : n'installer que des firmwares qui connaissent 0xB36014 (ALTER, M-VAVE, Felucca après #320).
 - Prochain : assistant d'installation façon https://baudgirl.com/work/FM-1+VA/install, puis **page compagnon** (éditeur web,
   écran agrandi, patchs ; l'éditeur Felucca retiré le 01/11 est dans l'historique git).
 
