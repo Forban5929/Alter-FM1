@@ -57,7 +57,9 @@ def main(pkg, version, out):
     html = sub1(html, '<details style="margin-top:24px">', '<div class="small" style="margin-top:24px">'
                 '<b>Retour au firmware officiel / secours :</b> <a href="https://thefirmwarehub.com/" target="_blank" '
                 'rel="noopener" style="color:inherit">The Firmware Hub</a> (« Back to official V15 »). FM-1 bloquée : '
-                'tenir OCT− en l’allumant (secours USB), puis réinstaller.</div>\n  <details style="display:none">')
+                'tenir OCT− en l’allumant (secours USB), puis réinstaller.<br><b>Si l’installation s’arrête sur « after 0 requests : '
+                'nothing was written »</b> (rien n’est écrit, la FM-1 est intacte) : débrancher l’USB, éteindre, tenir OCT− en '
+                'rallumant, rebrancher, puis Install (la page reprend en mode mise à jour). Copier le journal pour Claude.</div>\n  <details style="display:none">')
     html = sub1(html, '<p><a href="../editor/" style="color:inherit" data-t="editor"></a></p>', "")
     html = html.replace("../../firmware/", "firmware/")
     html = sub1(html, '<p class="small">Felucca by Leo Kuroshita', '<p class="small">ALTER par Romain (Forban5929), '

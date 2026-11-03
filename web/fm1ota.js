@@ -144,16 +144,22 @@ export class Updater {
   // serve read requests until the device asks for one of the finish addresses; stops early
   // when the port disappears (lost: true) instead of waiting out idleMs
   async serve(link, image, finishAddr, idleMs, onProgress) {
-    let served = 0, last = Date.now();
+    let served = 0, last = Date.now(), other = 0;
     for (;;) {
       const pkt = await link.read(1000);
       if (!pkt) {
         if (link.lost) return { served, finished: false, lost: true };
-        if (Date.now() - last > idleMs) return { served, finished: false };
+        if (Date.now() - last > idleMs) {
+          if (!served) this.log(`(diagnostic ALTER : ${other} autre(s) message(s) reçu(s) de l'appareil, aucune demande de lecture)`);
+          return { served, finished: false };
+        }
         continue;
       }
       const r = parseRequest(pkt);
-      if (!r) continue;
+      if (!r) {                                           // (ALTER 03/11 : ce que l'appareil envoie d'autre, pour comprendre)
+        if (other++ < 3) this.log(`(diagnostic ALTER : message reçu ${Array.from(pkt.slice(0, 12), (b) => b.toString(16).padStart(2, "0")).join(" ")}…)`);
+        continue;
+      }
       last = Date.now();
       if (r.addr === 0xE0000000 || r.addr === 0xF0000000) {
         link.send(response(r.addr, [...new TextEncoder().encode("success"), 0]));
