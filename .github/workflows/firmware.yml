@@ -24,8 +24,8 @@ jobs:
         run: sh tools/get_toolchain.sh "$HOME/.jieli"
       - name: SDK JieLi AC79 (3 fichiers utilisés)
         run: |
-          git clone --depth 1 --filter=blob:none --sparse --branch AC79NN_SDK_V1.2.1_2023-12-13 \
-              https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git "$HOME/fw-AC79_AIoT_SDK"
+          for i in 1 2 3; do git clone -q --depth 1 --filter=blob:none --sparse --branch AC79NN_SDK_V1.2.1_2023-12-13 \
+              https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git "$HOME/fw-AC79_AIoT_SDK" && break; rm -rf "$HOME/fw-AC79_AIoT_SDK"; sleep 20; done
           cd "$HOME/fw-AC79_AIoT_SDK" && git sparse-checkout set --no-cone \
               cpu/wl82/tools/uboot.boot cpu/wl82/tools/cfg_tool.bin cpu/wl82/tools/cfg/eq_cfg_hw.bin
           ls -l cpu/wl82/tools/uboot.boot cpu/wl82/tools/cfg_tool.bin cpu/wl82/tools/cfg/eq_cfg_hw.bin
