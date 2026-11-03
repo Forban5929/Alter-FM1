@@ -4,7 +4,22 @@
 - Romain, non-développeur, techno live indus. Explications simples, honnêteté (vérifié / pas vérifié).
 - Choix de design/direction → AskUserQuestion AVANT de coder. Garder ce fichier court : le détail va dans
   `docs/alter/HISTORIQUE.md` (pourquoi et noms de fonctions de chaque étape).
-- **N'a pas encore de FM-1** : cible = version navigateur (le vrai firmware en WebAssembly), qui doit rester compatible FM-1.
+- **A reçu sa FM-1 (03/11)**, PC Windows. Sait flasher : passe par https://thefirmwarehub.com/ (sauvegarde, « Back to official
+  V15 », secours = tenir OCT− à l'allumage, Rescue box). Le Hub n'installe PAS un firmware perso non testé → ALTER s'installe
+  par NOTRE page.
+
+## Étape FLASH (décidée 03/11, à faire dans l'ordre)
+1. **Construire le vrai firmware** (`./build.sh` → `build/felucca.fwsc`) : compilateur JieLi + SDK AC79 introuvables dans le
+   cloud (pkgman.jieliapp.com, gitee bloqués) → **workflow GitHub Actions** (ubuntu x86-64, `tools/get_toolchain.sh` + clone
+   SDK `AC79NN_SDK_V1.2.1_2023-12-13`). 1re compilation : s'attendre à des erreurs à corriger.
+   Place code (XIP, app.ld) ≈ 568 Ko, RAM 72 Ko + POOL 360 Ko. Ne PAS retirer le reste de Felucca avant d'avoir la taille réelle.
+2. **Version TEST** (choix de Romain) : charge CPU affichée à l'écran (`song.cpu_q8`, déjà mesurée ; console.c la donne en USB).
+3. **Page d'installation dédiée** (choix de Romain, modèle https://baudgirl.com/work/FM-1+VA/install : assistant en étapes
+   navigateur → préparer → tester la connexion → version → installer → fini) sur GitHub Pages, en réutilisant l'installateur
+   Felucca encore présent : `web/index_pkg.html`, `web/fm1ota.js`, `web/fm1pkg.js`, `web/make_site.py`.
+4. Contrôles sur la machine AVANT de jouer : démarre, son, CPU, SAVE/LOAD, retour possible par USB.
+5. Plus tard : **page compagnon** (éditeur web : tous les réglages à l'écran, écran agrandi, sauvegarde de patchs facile).
+   Détails à demander à Romain. L'éditeur web Felucca a été retiré le 01/11 (récupérable dans l'historique git).
 
 ## Rôle de Claude
 Ingénieur DSP + développeur C embarqué.
