@@ -63,7 +63,8 @@
   page, sans son). Liaison **directe USB** (Web MIDI SysEx, Chrome/Edge), **3 colonnes = réglages des 3 sons** (son, 8 réglages
   moteur, ADSR, DIST CHOR DLY REV, INSERT TYPE/A/MIX, LEVEL PAN GLIDE), patchs **fichier .alter.json** + **scène USER dans
   la FM-1** (« Ranger ici » = SAVE tenu). Protocole **ALTER LINK** : `docs/alter/LINK.md`, `alter_link.c`, `web/alter/`,
-  test `tools/alter/alter_link_test.mjs` (15/15, aussi dans pages.yml). **Pas encore essayé sur la vraie FM-1.**
+  test `tools/alter/alter_link_test.mjs` (20/20, aussi dans pages.yml). **1er essai FM-1 (04/11, Romain)** : liaison qui
+  « coupe » en changeant de pattern + colonnes sans réglages → corrigé (trames avalées par ota_service, voir LINK.md) : À REVÉRIFIER.
   Plus tard (Romain) : cercles/rythme, LFO/MTX, MASTER FILTER, écran agrandi. Puis : assistant d'installation façon baudgirl.
   (L'ancien éditeur Felucca, protocole « FL », est dans l'historique git, commit 8b8f548^ : web/EDITOR_PROTOCOL.md.)
 

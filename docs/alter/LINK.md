@@ -5,13 +5,15 @@ test : `node tools/alter/alter_link_test.mjs build/emu/felucca.wasm`.
 
 Trame : `F0 7D 41 4C cmd args… F7` (« AL » ; l'ancien éditeur Felucca disait « FL », il n'est plus servi). Valeur = 2 octets,
 poids faible d'abord, + 8192. Une réponse par requête valide, même `cmd` ; requête fausse = pas de réponse.
-Branché dans `main.c` avant `ota_service()` : une trame qui n'est pas « AL » reste pour la mise à jour USB (intacte).
+Branché dans `main.c` par `lk_usb_service()` : SEUL endroit qui lit une trame reçue ; « AL » = pour nous, sinon `ota_service()`
+(mise à jour USB intacte). Avant le 04/11, ota_service pouvait avaler une trame « AL » → pas de réponse → « liaison coupée ».
+File de sortie USB : `SXQ` 256 (felucca.c, avant usb.c).
 
 | cmd | requête | réponse |
 | --- | --- | --- |
 | 1 INFO | — | version, 3 cercles, 4 moteurs (noms), N sons (moteur, nom), 16 places USER, 22 ids de réglage |
 | 2 STATE | cercle | cercle, moteur, son, mode d'enveloppe, 22 valeurs (BASE : sans le décalage du dé) |
-| 3 DESC | cercle, id | fmt, min, max, déf, nom, unité, noms d'une liste |
+| 3 DESC | cercle, id [, moteur] | fmt, min, max, déf, nom, unité, noms d'une liste |
 | 4 SET | cercle, id, valeur | cercle, id, valeur gardée (dans ses limites ; le dé reste par-dessus) |
 | 5 SOUND | cercle, son | STATE (comme PRESETS sur la machine) |
 | 6 SCENE | 0 liste / 1 place = ranger (= SAVE tenu) / 2 place = charger | op, place, rc (1 ok, 0 vide/protégée, 2 flash), [16 octets occupée] |
@@ -20,4 +22,6 @@ Branché dans `main.c` avant `ota_service()` : une trame qui n'est pas « AL » 
 
 Ids (ordre de STATE) : E0..E7, ATK DEC SUS REL, DIST CHOR DLY REV, ITYPE IA IMIX, LEVEL PAN GLIDE = ce qu'une scène USER garde.
 Patch fichier : JSON `alter-fm1-patch` v1 (moteur, nom du son, valeurs par id) ; à l'ouverture : SOUND puis SET de chaque id.
+Page : lit les DESC des 4 moteurs UNE fois à la connexion ; une réponse perdue = redemandée 1 fois ; coupée après 3 PING
+sans réponse ; un RELOAD pendant une lecture = relu après (un seul refresh par cercle).
 Mode démo : `editor/?demo` fait tourner `../felucca.wasm` dans la page (exports `web_link_*`, sans son).

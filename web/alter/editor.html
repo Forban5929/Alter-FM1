@@ -144,20 +144,33 @@ function makePort(sendBytes, close) {
       if (!m) return;
       if (m.cmd === CMD.CHANGED) return pushChanged(m);
       if (m.cmd === CMD.RELOAD) return pushReload(m);
-      const i = waiters.findIndex((w) => w.cmd === m.cmd);
+      const i = waiters.findIndex((w) => w.cmd === m.cmd && (!w.match || w.match(m)));
       if (i >= 0) { const w = waiters.splice(i, 1)[0]; clearTimeout(w.t); w.ok(m); }
     },
-    wait(cmd, ms) {
+    wait(cmd, ms, match) {
       return new Promise((ok, no) => {
-        const w = { cmd, ok, t: setTimeout(() => { waiters.splice(waiters.indexOf(w), 1); no(new Error("pas de réponse")); }, ms) };
+        const w = { cmd, match, ok, t: setTimeout(() => { waiters.splice(waiters.indexOf(w), 1); no(new Error("pas de réponse")); }, ms) };
         waiters.push(w);
       });
     },
   };
 }
 let chain = Promise.resolve();
-function ask(bytes, ms = 800) {                       // one request at a time, its reply matched by cmd
-  const p = chain.then(() => { const w = port.wait(bytes[4], ms); port.send(bytes); return w; });
+// one request at a time; its reply matched by cmd (and by circle and id: a late reply of an earlier request is not
+// taken for this one); a lost reply is asked again once before giving up
+const sameAsk = (b) => {
+  const cmd = b[4];
+  if (cmd === CMD.STATE) return (m) => m.circ === b[5];
+  if (cmd === CMD.DESC || cmd === CMD.SET) return (m) => m.circ === b[5] && m.id === b[6];
+  return null;
+};
+function ask(bytes, ms = 1500, tries = 2) {
+  const once = () => { if (!port) throw new Error("pas connecté"); const w = port.wait(bytes[4], ms, sameAsk(bytes)); port.send(bytes); return w; };
+  const p = chain.then(async () => {
+    for (let k = 1; ; k++) {
+      try { return await once(); } catch (e) { if (k >= tries || !port) throw e; }
+    }
+  });
   chain = p.catch(() => {});
   return p;
 }
@@ -194,7 +207,7 @@ async function connectDemo() {
   await start(makePort(send, () => clearInterval(tick)), "demo", "Simulateur (sans machine, sans son)");
 }
 
-let pinger = 0;
+let pinger = 0, descs = [];
 async function start(p, kind, label) {
   if (port) { port.close(); clearInterval(pinger); }
   port = p;
@@ -207,10 +220,21 @@ async function start(p, kind, label) {
   $("state").dataset.on = kind; $("stateTxt").textContent = label;
   $("ver").textContent = info.version;
   build();
-  for (let c = 0; c < 3; c++) await refresh(c);
+  descs = [];                                        // the four engines' parameters, read once
+  try {
+    for (let e = 0; e < info.engines.length; e++) {
+      descs[e] = [];
+      for (const id of info.ids) descs[e].push(await ask(req.desc(0, id, e)));
+    }
+    for (let c = 0; c < 3; c++) await refresh(c);
+  } catch {
+    port.close(); port = null;
+    return say("La machine a cessé de répondre pendant la lecture des réglages. Débranche et rebranche l'USB, puis réessaie.", true);
+  }
   await listSlots();
   await ask(req.watch(1));
-  pinger = setInterval(() => ask(req.ping()).catch(lost), 1000);
+  let missed = 0;                                     // the link is cut only after 3 PINGs in a row got no answer
+  pinger = setInterval(() => ask(req.ping(), 1500, 1).then(() => (missed = 0), () => { if (++missed >= 3) lost(); }), 1000);
   $("intro").hidden = true; $("bar").hidden = false; $("strips").hidden = false;
   say(kind === "demo" ? "Le simulateur tourne : bouge un réglage pour voir." : "C'est branché. Tourne un knob sur la machine : il bouge ici aussi.");
 }
@@ -246,19 +270,25 @@ function build() {
   }
 }
 
-async function refresh(c) {                            // STATE, then the engine's descriptions, then the controls
-  const st = await ask(req.state(c));
-  const C = circ[c], engChanged = !C.state || C.state.eng !== st.eng || !C.desc.length;
-  C.state = st;
-  if (engChanged) {
-    C.desc = [];
-    for (const id of info.ids) C.desc.push(await ask(req.desc(c, id)));
-    drawControls(c);
-  }
-  C.el.querySelector("[data-eng]").textContent = info.engines[st.eng] ?? "";
-  C.el.querySelector("[data-mode]").textContent = MODES[st.mode] ?? "";
-  C.el.querySelector("[data-sound]").value = st.sound;
-  st.values.forEach((v, k) => setCtl(c, k, v));
+// a circle's STATE, then its controls (drawn anew when its engine changed). One at a time per circle: a RELOAD that
+// comes in meanwhile reads it once more afterwards
+async function refresh(c) {
+  const C = circ[c];
+  if (C.busy) { C.again = true; return C.busy; }
+  C.busy = (async () => {
+    do {
+      C.again = false;
+      const st = await ask(req.state(c));
+      const engChanged = !C.state || C.state.eng !== st.eng || !C.desc.length;
+      C.state = st;
+      if (engChanged) { C.desc = descs[st.eng]; drawControls(c); }
+      C.el.querySelector("[data-eng]").textContent = info.engines[st.eng] ?? "";
+      C.el.querySelector("[data-mode]").textContent = MODES[st.mode] ?? "";
+      C.el.querySelector("[data-sound]").value = st.sound;
+      st.values.forEach((v, k) => setCtl(c, k, v));
+    } while (C.again);
+  })().finally(() => { C.busy = null; });
+  return C.busy;
 }
 
 function drawControls(c) {
@@ -313,7 +343,7 @@ async function flush() {
       const r = await ask(req.set(c, info.ids[k], v));
       circ[c].state.values[k] = r.value;
       if (r.value !== v && !pending.has(key)) setCtl(c, k, r.value);
-    } catch { lost(); break; }
+    } catch { soft(); break; }
     await new Promise((ok) => setTimeout(ok, 40));
   }
   flushing = false;
@@ -321,7 +351,7 @@ async function flush() {
 
 async function chooseSound(c, n) {
   try { await ask(req.sound(c, n)); await refresh(c); say(`Cercle ${c + 1} : ${info.sounds[n].name}`); }
-  catch { lost(); }
+  catch { soft(); }
 }
 
 /* the device's own changes */
@@ -331,7 +361,8 @@ function pushChanged(m) {
   circ[m.circ].state.values[k] = m.value;
   setCtl(m.circ, k, m.value, true);
 }
-function pushReload(m) { if (circ[m.circ]) refresh(m.circ).catch(lost); }
+function pushReload(m) { if (circ[m.circ]) refresh(m.circ).catch(soft); }
+function soft() { if (port) say("Une réponse de la machine s'est perdue. Si une colonne n'est plus à jour, change de son puis reviens.", true); }
 
 /* ---------- patch files ---------- */
 function patchNow() {
@@ -370,7 +401,7 @@ async function openPatch(file) {
       await refresh(c);
     }
     say(`Patch « ${file.name} » chargé sur les trois cercles. Pour le garder dans la machine : « Ranger ici ».`);
-  } catch { lost(); }
+  } catch { soft(); }
 }
 
 /* ---------- USER scenes in the FM-1 ---------- */
@@ -391,7 +422,7 @@ async function store() {
     if (r.rc === 1) say(`Scène rangée dans USER ${i + 1}. Elle se recharge aussi depuis SAVE sur la machine.`);
     else say(r.rc === 2 ? "La mémoire de la machine n'a pas accepté l'écriture. Rien n'a été rangé." : "Cette place est protégée.", true);
     await listSlots();
-  } catch { lost(); }
+  } catch { soft(); }
 }
 async function load() {
   const i = +$("slot").value;
@@ -402,7 +433,7 @@ async function load() {
     if (r.rc !== 1) return say(`USER ${i + 1} n'a pas pu être chargée.`, true);
     for (let c = 0; c < 3; c++) await refresh(c);
     say(`USER ${i + 1} chargée.`);
-  } catch { lost(); }
+  } catch { soft(); }
 }
 
 function say(t, bad) { const m = $("msg"); m.textContent = t; m.classList.toggle("bad", !!bad); }

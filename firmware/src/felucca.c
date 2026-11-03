@@ -98,6 +98,7 @@ static __attribute__((noinline)) int c1_wait(void) { return fm1_cpu1_wait(); }  
 #include "fx.c"
 
 /* ------------------------------------------------- MIDI, sequencer --- */
+#define SXQ 256u                 /* USB-MIDI out queue (usb.c, 4 bytes each): the companion page's longer replies whole */
 #include "../bsp/chip/usb.c"
 #if FELUCCA_UART
 #include "midi_uart.c"

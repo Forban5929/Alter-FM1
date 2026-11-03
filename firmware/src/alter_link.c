@@ -161,9 +161,13 @@ static void lk_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             return;
         lk_state(a[0]);
         return;
-    case LKC_DESC: {                                  /* circle, id: fmt, min, max, def, label, unit, enum names */
+    case LKC_DESC: {                                  /* circle, id [, engine (ALT_ENGS index): that engine's, whatever
+                                                      * the circle plays]: fmt, min, max, def, label, unit, enum names */
         const param_desc_t *d;
-        if (na != 2u || a[0] >= AS_NCIRC || !lk_known(a[1]) || !(d = lk_desc(a[0], a[1])))
+        if ((na != 2u && na != 3u) || a[0] >= AS_NCIRC || !lk_known(a[1]) || (na == 3u && a[2] >= ALT_NENG))
+            return;
+        d = na == 3u ? param_desc_of(eng_idx(ALT_ENGS[a[2]]), a[1]) : lk_desc(a[0], a[1]);
+        if (!d)
             return;
         lk_begin(LKC_DESC);
         lk_b(a[0]);
@@ -301,21 +305,27 @@ static void lk_frame(const uint8_t *p, uint32_t n)   /* a SysEx frame's bytes be
 }
 
 #ifndef FELUCCA_WEB
-/* main loop: ALTER LINK's frames first; any other stays for ota_service() (M-UPGRADE: untouched) */
-static void lk_service(void)
+/* main loop, the one place that reads a received SysEx frame: ALTER LINK's are answered here, any other goes to
+ * ota_service() (M-UPGRADE: untouched). (Before 04/11 ota_service ran after lk_service and could take an ALTER LINK
+ * frame that arrived in between: it threw it away, the page got no reply and saw the link as cut.) The frame stays
+ * put between the look and the take: the USB side keeps no new one while one waits (usb.c sx_ready) */
+static void lk_usb_service(int ota)                /* ota 0: leave another's frame where it is */
 {
     const uint8_t *p;
     uint32_t n;
     lk_sync();
-    if (!ota_frame_get(&p, &n) || n < 4u || p[0] != LK_H0 || p[1] != LK_H1 || p[2] != LK_H2)
+    if (!ota_frame_get(&p, &n))
         return;
-    {
+    if (n >= 4u && p[0] == LK_H0 && p[1] == LK_H1 && p[2] == LK_H2) {
         uint8_t f[64];
         uint32_t k = n > sizeof f ? sizeof f : n, i;
         for (i = 0; i < k; i++)
             f[i] = p[i];
         ota_frame_done();                            /* free the frame before replying */
         lk_frame(f, k);
+        return;
     }
+    if (ota)
+        ota_service();                               /* (not ours: the update's handshake) */
 }
 #endif

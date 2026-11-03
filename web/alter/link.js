@@ -10,7 +10,7 @@ export const frame = (cmd, ...args) => [0xf0, ...HDR, cmd, ...args.map((b) => b 
 export const req = {
   info: () => frame(CMD.INFO),
   state: (c) => frame(CMD.STATE, c),
-  desc: (c, id) => frame(CMD.DESC, c, id),
+  desc: (c, id, eng) => (eng == null ? frame(CMD.DESC, c, id) : frame(CMD.DESC, c, id, eng)),
   set: (c, id, v) => frame(CMD.SET, c, id, ...v14(v)),
   sound: (c, n) => frame(CMD.SOUND, c, n),
   sceneList: () => frame(CMD.SCENE, 0),

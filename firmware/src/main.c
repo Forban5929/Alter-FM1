@@ -215,8 +215,8 @@ static void fm1_main(void)
             }
         }
 #if FELUCCA_OTA
-        lk_service();                                   /* the companion page (alter_link.c) */
-        ota_service();                                  /* M-UPGRADE handshake */
+        lk_usb_service(1);                              /* the companion page's frames, then M-UPGRADE's handshake
+                                                         * (alter_link.c: ota_service never sees ours) */
         if (usb.ota_req) {                              /* M-UPGRADE upgrade command */
             usb.ota_req = 0;
             panic_req = (1u << NTRK) - 1u;               /* every track (bit per track) */
@@ -254,7 +254,7 @@ static void fm1_main(void)
         while (fm1_ms - m < 15u) {                               /* ~60 UI frames/s at most */
             ui_input();
 #if FELUCCA_OTA
-            lk_service();                       /* the page's replies without waiting for the next frame */
+            lk_usb_service(0);                  /* the page's replies without waiting for the next frame */
 #endif
         }
     }

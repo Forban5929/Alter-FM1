@@ -71,6 +71,21 @@ const ls = one(req.sceneList());
 check(`SCENE : liste des places USER (${ls?.used?.filter(Boolean).length} occupée)`, ls?.used?.length === 16 && ls.used[3] === 1);
 check("SCENE : une place vide se charge pas (rc 0)", one(req.sceneLoad(9))?.rc === 0);
 
+// every engine's descriptions, asked by engine (the page reads them once): sane for all 22 settings
+for (let e = 0; e < info.engines.length; e++) {
+  const ds = info.ids.map((id) => one(req.desc(2, id, e)));
+  const ok = ds.every((d) => d && d.label && d.min <= d.max && d.def >= d.min && d.def <= d.max &&
+    (d.fmt !== F_ENUM || (d.names.length === d.max - d.min + 1 && d.names.every((n) => n.length))));
+  check(`DESC du moteur ${info.engines[e]} (22 réglages, listes complètes)`, ok);
+}
+
+// a scene loaded on the device (as SAVE does) while watched: RELOAD for each circle that changed
+one(req.watch(1)); ex.web_link_sync(); out();
+ex.web_alter(1, 2, 0); render(8000); one(req.ping()); ex.web_link_sync(); ex.web_link_sync();
+const rl = out();
+check(`scène changée sur la machine : la page est prévenue (${rl.filter((p) => p.cmd === CMD.RELOAD).length} RELOAD, ${rl.filter((p) => p.cmd === CMD.CHANGED).length} CHANGED)`,
+  rl.some((p) => p.cmd === CMD.RELOAD || p.cmd === CMD.CHANGED));
+
 // junk: not ours, or bad lengths -> no reply
 check("trames étrangères ou fausses : aucune réponse", send([0xf0, 0x7d, 0x46, 0x4c, 1, 0xf7]).length === 0 && send(req.state(7)).length === 0 && send([0xf0, 0x7d, 0x41, 0x4c, 4, 0, 0xf7]).length === 0);
 
