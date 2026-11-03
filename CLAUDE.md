@@ -53,7 +53,9 @@
   Le kit contient ALTER.fwsc (corrigé, contrôlé par l'outil) ; 3-ECRIRE-ALTER écrit ALTER (pas V15 : V16 = FM-1_016, flash.bin 0xA9000 > 0x93000, refusé par l'outil). Pilote WinUSB par Zadig pour 4C4A:8057 seulement. Jamais testé sur
   Windows + UC25HQ80 : faire 1 et 2, lire le texte, puis seulement 3.
   **FAIT le 03/11 (Romain)** : étape 2 OK (JEDEC 0xb36014, clé OK), étape 3 « RESTORE VERIFIED » (92 secteurs, ALTER corrigé
-  8765e894…). À confirmer : SAVE survit à l'extinction, et une mise à jour depuis /install/ passe directement sous ALTER.
+  8765e894…). **Confirmé par Romain (03/11) : tout marche, SAVE gardé, mise à jour depuis /install/ OK sous ALTER.**
+  OCT− seul à l'allumage = fonction de Melodee (son propre chargeur), PAS de Felucca/ALTER (info du Hub relayée à tort).
+  Filets de secours d'ALTER : OCT− + OCT+ 5 s = UBOOT (puce) + kit /secours/.
 - Prochain : assistant d'installation façon https://baudgirl.com/work/FM-1+VA/install, puis **page compagnon** (éditeur web,
   écran agrandi, patchs ; l'éditeur Felucca retiré le 01/11 est dans l'historique git).
 
