@@ -33,6 +33,9 @@ jobs:
         run: |
           set -o pipefail
           ./build.sh 2>&1 | tee build-log.txt
+      - name: Contrôle par l'outil de secours (paquet accepté ?)
+        if: always()
+        run: python3 tools/alter/rescue/fm1_recover.py build/felucca.fwsc --check --loader tools/alter/rescue/wl82loader.bin
       - name: Test 2 cœurs (son identique, aucun accès simultané)
         run: |
           mkdir -p build/host
