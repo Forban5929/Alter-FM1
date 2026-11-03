@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# ALTER pour la vraie FM-1 : construit le firmware (felucca.fwsc) avec le compilateur JieLi, introuvable dans le
+# cloud de Claude. Le fichier se télécharge dans l'onglet Actions (section « Artifacts » du run).
+name: Firmware FM-1
+
+on:
+  push:
+    branches: [main, "etape-*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  firmware:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Outils Python
+        run: pip install --quiet pillow fonttools numpy
+      - name: Compilateur JieLi (pi32v2)
+        run: sh tools/get_toolchain.sh "$HOME/.jieli"
+      - name: SDK JieLi AC79 (3 fichiers utilisés)
+        run: |
+          git clone --depth 1 --filter=blob:none --sparse --branch AC79NN_SDK_V1.2.1_2023-12-13 \
+              https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git "$HOME/fw-AC79_AIoT_SDK"
+          cd "$HOME/fw-AC79_AIoT_SDK" && git sparse-checkout set --no-cone \
+              cpu/wl82/tools/uboot.boot cpu/wl82/tools/cfg_tool.bin cpu/wl82/tools/cfg/eq_cfg_hw.bin
+          ls -l cpu/wl82/tools/uboot.boot cpu/wl82/tools/cfg_tool.bin cpu/wl82/tools/cfg/eq_cfg_hw.bin
+      - name: Construire
+        run: |
+          set -o pipefail
+          ./build.sh 2>&1 | tee build-log.txt
+      - name: Tailles
+        if: always()
+        run: |
+          ls -l build/*.bin build/*.fwsc build/loader/*.bin 2>/dev/null | tee -a build-log.txt
+          SZ="$(ls "$HOME"/.jieli/toolchain/pi32v2/bin/ | grep -m1 -E 'size$' || true)"
+          [ -n "$SZ" ] && [ -f build/felucca.elf ] && "$HOME/.jieli/toolchain/pi32v2/bin/$SZ" -A build/felucca.elf | tee -a build-log.txt || true
+          echo "Place pour le code (XIP, app.ld) : $((0x8DFBC)) octets" | tee -a build-log.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: alter-fm1-${{ github.ref_name }}-${{ github.run_number }}
+          path: |
+            build/felucca.fwsc
+            build/felucca.bin
+            build-log.txt
+          if-no-files-found: warn
