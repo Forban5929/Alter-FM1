@@ -128,8 +128,11 @@ static struct {
     uint8_t used[ALT_NUSER];
     uint8_t r[ALT_NUSER][AFL_REC];
     uint32_t add[ALT_NUSER][AS_NCIRC];
+    uint8_t fx[ALT_NUSER][AS_NCIRC][AS_MAXLEN];  /* the fills REC'd per step (alter_play.c alt_fxr) */
 } alt_bank_f;
 #define ALT_BANK_F_OLD (4u + ALT_NUSER * (1u + AFL_REC))   /* (before the added steps: still read) */
+#define ALT_BANK_F_ADD (ALT_BANK_F_OLD + ALT_NUSER * AS_NCIRC * 4u)   /* (before the REC'd fills: still read) */
+_Static_assert(sizeof alt_bank_f == ALT_BANK_F_ADD + ALT_NUSER * AS_NCIRC * AS_MAXLEN, "(no padding)");
 _Static_assert(sizeof alt_bank_s <= 3840u && sizeof alt_bank_p <= 3840u && sizeof alt_bank_r <= 3840u &&
                sizeof alt_bank_f <= 3840u,
                "ALTER's banks fit a storage object");
@@ -327,8 +330,10 @@ static void alt_load_scene(uint32_t n)
     const alt_scene_t *sc = &ALT_SCENE[n % ALT_NSCENE];
     uint32_t c;
     afl_off();                                   /* (the factory scenes: no MASTER FILTER, no added steps) */
-    for (c = 0; c < AS_NCIRC; c++)
+    for (c = 0; c < AS_NCIRC; c++) {
         alt_add_set(c, 0);
+        alt_fxr_put(c, 0);
+    }
     if (sc->user) {                              /* a USER scene of Romain's, as he stored it (alter_ui.c alt_dump_user) */
         static alt_scene_rec_t rec;
         static alt_rhy_t rhy[AS_NCIRC];
@@ -386,8 +391,10 @@ static void alt_new_scene(void)
     static const uint8_t ROOT[AS_NCIRC] = {36, 48, 60};
     uint32_t c;
     afl_off();
-    for (c = 0; c < AS_NCIRC; c++)
+    for (c = 0; c < AS_NCIRC; c++) {
         alt_add_set(c, 0);
+        alt_fxr_put(c, 0);
+    }
     song.g[G_BPM] = 120;
     song.g[G_SWING] = 0;
     alt_seq.scale = AS_SC_MIN;
@@ -454,7 +461,7 @@ static void alt_banks_load(void)
     {
         int n = st_load(ALT_OBJ_FILT, &alt_bank_f, sizeof alt_bank_f);
         uint32_t i;
-        if (n == (int)ALT_BANK_F_OLD)            /* (stored before the added steps) */
+        if (n == (int)ALT_BANK_F_OLD || n == (int)ALT_BANK_F_ADD)   /* (stored before the added steps, the fills) */
             for (i = (uint32_t)n; i < sizeof alt_bank_f; i++)
                 ((uint8_t *)&alt_bank_f)[i] = 0;
         else if (n != (int)sizeof alt_bank_f)
@@ -520,8 +527,10 @@ static int alt_row_load(uint32_t t, uint32_t i)
                 afl_put(alt_bank_f.r[u]);
             else
                 afl_off();
-            for (c = 0; c < AS_NCIRC; c++)       /* its added steps */
+            for (c = 0; c < AS_NCIRC; c++) {     /* its added steps, its REC'd fills */
                 alt_add_set(c, alt_bank_f.add[u][c]);
+                alt_fxr_put(c, alt_bank_f.fx[u][c]);
+            }
         } else
             return 0;
         return 1;
@@ -537,7 +546,8 @@ static int alt_row_load(uint32_t t, uint32_t i)
             r = alt_bank_p.p[i - 1u - ALT_NFACT].c[c];
         else
             return 0;
-        alt_add_set(c, 0);                       /* (a pattern: the added steps go) */
+        alt_add_set(c, 0);
+        alt_fxr_put(c, 0);                       /* (a pattern: the added steps and the REC'd fills go) */
         alt_rhy_put(c, &r);
         if (i > ALT_NFACT)
             alt_rat_put(c, alt_bank_p.prat[i - 1u - ALT_NFACT][c]);
@@ -571,8 +581,12 @@ static int alt_row_save(uint32_t t, uint32_t i)
         alt_bank_r.fxok[u] = 1;
         alt_fx_get(alt_bank_r.fx[u]);
         alt_bank_f.used[u] = (uint8_t)afl_active();   /* the MASTER FILTER: kept when one is on */
-        for (c = 0; c < AS_NCIRC; c++)
+        for (c = 0; c < AS_NCIRC; c++) {
+            uint32_t k;
             alt_bank_f.add[u][c] = alt_seq.c[c].add;
+            for (k = 0; k < AS_MAXLEN; k++)
+                alt_bank_f.fx[u][c][k] = alt_fxr[c][k];
+        }
         if (alt_bank_f.used[u])
             afl_get(alt_bank_f.r[u]);
         for (c = 0; c < AS_NCIRC; c++)

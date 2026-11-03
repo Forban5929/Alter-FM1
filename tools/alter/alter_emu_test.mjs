@@ -154,7 +154,7 @@ check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().
 // the fills: on the selected circle (1)
 {
   const before = bar().steps.length;
-  const FILLS = { 13: "DUB DELAY", 15: "DUB REVERB", 17: "DESTROY", 20: "ROLL 1/16", 22: "ROLL 1/8T" };   // (RATCHET X2 left the keys: TRIGGER, 03/11)
+  const FILLS = { 13: "DUB DELAY", 15: "DUB REVERB", 17: "DESTROY", 20: "ROLL 1/16", 22: "ROLL 1/32" };   // (RATCHET X2 left the keys: TRIGGER; 1/8T became 1/32, 03/11)
   const got = {}, n = {};
   let worst = 0;
   for (const [k, name] of Object.entries(FILLS)) {
@@ -166,8 +166,10 @@ check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().
   }
   console.log("alter: attacks in a bar held: " + Object.entries(n).map(([k, v]) => `${k} ${v}`).join(", "));
   check(`every fill plays and none clips (peak ${worst.toFixed(3)})`, Object.values(n).every((v) => v > 0) && worst < 0.999);
-  check(`ROLL 1/16 ~ 16 attacks, 1/8T ~ 12 (${n["ROLL 1/16"]} ${n["ROLL 1/8T"]})`,
-        n["ROLL 1/16"] >= 14 && n["ROLL 1/8T"] >= 9 && n["ROLL 1/8T"] <= 14);
+  const notes = (k) => { K(1 << k); render(2000); bar(); const h0 = ex.web_alter_hits(0); bar(); const d = ex.web_alter_hits(0) - h0; K(0); bar(); return d; };
+  const h16 = notes(20), h32 = notes(22);                        // (the notes counted: a 1/32 roll's attacks blur)
+  check(`ROLL 1/16 ~ 16 attacks; ROLL 1/32 twice as many notes as 1/16 (${n["ROLL 1/16"]}; ${h16} -> ${h32})`,
+        n["ROLL 1/16"] >= 14 && h16 > 0 && Math.abs(h32 - 2 * h16) <= 2);
   // the SEQ menu's RATCH lane: black key 13 = RATCH, step 1 held + KNOB 1 up: that hit plays x4
   {
     const seqTap = (hold) => { ex.web_buttons(1 << SEQB); render(hold); ex.web_buttons(0); render(2000); };
@@ -597,6 +599,41 @@ if (wavPath) {                                                  // 4 bars from a
   check(`TRIGGER + REC adds the step (${before} -> ${after} hits); USER scene keeps it (${fac} -> ${back}); REC held 1 s clears it (${cleared})`,
         after === before + 1 && fac === before && back === after && cleared === before);
   for (let c = 0; c < 3; c++) W(2, c, 0);
+  W(1, 0, 0); render(FS);
+}
+// REC + the fills (03/11): ROLL 1/16 held adds the steps it plays; ROLL 1/32 adds them doubled; DUB DELAY held writes
+// its steps, which then throw into the delay on every cycle (the send up there, back elsewhere); REC held 1 s clears all
+{
+  const W = (op, a, b) => ex.web_alter(op, a, b), RECB = 11;
+  const bits = (m) => { let n = 0; for (; m; m >>>= 1) n += m & 1; return n; };
+  const fx = (bit) => { let n = 0; for (let k = 0; k < 32; k++) if (ex.web_alter_fxr(0, k) & bit) n++; return n; };
+  const Bt = (b, hold = 2000) => { ex.web_buttons(1 << b); render(hold); ex.web_buttons(0); render(2000); };
+  W(1, 0, 0); W(4, BPM, 0); render(FS);
+  if (peak(render(FS, true)) < 0.002) play();
+  tap(1);                                                         // (circle 1 chosen: the first black key)
+  const p0 = bits(ex.web_alter_pat(0) >>> 0);
+  Bt(RECB);                                                       // REC on
+  K(1 << 20); render(STEP * 4); K(0); render(STEP);               // ROLL 1/16 over ~4 steps
+  const p1 = bits(ex.web_alter_pat(0) >>> 0);
+  K(1 << 22); render(STEP * 3); K(0); render(STEP);               // ROLL 1/32 over ~3 steps
+  const r32 = fx(1);
+  K(1 << 13); render(STEP * 3); K(0); render(STEP);               // DUB DELAY over ~3 steps
+  const dly = fx(2);
+  Bt(RECB);                                                       // REC off
+  let up = 0, down = 0;
+  for (let i = 0; i < 64; i++) { render(STEP / 2); const s = ex.web_alter_send(0); if (s === 127) up++; else down++; }
+  check(`REC + ROLL 1/16 adds steps (${p0} -> ${p1}), ROLL 1/32 doubles ${r32}, DUB DELAY writes ${dly} that replay (send up ${up}/64)`,
+        p1 >= Math.min(32, p0 + 2) && r32 >= 2 && dly >= 2 && up > 0 && down > 0);
+  const urow = (n) => { enc(1, -3); enc(0, -25); enc(0, n); };
+  const kept = fx(15);
+  Bt(7); urow(8); Bt(7, FS * 1.2); Bt(6);                         // USER 04 saved
+  W(1, 0, 0); render(FS);
+  const fac = fx(15);
+  Bt(7); urow(8); Bt(7); render(FS);                              // USER 04 loaded
+  check(`a USER scene keeps the REC'd fills (${kept} steps; factory ${fac}; loaded ${fx(15)})`, kept > 0 && fac === 0 && fx(15) === kept);
+  ex.web_buttons(1 << RECB); render(FS * 1.3); ex.web_buttons(0); render(2000);   // REC held 1 s: cleared
+  check(`REC held 1 s clears the REC'd fills (${fx(15)}) and the added steps (${bits(ex.web_alter_pat(0) >>> 0)} vs ${p0})`,
+        fx(15) === 0 && bits(ex.web_alter_pat(0) >>> 0) === p0);
   W(1, 0, 0); render(FS);
 }
 console.log(fails ? `alter: ${fails} FAIL` : "alter: all ok");

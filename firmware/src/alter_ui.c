@@ -29,7 +29,7 @@
  * DICE 1 2 3 (a tap: a new draw at once; held 0.6 s: the clean pattern again), SHIFT -1 +1 (a tap: the chosen
  * circle turned a step, kept), LOCK (TURING); the blacks in their groups 3-2-3-2-1 (Romain, 01/11): CIRCLE 1 2 3 (a tap:
  * that circle chosen, as SELECT; the three together: TOTAL CHAOS) | tapped DENSITY - + (a hit less / more, kept) |
- * held, on the chosen circle: DUB DELAY, DUB REVERB, DESTROY | ROLL 1/16, ROLL 1/8T | RATCHET x2. The whites C4..G5
+ * held, on the chosen circle: DUB DELAY, DUB REVERB, DESTROY | ROLL 1/16, ROLL 1/32 | TRIGGER. The whites C4..G5
  * after LOCK: free. All on the grid (alter_play.c). LEDs: the keys that act faint, bright when engaged (a circle muted, a
  * fill held, a tap just made); the others dark.
  * The screen: three concentric circles (circle 1 outside), each a voice's hits, lit as they play; the chosen one a
@@ -50,7 +50,7 @@ static const alt_key_t ALT_KEY[27] = {    /* k: semitones above F3 (whites 0 2 4
     [1] = {AK_SEL, 0, "CIRCLE 1"}, [3] = {AK_SEL, 1, "CIRCLE 2"}, [5] = {AK_SEL, 2, "CIRCLE 3"},
     [8] = {AK_DENS, 0, "DENSITY -"}, [10] = {AK_DENS, 1, "DENSITY +"},
     [13] = {AK_FILL, AF_DLY, "DUB DELAY"}, [15] = {AK_FILL, AF_REV, "DUB REVERB"}, [17] = {AK_FILL, AF_DESTROY, "DESTROY"},
-    [20] = {AK_FILL, AF_ROLL16, "ROLL 1/16"}, [22] = {AK_FILL, AF_ROLLT8, "ROLL 1/8T"},
+    [20] = {AK_FILL, AF_ROLL16, "ROLL 1/16"}, [22] = {AK_FILL, AF_ROLL32, "ROLL 1/32"},
     [25] = {AK_TRIG, 0, "TRIGGER"},         /* a hit of the chosen circle at once; + REC: added to it (alter_play.c alt_trig_now) */
 };
 #define ALT_DIE_HOLD_MS 600u
@@ -165,6 +165,15 @@ static void alt_add_set(uint32_t c, uint32_t m)
     fm1_irq_off();
     alt_seq.c[c % AS_NCIRC].add = m;
     as_repat(&alt_seq.c[c % AS_NCIRC]);
+    fm1_irq_on();
+}
+/* circle c's REC'd fills (alter_play.c alt_fxr: ROLL 1/32, the dubs, per step) from b, or none (b = 0) */
+static void alt_fxr_put(uint32_t c, const uint8_t *b)
+{
+    uint32_t k;
+    fm1_irq_off();
+    for (k = 0; k < AS_MAXLEN; k++)
+        alt_fxr[c % AS_NCIRC][k] = b ? b[k] : 0u;
     fm1_irq_on();
 }
 
@@ -1143,7 +1152,8 @@ static int alter_ui_input(uint32_t pressed)
             if (octs) {
                 for (i = 0; i < AS_NCIRC; i++) {
                     ar_clr_cnt[i]++;
-                    alt_add_set(i, 0);           /* (and the steps TRIGGER added) */
+                    alt_add_set(i, 0);           /* (and the steps TRIGGER added, the fills REC'd) */
+                    alt_fxr_put(i, 0);
                 }
                 ar_on = 0;
                 au.rec_done = 1;
@@ -1151,7 +1161,8 @@ static int alter_ui_input(uint32_t pressed)
             }
         } else if (rd && au.rec_t0 && !au.rec_done && (int32_t)(fm1_ms - au.rec_t0) >= (int32_t)ALT_REC_CLEAR_MS) {
             ar_clr_cnt[au.sel % AS_NCIRC]++;
-            alt_add_set(au.sel, 0);              /* (and the steps TRIGGER added) */
+            alt_add_set(au.sel, 0);              /* (and the steps TRIGGER added, the fills REC'd) */
+            alt_fxr_put(au.sel, 0);
             au.rec_done = 1;
             alt_say("REC CLEAR");
         } else if (!rd && au.rec_t0) {

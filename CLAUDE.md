@@ -56,7 +56,7 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
 - **CLAVIER LIVE (01/11, alter_ui.c ALT_KEY)** — gauche = quel cercle, milieu = son rythme, droite = effets tenus :
   blanches F G A = MUTE 1 2 3 · (B noire) · C D E = DÉ 1 2 3 · (F noire) · G A = SHIFT −1 +1 · B = LOCK (TURING) ·
   C..G hautes = **libres** (PING 1-4 retirés le 03/11). Noires : F# G# A# = **CERCLE 1 2 3** (= SELECT ; les 3 ensemble = CHAOS TOTAL) ·
-  C# D# = DENSITÉ − + · F# G# A# = DUB DELAY, DUB REVERB, DESTROY (tenus) · C# D# = ROLL 1/16, ROLL 1/8T · F# = **TRIGGER**.
+  C# D# = DENSITÉ − + · F# G# A# = DUB DELAY, DUB REVERB, DESTROY (tenus) · C# D# = ROLL 1/16, **ROLL 1/32** (ex-1/8T, 03/11) · F# = **TRIGGER**.
   Retirés du clavier : RATCHET ×2 et ×3, REVERSE, BUILD UP (le code audio AF_* reste dans alter_play.c). Fills = cercle choisi.
 - **TRIGGER (03/11)** = un coup du cercle choisi **tout de suite** (pad, dernière note, vél. 112, même muet) ; avec **REC tenu ou
   allumé** (transport en marche) le coup est AJOUTÉ au cercle sur le **pas le plus proche** (1re moitié du pas = le pas joué,
@@ -64,6 +64,11 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
   motif EUCLID/TURING, tournent avec SHIFT). Retaper = rien. Effacés : REC tenu 1 s (cercle), OCT−+OCT++REC (tout), scène
   ou pattern chargés. **Sauvés dans la scène USER** (alt_bank_f.add, objet 1). Code : alter_play.c alt_trig_now (par bloc),
   alter_ui.c AK_TRIG, alt_add_set. Test : 2 contrôles « TRIGGER » dans alter_emu_test.mjs.
+- **REC + effets tenus (03/11)** : REC allumé (ar_on), ce que le cercle cible joue sous un fill s'écrit sur le pas en cours
+  et rejoue à chaque tour : ROLL 1/16 = coups ajoutés (as_add) · ROLL 1/32 = coups ajoutés + doublés · DUB DELAY / DUB
+  REVERB / DESTROY = appliqués pendant ces pas. `alt_fxr[c][32]` (bits AFR_R32 DLY REV DST, alter_play.c) ; les dubs sont
+  calculés PAR CERCLE chaque bloc (alt_dub_on, alt_fx_save[c] : tenu OU enregistré). Effacés et sauvés comme les coups
+  TRIGGER (alt_fxr_put ; alt_bank_f.fx, objet 1, 3 tailles lues). Pas affichés à l'écran. 3 contrôles dans alter_emu_test.mjs.
 - **SHIFT −1/+1 = tourne le cercle sélectionné d'un pas par appui, gardé.** Écran : cercle choisi = anneau plein ; dé actif =
   petit triangle à gauche du cercle, à sa couleur.
   **Centre (01/11)** : triangle coupé en 3 depuis son centre, une pièce par cercle (petit, ~22 px ; pâle au repos ; un coup l'éclaire un peu

@@ -14,8 +14,8 @@
  * The PLAY view (alter_ui.c, the main loop) talks to this side only through the variables marked UI below: counters
  * it alone writes (this side follows them), or bytes; this side owns alt_seq. Everything the keys do acts on the
  * grid: at the next sixteenth (a tap) or from it (a fill). The fills (alt_hold, the keys held) act on ONE circle, the
- * one selected when the first fill key went down (alt_tgt): ROLL 1/16 1/32 triplet (its root, ghost rising to
- * accent, in place of its steps), RATCHET x2 x3 (each of its hits repeated within the step), DUB DELAY / DUB REVERB
+ * one selected when the first fill key went down (alt_tgt): ROLL 1/16 1/32 (its root, ghost rising to
+ * accent, in place of its steps), RATCHET x2 x3 (no key now) (each of its hits repeated within the step), DUB DELAY / DUB REVERB
  * / DESTROY (its part's send, or DIST + the FOLD insert, up while held, back on release: the tail rings on), REVERSE
  * (it walks back; on release it is where it would have been). Taps on the selected circle: SHIFT -1 +1 (turned a
  * step, kept), DENSITY - + (a hit less / more, kept). The knobs of every quick page reach a part's parameters
@@ -24,8 +24,14 @@
 
 #include "alter_seq.c"
 
-enum { AF_ROLLT8, AF_ROLL16, AF_BUILD, AF_RAT2, AF_RAT3, AF_DLY, AF_REV, AF_DESTROY, AF_REVERSE, AF_N };
-#define AF_ROLLS ((1u << AF_ROLLT8) | (1u << AF_ROLL16) | (1u << AF_BUILD))
+enum { AF_ROLL32, AF_ROLL16, AF_BUILD, AF_RAT2, AF_RAT3, AF_DLY, AF_REV, AF_DESTROY, AF_REVERSE, AF_N };
+#define AF_ROLLS ((1u << AF_ROLL32) | (1u << AF_ROLL16) | (1u << AF_BUILD))
+#define AF_DUBS ((1u << AF_DLY) | (1u << AF_REV) | (1u << AF_DESTROY))
+/* REC'd fills (03/11): per circle and step, what plays there on every cycle: ROLL 1/32 (the step's hit doubled), the dubs
+ * (DUB DELAY / REVERB, DESTROY for that step). ROLL 1/16 is recorded as added steps (alter_seq.c as_add). The UI writes
+ * them only to clear or load them (IRQ off) */
+enum { AFR_R32 = 1, AFR_DLY = 2, AFR_REV = 4, AFR_DST = 8 };
+static uint8_t alt_fxr[AS_NCIRC][AS_MAXLEN];
 #define ALT_NSLOT 14                             /* the offsets: E1..E8, DEC, REL, ATK, SUS, the DELAY and REVERB lanes */
 /* the envelope modes (ALGORITHM, per circle): FREE the sound's own ADSR; PERC, STAB, DRONE an ADSR of their own
  * (the sound's own nudges it a quarter of the way, the die's offset a third as far) and the notes' length */
@@ -69,7 +75,9 @@ static uint32_t alt_roll_seen[AS_NCIRC], alt_clear_seen[AS_NCIRC], alt_preset_se
 static uint16_t alt_prev;                        /* alt_hold at the last block */
 static uint8_t alt_rev_pos;                      /* REVERSE: where the target was at the press .. */
 static uint16_t alt_rev_n;                       /* .. and the steps since */
-static int16_t alt_fx_save[6];                   /* DLY, REV, DIST, ITYPE, IA, IMIX before the dub keys */
+static int16_t alt_fx_save[AS_NCIRC][6];         /* per circle: DLY, REV, DIST, ITYPE, IA, IMIX before a dub */
+static uint16_t alt_dub_on[AS_NCIRC];            /* the dubs applied on each circle now (held or REC'd), bit AF_* */
+static uint8_t alt_fxr_now[AS_NCIRC];            /* the REC'd fills of the step each circle plays */
 static int32_t alt_roll_pos;                     /* ROLL: samples to the next roll note (counting up to its period) */
 static uint32_t alt_roll_n;                      /* roll notes so far (the rise) */
 static uint8_t alt_rat_left[AS_NCIRC], alt_rat_note[AS_NCIRC], alt_rat_vel[AS_NCIRC], alt_rat_ch[AS_NCIRC][2];
@@ -245,10 +253,10 @@ static void alt_move(uint32_t c, uint32_t p, int32_t d)
 
 static uint32_t alt_roll_period(uint32_t h, uint32_t p);
 
-/* a dub send of the target: up while held (v), back on release */
-static void alt_send(uint32_t e, uint32_t h, uint32_t bit, uint32_t p, int16_t *save, int16_t v)
+/* a dub send of circle c: up while on (v), back after */
+static void alt_send(uint32_t c, uint32_t e, uint32_t h, uint32_t bit, uint32_t p, int16_t *save, int16_t v)
 {
-    track_t *t = &trk[alt_tgt];
+    track_t *t = &trk[c];
     if (!((e >> bit) & 1u))
         return;
     if ((h >> bit) & 1u) {
@@ -316,19 +324,29 @@ static void alt_take(void)
             as_clear(&alt_seq, c);
         }
     }
-    if (!e)
-        return;
-    if (!alt_prev)                               /* the first fill down: its circle is the target until all are up */
+    if (e && !alt_prev)                          /* the first fill down: its circle is the target until all are up */
         alt_tgt = (uint8_t)(alt_sel % AS_NCIRC);
     alt_prev = (uint16_t)h;
-    alt_send(e, h, AF_DLY, P_DLY, &alt_fx_save[0], 127);
-    alt_send(e, h, AF_REV, P_REV, &alt_fx_save[1], 127);
-    if ((e >> AF_DESTROY) & 1u) {
-        alt_send(e, h, AF_DESTROY, P_DIST, &alt_fx_save[2], 100);
-        alt_send(e, h, AF_DESTROY, P_ITYPE, &alt_fx_save[3], 3);   /* FOLD (params.c N_ITYPE) */
-        alt_send(e, h, AF_DESTROY, P_IA, &alt_fx_save[4], 110);
-        alt_send(e, h, AF_DESTROY, P_IMIX, &alt_fx_save[5], 127);
+    for (c = 0; c < AS_NCIRC; c++) {             /* the dubs on each circle: held (the target) or REC'd on its step */
+        uint32_t r = alt_run ? alt_fxr_now[c] : 0u, d, de;
+        int16_t *sv = alt_fx_save[c];
+        d = (c == alt_tgt ? h & AF_DUBS : 0u) | ((r & AFR_DLY) ? 1u << AF_DLY : 0u) | ((r & AFR_REV) ? 1u << AF_REV : 0u) |
+            ((r & AFR_DST) ? 1u << AF_DESTROY : 0u);
+        de = d ^ alt_dub_on[c];
+        if (!de)
+            continue;
+        alt_dub_on[c] = (uint16_t)d;
+        alt_send(c, de, d, AF_DLY, P_DLY, &sv[0], 127);
+        alt_send(c, de, d, AF_REV, P_REV, &sv[1], 127);
+        if ((de >> AF_DESTROY) & 1u) {
+            alt_send(c, de, d, AF_DESTROY, P_DIST, &sv[2], 100);
+            alt_send(c, de, d, AF_DESTROY, P_ITYPE, &sv[3], 3);   /* FOLD (params.c N_ITYPE) */
+            alt_send(c, de, d, AF_DESTROY, P_IA, &sv[4], 110);
+            alt_send(c, de, d, AF_DESTROY, P_IMIX, &sv[5], 127);
+        }
     }
+    if (!e)
+        return;
     if ((e >> AF_REVERSE) & 1u) {
         as_circ_t *c2 = &alt_seq.c[alt_tgt];
         uint32_t len = c2->cfg.len;
@@ -345,14 +363,14 @@ static void alt_take(void)
     }
 }
 
-/* a roll's step (p: a sixteenth): 1/8 triplet, 1/16, or BUILD UP: 4 eighths, 8 sixteenths, then thirty-seconds (each
+/* a roll's step (p: a sixteenth): 1/32, 1/16, or BUILD UP: 4 eighths, 8 sixteenths, then thirty-seconds (each
  * stage two beats long, so it stays on the grid), louder and louder (alt_roll_n: the notes so far) */
 static uint32_t alt_roll_period(uint32_t h, uint32_t p)
 {
     if ((h >> AF_BUILD) & 1u)
         return alt_roll_n < 4u ? 2u * p : alt_roll_n < 12u ? p : p / 2u;
-    if ((h >> AF_ROLLT8) & 1u)
-        return p * 4u / 3u;
+    if ((h >> AF_ROLL32) & 1u)
+        return p / 2u;
     return p;
 }
 
@@ -508,6 +526,7 @@ static void alter_step(void)
         int fill = h && c == alt_tgt;
         uint32_t rep;
         alt_rat_left[c] = 0;
+        alt_fxr_now[c] = kk[c] < AS_MAXLEN ? alt_fxr[c][kk[c]] : 0u;   /* (its REC'd fills: the dubs, alt_take) */
         if (fill && (h & AF_ROLLS))              /* a roll plays instead (the circle goes on underneath) */
             continue;
         if (!v->on) {                            /* no hit: the last note rings on its length, then stops */
@@ -543,6 +562,8 @@ static void alter_step(void)
             uint32_t f = (h >> AF_RAT3) & 1u ? 2u : (h >> AF_RAT2) & 1u ? 1u : 0u;
             rep = f > rep ? f : rep;
         }
+        if ((alt_fxr_now[c] & AFR_R32) && !rep && alt_emode[c] != AM_DRONE)
+            rep = 1;                             /* a REC'd ROLL 1/32: the hit doubled */
         alt_rat_note[c] = v->note;
         alt_rat_ch[c][0] = v->chord[0];
         alt_rat_ch[c][1] = v->chord[1];
@@ -632,6 +653,20 @@ static void alter_tick_(uint32_t n)
             alt_roll_pos -= (int32_t)per;
             alt_on(alt_tgt, as_note(&alt_seq, r->cfg.root, 0), v > 124u ? 124u : v, 0, 0);
             alt_roll_n++;
+            if (ar_on && r->cfg.len) {           /* REC: ROLL 1/16 adds the step, ROLL 1/32 doubles it too */
+                uint32_t k = (r->pos + r->cfg.len - 1u) % r->cfg.len;
+                as_add(&alt_seq, alt_tgt, k);
+                if ((h >> AF_ROLL32) & 1u)
+                    alt_fxr[alt_tgt][k] |= AFR_R32;
+            }
+        }
+    }
+    if (ar_on && (h & AF_DUBS)) {                /* REC: the dubs held, written on the step playing */
+        const as_circ_t *r = &alt_seq.c[alt_tgt];
+        if (r->cfg.len) {
+            uint32_t k = (r->pos + r->cfg.len - 1u) % r->cfg.len;
+            alt_fxr[alt_tgt][k] |= (uint8_t)(((h >> AF_DLY) & 1u ? AFR_DLY : 0u) | ((h >> AF_REV) & 1u ? AFR_REV : 0u) |
+                                             ((h >> AF_DESTROY) & 1u ? AFR_DST : 0u));
         }
     }
 }

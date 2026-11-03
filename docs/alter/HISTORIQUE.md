@@ -336,3 +336,15 @@ sauvé dans la scène.
 - alter_store.c : `alt_bank_f.add[16][3]` (objet 1, ancienne taille encore lue : ALT_BANK_F_OLD) ; scènes d'usine, NEW,
   patterns = ajouts à 0. eng_reso.c : `reso_force` retiré. Tests : RATCHET X2 retiré des contrôles de fills ; TRIGGER
   (son en 3 ms, ajout, sauvé/rechargé, effacé). Sons et scènes identiques au bit près.
+
+## REC + fills, ROLL 1/32 (03/11)
+Demande de Romain : en REC, ROLL 1/16 doit écrire ses coups comme des TRIGGER ; remplacer ROLL 1/8T par un 1/32 ;
+et en REC les effets tenus (DUB DELAY etc.) sont enregistrés aussi.
+- AF_ROLLT8 → AF_ROLL32 (alt_roll_period p/2), touche 22 « ROLL 1/32 ».
+- alter_play.c : `alt_fxr[3][32]` (AFR_R32, AFR_DLY, AFR_REV, AFR_DST). Écriture : boucle des rolls (chaque coup de roll,
+  ar_on → as_add du pas en cours ; 1/32 → AFR_R32 aussi) et chaque bloc pour les dubs tenus (pas en cours du cercle cible).
+  Lecture : alter_step pose `alt_fxr_now[c]` pour le pas joué (R32 → rep = 1, le coup doublé) ; alt_take calcule les dubs
+  PAR CERCLE (tenu sur la cible | enregistré) et applique les changements par alt_send(c, …) avec alt_fx_save[c][6].
+- Effacés/chargés/sauvés avec les ajouts TRIGGER (alt_fxr_put ; alt_bank_f.fx[16][3][32], ALT_BANK_F_ADD = ancienne taille).
+- Tests : ROLL 1/32 = 2 × les notes de 1/16 (compteur web_alter_hits) ; REC + ROLL 1/16 / 1/32 / DUB DELAY écrivent et
+  rejouent (web_alter_fxr, web_alter_send) ; sauvé dans USER 04 ; REC tenu 1 s efface. Sons identiques au bit près.
