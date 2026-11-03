@@ -30,6 +30,16 @@
   **10/10 identiques au bit près, 0 alerte ThreadSanitizer** (dans firmware.yml). Pile du 2e cœur (2816 o) :
   `tools/alter/stack_c1.py` → **1488 o (52 %)**, pire chemin phys_render (Felucca) ; estimation (appels indirects = moteurs).
   Écran : « 2C » après le % quand le 2e cœur prend des cercles. **À mesurer par Romain** : chiffres avec 2ND CORE ON.
+- **LE HASARD (03/11, retours de Romain)** — DÉ, 3 MUTE, CHAOS, CHAOS TOTAL : **jamais RESO** (`alt_rand_pre` ; RESO
+  reste à la main dans PRESETS : « pas dans le style », brouillon au hasard), **jamais d'accord** (chord = AS_CH_OFF ; le
+  DÉ tapé coupe l'accord du cercle), **BUDGET D'EFFETS** (`alt_fx_budget`, CHAOS et CHAOS TOTAL seulement, knobs à la
+  main libres) : 6 parts 0..256 = DIST, INSERT (IA x IMIX), DELAY (envoi + couloir le plus fort, x FEEDBACK), REVERB
+  (idem), LFO (|depth|/20), MTX (|AMT|/25) ; total ≤ ALT_FXB 384 : la plus forte reste, les autres baissent ensemble
+  (4 passes). Test : `web_alter_peek` (alter_ui.c alt_peek) + contrôle « CHAOS / CHAOS TOTAL x24 ».
+- **Vague des LFO** : l'écran se dessine en 2 moitiés ; l'horloge relue entre les deux décalait la vague (ligne au milieu)
+  → `alt_draw_gl_n` / `alt_draw_lfo_p` figés une fois par image. (Non reproductible au navigateur : à confirmer sur FM-1.)
+  Leçon : tout ce qui bouge (horloge, pas joué) doit être lu une fois par image, pas dans le dessin.
+- Test REC : `web_boot` ne recharge pas la scène → le bloc charge la scène 1 (sinon il hérite du CHAOS TOTAL d'avant).
 - Prochain : assistant d'installation façon https://baudgirl.com/work/FM-1+VA/install, puis **page compagnon** (éditeur web,
   écran agrandi, patchs ; l'éditeur Felucca retiré le 01/11 est dans l'historique git).
 

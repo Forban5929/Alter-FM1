@@ -502,5 +502,6 @@ EXPORT uint32_t web_alter_pat(uint32_t c) { return alt_seq.c[c % 3u].pat; }   /*
 EXPORT uint32_t web_alter_fxr(uint32_t c, uint32_t k) { return alt_fxr[c % 3u][k % AS_MAXLEN]; }   /* (tests: REC'd fills) */
 EXPORT int32_t web_alter_send(uint32_t c) { return trk[c % 3u].p[P_DLY]; }   /* (tests: the DELAY send now) */
 EXPORT uint32_t web_alter_hits(uint32_t c) { return alt_hits[c % 3u]; }   /* (tests: notes played) */
+EXPORT int32_t web_alter_peek(uint32_t c, uint32_t w) { return alt_peek(c, w); }   /* (tests: alter_ui.c alt_peek) */
 EXPORT int32_t web_alter_flt(uint32_t what) { return what == 1u ? afl_now : what == 2u ? afs.env : afl_peak; }   /* (tests: alter_filter.c) */
 EXPORT uint32_t web_alter_cal(uint32_t c, uint32_t what) { return what ? (uint32_t)ac_tg[c % 3u] : ac_last[c % 3u]; }   /* (tests: alter_fx.c) */

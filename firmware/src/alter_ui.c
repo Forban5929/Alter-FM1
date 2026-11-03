@@ -720,6 +720,111 @@ static int16_t alt_crange(const param_desc_t *d, int32_t div)   /* anywhere in d
     return (int16_t)(mid - span / (2 * div) + (int32_t)alt_cr((uint32_t)(span / div + 1)));
 }
 
+/* LE HASARD (Romain 03/11) : un son tiré n'est jamais un son RESO (« pas dans le style », brouillon dans le hasard ;
+ * RESO reste choisissable à la main dans PRESETS) */
+static uint32_t alt_rand_pre(void)
+{
+    uint32_t pi = 0, n;
+    for (n = 0; n < 64u; n++) {
+        pi = alt_cr(ALT_NPRE);
+        if (ALT_ENGS[ALT_PRE[pi].eng % ALT_NENG] != ENGI_RESO)
+            break;
+    }
+    return pi;
+}
+
+/* BUDGET D'EFFETS du hasard (Romain 03/11 : « certaines peuvent être hautes, mais tout ne peut pas être haut ») :
+ * un cercle tiré additionne 6 intensités (256 = au plus fort) : distorsions DIST et INSERT (sa dose x son MIX),
+ * échos envoi DELAY (pesé par le FEEDBACK partagé) et envoi REVERB, mouvements LFO (profondeurs, 20 = fort) et MTX
+ * (|AMT|, 25 = fort). Au-delà de ALT_FXB (1,5 effet au plus fort), la plus forte reste telle quelle et les autres
+ * baissent ensemble pour tenir dans le budget (les couloirs DELAY/REVERB des pas suivent leur envoi).
+ * Seulement le hasard (CHAOS, CHAOS TOTAL) : les knobs à la main restent libres. Appelé interruptions coupées. */
+#define ALT_FXB 384
+static int32_t alt_fxb_n(int32_t v, int32_t full)
+{
+    v = v < 0 ? -v : v;
+    return v >= full ? 256 : v * 256 / full;
+}
+static int32_t alt_fxb_vals(uint32_t c, int32_t *v);
+static int32_t alt_fxb_total(uint32_t c)         /* (les tests : web_alter_peek) */
+{
+    int32_t v[6];
+    return alt_fxb_vals(c, v);
+}
+static int32_t alt_fxb_vals(uint32_t c, int32_t *v)
+{
+    const track_t *t = &trk[c];
+    const as_circ_t *sc = &alt_seq.c[c];
+    int32_t tot = 0, fb = song.g[G_DFDBK], ld = 0, lr = 0;
+    uint32_t k, i;
+    for (k = 0; k < AS_NLANE; k++) {             /* (les couloirs DELAY / REVERB s'ajoutent à l'envoi à chaque coup :
+                                                  * l'envoi de base + son pas le plus fort) */
+        ld = sc->sdly[k] > ld ? sc->sdly[k] : ld;
+        lr = sc->srev[k] > lr ? sc->srev[k] : lr;
+    }
+    v[0] = alt_fxb_n(t->p[P_DIST], 127);
+    v[1] = t->p[P_ITYPE] ? alt_fxb_n(t->p[P_IA], 127) * alt_fxb_n(t->p[P_IMIX], 127) >> 8 : 0;
+    v[2] = alt_fxb_n(t->p[P_DLY] - alt_applied[c][12] + ld, 127) * (128 + clamp(fb, 0, 120) * 128 / 120) >> 8;   /* (FEEDBACK 0: x 0,5) */
+    v[3] = alt_fxb_n(t->p[P_REV] - alt_applied[c][13] + lr, 127);
+    v[4] = 0;
+    for (k = 0; k < CL_N; k++)
+        v[4] += alt_fxb_n(alt_cl[c][k].depth, 20);
+    v[5] = 0;
+    for (k = 0; k < NMSLOT; k++)
+        if (t->p[P_M1SRC + 3u * k])
+            v[5] += alt_fxb_n(t->p[P_M1AMT + 3u * k], 25);
+    for (i = 0; i < 6u; i++) {
+        v[i] = v[i] > 256 ? 256 : v[i];
+        tot += v[i];
+    }
+    return tot;
+}
+static int alt_fx_budget1(uint32_t c);
+static void alt_fx_budget(uint32_t c)           /* (jusqu'à 4 passes : un envoi + son couloir plafonné à 127 baisse
+                                                  * moins que prévu) */
+{
+    uint32_t it;
+    for (it = 0; it < 4u && alt_fx_budget1(c); it++)
+        ;
+}
+static int alt_fx_budget1(uint32_t c)
+{
+    track_t *t = &trk[c];
+    as_circ_t *sc = &alt_seq.c[c];
+    int32_t v[6], tot, big = 0, f;
+    uint32_t k, i;
+    tot = alt_fxb_vals(c, v);
+    for (i = 1; i < 6u; i++)
+        if (v[i] > v[big])
+            big = (int32_t)i;
+    if (tot <= ALT_FXB || tot - v[big] <= 0)
+        return 0;
+    f = (ALT_FXB - v[big]) * 256 / (tot - v[big]);    /* (0..255 : ce qui reste du budget, pour les autres) */
+#define ALT_FXB_SC(x) ((x) = (int16_t)((x) * f / 256))
+    if (big != 0)
+        ALT_FXB_SC(t->p[P_DIST]);
+    if (big != 1)
+        ALT_FXB_SC(t->p[P_IMIX]);
+    if (big != 2) {
+        t->p[P_DLY] = (int16_t)((t->p[P_DLY] - alt_applied[c][12]) * f / 256 + alt_applied[c][12]);
+        for (k = 0; k < AS_NLANE; k++)
+            sc->sdly[k] = (uint8_t)(sc->sdly[k] * f / 256);
+    }
+    if (big != 3) {
+        t->p[P_REV] = (int16_t)((t->p[P_REV] - alt_applied[c][13]) * f / 256 + alt_applied[c][13]);
+        for (k = 0; k < AS_NLANE; k++)
+            sc->srev[k] = (uint8_t)(sc->srev[k] * f / 256);
+    }
+    if (big != 4)
+        for (k = 0; k < CL_N; k++)
+            alt_cl[c][k].depth = (int8_t)(alt_cl[c][k].depth * f / 256);
+    if (big != 5)
+        for (k = 0; k < NMSLOT; k++)
+            ALT_FXB_SC(t->p[P_M1AMT + 3u * k]);
+#undef ALT_FXB_SC
+    return 1;
+}
+
 /* CHAOS: the three circles drawn to the extreme */
 static void alt_chaos(void)
 {
@@ -732,7 +837,7 @@ static void alt_chaos(void)
         alt_gl.amt[k] = 0;
     for (c = 0; c < AS_NCIRC; c++) {
         track_t *t = &trk[c];
-        uint32_t pi = alt_cr(ALT_NPRE), e = ALT_ENGS[ALT_PRE[pi].eng % ALT_NENG], ei;
+        uint32_t pi = alt_rand_pre(), e = ALT_ENGS[ALT_PRE[pi].eng % ALT_NENG], ei;
         const engine_t *en = ENGINES[e];
         as_cfg_t *cf = &au.cfg[c];
         alt_load_sound(c, pi);                   /* a sound of ours, then everything in it drawn */
@@ -772,6 +877,7 @@ static void alt_chaos(void)
         cf->frot = (uint8_t)alt_cr(ei);
         cf->prob = (uint8_t)(80u + alt_cr(48u));
         cf->dose = 127;
+        cf->chord = AS_CH_OFF;                   /* (le hasard : jamais d'accord, Romain 03/11) */
         cf->root = (uint8_t)(24u + alt_cr(37u)); /* C1 .. C4 */
         {                                        /* the SEQ menu's lanes: each (VELO CHANCE DELAY REVERB PITCH) drawn with a 40 %
                                                   * chance, on about half its steps, else plain (Romain: under 50 % each,
@@ -793,6 +899,9 @@ static void alt_chaos(void)
                 sc->srat[k] = (uint8_t)((pick & 32u) && !alt_cr(4u) ? 1u + alt_cr(2u) : 0u);   /* (RATCH: x2 x3, rarely) */
             }
         }
+        fm1_irq_off();
+        alt_fx_budget(c);                        /* (le budget d'effets du hasard) */
+        fm1_irq_on();
         alt_post_now |= (uint8_t)(1u << c);
         alt_post_circle(c);
         alt_roll_cnt[c]++;                       /* and the die at full DOSE */
@@ -833,6 +942,7 @@ static void alt_lanes_random(void)
         cf->hits = (uint8_t)(1u + alt_cr(n));
         cf->rot = (uint8_t)(cf->rot % n);
         cf->frot = (uint8_t)(cf->frot % n);
+        cf->chord = AS_CH_OFF;                   /* (le hasard : jamais d'accord, Romain 03/11) */
         alt_post_now |= (uint8_t)(1u << c);
         alt_post_circle(c);
         alt_cal(c);
@@ -970,7 +1080,7 @@ static void alt_total_chaos(void)
     afx_edit |= 1u << AFX_S_DLY | 1u << AFX_S_REV;
     for (c = 0; c < AS_NCIRC; c++) {
         track_t *t = &trk[c];
-        uint32_t pi = alt_cr(ALT_NPRE), e = ALT_ENGS[ALT_PRE[pi].eng % ALT_NENG], n;
+        uint32_t pi = alt_rand_pre(), e = ALT_ENGS[ALT_PRE[pi].eng % ALT_NENG], n;
         const engine_t *en = ENGINES[e];
         as_cfg_t *cf = &au.cfg[c];
         as_circ_t *sc = &alt_seq.c[c];
@@ -1025,7 +1135,7 @@ static void alt_total_chaos(void)
         cf->tdens = (uint8_t)alt_cr(128u);
         cf->trange = (uint8_t)alt_cr(15u);
         cf->dose = 127;
-        cf->chord = (uint8_t)alt_cr(AS_NCHORD);
+        cf->chord = AS_CH_OFF;                   /* (le hasard : jamais d'accord, Romain 03/11) */
         cf->root = (uint8_t)(24u + alt_cr(49u)); /* C1 .. C5 */
         for (k = 0; k < AS_NLR; k++)
             sc->rmask[k] = 0;
@@ -1037,6 +1147,9 @@ static void alt_total_chaos(void)
             sc->spitch[k] = (int8_t)((int32_t)alt_cr(15u) - 7);
             sc->srat[k] = (uint8_t)alt_cr(4u);
         }
+        fm1_irq_off();
+        alt_fx_budget(c);                        /* (le budget d'effets du hasard) */
+        fm1_irq_on();
         alt_post_now |= (uint8_t)(1u << c);
         alt_post_circle(c);
         alt_roll_cnt[c]++;                       /* and the die at full DOSE */
@@ -1374,6 +1487,10 @@ static int alter_ui_input(uint32_t pressed)
         } else if (au.die_t0[i2]) {              /* let go: a tap rolls, at once */
             if (!((au.die_clean_done >> i2) & 1u)) {
                 alt_roll_cnt[i2]++;
+                if (au.cfg[i2].chord != AS_CH_OFF) {   /* (le hasard : jamais d'accord, Romain 03/11) */
+                    au.cfg[i2].chord = AS_CH_OFF;
+                    alt_post_circle(i2);
+                }
                 alt_cal(i2);
                 au.tap_ms[k] = fm1_ms | 1u;
                 alt_say("NEW DRAW");
@@ -1891,10 +2008,13 @@ static void alt_dropdown(int32_t lx, int32_t ly, int32_t cur, int32_t n, uint16_
 
 /* an LFO tab: its title, one bar of time with its beats and steps, the wave scrolling through it (now at the right
  * edge: it comes in from there), its four settings (KNOB 1-4) */
+/* l'horloge des LFO lue UNE fois par image (Romain 03/11) : l'écran se dessine en deux moitiés et la vague du bas était
+ * décalée de celle du haut (le son avance entre les deux) : une ligne au milieu */
+static uint32_t alt_draw_gl_n, alt_draw_lfo_p;
 static void alt_lfo_tab(uint32_t tb, uint16_t col)
 {
     char b[8];
-    uint32_t i, w, r, seed, p = alt_lfo_p ? alt_lfo_p : 1u, now = alt_gl_n, bar = 16u * p;
+    uint32_t i, w, r, seed, p = alt_draw_lfo_p ? alt_draw_lfo_p : 1u, now = alt_draw_gl_n, bar = 16u * p;
     int on = alt_lfo_acts(tb);
     int32_t x, py = 0, y0 = 50, h = 112, mid = y0 + h / 2;
     uint16_t wc = on ? col : ALT_DIM;
@@ -2755,6 +2875,8 @@ static void alter_draw(void)
         return;
     au.sig = sig;
     au.drawn = 1;
+    alt_draw_gl_n = alt_gl_n;                    /* (une seule heure pour les deux moitiés) */
+    alt_draw_lfo_p = alt_lfo_p;
     for (i = 0; i < 2u; i++) {                   /* two halves: the canvas holds 240 x 124 */
         cv_begin(240, 120, ALT_BG);
         alt_paper(i);                            /* (both cards have a grain: paper, ink) */
@@ -2792,6 +2914,18 @@ static uint32_t alt_dump_user(uint32_t u)
     return n;
 }
 
+/* (les tests, 03/11) : w 0 = moteur du cercle c, 1 = son accord, 2 = son budget d'effets (256 = un effet au plus fort),
+ * 3..8 = ses six parts (DIST INSERT DELAY REVERB LFO MTX) */
+static int32_t alt_peek(uint32_t c, uint32_t w)
+{
+    c %= AS_NCIRC;
+    if (w >= 3u && w < 9u) {
+        int32_t v[6];
+        alt_fxb_vals(c, v);
+        return v[w - 3u];
+    }
+    return w == 0 ? (int32_t)trk[c].eng_req : w == 1 ? (int32_t)au.cfg[c].chord : alt_fxb_total(c);
+}
 static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
 {
     if (!au.ready)

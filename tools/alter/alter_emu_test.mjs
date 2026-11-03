@@ -521,8 +521,24 @@ play();
   check(`CHAOS: each circle's level aligned (gains ${ga.map((x) => (20 * Math.log10(x / 32768)).toFixed(1)).join(" / ")} dB); a sound chosen: 0 dB`,
         ga.some((x) => x !== 32768) && ga.every((x) => x >= 4129 && x <= 260200) && gb[0] === 32768);
 }
+{                                                               // LE HASARD (Romain 03/11) : jamais RESO, jamais d'accord, budget d'effets
+  ex.web_nor_erase(); ex.web_boot(); render(FS * 2); ex.web_alter(1, 0, 0); render(FS / 2);
+  const combo = (ks) => { K(ks.reduce((m, k) => m | (1 << k), 0)); render(3000); K(0); render(3000); };
+  let reso = 0, chords = 0, worst = 0, n = 0;
+  for (let r = 0; r < 24; r++) {
+    if (r & 1) { combo([1, 3, 5]); render(FS * 3); } else combo([7, 9, 11]);   // CHAOS TOTAL (3 s : pas l'annulation) / CHAOS
+    for (let c = 0; c < 3; c++, n++) {
+      reso += ex.web_alter_peek(c, 0) === 10; chords += ex.web_alter_peek(c, 1) !== 0;
+      worst = Math.max(worst, ex.web_alter_peek(c, 2));
+    }
+  }
+  check(`CHAOS / CHAOS TOTAL x24 : ${n} sons tirés, RESO ${reso}, accords ${chords}, budget d'effets max ${worst} (≤ 392)`,
+        reso === 0 && chords === 0 && worst <= 392);
+}
 {                                                               // REC (Romain 01/11): the knob moves on the steps, in a loop
   ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
+  ex.web_alter(1, 0, 0); render(FS / 2);                         // (scène 1 chargée : web_boot ne la recharge pas, et le
+                                                                 //  CHAOS TOTAL du test d'avant laissait ses tirages)
   const REC = 11, OD = 12, OU = 13, kp = () => ex.web_alter_knobp(0, 0);
   const tapB = (n) => { ex.web_buttons(1 << n); render(2000); ex.web_buttons(0); render(2000); };
   const vals = (n, every) => { const v = []; for (let i = 0; i < n; i++) { render(every); v.push(kp()); } return v; };
