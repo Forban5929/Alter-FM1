@@ -4,19 +4,20 @@ Outil : fm1_recover de Melodee (Kerem Kilic, GPL-3.0, github.com/keremimo/melode
 UNIQUEMENT pour accepter aussi la mémoire UC25HQ80 (JEDEC 0xB36014) des FM-1 récentes. Source : tools/alter/rescue
 de github.com/Forban5929/Alter-FM1. Le programme de lecture en RAM (wl82loader.bin) est celui du SDK JieLi (Apache-2.0).
 
+ALTER.fwsc (dans ce dossier) = ALTER corrigé (reconnaît la mémoire UC25HQ80). Aucun fichier M-VAVE n'est nécessaire.
+
 AVANT
-1. Mettre dans CE dossier le fichier officiel M-VAVE V15, nommé exactement FM-1.fwsc (m-vave.com, PC Firmware).
-2. Mettre la FM-1 en mode UBOOT : sur ALTER, tenir OCT- et OCT+ 5 secondes (l'écran dit UBOOT).
-3. Pilote USB, une seule fois : lancer Zadig (zadig.akeo.ie), menu Options > List All Devices, choisir l'appareil
+1. Mettre la FM-1 en mode UBOOT : sur ALTER, tenir OCT- et OCT+ 5 secondes (l'écran dit UBOOT).
+2. Pilote USB, une seule fois : lancer Zadig (zadig.akeo.ie), menu Options > List All Devices, choisir l'appareil
    « 4C4A 8057 » (UBOOT / WL82), cible « WinUSB », Install Driver. NE PAS toucher aux autres appareils.
 
 ÉTAPES (double-clic, dans l'ordre ; s'arrêter et envoyer le texte à Claude à la moindre erreur)
 1-VERIFIER.bat     voit la FM-1 en mode UBOOT. Rien n'est lu ni écrit.
 2-SAUVEGARDER.bat  lit TOUTE la mémoire et la sauvegarde dans fm1-recovery-backups\ . RIEN N'EST ÉCRIT.
                    Garder ce dossier précieusement.
-3-ECRIRE-V15.bat   écrit le firmware officiel V15 (seulement la zone du firmware), puis relit tout pour vérifier.
-                   SEULEMENT après une étape 2 réussie et l'accord de Claude.
-Ensuite : éteindre/rallumer la FM-1 (V15), puis installer ALTER avec https://forban5929.github.io/Alter-FM1/install/
+3-ECRIRE-ALTER.bat écrit ALTER corrigé (seulement la zone du firmware ; le démarrage et le reste ne sont pas touchés),
+                   puis relit tout pour vérifier. SEULEMENT après une étape 2 réussie et l'accord de Claude.
+Ensuite : éteindre/rallumer la FM-1. Les mises à jour suivantes passent par https://forban5929.github.io/Alter-FM1/install/
 
 NON VÉRIFIÉ : cet outil n'a jamais été essayé sous Windows avec une mémoire UC25HQ80. Le mode UBOOT est dans la
 puce (il ne s'efface pas) : en cas d'échec, la FM-1 reste en UBOOT et on peut recommencer.

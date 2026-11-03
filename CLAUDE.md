@@ -49,8 +49,8 @@
   M-UPGRADE (M-VAVE) : même voie MIDI → « unable to upgrade » sous ALTER, et ne voit pas le mode UBOOT.
   **Kit de secours Windows** (choix de Romain : étape 1 = lecture seule d'abord) : `tools/alter/rescue/` = fm1_recover de
   Melodee (GPL) qui accepte aussi 0xB36014 ; `pages.yml` job `rescue` (windows) → .exe PyInstaller + 1-VERIFIER /
-  2-SAUVEGARDER (rien n'est écrit) / 3-ECRIRE-V15 (taper OUI) + LISEZMOI → https://forban5929.github.io/Alter-FM1/secours/alter-fm1-secours-windows.zip
-  Besoin : FM-1.fwsc (V15 M-VAVE) dans le dossier, pilote WinUSB par Zadig pour 4C4A:8057 seulement. Jamais testé sur
+  2-SAUVEGARDER (rien n'est écrit) / 3-ECRIRE-ALTER (taper OUI) + LISEZMOI → https://forban5929.github.io/Alter-FM1/secours/alter-fm1-secours-windows.zip
+  Le kit contient ALTER.fwsc (corrigé, contrôlé par l'outil) ; 3-ECRIRE-ALTER écrit ALTER (pas V15 : V16 = FM-1_016, flash.bin 0xA9000 > 0x93000, refusé par l'outil). Pilote WinUSB par Zadig pour 4C4A:8057 seulement. Jamais testé sur
   Windows + UC25HQ80 : faire 1 et 2, lire le texte, puis seulement 3.
 - Prochain : assistant d'installation façon https://baudgirl.com/work/FM-1+VA/install, puis **page compagnon** (éditeur web,
   écran agrandi, patchs ; l'éditeur Felucca retiré le 01/11 est dans l'historique git).

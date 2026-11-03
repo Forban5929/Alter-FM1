@@ -37,7 +37,7 @@ jobs:
           pyinstaller --onefile --name alter-fm1-secours --paths . --add-data "wl82loader.bin;." --add-binary "$DLL;." fm1_recover.py
           ./dist/alter-fm1-secours.exe --version
           ./dist/alter-fm1-secours.exe --info --wait 0 || true
-          mkdir -p pack && cp dist/alter-fm1-secours.exe 1-VERIFIER.bat 2-SAUVEGARDER.bat 3-ECRIRE-V15.bat LISEZMOI.txt wl82loader-README.md pack/
+          mkdir -p pack && cp dist/alter-fm1-secours.exe 1-VERIFIER.bat 2-SAUVEGARDER.bat 3-ECRIRE-ALTER.bat LISEZMOI.txt wl82loader-README.md pack/
           cp ../../../LICENSE pack/LICENSE-GPL-3.0.txt
           cd pack && 7z a ../alter-fm1-secours-windows.zip . > /dev/null
       - uses: actions/upload-artifact@v4
@@ -80,6 +80,11 @@ jobs:
         with:
           name: rescue
           path: site/secours
+      - name: ALTER.fwsc dans le kit de secours (contrôlé par l'outil)
+        run: |
+          python3 tools/alter/rescue/fm1_recover.py build/felucca.fwsc --check --loader tools/alter/rescue/wl82loader.bin
+          python3 -c "import zipfile;z=zipfile.ZipFile('site/secours/alter-fm1-secours-windows.zip','a');z.write('build/felucca.fwsc','ALTER.fwsc');z.close()"
+          python3 -c "import zipfile;print(zipfile.ZipFile('site/secours/alter-fm1-secours-windows.zip').namelist())"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
