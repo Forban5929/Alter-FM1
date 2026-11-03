@@ -39,6 +39,9 @@ APP_SLOT = fm1pkg_make.APP_SLOT
 LOADER_LOAD = 0x01C0A800
 LOADER_NAME = b"usb_hid_ota.bin"    # the file name the SPL looks for
 DOCKER_IMAGE = os.environ.get("JIELI_DOCKER_IMAGE", "debian:bookworm-slim")
+# ALTER : constantes qui TOMBENT dans la plage d'adresses de la ROM mais n'en sont pas (vérifié au désassemblage, 03/11) :
+# afl_block (alter_filter.c) : la limite clamp(..., -(1 << 22), 1 << 22) = 0xFFC00000, servie à une comparaison (ifs r1 >= r3).
+ROM_CONST_OK = {"afl_block": {0xFFC00000}}
 CFLAGS = ["-Os", "-ffunction-sections", "-fno-builtin", "-Wall", "-Wno-unused-function"]
 LINE = re.compile(r"^\s*([0-9a-f]+):\s+((?:[0-9a-f]{2} )+)\s*\t(.*)$")
 
@@ -316,13 +319,13 @@ def check(img, syms, dis, rt):
     for ln in dis.splitlines():     # nothing may call or load an address in the chip ROM
         mm = LINE.match(ln)
         if not mm:
-            hm = re.match(r"^[0-9a-f]+ <([^>]+)>:", ln)
+            hm = re.match(r"^([A-Za-z_.][^ ]*):$", ln)
             if hm:
                 fn_at = hm.group(1)
             continue
         for v in re.findall(r"= (-?\d+) <|call -?\d+ <[^:>]*: ([0-9a-f]+) >", mm.group(3)):
             val = (int(v[0]) & 0xFFFFFFFF) if v[0] else int(v[1], 16) & 0xFFFFFFFF
-            if 0xFFC00000 <= val < 0xFFD00000:
+            if 0xFFC00000 <= val < 0xFFD00000 and not (fn_at in ROM_CONST_OK and val in ROM_CONST_OK[fn_at]):
                 errors.append(f"reference to ROM address {val:#010x} in {fn_at}: {ln.strip()[:120]}")
     if len(img) > APP_SLOT:
         errors.append(f"image {len(img)} B exceeds the app slot")
