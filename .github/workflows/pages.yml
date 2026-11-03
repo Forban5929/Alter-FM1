@@ -59,12 +59,17 @@ jobs:
       - name: Construire la version navigateur
         run: sh tools/alter/wasm/build_emu.sh
       - name: Test ALTER
-        run: node tools/alter/alter_emu_test.mjs build/emu/felucca.wasm build/emu/alter_play.wav
+        run: |
+          node tools/alter/alter_emu_test.mjs build/emu/felucca.wasm build/emu/alter_play.wav
+          node tools/alter/alter_link_test.mjs build/emu/felucca.wasm
       - name: Préparer le site
         run: |
           mkdir -p site/fonts
           cp build/emu/index.html build/emu/felucca.wasm build/emu/worklet.js site/
           cp build/emu/fonts/* site/fonts/
+          mkdir -p site/editor
+          cp web/alter/editor.html site/editor/index.html
+          cp web/alter/link.js site/editor/
           echo "$GITHUB_REF_NAME @ ${GITHUB_SHA::7}" > site/version.txt
       # La page d'installation FM-1 (/install/) : vrai firmware (compilateur JieLi). Si ça échoue, RIEN n'est publié (l'ancien site reste).
       - name: Firmware FM-1 + page d'installation

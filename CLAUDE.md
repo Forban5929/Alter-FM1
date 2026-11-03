@@ -23,13 +23,14 @@
   (alter_ui.c, 0 dans le navigateur). Doré si pic ≥ 75 %.
 - **Essai sur la FM-1 (03/11, Romain)** : démarre, son OK, « smooth ». Charge lourde (3 cercles + LFO + MTX + MASTER FILTER
   + GLUE + delay/reverb) : médiane 60-70 %, pics 80 %, CUT apparaît mais **rien d'audible**.
-- **2e CŒUR (choix de Romain, 03/11)** : MENU Felucca (OCT− + OCT+ + bouton) > SYSTEM > 2ND CORE ON. Felucca y envoie des
+- **2e CŒUR (choix de Romain, 03/11)** : OCT− + OCT+ + EDIT (page Felucca), **lâcher**, puis HOME tenu = MENU ; ALGORITHM
+  = onglet SYSTEM (le dernier), PRESETS = 2ND CORE, OCT+ = ON (BETA), éteindre/rallumer. (HOME tenu avec les OCT = NEW SCENE.) Felucca y envoie des
   parts entières (mix_part : c1_parts/mix_split, fx.c). Vérifié : le code ALTER de mix_part (ac_measure, afl_take, AC_G,
   AM_DG) n'écrit que l'état de SON cercle ; le séquenceur ALTER tourne avant le partage (events_block). `ENG_VCOST` : RESO
   = 360 (était 0). `tests/dualcore_test.c` adapté (ALTER PHYS NOISE RESO + scènes avec alignement + source MASTER FILTER) :
   **10/10 identiques au bit près, 0 alerte ThreadSanitizer** (dans firmware.yml). Pile du 2e cœur (2816 o) :
   `tools/alter/stack_c1.py` → **1488 o (52 %)**, pire chemin phys_render (Felucca) ; estimation (appels indirects = moteurs).
-  Écran : « 2C » après le % quand le 2e cœur prend des cercles. **À mesurer par Romain** : chiffres avec 2ND CORE ON.
+  Écran : « 2C » après le % quand le 2e cœur prend des cercles. **Romain (03/11) : 2e cœur ON « tient bon »** (chiffres pas notés).
 - **LE HASARD (03/11, retours de Romain)** — DÉ, 3 MUTE, CHAOS, CHAOS TOTAL : **jamais RESO** (`alt_rand_pre` ; RESO
   reste à la main dans PRESETS : « pas dans le style », brouillon au hasard), **jamais d'accord** (chord = AS_CH_OFF ; le
   DÉ tapé coupe l'accord du cercle), **BUDGET D'EFFETS** (`alt_fx_budget`, CHAOS et CHAOS TOTAL seulement, knobs à la
@@ -58,8 +59,13 @@
   Filets de secours d'ALTER : OCT− + OCT+ 5 s = UBOOT (puce) + kit /secours/.
   Felucca publié (sans le correctif #320) installé puis coincé : sorti par UBOOT + kit (RESTORE VERIFIED, 129 secteurs).
   → Sur cette FM-1 : n'installer que des firmwares qui connaissent 0xB36014 (ALTER, M-VAVE, Felucca après #320).
-- Prochain : assistant d'installation façon https://baudgirl.com/work/FM-1+VA/install, puis **page compagnon** (éditeur web,
-  écran agrandi, patchs ; l'éditeur Felucca retiré le 01/11 est dans l'historique git).
+- **PAGE COMPAGNON (03/11, choix de Romain)** : https://forban5929.github.io/Alter-FM1/editor/ (`?demo` = simulateur dans la
+  page, sans son). Liaison **directe USB** (Web MIDI SysEx, Chrome/Edge), **3 colonnes = réglages des 3 sons** (son, 8 réglages
+  moteur, ADSR, DIST CHOR DLY REV, INSERT TYPE/A/MIX, LEVEL PAN GLIDE), patchs **fichier .alter.json** + **scène USER dans
+  la FM-1** (« Ranger ici » = SAVE tenu). Protocole **ALTER LINK** : `docs/alter/LINK.md`, `alter_link.c`, `web/alter/`,
+  test `tools/alter/alter_link_test.mjs` (15/15, aussi dans pages.yml). **Pas encore essayé sur la vraie FM-1.**
+  Plus tard (Romain) : cercles/rythme, LFO/MTX, MASTER FILTER, écran agrandi. Puis : assistant d'installation façon baudgirl.
+  (L'ancien éditeur Felucca, protocole « FL », est dans l'historique git, commit 8b8f548^ : web/EDITOR_PROTOCOL.md.)
 
 ## Rôle de Claude
 Ingénieur DSP + développeur C embarqué.
@@ -74,6 +80,7 @@ Ingénieur DSP + développeur C embarqué.
    - `node tools/alter/alter_emu_test.mjs build/emu/felucca.wasm build/emu/alter_play.wav` (tout ALTER : cercles, pages,
      fills, dés, CHAOS, scènes, flash…) · `node tools/alter/alter_fx_test.mjs build/emu/felucca.wasm` (FX + MASTER)
    - `mkdir -p build/alter && cc -std=c99 -O2 -Wall -o build/alter/alter_seq_test tools/alter/alter_seq_test.c && build/alter/alter_seq_test`
+   - `node tools/alter/alter_link_test.mjs build/emu/felucca.wasm` (page compagnon)
    - `node web/emu/emu_test.mjs build/emu/felucca.wasm` (ancien test Felucca : **4 échecs VOULUS** « a key sounds »,
      « FX held », « SAVE, OCT+, OCT+ », « a fresh instance… » : clavier, FX, SAVE appartiennent à la vue ALTER).
    - Vérifier la **version FM-1** sans son compilateur (syntaxe + fonctions manquantes) :

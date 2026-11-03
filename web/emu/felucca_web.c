@@ -248,6 +248,7 @@ static void cdc_task(void) {}
 #define usb_start() ((void)0)
 #define usb_retry(ms) ((void)(ms))
 #define usb_detach() ((void)0)
+#include "../../firmware/src/alter_link.c"
 #include "../../firmware/src/master.c"
 #include "../../firmware/src/main.c"
 #undef usb_poll
@@ -493,6 +494,18 @@ EXPORT uint32_t web_playing(void) { return song.playing; }
 EXPORT uint32_t web_sample_rate(void) { return FS; }
 
 /* ALTER (tools/alter/alter_render.mjs, the tests): alter_ui.c alt_web_cmd */
+/* ALTER LINK (alter_link.c): a SysEx frame in (F0 .. F7 in web_link_buf), the replies out */
+static uint8_t web_link_buf[256];
+EXPORT uint8_t *web_link_in_buf(void) { return web_link_buf; }
+EXPORT void web_link_in(uint32_t n)
+{
+    if (n >= 6u && n <= sizeof web_link_buf && web_link_buf[0] == 0xF0 && web_link_buf[n - 1u] == 0xF7)
+        lk_frame(web_link_buf + 1, n - 2u);
+}
+EXPORT void web_link_sync(void) { lk_sync(); }
+EXPORT uint8_t *web_link_out(void) { return lk_web; }
+EXPORT uint32_t web_link_out_n(void) { uint32_t n = lk_web_n; return n; }
+EXPORT void web_link_out_clear(void) { lk_web_n = 0; }
 EXPORT void web_alter(uint32_t op, uint32_t a, uint32_t b) { alt_web_cmd(op, a, b); }
 EXPORT uint32_t web_alter_dump(uint32_t u) { return alt_dump_user(u); }   /* (USER scene u's bytes: alter_ui.c) */
 EXPORT uint8_t *web_alter_dump_buf(void) { return alt_dump; }

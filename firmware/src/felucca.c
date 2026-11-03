@@ -127,6 +127,7 @@ static __attribute__((noinline)) int c1_wait(void) { return fm1_cpu1_wait(); }  
 #if FELUCCA_OTA
 #include "../bsp/chip/ota.c"
 #include "ota_hw.c"
+#include "alter_link.c"          /* the companion page's SysEx (ALTER LINK) */
 #endif
 #if FELUCCA_CDC
 #include "console.c"

@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ALTER compagnon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+@font-face { font-family: "Dot"; src: url("../fonts/DotGothic16-subset.woff") format("woff"); font-display: swap; }
+:root {
+  /* the FM-1 screen's NIGHT palette (firmware/src/alter_ui.c ALT_BG ALT_INK ALT_GREY ALT_DARK ALT_COLS) */
+  --card: #0e0c10; --ink: #ebd9a8; --rest: #64563c; --faint: #1e1a16; --gold: #a8894e;
+  --c1: #c9504a; --c2: #4fa88c; --c3: #d4ae52;
+  --warn: #e0664a; --body: #16131a;
+  --prose: "Atkinson Hyperlegible", system-ui, sans-serif;
+  --dot: "Dot", ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+html { background: var(--body); }
+body { margin: 0; background: var(--body); color: var(--ink); font: 16px/1.5 var(--prose); }
+a { color: var(--ink); }
+button, select, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+.top { max-width: 1180px; margin: 0 auto; padding: 28px 16px 8px; display: grid; gap: 20px;
+  grid-template-columns: 1fr auto; align-items: end; }
+.brand { font-family: var(--dot); font-size: 44px; line-height: 1; letter-spacing: .04em; margin: 0; }
+.brand small { display: block; font-family: var(--prose); font-size: 17px; letter-spacing: 0; color: var(--gold); margin-top: 8px; }
+.link { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.state { display: inline-flex; align-items: center; gap: 8px; color: var(--gold); }
+.state i { width: 10px; height: 10px; border-radius: 50%; background: var(--rest); }
+.state[data-on="midi"] i { background: var(--c2); }
+.state[data-on="demo"] i { background: var(--c3); }
+.btn { background: var(--faint); border: 1px solid var(--rest); border-radius: 6px; padding: 8px 14px; cursor: pointer; }
+.btn:hover { border-color: var(--ink); }
+.btn.main { background: var(--ink); color: var(--card); border-color: var(--ink); font-weight: 700; }
+.btn:disabled { opacity: .4; cursor: default; }
+
+.bar { max-width: 1180px; margin: 0 auto; padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: center;
+  border-top: 1px solid var(--faint); border-bottom: 1px solid var(--faint); }
+.bar .grp { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.bar .grp > span { color: var(--gold); }
+select { background: var(--faint); border: 1px solid var(--rest); border-radius: 6px; padding: 7px 10px; }
+
+.msg { max-width: 1180px; margin: 0 auto; padding: 10px 16px 0; min-height: 34px; color: var(--gold); }
+.msg.bad { color: var(--warn); }
+
+.intro { max-width: 1180px; margin: 0 auto; padding: 40px 16px; }
+.intro p { max-width: 62ch; }
+.intro ol { max-width: 62ch; padding-left: 1.2em; }
+
+.strips { max-width: 1180px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 900px) { .strips { grid-template-columns: 1fr; } .top { grid-template-columns: 1fr; } .link { justify-content: flex-start; } }
+.strip { background: var(--card); border: 1px solid var(--faint); border-radius: 14px; padding: 18px 16px 20px; --c: var(--c1); }
+.strip:nth-child(2) { --c: var(--c2); } .strip:nth-child(3) { --c: var(--c3); }
+.head { display: grid; grid-template-columns: 72px 1fr; gap: 14px; align-items: center; margin-bottom: 14px; }
+.ring { width: 72px; height: 72px; }
+.ring circle { fill: none; stroke: var(--c); }
+.ring text { fill: var(--c); font-family: var(--dot); font-size: 26px; }
+.eng { font-family: var(--dot); font-size: 24px; color: var(--c); line-height: 1.1; }
+.mode { font-family: var(--dot); font-size: 14px; color: var(--rest); }
+.sound { width: 100%; margin-bottom: 6px; }
+fieldset { border: 0; border-top: 1px solid var(--faint); margin: 14px 0 0; padding: 10px 0 0; }
+legend { color: var(--gold); padding: 0 6px 0 0; font-size: 15px; }
+.p { display: grid; grid-template-columns: 58px 1fr 76px; gap: 10px; align-items: center; min-height: 32px; }
+.p label { font-family: var(--dot); font-size: 14px; color: var(--ink); overflow: hidden; white-space: nowrap; }
+.p output { font-family: var(--dot); font-size: 14px; text-align: right; color: var(--ink); white-space: nowrap; overflow: hidden; }
+.p select { width: 100%; padding: 4px 8px; font-family: var(--dot); font-size: 14px; }
+.p.enum { grid-template-columns: 58px 1fr; }
+input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; background: transparent; height: 26px; margin: 0; }
+input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px;
+  background: linear-gradient(to right, var(--c) var(--f, 0%), var(--faint) var(--f, 0%)); }
+input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--faint); }
+input[type=range]::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--c); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: -5px; border-radius: 50%; background: var(--ink); border: 0; }
+input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--ink); border: 0; }
+.p.flash output { color: var(--c); }
+.foot { max-width: 1180px; margin: 0 auto; padding: 20px 16px 48px; color: var(--rest); font-size: 14px; }
+.foot p { max-width: 80ch; margin: 4px 0; }
+[hidden] { display: none !important; }
+@media (prefers-reduced-motion: no-preference) { .p output { transition: color .4s; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1 class="brand">ALTER<small>Les réglages des trois sons de ta FM-1, en grand</small></h1>
+  <div class="link">
+    <span class="state" id="state" data-on=""><i></i><span id="stateTxt">Pas connecté</span></span>
+    <button class="btn main" id="bMidi">Connecter la FM-1</button>
+    <button class="btn" id="bDemo">Essayer sans machine</button>
+  </div>
+</header>
+
+<section class="bar" id="bar" hidden>
+  <div class="grp"><span>Patch sur l'ordinateur</span>
+    <button class="btn" id="bOpen">Ouvrir…</button>
+    <button class="btn" id="bSave">Enregistrer</button>
+    <input type="file" id="file" accept=".json,application/json" hidden>
+  </div>
+  <div class="grp"><span>Scène dans la FM-1</span>
+    <select id="slot" aria-label="Place USER"></select>
+    <button class="btn" id="bStore">Ranger ici</button>
+    <button class="btn" id="bLoad">Charger</button>
+  </div>
+</section>
+<p class="msg" id="msg" role="status"></p>
+
+<section class="intro" id="intro">
+  <p>Branche ta FM-1 en USB, allume-la sur ALTER, puis clique sur « Connecter la FM-1 ». Chrome ou Edge demandent l'autorisation
+    d'échanger des messages MIDI avec la machine : accepte.</p>
+  <ol>
+    <li>Ce que tu bouges ici change le son tout de suite sur la machine, et ce que tu tournes sur la machine bouge ici.</li>
+    <li>« Enregistrer » garde les trois sons dans un fichier sur ton ordinateur, à partager avec qui tu veux.</li>
+    <li>« Ranger ici » garde toute la scène en cours (sons, rythmes, effets) dans une place USER de la machine, comme SAVE tenu.</li>
+  </ol>
+  <p>Pas de machine sous la main ? « Essayer sans machine » fait tourner ALTER dans la page, sans le son.</p>
+</section>
+
+<main class="strips" id="strips" hidden></main>
+
+<footer class="foot">
+  <p>ALTER est un firmware libre (GPL-3.0) construit sur Felucca. Code : <a href="https://github.com/Forban5929/Alter-FM1" target="_blank" rel="noopener">github.com/Forban5929/Alter-FM1</a>.</p>
+  <p id="ver"></p>
+</footer>
+
+<script type="module">
+import { req, parse, splitFrames, CMD, F_ENUM, show, PATCH_KIND } from "./link.js";
+
+const $ = (id) => document.getElementById(id);
+const MODES = ["FREE", "PERC", "STAB", "DRONE"];
+const GROUPS = [["Le moteur", 0, 8], ["Enveloppe", 8, 12], ["Effets", 12, 19], ["Sortie", 19, 22]];
+let port = null, info = null, slots = [];
+const circ = [0, 1, 2].map(() => ({ state: null, desc: [], ctl: [], dragging: -1 }));
+
+/* ---------- the two ways to reach ALTER: the FM-1 over USB (Web MIDI), or the browser build ---------- */
+function makePort(sendBytes, close) {
+  const waiters = [];
+  return {
+    send: sendBytes, close,
+    onFrame(f) {
+      const m = parse(f);
+      if (!m) return;
+      if (m.cmd === CMD.CHANGED) return pushChanged(m);
+      if (m.cmd === CMD.RELOAD) return pushReload(m);
+      const i = waiters.findIndex((w) => w.cmd === m.cmd);
+      if (i >= 0) { const w = waiters.splice(i, 1)[0]; clearTimeout(w.t); w.ok(m); }
+    },
+    wait(cmd, ms) {
+      return new Promise((ok, no) => {
+        const w = { cmd, ok, t: setTimeout(() => { waiters.splice(waiters.indexOf(w), 1); no(new Error("pas de réponse")); }, ms) };
+        waiters.push(w);
+      });
+    },
+  };
+}
+let chain = Promise.resolve();
+function ask(bytes, ms = 800) {                       // one request at a time, its reply matched by cmd
+  const p = chain.then(() => { const w = port.wait(bytes[4], ms); port.send(bytes); return w; });
+  chain = p.catch(() => {});
+  return p;
+}
+
+async function connectMidi() {
+  if (!navigator.requestMIDIAccess) return say("Ce navigateur ne parle pas MIDI. Ouvre la page dans Chrome ou Edge sur ordinateur.", true);
+  let acc;
+  try { acc = await navigator.requestMIDIAccess({ sysex: true }); }
+  catch { return say("L'accès MIDI a été refusé. Recharge la page et accepte la demande du navigateur.", true); }
+  const pick = (m) => [...m.values()].find((p) => /alter|fm-?1|felucca/i.test(p.name));
+  const out = pick(acc.outputs), inp = pick(acc.inputs);
+  if (!out || !inp) return say("FM-1 introuvable. Vérifie le câble USB et que la machine est allumée sur ALTER, puis réessaie.", true);
+  inp.onmidimessage = (e) => splitFrames(e.data).forEach((f) => port && port.onFrame(f));
+  await start(makePort((b) => out.send(b), () => { inp.onmidimessage = null; }), "midi", `Connecté à ${out.name}`);
+}
+
+async function connectDemo() {
+  say("Démarrage d'ALTER dans la page…");
+  let ex, mem;
+  try {
+    const { instance } = await WebAssembly.instantiateStreaming(fetch("../felucca.wasm"), {});
+    ex = instance.exports; mem = ex.memory;
+    ex._initialize(); ex.web_nor_erase(); ex.web_boot();
+  } catch { return say("Le simulateur n'a pas pu démarrer sur cette page.", true); }
+  const drain = () => {
+    const n = ex.web_link_out_n();
+    if (!n) return;
+    const b = new Uint8Array(mem.buffer, ex.web_link_out(), n).slice();
+    ex.web_link_out_clear();
+    splitFrames(b).forEach((f) => port && port.onFrame(f));
+  };
+  const tick = setInterval(() => { for (let k = 0; k < 882; k += 128) ex.web_render(Math.min(128, 882 - k)); ex.web_link_sync(); drain(); }, 20);
+  const send = (b) => { new Uint8Array(mem.buffer, ex.web_link_in_buf(), b.length).set(b); ex.web_link_in(b.length); setTimeout(drain, 0); };
+  await start(makePort(send, () => clearInterval(tick)), "demo", "Simulateur (sans machine, sans son)");
+}
+
+let pinger = 0;
+async function start(p, kind, label) {
+  if (port) { port.close(); clearInterval(pinger); }
+  port = p;
+  try {
+    info = await ask(req.info());
+  } catch {
+    port = null;
+    return say("La machine répond pas. Son firmware ALTER est peut-être trop ancien : installe la dernière version depuis la page d'installation.", true);
+  }
+  $("state").dataset.on = kind; $("stateTxt").textContent = label;
+  $("ver").textContent = info.version;
+  build();
+  for (let c = 0; c < 3; c++) await refresh(c);
+  await listSlots();
+  await ask(req.watch(1));
+  pinger = setInterval(() => ask(req.ping()).catch(lost), 1000);
+  $("intro").hidden = true; $("bar").hidden = false; $("strips").hidden = false;
+  say(kind === "demo" ? "Le simulateur tourne : bouge un réglage pour voir." : "C'est branché. Tourne un knob sur la machine : il bouge ici aussi.");
+}
+function lost() {
+  if (!port) return;
+  say("La liaison avec la machine est coupée. Vérifie le câble, puis clique sur « Connecter la FM-1 ».", true);
+  $("state").dataset.on = ""; $("stateTxt").textContent = "Pas connecté";
+  port.close(); port = null; clearInterval(pinger);
+}
+
+/* ---------- the three strips ---------- */
+function build() {
+  const root = $("strips");
+  root.innerHTML = "";
+  for (let c = 0; c < 3; c++) {
+    const s = document.createElement("section");
+    s.className = "strip";
+    s.innerHTML = `<div class="head"><svg class="ring" viewBox="0 0 72 72" aria-hidden="true">
+        <circle cx="36" cy="36" r="31" stroke-width="3"/><circle cx="36" cy="36" r="24" stroke-width="1" stroke-dasharray="2 4"/>
+        <text x="36" y="45" text-anchor="middle">${c + 1}</text></svg>
+      <div><div class="eng" data-eng></div><div class="mode" data-mode></div></div></div>
+      <select class="sound" data-sound aria-label="Son du cercle ${c + 1}"></select>
+      <div data-groups></div>`;
+    const sel = s.querySelector("[data-sound]");
+    info.engines.forEach((e, ei) => {
+      const g = document.createElement("optgroup"); g.label = e;
+      info.sounds.forEach((so, n) => { if (so.eng === ei) g.append(new Option(so.name, n)); });
+      sel.append(g);
+    });
+    sel.onchange = () => chooseSound(c, +sel.value);
+    root.append(s);
+    circ[c].el = s;
+  }
+}
+
+async function refresh(c) {                            // STATE, then the engine's descriptions, then the controls
+  const st = await ask(req.state(c));
+  const C = circ[c], engChanged = !C.state || C.state.eng !== st.eng || !C.desc.length;
+  C.state = st;
+  if (engChanged) {
+    C.desc = [];
+    for (const id of info.ids) C.desc.push(await ask(req.desc(c, id)));
+    drawControls(c);
+  }
+  C.el.querySelector("[data-eng]").textContent = info.engines[st.eng] ?? "";
+  C.el.querySelector("[data-mode]").textContent = MODES[st.mode] ?? "";
+  C.el.querySelector("[data-sound]").value = st.sound;
+  st.values.forEach((v, k) => setCtl(c, k, v));
+}
+
+function drawControls(c) {
+  const C = circ[c], box = C.el.querySelector("[data-groups]");
+  box.innerHTML = ""; C.ctl = [];
+  for (const [name, a, b] of GROUPS) {
+    const fs = document.createElement("fieldset");
+    fs.innerHTML = `<legend>${name}</legend>`;
+    for (let k = a; k < b; k++) {
+      const d = C.desc[k], row = document.createElement("div"), uid = `p${c}_${k}`;
+      if (d.fmt === F_ENUM) {
+        row.className = "p enum";
+        row.innerHTML = `<label for="${uid}">${d.label}</label><select id="${uid}"></select>`;
+        const s = row.querySelector("select");
+        d.names.forEach((nm, i) => s.append(new Option(nm, d.min + i)));
+        s.onchange = () => queueSet(c, k, +s.value);
+        C.ctl[k] = { row, input: s, d };
+      } else {
+        row.className = "p";
+        row.innerHTML = `<label for="${uid}" title="${d.label}">${d.label}</label>
+          <input type="range" id="${uid}" min="${d.min}" max="${d.max}" step="1"><output></output>`;
+        const r = row.querySelector("input"), o = row.querySelector("output");
+        r.oninput = () => { paint(r, d); o.textContent = show(d, +r.value); queueSet(c, k, +r.value); };
+        r.onpointerdown = () => (C.dragging = k);
+        r.onpointerup = r.onblur = () => (C.dragging = -1);
+        C.ctl[k] = { row, input: r, out: o, d };
+      }
+      fs.append(row);
+    }
+    box.append(fs);
+  }
+}
+const paint = (r, d) => r.style.setProperty("--f", `${((r.value - d.min) / Math.max(1, d.max - d.min)) * 100}%`);
+function setCtl(c, k, v, fromDevice) {
+  const C = circ[c], t = C.ctl[k];
+  if (!t || C.dragging === k) return;
+  t.input.value = v;
+  if (t.out) { paint(t.input, t.d); t.out.textContent = show(t.d, v); }
+  if (fromDevice) { t.row.classList.add("flash"); setTimeout(() => t.row.classList.remove("flash"), 400); }
+}
+
+/* the page's writes: the latest value of each control, sent ~25 times a second at most */
+const pending = new Map();
+let flushing = false;
+function queueSet(c, k, v) { pending.set(`${c}:${k}`, [c, k, v]); if (!flushing) flush(); }
+async function flush() {
+  flushing = true;
+  while (pending.size && port) {
+    const [key, [c, k, v]] = pending.entries().next().value;
+    pending.delete(key);
+    try {
+      const r = await ask(req.set(c, info.ids[k], v));
+      circ[c].state.values[k] = r.value;
+      if (r.value !== v && !pending.has(key)) setCtl(c, k, r.value);
+    } catch { lost(); break; }
+    await new Promise((ok) => setTimeout(ok, 40));
+  }
+  flushing = false;
+}
+
+async function chooseSound(c, n) {
+  try { await ask(req.sound(c, n)); await refresh(c); say(`Cercle ${c + 1} : ${info.sounds[n].name}`); }
+  catch { lost(); }
+}
+
+/* the device's own changes */
+function pushChanged(m) {
+  const k = info?.ids.indexOf(m.id);
+  if (k == null || k < 0 || !circ[m.circ]?.state) return;
+  circ[m.circ].state.values[k] = m.value;
+  setCtl(m.circ, k, m.value, true);
+}
+function pushReload(m) { if (circ[m.circ]) refresh(m.circ).catch(lost); }
+
+/* ---------- patch files ---------- */
+function patchNow() {
+  return {
+    kind: PATCH_KIND, version: 1, saved: new Date().toISOString(),
+    circles: circ.map((C) => ({
+      engine: info.engines[C.state.eng], sound: info.sounds[C.state.sound]?.name,
+      values: Object.fromEntries(info.ids.map((id, k) => [id, C.state.values[k]])),
+      labels: Object.fromEntries(info.ids.map((id, k) => [id, C.desc[k]?.label])),
+    })),
+  };
+}
+function savePatch() {
+  const name = prompt("Nom du patch :", "mon-patch");
+  if (name === null) return;
+  const safe = (name.trim() || "patch").replace(/[^\w\- ]+/g, "_");
+  const url = URL.createObjectURL(new Blob([JSON.stringify(patchNow(), null, 1)], { type: "application/json" }));
+  const a = Object.assign(document.createElement("a"), { href: url, download: `${safe}.alter.json` });
+  a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  say(`Patch enregistré : ${safe}.alter.json (dans tes Téléchargements).`);
+}
+async function openPatch(file) {
+  let p;
+  try { p = JSON.parse(await file.text()); } catch { return say("Ce fichier n'est pas un patch ALTER lisible.", true); }
+  if (p.kind !== PATCH_KIND || !Array.isArray(p.circles)) return say("Ce fichier n'est pas un patch ALTER.", true);
+  say("Envoi du patch à la machine…");
+  try {
+    for (let c = 0; c < 3 && c < p.circles.length; c++) {
+      const pc = p.circles[c], ei = info.engines.indexOf(pc.engine);
+      let n = info.sounds.findIndex((s) => s.name === pc.sound && s.eng === ei);
+      if (n < 0) n = info.sounds.findIndex((s) => s.eng === ei);
+      if (n < 0) continue;
+      await ask(req.sound(c, n));
+      for (const [id, v] of Object.entries(pc.values ?? {}))
+        if (info.ids.includes(+id)) await ask(req.set(c, +id, v));
+      await refresh(c);
+    }
+    say(`Patch « ${file.name} » chargé sur les trois cercles. Pour le garder dans la machine : « Ranger ici ».`);
+  } catch { lost(); }
+}
+
+/* ---------- USER scenes in the FM-1 ---------- */
+async function listSlots() {
+  const r = await ask(req.sceneList());
+  slots = r.used;
+  const s = $("slot"), keep = s.value;
+  s.innerHTML = "";
+  slots.forEach((u, i) => s.append(new Option(`USER ${i + 1}${u ? " (occupée)" : " (vide)"}`, i)));
+  if (keep) s.value = keep;
+}
+async function store() {
+  const i = +$("slot").value;
+  if (slots[i] && !confirm(`La place USER ${i + 1} contient déjà une scène. La remplacer par celle qui joue ?`)) return;
+  say(`Rangement dans USER ${i + 1}…`);
+  try {
+    const r = await ask(req.sceneSave(i), 5000);
+    if (r.rc === 1) say(`Scène rangée dans USER ${i + 1}. Elle se recharge aussi depuis SAVE sur la machine.`);
+    else say(r.rc === 2 ? "La mémoire de la machine n'a pas accepté l'écriture. Rien n'a été rangé." : "Cette place est protégée.", true);
+    await listSlots();
+  } catch { lost(); }
+}
+async function load() {
+  const i = +$("slot").value;
+  if (!slots[i]) return say(`USER ${i + 1} est vide : rien à charger.`, true);
+  if (!confirm(`Charger USER ${i + 1} ? La scène qui joue sera remplacée (pense à la ranger avant si tu veux la garder).`)) return;
+  try {
+    const r = await ask(req.sceneLoad(i), 3000);
+    if (r.rc !== 1) return say(`USER ${i + 1} n'a pas pu être chargée.`, true);
+    for (let c = 0; c < 3; c++) await refresh(c);
+    say(`USER ${i + 1} chargée.`);
+  } catch { lost(); }
+}
+
+function say(t, bad) { const m = $("msg"); m.textContent = t; m.classList.toggle("bad", !!bad); }
+
+$("bMidi").onclick = connectMidi;
+$("bDemo").onclick = connectDemo;
+$("bSave").onclick = savePatch;
+$("bOpen").onclick = () => $("file").click();
+$("file").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) openPatch(f); };
+$("bStore").onclick = store;
+$("bLoad").onclick = load;
+if (new URLSearchParams(location.search).has("demo")) connectDemo();   // (editor/?demo: straight to the simulator)
+</script>
+</body>
+</html>
