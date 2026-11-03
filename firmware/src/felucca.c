@@ -84,6 +84,7 @@ static __attribute__((noinline)) int c1_wait(void) { return fm1_cpu1_wait(); }  
 
 /* ----------------------------------------------------- base, display --- */
 #include "../bsp/chip/libc.c"
+#include "alter_divdi.c"          /* ALTER : divisions 64 bits (la puce n'a pas de bibliothèque du compilateur) */
 #include "lcd.c"
 #include "gfx.c"
 
