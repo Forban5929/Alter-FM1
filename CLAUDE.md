@@ -4,22 +4,26 @@
 - Romain, non-développeur, techno live indus. Explications simples, honnêteté (vérifié / pas vérifié).
 - Choix de design/direction → AskUserQuestion AVANT de coder. Garder ce fichier court : le détail va dans
   `docs/alter/HISTORIQUE.md` (pourquoi et noms de fonctions de chaque étape).
-- **A reçu sa FM-1 (03/11)**, PC Windows. Sait flasher : passe par https://thefirmwarehub.com/ (sauvegarde, « Back to official
-  V15 », secours = tenir OCT− à l'allumage, Rescue box). Le Hub n'installe PAS un firmware perso non testé → ALTER s'installe
-  par NOTRE page.
+- **A reçu sa FM-1 (03/11)**, PC Windows. Sait flasher ; utilise https://thefirmwarehub.com/ (sauvegarde, « Back to official
+  V15 », secours = tenir OCT− à l'allumage, Rescue box). Le Hub n'installe pas un firmware perso non testé → notre page.
 
-## Étape FLASH (décidée 03/11, à faire dans l'ordre)
-1. **Construire le vrai firmware** (`./build.sh` → `build/felucca.fwsc`) : compilateur JieLi + SDK AC79 introuvables dans le
-   cloud (pkgman.jieliapp.com, gitee bloqués) → **workflow GitHub Actions** (ubuntu x86-64, `tools/get_toolchain.sh` + clone
-   SDK `AC79NN_SDK_V1.2.1_2023-12-13`). 1re compilation : s'attendre à des erreurs à corriger.
-   Place code (XIP, app.ld) ≈ 568 Ko, RAM 72 Ko + POOL 360 Ko. Ne PAS retirer le reste de Felucca avant d'avoir la taille réelle.
-2. **Version TEST** (choix de Romain) : charge CPU affichée à l'écran (`song.cpu_q8`, déjà mesurée ; console.c la donne en USB).
-3. **Page d'installation dédiée** (choix de Romain, modèle https://baudgirl.com/work/FM-1+VA/install : assistant en étapes
-   navigateur → préparer → tester la connexion → version → installer → fini) sur GitHub Pages, en réutilisant l'installateur
-   Felucca encore présent : `web/index_pkg.html`, `web/fm1ota.js`, `web/fm1pkg.js`, `web/make_site.py`.
-4. Contrôles sur la machine AVANT de jouer : démarre, son, CPU, SAVE/LOAD, retour possible par USB.
-5. Plus tard : **page compagnon** (éditeur web : tous les réglages à l'écran, écran agrandi, sauvegarde de patchs facile).
-   Détails à demander à Romain. L'éditeur web Felucca a été retiré le 01/11 (récupérable dans l'historique git).
+## Étape FLASH (03/11)
+- **Le vrai firmware se construit** : `.github/workflows/firmware.yml` (chaque push main/etape-*, artifact `felucca.fwsc` +
+  journal ; les artifacts ne se téléchargent PAS depuis le cloud) et `pages.yml` publie la **page d'installation**
+  https://forban5929.github.io/Alter-FM1/install/ (`tools/alter/make_install.py` = installateur Felucca `web/index_pkg.html`
+  + fm1pkg.js + fm1ota.js, protocole USB intact, retour V15/secours → The Firmware Hub). Le cloud ne peut pas télécharger le
+  compilateur JieLi : tout passe par GitHub. Suivre : `gh run list -R Forban5929/alter-fm1` / `gh run view ID --log`.
+- Mesuré (03/11) : app 374 Ko / 568 Ko (XIP), RAM 66 / 72 Ko, pool 307 / 360 Ko → **pas besoin de retirer Felucca pour la place.**
+- Corrigé pour la vraie puce : `alter_divdi.c` (__udivdi3/__divdi3/__umoddi3/__moddi3 : pas de bibliothèque du compilateur ;
+  testé exact sur 5 M valeurs ; ~64 tours/appel) · `tools/size_fns.py` ignore les fichiers retirés · contrôle ROM de
+  `tools/build.py` : `ROM_CONST_OK` autorise la limite −(1<<22) d'afl_block (comparaison, pas une adresse).
+  Leçon : `inst` est une macro de tests/hostsim.c (ne pas nommer une variable ainsi) ; `0x02000000u` en dur = alerte « adresse ».
+- **VERSION TEST** : PLAY en haut à gauche « CPU moy/pic % » (pic = max sur ~1 s, `alt_cpu_pk_q8` audio.c) + « CUT n » rouge
+  = voix coupées par la protection Felucca > 85 % (`shed_count`) + trous dans le son (`alt_cpu_late`). `ALTER_CPU_SHOW`
+  (alter_ui.c, 0 dans le navigateur). Doré si pic ≥ 75 %.
+- **Rien n'est encore essayé sur la FM-1.** À faire : Romain installe (sauvegarde d'abord sur le Firmware Hub), contrôles
+  (démarre, son, CPU, SAVE/LOAD, retour USB possible), puis assistant en étapes façon https://baudgirl.com/work/FM-1+VA/install,
+  puis **page compagnon** (éditeur web, écran agrandi, patchs ; l'éditeur Felucca retiré le 01/11 est dans l'historique git).
 
 ## Rôle de Claude
 Ingénieur DSP + développeur C embarqué.
