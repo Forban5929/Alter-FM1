@@ -19,7 +19,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # L'outil de secours Windows (mode UBOOT) : fm1_recover de Melodee, adapté (tools/alter/rescue), en un seul .exe
+  rescue:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Construire alter-fm1-secours.exe
+        shell: bash
+        run: |
+          pip install --quiet pyinstaller pyusb libusb-package
+          DLL="$(python -c "import libusb_package,os;print(os.path.join(os.path.dirname(libusb_package.__file__),'libusb-1.0.dll'))")"
+          ls -l "$DLL"
+          cd tools/alter/rescue
+          pyinstaller --onefile --name alter-fm1-secours --paths . --add-data "wl82loader.bin;." --add-binary "$DLL;." fm1_recover.py
+          ./dist/alter-fm1-secours.exe --version
+          ./dist/alter-fm1-secours.exe --info --wait 0 || true
+          mkdir -p pack && cp dist/alter-fm1-secours.exe 1-VERIFIER.bat 2-SAUVEGARDER.bat 3-ECRIRE-V15.bat LISEZMOI.txt wl82loader-README.md pack/
+          cp ../../../LICENSE pack/LICENSE-GPL-3.0.txt
+          cd pack && 7z a ../alter-fm1-secours-windows.zip . > /dev/null
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rescue
+          path: tools/alter/rescue/alter-fm1-secours-windows.zip
+
   build:
+    needs: rescue
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -49,6 +76,10 @@ jobs:
               cpu/wl82/tools/cfg_tool.bin cpu/wl82/tools/cfg/eq_cfg_hw.bin)
           ./build.sh > build-fw-log.txt 2>&1 || { tail -40 build-fw-log.txt; exit 1; }
           python3 tools/alter/make_install.py build/felucca.fwsc "$GITHUB_REF_NAME-${GITHUB_SHA::7}" site/install
+      - uses: actions/download-artifact@v4
+        with:
+          name: rescue
+          path: site/secours
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
