@@ -49,7 +49,8 @@ def definitions(text):
 def size_names():
     names = set()
     for f in SIZE_FILES:
-        names.update(definitions((SRC / f).read_text()))
+        if (SRC / f).exists():          # ALTER : fichiers Felucca retirés le 01/11 (plus compilés) = ignorés
+            names.update(definitions((SRC / f).read_text()))
     return names
 
 
