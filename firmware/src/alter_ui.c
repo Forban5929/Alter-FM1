@@ -36,7 +36,7 @@
  * solid ring, the others dotted; a draw on: a small triangle at the circle's left, its colour; the chosen
  * circle's sound at the top, its knobs (or its rhythm, SEQ held) at the bottom. Drawn only when something changed. */
 
-enum { AK_NONE, AK_MUTE, AK_DIE, AK_SHIFT, AK_DENS, AK_FILL, AK_TLOCK, AK_SEL, AK_PING };
+enum { AK_NONE, AK_MUTE, AK_DIE, AK_SHIFT, AK_DENS, AK_FILL, AK_TLOCK, AK_SEL, AK_TRIG };
 typedef struct {
     uint8_t kind, arg;
     const char *name;
@@ -46,14 +46,12 @@ static const alt_key_t ALT_KEY[27] = {    /* k: semitones above F3 (whites 0 2 4
     [7] = {AK_DIE, 0, "DICE 1"}, [9] = {AK_DIE, 1, "DICE 2"}, [11] = {AK_DIE, 2, "DICE 3"},
     [14] = {AK_SHIFT, 0, "SHIFT -1"}, [16] = {AK_SHIFT, 1, "SHIFT +1"},   /* (TURING: PREV, NEXT) */
     [18] = {AK_TLOCK, 0, "LOCK"},                                           /* (TURING only: frozen / free) */
-    [19] = {AK_PING, 0, "PING 1"}, [21] = {AK_PING, 1, "PING 2"}, [23] = {AK_PING, 2, "PING 3"},   /* a hit of the chosen */
-    [24] = {AK_PING, 3, "PING 4"},          /* circle on the grid; RESO: that filter alone (alter_play.c alt_pads) */
     /* the blacks (Romain, 01/11): which circle | its rhythm | the held fills */
     [1] = {AK_SEL, 0, "CIRCLE 1"}, [3] = {AK_SEL, 1, "CIRCLE 2"}, [5] = {AK_SEL, 2, "CIRCLE 3"},
     [8] = {AK_DENS, 0, "DENSITY -"}, [10] = {AK_DENS, 1, "DENSITY +"},
     [13] = {AK_FILL, AF_DLY, "DUB DELAY"}, [15] = {AK_FILL, AF_REV, "DUB REVERB"}, [17] = {AK_FILL, AF_DESTROY, "DESTROY"},
     [20] = {AK_FILL, AF_ROLL16, "ROLL 1/16"}, [22] = {AK_FILL, AF_ROLLT8, "ROLL 1/8T"},
-    [25] = {AK_FILL, AF_RAT2, "RATCHET X2"},
+    [25] = {AK_TRIG, 0, "TRIGGER"},         /* a hit of the chosen circle at once; + REC: added to it (alter_play.c alt_trig_now) */
 };
 #define ALT_DIE_HOLD_MS 600u
 #define ALT_REC_CLEAR_MS 1000u                   /* REC held: the chosen circle's moves cleared */
@@ -161,6 +159,15 @@ static void alt_say(const char *s)
 /* the presets of the three engines in a row: the n-th as (engine, preset); the place of (engine, preset) */
 #define ALT_NENG 4u
 static const uint8_t ALT_ENGS[ALT_NENG] = {ENGI_ALTER, ENGI_PHYS, 11, ENGI_RESO};   /* 11: NOISE (engines.c ENGINES) */
+/* circle c's added steps set (the UI's; alter_seq.c as_circ_t.add, TRIGGER + REC) (a scene loaded, REC held 1 s: cleared) */
+static void alt_add_set(uint32_t c, uint32_t m)
+{
+    fm1_irq_off();
+    alt_seq.c[c % AS_NCIRC].add = m;
+    as_repat(&alt_seq.c[c % AS_NCIRC]);
+    fm1_irq_on();
+}
+
 #include "alter_sounds.c"
 
 /* circle c's sound: ALT_PRE[i] on its part (the engine, its defaults, then the sound's values) */
@@ -1134,14 +1141,17 @@ static int alter_ui_input(uint32_t pressed)
             au.rec_t0 = fm1_ms | 1u;
             au.rec_done = 0;
             if (octs) {
-                for (i = 0; i < AS_NCIRC; i++)
+                for (i = 0; i < AS_NCIRC; i++) {
                     ar_clr_cnt[i]++;
+                    alt_add_set(i, 0);           /* (and the steps TRIGGER added) */
+                }
                 ar_on = 0;
                 au.rec_done = 1;
                 alt_say("REC CLEAR ALL");
             }
         } else if (rd && au.rec_t0 && !au.rec_done && (int32_t)(fm1_ms - au.rec_t0) >= (int32_t)ALT_REC_CLEAR_MS) {
             ar_clr_cnt[au.sel % AS_NCIRC]++;
+            alt_add_set(au.sel, 0);              /* (and the steps TRIGGER added) */
             au.rec_done = 1;
             alt_say("REC CLEAR");
         } else if (!rd && au.rec_t0) {
@@ -1323,8 +1333,15 @@ static int alter_ui_input(uint32_t pressed)
                 if (!tur)
                     au.cfg[au.sel].rot = as_wrap((int32_t)au.cfg[au.sel].rot + d, au.cfg[au.sel].len);
                 au.tap_ms[k] = fm1_ms | 1u;
-            } else if (a->kind == AK_PING) {     /* PING n: a hit on the grid (RESO: filter n) */
-                alt_ping_tot[au.sel % AS_NCIRC][i2 & 3u]++;
+            } else if (a->kind == AK_TRIG) {     /* TRIGGER: a hit at once; REC held or on: on the nearest step too */
+                uint32_t c2 = au.sel % AS_NCIRC, rd = (fm1_in.buttons >> panel.btn[B_REC]) & 1u;
+                alt_trig_tot[c2]++;
+                if (rd || ar_on) {
+                    alt_trig_add_tot[c2]++;
+                    alt_say("TRIG ADDED");
+                    if (rd)
+                        au.rec_done = 1;         /* (REC's release: no on / off, no clear) */
+                }
                 au.tap_ms[k] = fm1_ms | 1u;
             } else if (a->kind == AK_SEL) {      /* CIRCLE n: chosen (as SELECT) */
                 if (au.sel != i2)
@@ -1426,7 +1443,7 @@ static void alter_leds(uint8_t *nl, uint8_t *nd, uint8_t *nb, uint8_t *nm)
             lit = au.cfg[a->arg].mute;
         else if (a->kind == AK_SEL)              /* the chosen circle's key lit */
             lit = au.sel == a->arg;
-        else if (a->kind == AK_DIE || a->kind == AK_SHIFT || a->kind == AK_DENS || a->kind == AK_PING)
+        else if (a->kind == AK_DIE || a->kind == AK_SHIFT || a->kind == AK_DENS || a->kind == AK_TRIG)
             lit = (int)((fm1_in.notes >> k) & 1u) || (au.tap_ms[k] && (int32_t)(fm1_ms - au.tap_ms[k]) < (int32_t)ALT_TAP_MS);
         else if (a->kind == AK_FILL)
             lit = (int)((fm1_in.notes >> k) & 1u);

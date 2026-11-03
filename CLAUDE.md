@@ -55,9 +55,15 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
   coup, gardé. REVERSE relâché = retombe sur la grille.
 - **CLAVIER LIVE (01/11, alter_ui.c ALT_KEY)** — gauche = quel cercle, milieu = son rythme, droite = effets tenus :
   blanches F G A = MUTE 1 2 3 · (B noire) · C D E = DÉ 1 2 3 · (F noire) · G A = SHIFT −1 +1 · B = LOCK (TURING) ·
-  C..G hautes : G A B C = **PING 1-4** (01/11), D = libre. Noires : F# G# A# = **CERCLE 1 2 3** (= SELECT ; les 3 ensemble = CHAOS TOTAL) ·
-  C# D# = DENSITÉ − + · F# G# A# = DUB DELAY, DUB REVERB, DESTROY (tenus) · C# D# = ROLL 1/16, ROLL 1/8T · F# = RATCHET ×2.
-  Retirés du clavier : RATCHET ×3, REVERSE, BUILD UP (le code audio AF_* reste dans alter_play.c). Fills = cercle choisi.
+  C..G hautes = **libres** (PING 1-4 retirés le 03/11). Noires : F# G# A# = **CERCLE 1 2 3** (= SELECT ; les 3 ensemble = CHAOS TOTAL) ·
+  C# D# = DENSITÉ − + · F# G# A# = DUB DELAY, DUB REVERB, DESTROY (tenus) · C# D# = ROLL 1/16, ROLL 1/8T · F# = **TRIGGER**.
+  Retirés du clavier : RATCHET ×2 et ×3, REVERSE, BUILD UP (le code audio AF_* reste dans alter_play.c). Fills = cercle choisi.
+- **TRIGGER (03/11)** = un coup du cercle choisi **tout de suite** (pad, dernière note, vél. 112, même muet) ; avec **REC tenu ou
+  allumé** (transport en marche) le coup est AJOUTÉ au cercle sur le **pas le plus proche** (1re moitié du pas = le pas joué,
+  sinon le suivant, dont le coup est sauté une fois : pas de flam). Ajouts = `as_circ_t.add` (alter_seq.c as_add, OR sur le
+  motif EUCLID/TURING, tournent avec SHIFT). Retaper = rien. Effacés : REC tenu 1 s (cercle), OCT−+OCT++REC (tout), scène
+  ou pattern chargés. **Sauvés dans la scène USER** (alt_bank_f.add, objet 1). Code : alter_play.c alt_trig_now (par bloc),
+  alter_ui.c AK_TRIG, alt_add_set. Test : 2 contrôles « TRIGGER » dans alter_emu_test.mjs.
 - **SHIFT −1/+1 = tourne le cercle sélectionné d'un pas par appui, gardé.** Écran : cercle choisi = anneau plein ; dé actif =
   petit triangle à gauche du cercle, à sa couleur.
   **Centre (01/11)** : triangle coupé en 3 depuis son centre, une pièce par cercle (petit, ~22 px ; pâle au repos ; un coup l'éclaire un peu
@@ -129,8 +135,8 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
   (chante au-delà de ~92 : larsen) ; EDIT OUT MIX/NTCH/LOW, DCAY, PING, SWEP (chute de 4 oct. à la frappe).
   Romain veut : percus indus, hurlements, textures bruitées, du volume. 6 sons ZAP CLANK HOLLOW LARSEN FRICTION GROWL
   (−29..−32 dBFS). Vérifier qu'un knob agit : `node tools/alter/alter_knob_probe.mjs build/emu/felucca.wasm 23,24`.
-  Leçon : m->cutoff est un DÉCALAGE autour de 0 (m->shape, lui, centré sur 64<<8). Touches blanches 19 21 23 24 = **PING 1-4**
-  (un coup du cercle choisi sur la grille ; RESO = ce filtre seul : alter_play.c alt_pads → reso_force).
+  Leçon : m->cutoff est un DÉCALAGE autour de 0 (m->shape, lui, centré sur 64<<8). Romain : « beaucoup mieux et utile » (03/11).
+  Les touches PING 1-4 (03/11) : retirées, « font souvent le même son » → remplacées par TRIGGER ; le réglage PING de RESO reste.
   [ ] **PLATE** (Crucible : 4-6 lignes de retard inharmoniques + filtre, cymbale/fêlée/courbe ; mémoire OK : 12,9 Ko/cercle ;
   entrée = un autre cercle, la FM-1 n'a pas d'entrée audio) · [ ] **CORDE FROISSÉE** (Karplus brutalisé : burst de bruit,
   distorsion + passe-haut + fold dans la boucle, allpass = inharmonique) · [ ] **RING** (2 carrés désaccordés → ring mod →
@@ -155,7 +161,7 @@ E3 MODE SKIN/LIQUID/METAL · E4 AMOUNT (DETUNE / PUNCH / FM DEPTH selon MODE) ·
 - **Moteurs : ALTER (14), PHYS (9), NOISE (11), RESO (10).** `NENGINES` = 15 fixe dans core.h : les autres numéros sont
   des cases vides muettes (`ENG_GONE`, engines.c) pour ne pas décaler les numéros. Partie 4 : silencieuse.
 - **Mémoire flash** (`storage.c`) : objet 0 = réglages (`alter_persist.c`) · objets 2, 3, 4 = banques ALTER
-  (`alter_store.c` : rythmes des scènes USER, scènes, patterns + enveloppes) · objet 1 = MASTER FILTER des scènes USER ·
+  (`alter_store.c` : rythmes des scènes USER, scènes, patterns + enveloppes) · objet 1 = MASTER FILTER + coups TRIGGER des scènes USER ·
   **objets 5.. LIBRES** (ex-presets, banque FM6, autosave Felucca) → place pour les PLAGES, les REC, plus de slots…
 - **Mise à jour USB** (M-UPGRADE, `bsp/chip/ota.c`, `ota_hw.c`) : INTACTE. Ne pas changer l'identité `FM-1_900`
   (build.py PRODUCT) ni retirer « FM-1 » du nom USB (« ALTER FM-1 » : les outils de mise à jour cherchent /fm-1|felucca/).

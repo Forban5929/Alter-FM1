@@ -498,5 +498,6 @@ EXPORT uint32_t web_alter_dump(uint32_t u) { return alt_dump_user(u); }   /* (US
 EXPORT uint8_t *web_alter_dump_buf(void) { return alt_dump; }
 EXPORT uint32_t web_alter_rec(uint32_t c) { return ar_n[c % 3u]; }   /* (tests: REC's written steps, alter_rec.c) */
 EXPORT int32_t web_alter_knobp(uint32_t c, uint32_t k) { const track_t *t = &trk[c % 3u]; return t->p[ENGINES[eng_idx(t->eng_req)]->knob[k & 3u]]; }
+EXPORT uint32_t web_alter_pat(uint32_t c) { return alt_seq.c[c % 3u].pat; }   /* (tests: a circle's steps) */
 EXPORT int32_t web_alter_flt(uint32_t what) { return what == 1u ? afl_now : what == 2u ? afs.env : afl_peak; }   /* (tests: alter_filter.c) */
 EXPORT uint32_t web_alter_cal(uint32_t c, uint32_t what) { return what ? (uint32_t)ac_tg[c % 3u] : ac_last[c % 3u]; }   /* (tests: alter_fx.c) */

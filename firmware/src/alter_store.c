@@ -119,14 +119,17 @@ static struct {
 } alt_bank_p;
 #define ALT_BANK_P_OLD (sizeof alt_bank_p - sizeof alt_bank_p.prat)   /* (before the RATCH lane: still read) */
 /* the USER scenes' MASTER FILTER (alter_filter.c), object 1 (OBJ_PROJECT0, free since Felucca's projects left):
- * kept only when one was on at SAVE (used = 0: the scene loads with the filter off) */
+ * kept only when one was on at SAVE (used = 0: the scene loads with the filter off); and each circle's steps added by
+ * TRIGGER + REC (alter_seq.c as_circ_t.add) */
 #define ALT_OBJ_FILT 1u
 #define ALT_MAGIC_F 0x464C5441u                  /* "ATLF" */
 static struct {
     uint32_t magic;
     uint8_t used[ALT_NUSER];
     uint8_t r[ALT_NUSER][AFL_REC];
+    uint32_t add[ALT_NUSER][AS_NCIRC];
 } alt_bank_f;
+#define ALT_BANK_F_OLD (4u + ALT_NUSER * (1u + AFL_REC))   /* (before the added steps: still read) */
 _Static_assert(sizeof alt_bank_s <= 3840u && sizeof alt_bank_p <= 3840u && sizeof alt_bank_r <= 3840u &&
                sizeof alt_bank_f <= 3840u,
                "ALTER's banks fit a storage object");
@@ -323,7 +326,9 @@ static void alt_load_scene(uint32_t n)
 {
     const alt_scene_t *sc = &ALT_SCENE[n % ALT_NSCENE];
     uint32_t c;
-    afl_off();                                   /* (the factory scenes: no MASTER FILTER) */
+    afl_off();                                   /* (the factory scenes: no MASTER FILTER, no added steps) */
+    for (c = 0; c < AS_NCIRC; c++)
+        alt_add_set(c, 0);
     if (sc->user) {                              /* a USER scene of Romain's, as he stored it (alter_ui.c alt_dump_user) */
         static alt_scene_rec_t rec;
         static alt_rhy_t rhy[AS_NCIRC];
@@ -381,6 +386,8 @@ static void alt_new_scene(void)
     static const uint8_t ROOT[AS_NCIRC] = {36, 48, 60};
     uint32_t c;
     afl_off();
+    for (c = 0; c < AS_NCIRC; c++)
+        alt_add_set(c, 0);
     song.g[G_BPM] = 120;
     song.g[G_SWING] = 0;
     alt_seq.scale = AS_SC_MIN;
@@ -444,8 +451,16 @@ static void alt_banks_load(void)
             ((uint8_t *)&alt_bank_p)[i] = 0;
         alt_bank_p.magic = ALT_MAGIC_P;
     }
-    if (st_load(ALT_OBJ_FILT, &alt_bank_f, sizeof alt_bank_f) != (int)sizeof alt_bank_f ||
-        alt_bank_f.magic != ALT_MAGIC_F) {       /* (none yet, or an old Felucca project there) */
+    {
+        int n = st_load(ALT_OBJ_FILT, &alt_bank_f, sizeof alt_bank_f);
+        uint32_t i;
+        if (n == (int)ALT_BANK_F_OLD)            /* (stored before the added steps) */
+            for (i = (uint32_t)n; i < sizeof alt_bank_f; i++)
+                ((uint8_t *)&alt_bank_f)[i] = 0;
+        else if (n != (int)sizeof alt_bank_f)
+            alt_bank_f.magic = 0;
+    }
+    if (alt_bank_f.magic != ALT_MAGIC_F) {       /* (none yet, or an old Felucca project there) */
         uint32_t i;
         for (i = 0; i < sizeof alt_bank_f; i++)
             ((uint8_t *)&alt_bank_f)[i] = 0;
@@ -505,6 +520,8 @@ static int alt_row_load(uint32_t t, uint32_t i)
                 afl_put(alt_bank_f.r[u]);
             else
                 afl_off();
+            for (c = 0; c < AS_NCIRC; c++)       /* its added steps */
+                alt_add_set(c, alt_bank_f.add[u][c]);
         } else
             return 0;
         return 1;
@@ -520,6 +537,7 @@ static int alt_row_load(uint32_t t, uint32_t i)
             r = alt_bank_p.p[i - 1u - ALT_NFACT].c[c];
         else
             return 0;
+        alt_add_set(c, 0);                       /* (a pattern: the added steps go) */
         alt_rhy_put(c, &r);
         if (i > ALT_NFACT)
             alt_rat_put(c, alt_bank_p.prat[i - 1u - ALT_NFACT][c]);
@@ -553,6 +571,8 @@ static int alt_row_save(uint32_t t, uint32_t i)
         alt_bank_r.fxok[u] = 1;
         alt_fx_get(alt_bank_r.fx[u]);
         alt_bank_f.used[u] = (uint8_t)afl_active();   /* the MASTER FILTER: kept when one is on */
+        for (c = 0; c < AS_NCIRC; c++)
+            alt_bank_f.add[u][c] = alt_seq.c[c].add;
         if (alt_bank_f.used[u])
             afl_get(alt_bank_f.r[u]);
         for (c = 0; c < AS_NCIRC; c++)

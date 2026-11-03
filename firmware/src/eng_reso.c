@@ -17,7 +17,7 @@
  * OUT   MIX the rings and a part of the exciter (the impact); NTCH the exciter minus the rings (hollow, phase
  *       cancelled); LOW their low-pass outputs (bodies, thuds)
  * DCAY  the exciter's length (impact, burst: 0.2 .. 80 ms; and the sweep's)
- * PING  which filters a hit strikes: ALL, CYCL, RAND, 1..4 (the keys strike one: alter_play.c, reso_force)
+ * PING  which filters a hit strikes: ALL, CYCL (one after the other), RAND (one at random), 1..4 (that one)
  * SWEP  the filters start above the note and fall to it at the hit (up to 4 octaves): zaps, kicks, lasers
  * The track's SHP moves MATR, FLT moves the tunings (+-2 octaves), as on every engine: the ADSR on top.
  *
@@ -42,7 +42,6 @@ typedef struct {
 ENG_MEM_FITS("RESO", sizeof(reso_slot_t) * RESO_POLY);
 
 static uint8_t reso_cyc[NPART];          /* CYCL: the filter struck next */
-static uint8_t reso_force[NPART];        /* a key's strike: this mask on the next hit (alter_play.c), then 0 */
 
 static const char *const N_RESO_OUT[] = {"MIX", "NTCH", "LOW"};
 static const char *const N_RESO_PING[] = {"ALL", "CYCL", "RAND", "1", "2", "3", "4"};
@@ -82,10 +81,7 @@ static void reso_note_on(track_t *t, voice_t *v)
     S->sw = t->p[P_E7] * t->p[P_E7] * 16384 / 16129;  /* up to 4 octaves (finer near 0) */
     if (!S->rng)
         S->rng = (int32_t)((v->note + 1u) * 0x9E3779B9u ^ v->age * 0x85EBCA6Bu) | 1;
-    if (reso_force[p]) {                 /* a key: that filter */
-        S->mask = reso_force[p];
-        reso_force[p] = 0;
-    } else if (ping == RP_CYCLE) {
+    if (ping == RP_CYCLE) {
         S->mask = (uint8_t)(1u << (reso_cyc[p] % RESO_NF));
         reso_cyc[p] = (uint8_t)((reso_cyc[p] + 1u) % RESO_NF);
     } else if (ping == RP_RAND)

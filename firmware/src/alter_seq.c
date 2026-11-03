@@ -105,6 +105,7 @@ typedef struct {
     uint8_t drot;                   /* .. and ROT turned by (0..31) */
     uint8_t locks;                  /* AS_LK_*: what this circle's draws leave alone */
     uint32_t seed;                  /* this circle's draws */
+    uint32_t add;                   /* steps added by hand (TRIGGER + REC: alter_play.c), on top of the pattern */
 } as_circ_t;
 
 typedef struct {
@@ -277,7 +278,7 @@ static void as_repat(as_circ_t *c)
 {
     int32_t h = c->cfg.hits, r = c->cfg.rot;
     if (c->cfg.type == AS_T_TURING) {
-        c->pat = as_rot(c->treg, c->cfg.len, (uint32_t)r);
+        c->pat = as_rot(c->treg, c->cfg.len, (uint32_t)r) | as_rot(c->add, c->cfg.len, 0);
         return;
     }
     if (c->die) {
@@ -287,7 +288,16 @@ static void as_repat(as_circ_t *c)
             h = 1;                                      /* (a circle that plays keeps a hit) */
         r += c->drot;
     }
-    c->pat = as_euclid(c->cfg.len, (uint32_t)h, (uint32_t)r % c->cfg.len);
+    c->pat = as_euclid(c->cfg.len, (uint32_t)h, (uint32_t)r % c->cfg.len) | as_rot(c->add, c->cfg.len, 0);
+}
+
+/* a step added by hand to circle i (TRIGGER + REC), kept: it plays on every cycle, on top of the pattern */
+static void as_add(as_seq_t *q, uint32_t i, uint32_t k)
+{
+    if (i < AS_NCIRC && k < AS_MAXLEN) {
+        q->c[i].add |= 1u << k;
+        as_repat(&q->c[i]);
+    }
 }
 
 static void as_init(as_seq_t *q, uint32_t seed)
@@ -340,6 +350,7 @@ static void as_turn(as_seq_t *q, uint32_t i, int32_t d)
     c = &q->c[i];
     c->cfg.rot = as_wrap((int32_t)c->cfg.rot + d, c->cfg.len);
     c->next.rot = as_wrap((int32_t)c->next.rot + d, c->next.len);
+    c->add = as_rot(c->add, c->cfg.len, as_wrap(d, c->cfg.len));   /* (the added steps turn with it) */
     as_repat(c);
 }
 

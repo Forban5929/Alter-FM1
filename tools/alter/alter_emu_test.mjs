@@ -154,7 +154,7 @@ check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().
 // the fills: on the selected circle (1)
 {
   const before = bar().steps.length;
-  const FILLS = { 13: "DUB DELAY", 15: "DUB REVERB", 17: "DESTROY", 20: "ROLL 1/16", 22: "ROLL 1/8T", 25: "RATCHET X2" };
+  const FILLS = { 13: "DUB DELAY", 15: "DUB REVERB", 17: "DESTROY", 20: "ROLL 1/16", 22: "ROLL 1/8T" };   // (RATCHET X2 left the keys: TRIGGER, 03/11)
   const got = {}, n = {};
   let worst = 0;
   for (const [k, name] of Object.entries(FILLS)) {
@@ -166,8 +166,8 @@ check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().
   }
   console.log("alter: attacks in a bar held: " + Object.entries(n).map(([k, v]) => `${k} ${v}`).join(", "));
   check(`every fill plays and none clips (peak ${worst.toFixed(3)})`, Object.values(n).every((v) => v > 0) && worst < 0.999);
-  check(`ROLL 1/16 ~ 16 attacks, 1/8T ~ 12, RATCHET X2 more than the bar alone (${n["ROLL 1/16"]} ${n["ROLL 1/8T"]} ${n["RATCHET X2"]})`,
-        n["ROLL 1/16"] >= 14 && n["ROLL 1/8T"] >= 9 && n["ROLL 1/8T"] <= 14 && n["RATCHET X2"] > before);
+  check(`ROLL 1/16 ~ 16 attacks, 1/8T ~ 12 (${n["ROLL 1/16"]} ${n["ROLL 1/8T"]})`,
+        n["ROLL 1/16"] >= 14 && n["ROLL 1/8T"] >= 9 && n["ROLL 1/8T"] <= 14);
   // the SEQ menu's RATCH lane: black key 13 = RATCH, step 1 held + KNOB 1 up: that hit plays x4
   {
     const seqTap = (hold) => { ex.web_buttons(1 << SEQB); render(hold); ex.web_buttons(0); render(2000); };
@@ -208,7 +208,6 @@ check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().
     seqTap(FS * 0.7); K(1 << 3); render(1500); K(0); render(1500);
     K(0x5ad5ad5); render(1500); enc(3, 20); K(0); render(1500); seqTap(2000);   // (all 16 step keys held)
   }
-  check("RATCHET X2 adds attacks", n["RATCHET X2"] > before);
 
   check(`let go: the pattern is back`, same(bar().steps, euclid(16, 8, 0)));
 }
@@ -346,11 +345,11 @@ tap(10); bar();
   bar();
   check("nothing left on: 8 hits as before", same(bar().steps, euclid(16, 8, 0)));
 }
-// a fill on another circle leaves this one alone: CIRCLE 2 tapped (the 2nd black key; muted), RATCHET X2 held
+// a fill on another circle leaves this one alone: CIRCLE 2 tapped (the 2nd black key; muted), DESTROY held
 tap(3);
 {
-  K(1 << 25); render(2000); const b = bar(); K(0);
-  check(`CIRCLE 2 key: RATCHET X2 does not touch circle 1 ${b.steps.join(",")}`, same(b.steps, euclid(16, 8, 0)));
+  K(1 << 17); render(2000); const b = bar(); K(0);
+  check(`CIRCLE 2 key: DESTROY does not touch circle 1 ${b.steps.join(",")}`, same(b.steps, euclid(16, 8, 0)));
 }
 // PRESETS on circle 2: through the engines (PHYS's last presets, then NOISE's)
 tap(2);                                                          // circle 2 back on
@@ -563,24 +562,40 @@ if (wavPath) {                                                  // 4 bars from a
   fs.writeFileSync(wavPath, b);
   console.log(`alter: wrote ${wavPath}`);
 }
-// RESO (eng_reso.c): its sounds play; the PING keys (white keys 19 21 23 24) strike one filter of the chosen circle on the
-// grid: PING 1 and PING 4 ring at different pitches
+// TRIGGER (black key 25): a hit of the chosen circle at once, whatever its sound; with REC held the nearest step is added
+// to the circle (it plays every cycle); REC held 1 s clears the added steps
 {
-  const W = (op, a, b) => ex.web_alter(op, a, b);
-  const zc = (a) => { let n = 0; for (let i = 1; i < a.length; i++) if (a[i - 1] < 0 && a[i] >= 0) n++; return n; };
+  const W = (op, a, b) => ex.web_alter(op, a, b), RECB = 11;
+  const bits = (m) => { let n = 0; for (; m; m >>>= 1) n += m & 1; return n; };
   W(1, 0, 0); W(4, BPM, 0); render(FS);
   if (peak(render(FS, true)) < 0.002) play();                     // (the transport on)
-  for (let c = 0; c < 3; c++) W(2, c, 1);                         // the three muted: only the keys sound
-  W(0, 0, 24); W(3, 0, 0);                                        // circle 1: RESO CLANK, FREE
-  render(FS);
+  for (let c = 0; c < 3; c++) W(2, c, 1);                         // the three muted: only TRIGGER sounds
+  W(0, 0, 24); W(3, 0, 0); render(FS);                            // circle 1: RESO CLANK, FREE
   const quiet = peak(render(FS / 2, true));
-  K(1 << 19); render(STEP * 2); K(0);
-  const p1 = render(FS / 4, true);
-  render(FS);
-  K(1 << 24); render(STEP * 2); K(0);
-  const p4 = render(FS / 4, true);
-  check(`RESO: muted ${quiet.toFixed(3)}; PING 1 rings (${peak(p1).toFixed(3)}, ${zc(p1) * 4} Hz), PING 4 higher (${zc(p4) * 4} Hz)`,
-        quiet < 0.002 && peak(p1) > 0.01 && peak(p4) > 0.01 && zc(p4) > zc(p1) * 1.5);
+  K(1 << 25);
+  const now = render(Math.round(FS * 0.03), true); K(0); render(STEP * 2);   // (sounding within 30 ms: at once, not on the grid)
+  const first = now.findIndex((x) => Math.abs(x) > 0.005);
+  check(`TRIGGER: muted ${quiet.toFixed(3)}, a tap plays the chosen circle at once (${peak(now).toFixed(3)} after ${(first / FS * 1000).toFixed(0)} ms)`,
+        quiet < 0.002 && peak(now) > 0.01 && first >= 0);
+  const before = bits(ex.web_alter_pat(0) >>> 0);
+  let after = before;
+  for (let t = 0; t < 4 && after === before; t++) {               // (a tap on a step that hits already adds nothing)
+    render(STEP * 3);
+    ex.web_buttons(1 << RECB); render(1500); K(1 << 25); render(STEP * 2); K(0); render(800); ex.web_buttons(0); render(2000);
+    after = bits(ex.web_alter_pat(0) >>> 0);
+  }
+  // a USER scene keeps the added step: saved in USER 03, a factory scene (none), USER 03 again (it is back)
+  const Bt = (b, hold = 2000) => { ex.web_buttons(1 << b); render(hold); ex.web_buttons(0); render(2000); };
+  const urow = (n) => { enc(1, -3); enc(0, -25); enc(0, n); };   // (the SCENES tab, from the top)
+  Bt(7); urow(7); Bt(7, FS * 1.2); Bt(6);                         // SAVE held 1.2 s on USER 03; HOME
+  W(1, 0, 0); render(FS);
+  const fac = bits(ex.web_alter_pat(0) >>> 0);
+  Bt(7); urow(7); Bt(7); render(FS);                              // USER 03 loaded
+  const back = bits(ex.web_alter_pat(0) >>> 0);
+  ex.web_buttons(1 << RECB); render(FS * 1.3); ex.web_buttons(0); render(2000);   // REC held 1 s: cleared
+  const cleared = bits(ex.web_alter_pat(0) >>> 0);
+  check(`TRIGGER + REC adds the step (${before} -> ${after} hits); USER scene keeps it (${fac} -> ${back}); REC held 1 s clears it (${cleared})`,
+        after === before + 1 && fac === before && back === after && cleared === before);
   for (let c = 0; c < 3; c++) W(2, c, 0);
   W(1, 0, 0); render(FS);
 }

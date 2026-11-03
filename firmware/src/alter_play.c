@@ -440,26 +440,41 @@ static void alt_env_apply(uint32_t c, uint32_t m, int32_t die)
     }
 }
 
-/* the PING keys (alter_ui.c AK_PING): a hit of the circle now, on the grid; on RESO that key's filter alone
- * (eng_reso.c reso_force), on the other engines a plain hit */
-static volatile uint8_t alt_ping_tot[AS_NCIRC][4];       /* (the UI counts the taps) */
-static uint8_t alt_ping_seen[AS_NCIRC][4];
-static void alt_pads(void)
+/* TRIGGER (alter_ui.c AK_TRIG): a hit of the chosen circle AT ONCE (a pad: within the block), whatever its sound, its
+ * last note; with REC (held or on) and the transport running, the hit is added to the circle on the NEAREST of its
+ * steps (alter_seq.c as_add: it plays on every cycle): the step just played when the tap came in its first half, else
+ * the next one, whose own hit is then skipped once (it sounded already: no flam). Stopped: let go after a sixteenth. */
+static volatile uint8_t alt_trig_tot[AS_NCIRC], alt_trig_add_tot[AS_NCIRC];   /* (the UI counts the taps) */
+static uint8_t alt_trig_seen[AS_NCIRC], alt_trig_add_seen[AS_NCIRC];
+static uint8_t alt_trig_skip[AS_NCIRC];          /* step + 1 whose hit is skipped once (0: none) */
+static int32_t alt_trig_left[AS_NCIRC];          /* (stopped) samples before the hit lets go */
+static uint32_t alt_len(uint32_t p);
+static void alt_trig_now(uint32_t n)
 {
-    uint32_t c, f, mask;
+    uint32_t c, p = div_samples(2);
     for (c = 0; c < AS_NCIRC; c++) {
-        for (f = 0, mask = 0; f < 4u; f++)
-            if (alt_ping_tot[c][f] != alt_ping_seen[c][f]) {
-                alt_ping_seen[c][f] = alt_ping_tot[c][f];
-                mask |= 1u << f;
-            }
-        if (!mask)
+        as_circ_t *sc = &alt_seq.c[c];
+        int add = alt_trig_add_tot[c] != alt_trig_add_seen[c];
+        alt_trig_add_seen[c] = alt_trig_add_tot[c];
+        if (alt_trig_left[c] > 0 && (alt_trig_left[c] -= (int32_t)n) <= 0 && !alt_run)
+            alt_off(c);
+        if (alt_trig_tot[c] == alt_trig_seen[c])
             continue;
-        if (trk[c].eng_req == ENGI_RESO)
-            reso_force[c] = (uint8_t)mask;
-        alt_on(c, alt_seq.c[c].cfg.root, 112, 0, 0);
+        alt_trig_seen[c] = alt_trig_tot[c];
+        alt_on(c, alt_note[c][0] ? alt_note[c][0] : as_note(&alt_seq, sc->cfg.root, 0), 112, 0, 0);
         if (alt_gate_left[c] < 1u)
             alt_gate_left[c] = 1;
+        alt_trig_left[c] = (int32_t)p;
+        if (add && alt_run && sc->cfg.len) {
+            uint32_t len = sc->cfg.len, k;
+            if (alt_pos * 2u < alt_len(p))
+                k = (sc->pos + len - 1u) % len;  /* the step just played */
+            else {
+                k = sc->pos % len;               /* the next one: its hit skipped once */
+                alt_trig_skip[c] = (uint8_t)(k + 1u);
+            }
+            as_add(&alt_seq, c, k);
+        }
     }
 }
 
@@ -473,6 +488,12 @@ static void alter_step(void)
         kk[c] = alt_seq.c[c].pos;
     as_step(&alt_seq, ev);
     alt_gstep++;
+    for (c = 0; c < AS_NCIRC; c++)               /* (TRIGGER + REC on the next step: it sounded already) */
+        if (alt_trig_skip[c]) {
+            if (kk[c] == alt_trig_skip[c] - 1u)
+                ev[c].on = 0;
+            alt_trig_skip[c] = 0;
+        }
     for (c = 0; c < AS_NCIRC; c++)
         ar_step(c, kk[c] < alt_seq.c[c].cfg.len ? kk[c] : 0u, alt_seq.c[c].cfg.len, div_samples(2));
     if ((h >> AF_REVERSE) & 1u) {                /* back two: the next step is the one before this one */
@@ -535,7 +556,6 @@ static void alter_step(void)
         }
         alt_rat_at[c] = alt_rat_dt[c];
     }
-    alt_pads();                                  /* (the PING keys: on the grid) */
 }
 
 static void alt_ratchets(uint32_t upto)
@@ -566,6 +586,7 @@ static void alter_tick_(uint32_t n)
         alt_ready = 1;
     }
     alt_take();
+    alt_trig_now(n);                             /* (TRIGGER: at once) */
     ar_tick(n);
     alt_gl_tick(n, p);
     h = alt_hold;

@@ -322,3 +322,17 @@ hurlements/larsen, textures bruitées ; de HOLLOW il aime le volume/l'impact.
 - Mesuré avec `tools/alter/alter_knob_probe.mjs` (nouveau, op 14 web_alter) : sur ZAP, RES fait 0,15 → 1,7 s et
   600 → 2150 Hz ; DIRT 0,2 → 1,4 s ; MATR 460 → 1310 Hz. Sur les sons tenus (LARSEN, FRICTION) MATR agit peu : le
   feedback domine (assumé). 6 sons (indices 23..28) remplacés : ZAP CLANK HOLLOW LARSEN FRICTION GROWL.
+
+## TRIGGER à la place de RATCHET ×2 ; PING 1-4 retirés (03/11)
+Retour de Romain : RESO v2 « beaucoup mieux et utile » ; les PING « font souvent le même son ». Demande : à la place de
+RATCHET ×2, une touche TRIGGER qui joue un coup sur n'importe quel son, et qui avec REC l'ajoute au cercle, calé sur un
+des 32 pas. Choix (AskUserQuestion) : PING 1-4 retirés ; sans REC = tout de suite (pad) ; retaper un pas ajouté = rien ;
+sauvé dans la scène.
+- alter_seq.c : `as_circ_t.add` (32 bits) OR dans `as_repat` (EUCLID et TURING), `as_add`, tourné par `as_turn`.
+- alter_play.c : `alt_trig_now(n)` chaque bloc (après alt_take) : alt_on(dernière note) ; si REC (UI : alt_trig_add_tot) et
+  transport : pas le plus proche via alt_pos / alt_len ; si c'est le suivant, `alt_trig_skip` saute son coup une fois
+  (dans alter_step). Arrêté : la note est lâchée après une double-croche (alt_trig_left).
+- alter_ui.c AK_TRIG (touche 25), `alt_add_set` ; REC tenu 1 s / OCT−+OCT++REC effacent aussi les ajouts.
+- alter_store.c : `alt_bank_f.add[16][3]` (objet 1, ancienne taille encore lue : ALT_BANK_F_OLD) ; scènes d'usine, NEW,
+  patterns = ajouts à 0. eng_reso.c : `reso_force` retiré. Tests : RATCHET X2 retiré des contrôles de fills ; TRIGGER
+  (son en 3 ms, ajout, sauvé/rechargé, effacé). Sons et scènes identiques au bit près.
