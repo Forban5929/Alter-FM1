@@ -41,6 +41,9 @@ jobs:
           [ -n "$SZ" ] && [ -f build/felucca.elf ] && "$HOME/.jieli/toolchain/pi32v2/bin/$SZ" -A build/felucca.elf | tee -a build-log.txt || true
           echo "Place pour le code (XIP, app.ld) : $((0x8DFBC)) octets" | tee -a build-log.txt
           [ -f build/felucca.dis ] && awk '/^[A-Za-z_.][^ ]*:$/{fn=$1} /: ff[cd][0-9a-f]{5} >/{print "ROM? dans " fn; n=10} n>0{print; n--}' build/felucca.dis | head -40 || true
+      - name: Pile du 2e cœur
+        if: always()
+        run: '[ -f build/felucca.dis ] && python3 tools/alter/stack_c1.py build/felucca.dis --formes || true'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
