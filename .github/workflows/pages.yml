@@ -39,6 +39,17 @@ jobs:
           cp build/emu/index.html build/emu/felucca.wasm build/emu/worklet.js site/
           cp build/emu/fonts/* site/fonts/
           echo "$GITHUB_REF_NAME @ ${GITHUB_SHA::7}" > site/version.txt
+      # La page d'installation FM-1 (/install/) : vrai firmware (compilateur JieLi). Si ça échoue, le reste est publié.
+      - name: Firmware FM-1 + page d'installation
+        continue-on-error: true
+        run: |
+          sh tools/get_toolchain.sh "$HOME/.jieli"
+          git clone -q --depth 1 --filter=blob:none --sparse --branch AC79NN_SDK_V1.2.1_2023-12-13 \
+              https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git "$HOME/fw-AC79_AIoT_SDK"
+          (cd "$HOME/fw-AC79_AIoT_SDK" && git sparse-checkout set --no-cone cpu/wl82/tools/uboot.boot \
+              cpu/wl82/tools/cfg_tool.bin cpu/wl82/tools/cfg/eq_cfg_hw.bin)
+          ./build.sh > build-fw-log.txt 2>&1 || { tail -40 build-fw-log.txt; exit 1; }
+          python3 tools/alter/make_install.py build/felucca.fwsc "$GITHUB_REF_NAME-${GITHUB_SHA::7}" site/install
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
