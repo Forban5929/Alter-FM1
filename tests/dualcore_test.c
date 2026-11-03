@@ -16,7 +16,7 @@
 
 #define SECS 3u
 
-typedef struct { const char *name; uint8_t eng[NPART], pre[NPART]; uint8_t morph; } scen_t;
+typedef struct { const char *name; uint8_t eng[NPART], pre[NPART]; uint8_t morph, alt; } scen_t;
 
 static int32_t peak[NPART];                         /* each part's loudest (track_t.peak), for the check */
 
@@ -65,6 +65,13 @@ static uint64_t render(const scen_t *sc, int dual, const char *mask)
         host_preset(&trk[k], sc->eng[k], sc->pre[k]);
         part_setup(&trk[k], k, sc->eng[k]);
     }
+    if (sc->alt)                                    /* ALTER (03/11) : ce que mix_part fait pour ALTER, sur les 2 cœurs */
+        for (k = 0; k < AM_NC; k++) {
+            ac[k].on = 1;                           /* l'alignement des niveaux mesure dans mix_part (ac_measure) */
+            ac[k].guard = 1;
+            afl[0][AFL_MIX] = afl[1][AFL_MIX] = 100;   /* MASTER FILTER : sa source = le cercle 2 (afl_take, mix_part) */
+            afl[0][AFL_SRC] = afl[1][AFL_SRC] = AFS_C2;
+        }
     for (f = 0; f < SECS * FS; f += CTL) {
         uint32_t ms = f / (FS / 1000u);
         for (k = 0; k < NPART; k++) {
@@ -137,16 +144,11 @@ int main(void)
             sc[n++].morph = 0;
         }
     }
-    sc[n++] = (scen_t){"PHYS FM6 ANALOG DRUM", {ENGI_PHYS, ENGI_FM6, 0, ENGI_DRUM}, {1, 4, 7, 0}, 0};
-    sc[n++] = (scen_t){"GRAIN NOISE VOICE LOFI", {8, 11, 5, 3}, {1, 4, 7, 10}, 0};
-    sc[n++] = (scen_t){"TRIO WHEEL PHASE FM6", {6, 7, 2, ENGI_FM6}, {1, 4, 7, 10}, 0};
-    sc[n++] = (scen_t){"PHYS morph + DRUM GRAIN ANALOG", {ENGI_PHYS, ENGI_DRUM, 8, 0}, {2, 1, 3, 5}, 1};
-#if FELUCCA_SLICE
-    sc[n++] = (scen_t){"SAMPLE SLICE GRAIN PHASE", {ENGI_SAMPLE, 13, 8, 2}, {2, 1, 3, 5}, 0};
-    sc[n++] = (scen_t){"SLICE FM6 SAMPLE DRUM", {13, ENGI_FM6, ENGI_SAMPLE, ENGI_DRUM}, {0, 2, 3, 4}, 0};
-#else
-    sc[n++] = (scen_t){"SAMPLE FM6 GRAIN PHASE", {ENGI_SAMPLE, ENGI_FM6, 8, 2}, {2, 1, 3, 5}, 0};
-#endif
+    /* ALTER (03/11) : les 4 moteurs gardés (les autres Felucca sont retirés) mélangés, et une scène avec ce que
+     * mix_part fait pour ALTER (alignement + source du MASTER FILTER) */
+    sc[n++] = (scen_t){"ALTER PHYS NOISE RESO", {ENGI_ALTER, ENGI_PHYS, ENGI_NOISE, ENGI_RESO}, {1, 4, 7, 2}, 0, 0};
+    sc[n++] = (scen_t){"RESO ALTER NOISE PHYS + ALTER", {ENGI_RESO, ENGI_ALTER, ENGI_NOISE, ENGI_PHYS}, {3, 0, 2, 5}, 0, 1};
+    sc[n++] = (scen_t){"PHYS morph + RESO ALTER NOISE", {ENGI_PHYS, ENGI_RESO, ENGI_ALTER, ENGI_NOISE}, {2, 1, 3, 5}, 1, 1};
     for (i = 0; i < n; i++) {
         uint64_t ref;
         uint32_t m, bad = 0, quiet = 0, taken = 0, took = 0;

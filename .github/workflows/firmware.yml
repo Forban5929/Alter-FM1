@@ -33,6 +33,12 @@ jobs:
         run: |
           set -o pipefail
           ./build.sh 2>&1 | tee build-log.txt
+      - name: Test 2 cœurs (son identique, aucun accès simultané)
+        run: |
+          mkdir -p build/host
+          cc -std=gnu99 -O1 -g -w -fsanitize=thread -DFELUCCA_CPU2=1 -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests \
+              -Ifirmware/bsp/chip -Ifirmware/bsp/boards/fm1 tests/dualcore_test.c -o build/host/dualcore_test -lpthread -lm
+          TSAN_OPTIONS="halt_on_error=1 report_signal_unsafe=0" build/host/dualcore_test | tail -3
       - name: Tailles
         if: always()
         run: |
@@ -43,7 +49,7 @@ jobs:
           [ -f build/felucca.dis ] && awk '/^[A-Za-z_.][^ ]*:$/{fn=$1} /: ff[cd][0-9a-f]{5} >/{print "ROM? dans " fn; n=10} n>0{print; n--}' build/felucca.dis | head -40 || true
       - name: Pile du 2e cœur
         if: always()
-        run: '[ -f build/felucca.dis ] && python3 tools/alter/stack_c1.py build/felucca.dis --formes || true'
+        run: '[ -f build/felucca.dis ] && python3 tools/alter/stack_c1.py build/felucca.dis || true'
       - uses: actions/upload-artifact@v4
         if: always()
         with:

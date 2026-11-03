@@ -2471,7 +2471,7 @@ static void alt_prism(void)
 #endif
 #endif
 #if ALTER_CPU_SHOW
-static uint32_t alt_cpu_ms, alt_cpu_avg, alt_cpu_pk, alt_cpu_cut;
+static uint32_t alt_cpu_ms, alt_cpu_avg, alt_cpu_pk, alt_cpu_cut, alt_cpu_c1, alt_cpu_c1b;
 static void alt_cpu_poll(void)
 {
     if (fm1_ms - alt_cpu_ms < 500u)
@@ -2480,6 +2480,10 @@ static void alt_cpu_poll(void)
     alt_cpu_avg = song.cpu_q8 * 100u / 256u;
     alt_cpu_pk = alt_cpu_pk_q8 * 100u / 256u;
     alt_cpu_cut = shed_count + alt_cpu_late;
+#if FELUCCA_CPU2
+    alt_cpu_c1 = c1_blocks != alt_cpu_c1b;        /* des blocs partagés pendant la dernière demi-seconde */
+    alt_cpu_c1b = c1_blocks;
+#endif
 }
 static void alt_cpu_num(char *b, uint32_t *n, uint32_t v)
 {
@@ -2501,6 +2505,10 @@ static void alt_cpu_line(void)
     b[n++] = '/';
     alt_cpu_num(b, &n, alt_cpu_pk);
     b[n++] = '%';
+#if FELUCCA_CPU2
+    if (alt_cpu_c1)                               /* le 2e cœur prend des cercles (MENU > SYSTEM > 2ND CORE) */
+        b[n++] = ' ', b[n++] = '2', b[n++] = 'C';
+#endif
     b[n] = 0;
     cv_text(9, 19, ALT_FS, b, col);
     if (alt_cpu_cut) {
@@ -2740,7 +2748,7 @@ static void alter_draw(void)
           (uint32_t)song.g[G_BPM] * 13u + (au.msg && fm1_ms - au.msg_ms < 1500u ? (uint32_t)(uintptr_t)au.msg + (fm1_ms - au.msg_ms < 900u) : 1u);
 #if ALTER_CPU_SHOW
     alt_cpu_poll();
-    sig = sig * 31u + alt_cpu_avg * 101u + alt_cpu_pk * 103u + alt_cpu_cut * 107u;   /* (version test : la charge CPU) */
+    sig = sig * 31u + alt_cpu_avg * 101u + alt_cpu_pk * 103u + alt_cpu_cut * 107u + alt_cpu_c1 * 109u;   /* (version test : la charge CPU) */
 #endif
     ui.force = 1;                                /* (whatever comes after this view draws itself whole) */
     if (au.drawn && sig == au.sig)

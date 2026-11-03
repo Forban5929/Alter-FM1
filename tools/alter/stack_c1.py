@@ -14,9 +14,9 @@ ROOT = Path(__file__).resolve().parents[2]
 LIMIT = 2816
 LABEL = re.compile(r"^([A-Za-z_.$][\w.$]*):\s*$")
 INSN = re.compile(r"^\s*[0-9a-f]+:\s+(?:[0-9a-f]{2} )+\s*\t(.*)$")
-CALL = re.compile(r"\bcall\s+-?\d+\s+<([\w.$]+)(?:\+0x[0-9a-f]+)?\s*:")
-ICALL = re.compile(r"\bcall\s+r\d+\b|\bcall\s+\[")
-PUSH = re.compile(r"\[--sp\]\s*=\s*\{([^}]*)\}")
+CALL = re.compile(r"\b(?:call|goto)\s+-?\d+\s+<([\w.$]+)(?:\+0x[0-9a-f]+)?\s*:")
+ICALL = re.compile(r"\b(?:call|goto)\s+r\d+\b|\bcall\s+\[")
+PUSH = re.compile(r"\[--sp\]\s*=\s*(?:\{([^}]*)\}|(\w+))")
 SPADD = re.compile(r"\bsp\s*\+=\s*(-?\d+)")
 
 
@@ -26,7 +26,7 @@ def regs_count(lst):
         part = part.strip()
         m = re.fullmatch(r"r(\d+)-r(\d+)", part)
         if m:
-            n += int(m.group(2)) - int(m.group(1)) + 1
+            n += abs(int(m.group(2)) - int(m.group(1))) + 1
         elif part:
             n += 1
     return n
@@ -48,15 +48,18 @@ def parse(dis):
         f["lines"].append(ins)
         p = PUSH.search(ins)
         if p:
-            f["frame"] += 4 * regs_count(p.group(1))
+            f["frame"] += 4 * regs_count(p.group(1) or p.group(2))
         s = SPADD.search(ins)
         if s and int(s.group(1)) < 0:
             f["frame"] += -int(s.group(1))
         c = CALL.search(ins)
-        if c and c.group(1) != cur:
-            f["calls"].add(c.group(1))
-        elif c:
-            f["self"] = True
+        if c:
+            jump = ins.lstrip().startswith("goto") or "goto" in ins.split("<")[0]
+            inside = "+0x" in c.group(0)
+            if c.group(1) != cur and not (jump and inside):
+                f["calls"].add(c.group(1))          # (un goto vers le début d'une autre fonction = appel final)
+            elif c.group(1) == cur and not jump and not inside:
+                f["self"] = True
         if ICALL.search(ins):
             f["icall"] = True
     return fns
