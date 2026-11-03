@@ -312,14 +312,18 @@ def check(img, syms, dis, rt):
         errors.append(".c1_text: the second core's waiting loop is missing (firmware/bsp/chip/fm1_cpu1.h fm1_cpu1_main)")
     else:
         notes.append(f".c1_text: {c1_insns} insns, only its job called")
+    fn_at = "?"
     for ln in dis.splitlines():     # nothing may call or load an address in the chip ROM
         mm = LINE.match(ln)
         if not mm:
+            hm = re.match(r"^[0-9a-f]+ <([^>]+)>:", ln)
+            if hm:
+                fn_at = hm.group(1)
             continue
         for v in re.findall(r"= (-?\d+) <|call -?\d+ <[^:>]*: ([0-9a-f]+) >", mm.group(3)):
             val = (int(v[0]) & 0xFFFFFFFF) if v[0] else int(v[1], 16) & 0xFFFFFFFF
             if 0xFFC00000 <= val < 0xFFD00000:
-                errors.append(f"reference to ROM address {val:#010x}: {ln.strip()[:160]}")
+                errors.append(f"reference to ROM address {val:#010x} in {fn_at}: {ln.strip()[:120]}")
     if len(img) > APP_SLOT:
         errors.append(f"image {len(img)} B exceeds the app slot")
 
