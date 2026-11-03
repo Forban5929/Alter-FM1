@@ -40,6 +40,12 @@
   → `alt_draw_gl_n` / `alt_draw_lfo_p` figés une fois par image. (Non reproductible au navigateur : à confirmer sur FM-1.)
   Leçon : tout ce qui bouge (horloge, pas joué) doit être lu une fois par image, pas dans le dessin.
 - Test REC : `web_boot` ne recharge pas la scène → le bloc charge la scène 1 (sinon il hérite du CHAOS TOTAL d'avant).
+- **PANNE OUVERTE (03/11)** : réinstaller DEPUIS ALTER échoue (« stopped after 0 requests: nothing was written ») : la
+  FM-1 répond à l'identité (ota_service OK) mais ne lance pas la session (aucun « UPDATE » à l'écran ; flash OK : les SAVE
+  restent). Code relu (usb.c sysex_byte → usb.ota_req → main.c → ota_session) sans cause trouvée ; 2e cœur ON/OFF inconnu.
+  Contournement : éteindre, tenir OCT− à l'allumage (mode mise à jour d'origine) puis Install (la page « reprend »).
+  La page logue maintenant « diagnostic ALTER » (messages reçus) : demander le journal à Romain.
+  Le site ne se publie plus sans /install/ (gitee a coupé une fois : 3 essais).
 - Prochain : assistant d'installation façon https://baudgirl.com/work/FM-1+VA/install, puis **page compagnon** (éditeur web,
   écran agrandi, patchs ; l'éditeur Felucca retiré le 01/11 est dans l'historique git).
 
