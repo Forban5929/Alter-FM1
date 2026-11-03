@@ -65,6 +65,9 @@
   la FM-1** (« Ranger ici » = SAVE tenu). Protocole **ALTER LINK** : `docs/alter/LINK.md`, `alter_link.c`, `web/alter/`,
   test `tools/alter/alter_link_test.mjs` (20/20, aussi dans pages.yml). **1er essai FM-1 (04/11, Romain)** : liaison qui
   « coupe » en changeant de pattern + colonnes sans réglages → corrigé (trames avalées par ota_service, voir LINK.md) : À REVÉRIFIER.
+  2e essai (04/11) : coupure en enregistrant un patch + chargement raté → corrigé : prompt()/confirm() du navigateur
+  GÈLENT la page (plus de PING) → fenêtres <dialog> dans la page ; SOUND répond par STATE (la page attendait SOUND).
+  **Jamais prompt/alert/confirm dans cette page.** Test navigateur : `tools/alter/editor_browser_test.mjs` (10/10, voir en-tête).
   Plus tard (Romain) : cercles/rythme, LFO/MTX, MASTER FILTER, écran agrandi. Puis : assistant d'installation façon baudgirl.
   (L'ancien éditeur Felucca, protocole « FL », est dans l'historique git, commit 8b8f548^ : web/EDITOR_PROTOCOL.md.)
 

@@ -86,6 +86,16 @@ const rl = out();
 check(`scène changée sur la machine : la page est prévenue (${rl.filter((p) => p.cmd === CMD.RELOAD).length} RELOAD, ${rl.filter((p) => p.cmd === CMD.CHANGED).length} CHANGED)`,
   rl.some((p) => p.cmd === CMD.RELOAD || p.cmd === CMD.CHANGED));
 
+// the page silent for > 3 s (a dialog, a busy tab): watching stops; the next PING starts it again and what changed
+// meanwhile is pushed
+for (let k = 0; k < 6; k++) { render(44100); ex.web_link_sync(); }
+out();
+ex.web_enc(3, 4); render(4000); ex.web_link_sync();
+const silent = out().length;
+one(req.ping()); ex.web_link_sync();
+const back = out();
+check(`page muette > 3 s : rien envoyé (${silent}), puis un PING et le changement arrive (${back.length})`, silent === 0 && back.length > 0);
+
 // junk: not ours, or bad lengths -> no reply
 check("trames étrangères ou fausses : aucune réponse", send([0xf0, 0x7d, 0x46, 0x4c, 1, 0xf7]).length === 0 && send(req.state(7)).length === 0 && send([0xf0, 0x7d, 0x41, 0x4c, 4, 0, 0xf7]).length === 0);
 

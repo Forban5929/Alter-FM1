@@ -21,7 +21,7 @@ static const uint8_t LK_IDS[] = {P_E0, P_E1, P_E2, P_E3, P_E4, P_E5, P_E6, P_E7,
 static uint8_t lk_out[1400];
 static uint32_t lk_n;
 static struct {
-    uint8_t on;
+    uint8_t on, was;                 /* watched now; asked for by the page (a PING after a silence: on again) */
     uint32_t last_ms, pass_ms;
     int16_t sh[AS_NCIRC][LK_NID];    /* what the page knows */
     uint8_t eng[AS_NCIRC], pre[AS_NCIRC];
@@ -232,14 +232,17 @@ static void lk_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
     case LKC_WATCH:                                   /* on 0/1 */
         if (na != 1u)
             return;
-        lk.on = (uint8_t)(a[0] & 1u);
+        lk.on = lk.was = (uint8_t)(a[0] & 1u);
         for (c = 0; c < AS_NCIRC; c++)
             lk_shadow(c);
         lk_begin(LKC_WATCH);
         lk_b(lk.on);
         lk_send();
         return;
-    case LKC_PING:
+    case LKC_PING:                                   /* (after a silence of > 3 s, watching again: what changed
+                                                      * meanwhile is pushed, the page's copy being older) */
+        if (lk.was)
+            lk.on = 1;
         lk_begin(LKC_PING);
         lk_b(0);
         lk_send();

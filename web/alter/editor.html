@@ -79,6 +79,12 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
 .p.flash output { color: var(--c); }
 .foot { max-width: 1180px; margin: 0 auto; padding: 20px 16px 48px; color: var(--rest); font-size: 14px; }
 .foot p { max-width: 80ch; margin: 4px 0; }
+dialog { background: var(--card); color: var(--ink); border: 1px solid var(--rest); border-radius: 12px; padding: 20px;
+  width: min(420px, calc(100vw - 32px)); }
+dialog::backdrop { background: rgba(14, 12, 16, .7); }
+dialog p { margin: 0 0 14px; }
+dialog input { width: 100%; background: var(--faint); border: 1px solid var(--rest); border-radius: 6px; padding: 8px 10px; margin-bottom: 14px; }
+.dlgBtns { display: flex; gap: 10px; justify-content: flex-end; }
 [hidden] { display: none !important; }
 @media (prefers-reduced-motion: no-preference) { .p output { transition: color .4s; } }
 </style>
@@ -120,6 +126,12 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
 
 <main class="strips" id="strips" hidden></main>
 
+<dialog id="dlg">
+  <p id="dlgText"></p>
+  <input id="dlgInput" type="text" maxlength="40" aria-labelledby="dlgText">
+  <div class="dlgBtns"><button class="btn" id="dlgNo">Annuler</button><button class="btn main" id="dlgOk">OK</button></div>
+</dialog>
+
 <footer class="foot">
   <p>ALTER est un firmware libre (GPL-3.0) construit sur Felucca. Code : <a href="https://github.com/Forban5929/Alter-FM1" target="_blank" rel="noopener">github.com/Forban5929/Alter-FM1</a>.</p>
   <p id="ver"></p>
@@ -142,6 +154,7 @@ function makePort(sendBytes, close) {
     onFrame(f) {
       const m = parse(f);
       if (!m) return;
+      heard = performance.now();
       if (m.cmd === CMD.CHANGED) return pushChanged(m);
       if (m.cmd === CMD.RELOAD) return pushReload(m);
       const i = waiters.findIndex((w) => w.cmd === m.cmd && (!w.match || w.match(m)));
@@ -158,14 +171,15 @@ function makePort(sendBytes, close) {
 let chain = Promise.resolve();
 // one request at a time; its reply matched by cmd (and by circle and id: a late reply of an earlier request is not
 // taken for this one); a lost reply is asked again once before giving up
+const replyCmd = (cmd) => (cmd === CMD.SOUND ? CMD.STATE : cmd);   // (SOUND answers with the circle's STATE)
 const sameAsk = (b) => {
   const cmd = b[4];
-  if (cmd === CMD.STATE) return (m) => m.circ === b[5];
+  if (cmd === CMD.STATE || cmd === CMD.SOUND) return (m) => m.circ === b[5];
   if (cmd === CMD.DESC || cmd === CMD.SET) return (m) => m.circ === b[5] && m.id === b[6];
   return null;
 };
 function ask(bytes, ms = 1500, tries = 2) {
-  const once = () => { if (!port) throw new Error("pas connecté"); const w = port.wait(bytes[4], ms, sameAsk(bytes)); port.send(bytes); return w; };
+  const once = () => { if (!port) throw new Error("pas connecté"); const w = port.wait(replyCmd(bytes[4]), ms, sameAsk(bytes)); port.send(bytes); return w; };
   const p = chain.then(async () => {
     for (let k = 1; ; k++) {
       try { return await once(); } catch (e) { if (k >= tries || !port) throw e; }
@@ -194,6 +208,7 @@ async function connectDemo() {
     const { instance } = await WebAssembly.instantiateStreaming(fetch("../felucca.wasm"), {});
     ex = instance.exports; mem = ex.memory;
     ex._initialize(); ex.web_nor_erase(); ex.web_boot();
+    for (let k = 0; k < 44100 * 3; k += 128) ex.web_render(128);   // (3 s: ALTER loads its first scene, as a running FM-1 has)
   } catch { return say("Le simulateur n'a pas pu démarrer sur cette page.", true); }
   const drain = () => {
     const n = ex.web_link_out_n();
@@ -207,7 +222,7 @@ async function connectDemo() {
   await start(makePort(send, () => clearInterval(tick)), "demo", "Simulateur (sans machine, sans son)");
 }
 
-let pinger = 0, descs = [];
+let pinger = 0, descs = [], heard = 0;
 async function start(p, kind, label) {
   if (port) { port.close(); clearInterval(pinger); }
   port = p;
@@ -233,8 +248,11 @@ async function start(p, kind, label) {
   }
   await listSlots();
   await ask(req.watch(1));
-  let missed = 0;                                     // the link is cut only after 3 PINGs in a row got no answer
-  pinger = setInterval(() => ask(req.ping(), 1500, 1).then(() => (missed = 0), () => { if (++missed >= 3) lost(); }), 1000);
+  heard = performance.now();                         // cut only when NOTHING came back for 6 s (any reply, any push)
+  pinger = setInterval(() => {
+    ask(req.ping(), 1500, 1).catch(() => {});
+    if (performance.now() - heard > 6000) lost();
+  }, 1000);
   $("intro").hidden = true; $("bar").hidden = false; $("strips").hidden = false;
   say(kind === "demo" ? "Le simulateur tourne : bouge un réglage pour voir." : "C'est branché. Tourne un knob sur la machine : il bouge ici aussi.");
 }
@@ -375,8 +393,8 @@ function patchNow() {
     })),
   };
 }
-function savePatch() {
-  const name = prompt("Nom du patch :", "mon-patch");
+async function savePatch() {
+  const name = await dialogAsk("Nom du patch", { input: "mon-patch", ok: "Enregistrer" });
   if (name === null) return;
   const safe = (name.trim() || "patch").replace(/[^\w\- ]+/g, "_");
   const url = URL.createObjectURL(new Blob([JSON.stringify(patchNow(), null, 1)], { type: "application/json" }));
@@ -415,7 +433,7 @@ async function listSlots() {
 }
 async function store() {
   const i = +$("slot").value;
-  if (slots[i] && !confirm(`La place USER ${i + 1} contient déjà une scène. La remplacer par celle qui joue ?`)) return;
+  if (slots[i] && !(await dialogAsk(`La place USER ${i + 1} contient déjà une scène. La remplacer par celle qui joue ?`, { ok: "Remplacer" }))) return;
   say(`Rangement dans USER ${i + 1}…`);
   try {
     const r = await ask(req.sceneSave(i), 5000);
@@ -427,13 +445,33 @@ async function store() {
 async function load() {
   const i = +$("slot").value;
   if (!slots[i]) return say(`USER ${i + 1} est vide : rien à charger.`, true);
-  if (!confirm(`Charger USER ${i + 1} ? La scène qui joue sera remplacée (pense à la ranger avant si tu veux la garder).`)) return;
+  if (!(await dialogAsk(`Charger USER ${i + 1} ? La scène qui joue sera remplacée : range-la avant si tu veux la garder.`, { ok: "Charger" }))) return;
   try {
     const r = await ask(req.sceneLoad(i), 3000);
     if (r.rc !== 1) return say(`USER ${i + 1} n'a pas pu être chargée.`, true);
     for (let c = 0; c < 3; c++) await refresh(c);
     say(`USER ${i + 1} chargée.`);
   } catch { soft(); }
+}
+
+// questions inside the page (the browser's own prompt / confirm pause the whole page: no PING, the link drops)
+function dialogAsk(text, { input = null, ok = "OK", cancel = "Annuler" } = {}) {
+  return new Promise((done) => {
+    const d = $("dlg");
+    $("dlgText").textContent = text;
+    const f = $("dlgInput");
+    f.hidden = input === null;
+    if (input !== null) f.value = input;
+    $("dlgOk").textContent = ok; $("dlgNo").textContent = cancel;
+    const close = (v) => { d.close(); $("dlgOk").onclick = $("dlgNo").onclick = null; d.oncancel = null; done(v); };
+    $("dlgOk").onclick = () => close(input === null ? true : f.value);
+    $("dlgNo").onclick = () => close(input === null ? false : null);
+    d.oncancel = (e) => { e.preventDefault(); close(input === null ? false : null); };
+    f.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); $("dlgOk").click(); } };
+    d.showModal();
+    (input === null ? $("dlgOk") : f).focus();
+    if (input !== null) f.select();
+  });
 }
 
 function say(t, bad) { const m = $("msg"); m.textContent = t; m.classList.toggle("bad", !!bad); }
@@ -445,6 +483,7 @@ $("bOpen").onclick = () => $("file").click();
 $("file").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) openPatch(f); };
 $("bStore").onclick = store;
 $("bLoad").onclick = load;
+window.__alter = { circ, get info() { return info; } };   // (for the tests)
 if (new URLSearchParams(location.search).has("demo")) connectDemo();   // (editor/?demo: straight to the simulator)
 </script>
 </body>

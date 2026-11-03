@@ -23,5 +23,5 @@ File de sortie USB : `SXQ` 256 (felucca.c, avant usb.c).
 Ids (ordre de STATE) : E0..E7, ATK DEC SUS REL, DIST CHOR DLY REV, ITYPE IA IMIX, LEVEL PAN GLIDE = ce qu'une scène USER garde.
 Patch fichier : JSON `alter-fm1-patch` v1 (moteur, nom du son, valeurs par id) ; à l'ouverture : SOUND puis SET de chaque id.
 Page : lit les DESC des 4 moteurs UNE fois à la connexion ; une réponse perdue = redemandée 1 fois ; coupée après 3 PING
-sans réponse ; un RELOAD pendant une lecture = relu après (un seul refresh par cercle).
+sans aucune réponse pendant 6 s ; un PING après > 3 s de silence relance les poussées (WATCH) ; un RELOAD pendant une lecture = relu après (un seul refresh par cercle).
 Mode démo : `editor/?demo` fait tourner `../felucca.wasm` dans la page (exports `web_link_*`, sans son).
