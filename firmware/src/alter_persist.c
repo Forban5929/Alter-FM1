@@ -16,7 +16,13 @@ static void persist_boot(void)                    /* before settings_init / pane
     persist_t p;
     int n;
     uint32_t f = irq_save();
-    flash_ok = FL_FAR(fl_jedec_ram)() == 0x856014u;       /* the expected 1 MiB part, else stay RAM-only */
+    {                                              /* the known 1 MiB parts, else stay RAM-only: Puya P25Q80 (0x856014)
+                                                    * and the UC25HQ80 of newer FM-1 units (0xB36014 : Felucca 7435517,
+                                                    * issue #320 ; sans lui : SAVE en RAM seulement, mise à jour USB
+                                                    * refusée en silence — la FM-1 de Romain, 03/11) */
+        uint32_t id = FL_FAR(fl_jedec_ram)();
+        flash_ok = id == 0x856014u || id == 0xB36014u;
+    }
     irq_restore(f);
     if (!flash_ok)
         return;
