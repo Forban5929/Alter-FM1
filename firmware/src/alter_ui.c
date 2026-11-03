@@ -2460,6 +2460,59 @@ static void alt_prism(void)
     }
 }
 
+/* VERSION TEST (03/11) : la charge du processeur en haut à gauche de PLAY, relue 2 fois par seconde : moyenne et pic
+ * de la seconde passée en %, puis les voix coupées par la protection de Felucca (> 85 %, audio.c shed_*) et les
+ * trous dans le son (demi-blocs en retard). Rouge dès qu'il y a eu une coupure ou un trou. Navigateur : rien. */
+#ifndef ALTER_CPU_SHOW
+#ifdef FELUCCA_WEB
+#define ALTER_CPU_SHOW 0
+#else
+#define ALTER_CPU_SHOW 1
+#endif
+#endif
+#if ALTER_CPU_SHOW
+static uint32_t alt_cpu_ms, alt_cpu_avg, alt_cpu_pk, alt_cpu_cut;
+static void alt_cpu_poll(void)
+{
+    if (fm1_ms - alt_cpu_ms < 500u)
+        return;
+    alt_cpu_ms = fm1_ms;
+    alt_cpu_avg = song.cpu_q8 * 100u / 256u;
+    alt_cpu_pk = alt_cpu_pk_q8 * 100u / 256u;
+    alt_cpu_cut = shed_count + alt_cpu_late;
+}
+static void alt_cpu_num(char *b, uint32_t *n, uint32_t v)
+{
+    if (v > 999u)
+        v = 999u;
+    if (v >= 100u)
+        b[(*n)++] = (char)('0' + v / 100u);
+    if (v >= 10u)
+        b[(*n)++] = (char)('0' + v / 10u % 10u);
+    b[(*n)++] = (char)('0' + v % 10u);
+}
+static void alt_cpu_line(void)
+{
+    char b[16];
+    uint32_t n = 0;
+    uint16_t col = alt_cpu_cut ? ALT_RED : alt_cpu_pk >= 75u ? ALT_GOLD : ALT_DIM;
+    b[n++] = 'C', b[n++] = 'P', b[n++] = 'U', b[n++] = ' ';
+    alt_cpu_num(b, &n, alt_cpu_avg);
+    b[n++] = '/';
+    alt_cpu_num(b, &n, alt_cpu_pk);
+    b[n++] = '%';
+    b[n] = 0;
+    cv_text(9, 19, ALT_FS, b, col);
+    if (alt_cpu_cut) {
+        n = 0;
+        b[n++] = 'C', b[n++] = 'U', b[n++] = 'T', b[n++] = ' ';
+        alt_cpu_num(b, &n, alt_cpu_cut);
+        b[n] = 0;
+        cv_text(9, 33, ALT_FS, b, ALT_RED);
+    }
+}
+#endif
+
 static void alt_scene(uint32_t q, uint32_t flash)
 {
     const track_t *t = &trk[au.sel];
@@ -2536,6 +2589,9 @@ static void alt_scene(uint32_t q, uint32_t flash)
         x = cv_text_r(231, 19, ALT_FS, ALT_MODE_NAME[m], m ? ALT_COL[au.sel] : ALT_DIM, ALT_BG);
         cv_text_r(231 - text_w(ALT_FS, ALT_MODE_NAME[m]) - 6, 19, ALT_FS, e->name, ALT_DIM, ALT_BG);
         (void)x;
+#if ALTER_CPU_SHOW
+        alt_cpu_line();
+#endif
     }
     /* the alidade: the chosen circle's step, a gold hand from the centre */
     if (song.playing) {
@@ -2682,6 +2738,10 @@ static void alter_draw(void)
     sig = sig * 31u + q * 19u + au.lockc * 23u + alt_seq.c[au.lockc ? au.lockc - 1u : 0u].locks * 29u;
     sig = sig * 31u + au.sel * 3u + flash * 5u + (uint32_t)song.playing * 7u + trk[au.sel].preset * 11u +
           (uint32_t)song.g[G_BPM] * 13u + (au.msg && fm1_ms - au.msg_ms < 1500u ? (uint32_t)(uintptr_t)au.msg + (fm1_ms - au.msg_ms < 900u) : 1u);
+#if ALTER_CPU_SHOW
+    alt_cpu_poll();
+    sig = sig * 31u + alt_cpu_avg * 101u + alt_cpu_pk * 103u + alt_cpu_cut * 107u;   /* (version test : la charge CPU) */
+#endif
     ui.force = 1;                                /* (whatever comes after this view draws itself whole) */
     if (au.drawn && sig == au.sig)
         return;

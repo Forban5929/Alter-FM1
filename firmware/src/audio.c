@@ -21,6 +21,10 @@ struct felucca_dbg {
     uint32_t prev_stage, prev_page, prev_home, prev_rst, prev_frames;   /* as found at boot */
 } felucca_dbg __attribute__((section(".noinit")));
 static volatile uint32_t audio_halves, audio_max_us;
+/* ALTER (version test) : le pic de charge de la seconde passée (1/256) et le nombre de demi-blocs en retard (= trous dans
+ * le son), lus par l'écran PLAY (alter_ui.c alt_cpu_line) */
+static volatile uint32_t alt_cpu_pk_q8, alt_cpu_late;
+static uint32_t alt_cpu_win, alt_cpu_n;
 static volatile uint32_t t5_nested_ticks;              /* TIMER4 ticks TIMER5 spent nested in this ISR (main.c) */
 static uint32_t audio_cpu_rem;                         /* keep the fractional IIR step: no low-load bias */
 
@@ -144,8 +148,20 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (bsp/chip/fm1_is
             song.cpu_q8 = load / CPU_AVG;
             audio_cpu_rem = load % CPU_AVG;
         }
-        if (fm1_audio_free_half() != half)
+        {                                       /* ALTER : pic par fenêtre d'environ 1 s */
+            uint32_t alt_load = (us * 256u) / (HALF_FRAMES * 1000000u / FS);
+            if (alt_load > alt_cpu_win)
+                alt_cpu_win = alt_load;
+            if (++alt_cpu_n >= FS / HALF_FRAMES) {
+                alt_cpu_pk_q8 = alt_cpu_win;
+                alt_cpu_win = 0;
+                alt_cpu_n = 0;
+            }
+        }
+        if (fm1_audio_free_half() != half) {
             felucca_dbg.late++;                         /* the DMA moved on while we rendered */
+            alt_cpu_late++;
+        }
         felucca_dbg.halves++;
         felucca_dbg.last_us = us;
         if (us > felucca_dbg.max_us)
