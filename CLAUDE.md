@@ -21,9 +21,17 @@
 - **VERSION TEST** : PLAY en haut à gauche « CPU moy/pic % » (pic = max sur ~1 s, `alt_cpu_pk_q8` audio.c) + « CUT n » rouge
   = voix coupées par la protection Felucca > 85 % (`shed_count`) + trous dans le son (`alt_cpu_late`). `ALTER_CPU_SHOW`
   (alter_ui.c, 0 dans le navigateur). Doré si pic ≥ 75 %.
-- **Rien n'est encore essayé sur la FM-1.** À faire : Romain installe (sauvegarde d'abord sur le Firmware Hub), contrôles
-  (démarre, son, CPU, SAVE/LOAD, retour USB possible), puis assistant en étapes façon https://baudgirl.com/work/FM-1+VA/install,
-  puis **page compagnon** (éditeur web, écran agrandi, patchs ; l'éditeur Felucca retiré le 01/11 est dans l'historique git).
+- **Essai sur la FM-1 (03/11, Romain)** : démarre, son OK, « smooth ». Charge lourde (3 cercles + LFO + MTX + MASTER FILTER
+  + GLUE + delay/reverb) : médiane 60-70 %, pics 80 %, CUT apparaît mais **rien d'audible**.
+- **2e CŒUR (choix de Romain, 03/11)** : MENU Felucca (OCT− + OCT+ + bouton) > SYSTEM > 2ND CORE ON. Felucca y envoie des
+  parts entières (mix_part : c1_parts/mix_split, fx.c). Vérifié : le code ALTER de mix_part (ac_measure, afl_take, AC_G,
+  AM_DG) n'écrit que l'état de SON cercle ; le séquenceur ALTER tourne avant le partage (events_block). `ENG_VCOST` : RESO
+  = 360 (était 0). `tests/dualcore_test.c` adapté (ALTER PHYS NOISE RESO + scènes avec alignement + source MASTER FILTER) :
+  **10/10 identiques au bit près, 0 alerte ThreadSanitizer** (dans firmware.yml). Pile du 2e cœur (2816 o) :
+  `tools/alter/stack_c1.py` → **1488 o (52 %)**, pire chemin phys_render (Felucca) ; estimation (appels indirects = moteurs).
+  Écran : « 2C » après le % quand le 2e cœur prend des cercles. **À mesurer par Romain** : chiffres avec 2ND CORE ON.
+- Prochain : assistant d'installation façon https://baudgirl.com/work/FM-1+VA/install, puis **page compagnon** (éditeur web,
+  écran agrandi, patchs ; l'éditeur Felucca retiré le 01/11 est dans l'historique git).
 
 ## Rôle de Claude
 Ingénieur DSP + développeur C embarqué.
