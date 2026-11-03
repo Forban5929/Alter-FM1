@@ -308,7 +308,7 @@ static void alt_dialk(int32_t x0, int32_t y, const char *name, const char *txt, 
     else {
         if (lo >= 0 && hi >= lo)
             alt_arc(cx, cy, 10, (uint32_t)((uint64_t)0x100000000ull * (uint32_t)lo / 50u),
-                    (uint32_t)((uint64_t)0x100000000ull * (uint32_t)(hi - lo) / 50u) + 0x02000000u, col, 2);
+                    (uint32_t)((uint64_t)0x100000000ull * (uint32_t)(hi - lo) / 50u) + (1u << 25), col, 2);   /* (+1/128 de tour) */
         alt_moon(cx, cy, 7, fill, lit);
     }
     if (txt[0] && (!alt_isnum(txt) || turning))
