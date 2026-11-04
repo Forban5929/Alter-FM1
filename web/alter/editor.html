@@ -178,6 +178,16 @@ input[type=range]:hover::-webkit-slider-thumb { border-color: var(--c); }
 .lfoot { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
 .lfoot output { margin-left: auto; font: 13px var(--mono); color: var(--dim); }
 .v2off { padding: 18px 0; color: var(--dim); }
+.subt { margin: 4px 0 10px; }
+.subt .act.used:not(.on) { border-color: var(--c); }
+.subt .act.used:not(.on)::after { content: " ◆"; font-size: 8px; vertical-align: 2px; color: var(--c); }
+.curve { margin: 2px 0 8px; border: 1px solid var(--dark); background: color-mix(in srgb, var(--bg) 85%, var(--dark)); }
+.curve svg { display: block; width: 100%; height: 64px; }
+.curve .mid { stroke: var(--dark); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.curve .wave { fill: none; stroke: var(--c); stroke-width: 1.6; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.curve .dot { fill: var(--ink); }
+.curve.off .wave { stroke: var(--grey); stroke-dasharray: 3 3; }
+.curve.off .dot { display: none; }
 
 .foot { max-width: 1180px; margin: 24px auto 0; padding: 20px 16px 48px; color: var(--dim); font-size: 13px; border-top: 1px solid var(--rim); }
 .foot p { max-width: 90ch; margin: 4px 0; }
@@ -683,6 +693,7 @@ const COLS = ["var(--c1)", "var(--c2)", "var(--c3)"];
 
 function buildV2() {
   const { vl, cdesc, sdesc } = v2;
+  curves.length = 0;
   // the circles' columns, at the top
   const cols = $("cols");
   cols.innerHTML = "";
@@ -739,6 +750,7 @@ function buildV2() {
       host.style.setProperty("--c", COLS[c]);
       host.innerHTML = `<div class="rib"><span>Circle ${ROMAN[c]}</span></div><span class="num">${ROMAN[c]}</span>`;
       colsBox.append(host);
+      if (tab === "modulation") { modColumn(c, host); continue; }
       pl.cols.forEach((g, gi) => {
         const fs = groupBox(vl.groups[g], gi === 0);
         cdesc.forEach((d, i) => {
@@ -756,6 +768,7 @@ function buildV2() {
       card.className = "card tc";
       card.innerHTML = `<div class="rib"><span>${vl.groups[g]}</span></div>`;
       const fs = groupBox("", true);
+      if (g === GR.LGL) fs.append(lfoCurve(SHARED, g));
       let n = 0;
       sdesc.forEach((d, i) => {
         if (d.grp !== g) return;
@@ -792,14 +805,134 @@ function setVar(c, i, v, fromDevice) {
     if (d.name === "MUTE") $("cols").children[c]?.querySelector('[data-a="MUTE"]')?.classList.toggle("on", v === 1);
     if (d.name === "LEN") drawLane(c);
   }
+  modTouch(c, i);
 }
+function modTouch(c, i) {
+  const d = c === SHARED ? v2.sdesc[i] : v2.cdesc[i];
+  if (d && ((d.grp >= GR.L1 && d.grp <= GR.MTX) || d.grp === GR.LGL)) modMark(c, d.grp);
+}
+
+/* ---------- MODULATION: LFO 1 2 3 and the matrix's SLOT 1..4 as sub-tabs; each LFO's curve, drawn by the page ---------- */
+// (alter_lfo.c: GL_RATE_6TH = a cycle in sixths of a sixteenth; the waves SIN TRI SAW SQR S&H SLEW RAMP+ RAMP-)
+const RATE_6TH = [3, 4, 6, 8, 12, 24, 48, 96, 192, 384, 768];
+const SH_PTS = [0.62, -0.78, 0.18, -0.35];           // (S&H / SLEW: a fixed draw, not the synth's)
+const curves = [];                                   // the curves on the page: {c, g, path, dot, per}
+const subs = [[], [], [], []];                       // per circle: the sub-tab buttons by group / slot
+function lfoIdx(c, g) {
+  const ds = c === SHARED ? v2.sdesc : v2.cdesc, at = (n) => ds.findIndex((d) => d.grp === g && d.name === n);
+  return { w: at("WAVE"), r: at("RATE"), d: at("DEPTH"), t: at("DEST") };
+}
+function lfoGet(c, g) {
+  const k = lfoIdx(c, g), vals = c === SHARED ? v2.sval : v2.cval[c];
+  return { wave: vals[k.w] | 0, rate: vals[k.r] | 0, depth: vals[k.d] | 0, dest: vals[k.t] | 0 };
+}
+function waveAt(w, x) {                              // x in cycles (0..2): -1..1
+  const f = x - Math.floor(x), cyc = Math.floor(x);
+  switch (w) {
+    case 0: return Math.sin(f * 2 * Math.PI);
+    case 1: return f < 0.5 ? f * 4 - 1 : 3 - f * 4;
+    case 2: return f * 2 - 1;
+    case 3: return f < 0.5 ? 1 : -1;
+    case 4: return SH_PTS[cyc % 4];
+    case 5: { const a = SH_PTS[cyc % 4], b = SH_PTS[(cyc + 1) % 4]; return a + (b - a) * f; }
+    case 6: return f * 2 - 1;
+    default: return 1 - f * 2;
+  }
+}
+function lfoCurve(c, g) {
+  const box = document.createElement("div");
+  box.className = "curve";
+  box.innerHTML = `<svg viewBox="0 0 240 64" preserveAspectRatio="none" aria-hidden="true"><line class="mid" x1="0" x2="240" y1="32" y2="32"/>
+    <line class="mid" x1="120" x2="120" y1="4" y2="60"/><path class="wave"/><circle class="dot" r="3.5" cx="0" cy="32"/></svg>`;
+  const cv = { c, g, box, path: box.querySelector(".wave"), dot: box.querySelector(".dot"), per: 0, l: null };
+  curves.push(cv);
+  return box;
+}
+function drawCurve(cv) {
+  const l = lfoGet(cv.c, cv.g), amp = (l.depth / 64) * 28, off = !l.depth || !l.dest;
+  cv.l = l;
+  let d = "";
+  for (let k = 0; k <= 240; k += 2) {
+    const x = Math.min(k / 120, 1.999), y = 32 - waveAt(l.wave, x) * amp;
+    d += `${k ? "L" : "M"}${k} ${y.toFixed(1)}`;
+  }
+  cv.path.setAttribute("d", d);
+  cv.box.classList.toggle("off", off);
+}
+function modMark(c, g) {
+  curves.forEach((cv) => { if (cv.c === c && cv.g === g) drawCurve(cv); });
+  const b = subs[c][g];
+  if (!b) return;
+  if (g === GR.MTX) {                                // (a slot is used when its AMT is not 0)
+    v2.cdesc.forEach((d, i) => {
+      const m = /^SLOT (\d)/.exec(d.name || "");
+      if (d.grp === GR.MTX && m && /AMT/.test(d.name)) subs[c].slot?.[+m[1] - 1]?.classList.toggle("used", (v2.cval[c][i] | 0) !== 0);
+    });
+  } else { const l = lfoGet(c, g); b.classList.toggle("used", !!(l.depth && l.dest)); }
+}
+function subTabs(host, names, panes, keep) {
+  const bar = document.createElement("div");
+  bar.className = "ltabs subt";
+  bar.setAttribute("role", "tablist");
+  const btns = names.map((n, k) => {
+    const b = document.createElement("button");
+    b.className = "act"; b.textContent = n; b.setAttribute("role", "tab");
+    b.onclick = () => pick(k);
+    bar.append(b);
+    return b;
+  });
+  const pick = (k) => { btns.forEach((b, j) => { b.classList.toggle("on", j === k); b.setAttribute("aria-selected", String(j === k)); }); panes.forEach((p, j) => (p.hidden = j !== k)); keep(k); };
+  host.append(bar, ...panes);
+  return { btns, pick };
+}
+const modSel = [0, 1, 2].map(() => ({ lfo: 0, slot: 0 }));
+function modColumn(c, host) {
+  const cdesc = v2.cdesc, row = (d, i) => { const t = varRow(d, `v${c}_${i}`, (v) => queueVar(c, i, v)); vctl[c][i] = t; return t.row; };
+  // LFO 1 2 3
+  const fl = groupBox("LFO", true), lp = [GR.L1, GR.L2, GR.L3].map((g) => {
+    const p = document.createElement("div");
+    p.append(lfoCurve(c, g));
+    cdesc.forEach((d, i) => { if (d.grp === g) p.append(row(d, i)); });
+    return p;
+  });
+  const lt = subTabs(fl, ["LFO 1", "LFO 2", "LFO 3"], lp, (k) => (modSel[c].lfo = k));
+  [GR.L1, GR.L2, GR.L3].forEach((g, k) => (subs[c][g] = lt.btns[k]));
+  lt.pick(modSel[c].lfo);
+  host.append(fl);
+  // the matrix: SLOT 1..4 (its rows are named "SLOT n …")
+  const fm = groupBox(v2.vl.groups[GR.MTX]), mp = [0, 1, 2, 3].map((n) => {
+    const p = document.createElement("div");
+    cdesc.forEach((d, i) => { if (d.grp === GR.MTX && (d.name || "").startsWith(`SLOT ${n + 1}`)) { const r = row(d, i); r.querySelector("label").textContent = d.name.replace(/^SLOT \d+ ?/, "") || d.name; p.append(r); } });
+    return p;
+  });
+  const mt = subTabs(fm, ["SLOT 1", "SLOT 2", "SLOT 3", "SLOT 4"], mp, (k) => (modSel[c].slot = k));
+  subs[c][GR.MTX] = mt.btns[0]; subs[c].slot = mt.btns;
+  mt.pick(modSel[c].slot);
+  host.append(fm);
+}
+// the dots run at the LFO's speed (TEMPO and RATE); they are not locked to the synth's own phase. ~30 images a
+// second, and only while MODULATION is shown, the synth plays and the page is in view
+let playing = false, tLast = 0;
+function curveLoop(t) {
+  requestAnimationFrame(curveLoop);
+  if (currentTab !== "modulation" || document.hidden || !v2 || t - tLast < 33) return;
+  tLast = t;
+  const ti = v2.sdesc.findIndex((d) => d.name === "TEMPO"), bpm = Math.max(40, v2.sval[ti] || 120), six = 60000 / bpm / 4 / 6;
+  for (const cv of curves) {
+    if (!cv.l || cv.box.offsetParent === null) continue;
+    const per = six * RATE_6TH[cv.l.rate % 11], x = playing ? (t / per) % 2 : 0;
+    cv.dot.setAttribute("cx", (x * 120).toFixed(1));
+    cv.dot.setAttribute("cy", (32 - waveAt(cv.l.wave, x) * (cv.l.depth / 64) * 28).toFixed(1));
+  }
+}
+requestAnimationFrame(curveLoop);
 function pushVar(m) { if (v2 && m.circ <= SHARED) setVar(m.circ, m.i, m.value, true); }
 function pushLane(m) { if (v2 && lane[m.circ]) { lane[m.circ].values[m.lane] = m.values; if (!lane[m.circ].drag) drawLane(m.circ); } }
 
 /* the page's writes, as the sounds': the latest of each, one at a time */
 const vpending = new Map();
 let vflushing = false;
-function queueVar(c, i, v) { vpending.set(`v${c}:${i}`, () => ask(req.vset(c, i, v)).then((r) => { if (r.value !== v) setVar(c, i, r.value); else (c === SHARED ? v2.sval : v2.cval[c])[i] = v; })); vflush(); }
+function queueVar(c, i, v) { (c === SHARED ? v2.sval : v2.cval[c])[i] = v; modTouch(c, i); vpending.set(`v${c}:${i}`, () => ask(req.vset(c, i, v)).then((r) => { if (r.value !== v) setVar(c, i, r.value); else (c === SHARED ? v2.sval : v2.cval[c])[i] = v; })); vflush(); }
 function queueLane(c, ln, k, v) { vpending.set(`l${c}:${ln}:${k}`, () => ask(req.lset(c, ln, k, v)).then((r) => { lane[c].values[ln][k] = r.value; })); vflush(); }
 async function vflush() {
   if (vflushing) return;
@@ -882,6 +1015,7 @@ function velAt(c, j, len) {
 }
 function drawPlay(m) {
   const cols = $("cols").children;
+  playing = !!m.playing;
   m.circles.forEach((p, c) => {
     const col = cols[c];
     if (!col) return;
