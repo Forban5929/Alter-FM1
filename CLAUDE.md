@@ -73,7 +73,7 @@
   **v2 (04/11, choix de Romain)** : en haut 3 colonnes égales = cercle dessiné en direct (PLAY poussé) + boutons (MUTE TRIGGER
   CHOISIR, DENSITÉ −/+, DÉCALER, DÉ PROPRE RYTHME, hasard par couloir + TOUTES), CHAOS / CHAOS TOTAL ; onglets SONS | RYTHMES
   (+ éditeur de couloirs glissé, Au hasard / À plat) | MODULATION | EFFETS. Protocole : LINK.md « v2 » (`LK_V`, `lk_act`).
-  Tests : alter_link_test 41/41, editor_browser_test 15/15. **Pas encore essayé sur la FM-1.**
+  Tests : alter_link_test 39/39, editor_browser_test 15/15. **Pas encore essayé sur la FM-1.**
   Plus tard : enveloppes des modes PERC/STAB dans la page, patch fichier = scène entière ?, assistant d'installation façon baudgirl.
   (L'ancien éditeur Felucca, protocole « FL », est dans l'historique git, commit 8b8f548^ : web/EDITOR_PROTOCOL.md.)
 
