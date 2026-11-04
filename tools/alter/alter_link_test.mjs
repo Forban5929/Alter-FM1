@@ -100,7 +100,7 @@ check(`page muette > 3 s : rien envoyé (${silent}), puis un PING et le changeme
 one(req.watch(0));
 const vl = one(req.vlist());
 check(`VLIST : ${vl?.groups?.length} groupes, ${vl?.nc} réglages par cercle, ${vl?.ns} partagés, couloirs ${vl?.lanes?.join(" ")}`,
-  vl && vl.nc >= 30 && vl.ns >= 40 && vl.lanes.length === 6 && vl.nact === 26);
+  vl && vl.nc >= 30 && vl.ns >= 40 && vl.lanes.length === 6 && vl.nact === 29);
 const cdesc = [], sdesc = [];
 for (let i = 0; i < vl.nc; i++) cdesc.push(one(req.vdesc(1, i, 0)));
 for (let i = 0; i < vl.ns; i++) sdesc.push(one(req.vdesc(0, i)));

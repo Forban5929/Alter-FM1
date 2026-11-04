@@ -387,7 +387,8 @@ static void lk_lane(uint32_t cmd, uint32_t c, uint32_t ln)
 
 /* ---- the actions: what the device's own keys do (alter_ui.c, the live keys), for circle c ----------------- */
 enum { LA_MUTE, LA_DIE, LA_CLEAN, LA_DENSM, LA_DENSP, LA_SHL, LA_SHR, LA_TRIG, LA_RANDOM, LA_LANES, LA_FLATALL,
-       LA_SHUF0, LA_FLAT0 = LA_SHUF0 + LN_N, LA_CHAOS = LA_FLAT0 + LN_N, LA_TOTAL, LA_SELECT, LA_N };
+       LA_SHUF0, LA_FLAT0 = LA_SHUF0 + LN_N, LA_CHAOS = LA_FLAT0 + LN_N, LA_TOTAL, LA_SELECT,
+       LA_PLAY, LA_STOP, LA_REC, LA_N };   /* (04/11: the transport, as PLAY/STOP and REC tapped) */
 static int lk_act(uint32_t c, uint32_t a)
 {
     uint8_t sel = au.sel, lane = au.lane;
@@ -435,6 +436,9 @@ static int lk_act(uint32_t c, uint32_t a)
         if (au.sel != c)
             alt_select(c);
         return 1;
+    case LA_PLAY: if (!song.playing) transport_req = 1u; return 1;
+    case LA_STOP: if (song.playing || seq_counting()) transport_req = 2u; return 1;
+    case LA_REC: ar_on ^= 1u; alt_say(ar_on ? "REC ON" : "REC OFF"); return 1;   /* (REC tapped: overdub on / off) */
     default: break;
     }
     au.sel = (uint8_t)c;                             /* (these act on the chosen circle: c for a moment) */
@@ -461,7 +465,7 @@ static int lk_act(uint32_t c, uint32_t a)
 /* ---- PLAY: the circles as they play (playing, the chosen one; each: step, LEN, mute, pattern, notes played) --- */
 static uint32_t lk_play_sig(void)
 {
-    uint32_t c, h = (uint32_t)song.playing * 7u + au.sel;
+    uint32_t c, h = (uint32_t)song.playing * 7u + au.sel + (ar_on ? 131u : 0u);
     for (c = 0; c < AS_NCIRC; c++) {
         const as_circ_t *sc = &alt_seq.c[c];
         h = h * 31u + sc->pos;
@@ -475,7 +479,7 @@ static void lk_play(void)
 {
     uint32_t c;
     lk_begin(LKC_PLAY);
-    lk_b(song.playing ? 1u : 0u);
+    lk_b((song.playing ? 1u : 0u) | (ar_on ? 2u : 0u));   /* (bit 1: REC lit) */
     lk_b(au.sel);
     for (c = 0; c < AS_NCIRC; c++) {
         const as_circ_t *sc = &alt_seq.c[c];

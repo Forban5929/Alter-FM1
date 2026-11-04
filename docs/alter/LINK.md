@@ -44,7 +44,7 @@ Mode démo : `editor/?demo` fait tourner `../felucca.wasm` dans la page (exports
 
 Actions (`LA_*`, = touches de la machine) : MUTE, DÉ (tirage), PROPRE, DENS −/+, SHIFT −/+, TRIGGER, RYTHME (= MUTE 1+2+3),
 TOUTES les séquences, TOUT À PLAT, hasard d'un couloir (11..16), à plat d'un couloir (17..22), CHAOS, CHAOS TOTAL (retapé
-< 3 s = annulé), CHOISIR. Les actions « du cercle choisi » mettent `au.sel` le temps de l'appel puis le remettent.
+< 3 s = annulé), CHOISIR, PLAY (26), STOP (27), REC (28 : overdub du cercle choisi, comme REC tapé). PLAY poussé : 1er octet = en marche | REC allumé << 1. Les actions « du cercle choisi » mettent `au.sel` le temps de l'appel puis le remettent.
 PLAY poussé ~30/s seulement s'il a changé ; puis ≤ 10 messages par passe de 20 ms. Page : 3 colonnes (cercle SVG + boutons),
 CHAOS / CHAOS TOTAL, onglets SOUNDS (TYPE = ALGORITHM dans ENVELOPE) | RHYTHMS (SCALE, TEMPO, rythme, éditeur de couloirs glissé) | MODULATION
 (LFO GLOBAL, LFO 1-3, MATRIX) | EFFECTS (DELAY, REVERB, MASTER, FILTER A/B, MORPH). **Page en anglais** (04/11, Romain : « la langue des synth nerds ») ;

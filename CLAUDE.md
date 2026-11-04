@@ -84,6 +84,11 @@
   **Relié à l'ÉMULATEUR web (04/11, choix de Romain)** : bouton « Connect the emulator » ; l'émulateur (racine du site) ouvert et
   allumé dans un autre onglet → BroadcastChannel « alter-link » (même site seulement : pas dans les artifacts) → index.html relaie
   → worklet.js message « link » (web_link_in, web_link_sync toutes les 20 ms tant que la page parle). Son + écran + clavier.
+  **Écran unique (04/11, Romain)** : la page tient dans la fenêtre (en-tête, cercles, onglets, panneau qui défile DEDANS si trop
+  petit) ; SIZE AUTO = plus grand zoom qui tient (`fit`, `applyZoom`) ou S/M/L/XL ; rangées de 30 px, 2 colonnes internes
+  (`.gcols`, container queries) ; **PLAY STOP REC au milieu** (actions LA_PLAY/STOP/REC 26-28, PLAY poussé : bit 1 = REC) ;
+  EFFECTS : DELAY REVERB | FILTER A/B (2 col.) | MORPH, MASTER en bas toute la largeur ; dessins `drawFx` (échos du delay,
+  décroissance de la reverb ≈ RT approximatif, courbe du filtre d'après alter_filter.c) = l'idée, pas une mesure du son.
   Plus tard : enveloppes des modes PERC/STAB dans la page, patch fichier = scène entière ?, assistant d'installation façon baudgirl.
   (L'ancien éditeur Felucca, protocole « FL », est dans l'historique git, commit 8b8f548^ : web/EDITOR_PROTOCOL.md.)
 

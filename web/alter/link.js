@@ -6,7 +6,7 @@ export const CMD = { INFO: 1, STATE: 2, DESC: 3, SET: 4, SOUND: 5, SCENE: 6, WAT
   VLIST: 11, VDESC: 12, VALL: 13, VSET: 14, LANE: 15, LSET: 16, ACT: 17, PLAY: 18, VCHANGED: 19, LCHANGED: 20 };
 // the actions (alter_link.c LA_*): a circle's, then CHAOS / TOTAL (any circle number)
 export const ACT = { MUTE: 0, DIE: 1, CLEAN: 2, DENSM: 3, DENSP: 4, SHL: 5, SHR: 6, TRIG: 7, RANDOM: 8, LANES: 9,
-  FLATALL: 10, SHUF0: 11, FLAT0: 17, CHAOS: 23, TOTAL: 24, SELECT: 25 };
+  FLATALL: 10, SHUF0: 11, FLAT0: 17, CHAOS: 23, TOTAL: 24, SELECT: 25, PLAY: 26, STOP: 27, REC: 28 };
 export const SHARED = 3;   // (VALL / VSET: the shared settings)
 export const F_ENUM = 8;
 
@@ -107,12 +107,12 @@ export function parse(f) {
     case CMD.LSET: return { cmd, circ: b(), lane: b(), step: b(), value: v() };
     case CMD.ACT: return { cmd, circ: b(), act: b(), ok: b() };
     case CMD.PLAY: {
-      const playing = b(), sel = b(), circles = [];
+      const pb = b(), playing = pb & 1, rec = (pb >> 1) & 1, sel = b(), circles = [];
       for (let c = 0; c < 3; c++) {
         const pos = b(), len = b(), m = b(), p0 = b(), p1 = b(), p2 = b(), hits = b();
         circles.push({ pos, len, mute: m & 1, die: (m >> 1) & 1, pat: p0 | (p1 << 7) | (p2 << 14), hits });
       }
-      return { cmd, playing, sel, circles };
+      return { cmd, playing, rec, sel, circles };
     }
     default: return { cmd };
   }

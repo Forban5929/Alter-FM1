@@ -206,34 +206,146 @@ dialog input { width: 100%; background: var(--bg); border: 1px solid var(--rim);
 @media (max-width: 900px) { .strips, .cols { grid-template-columns: 1fr; } .top { grid-template-columns: 1fr; } .link { justify-content: flex-start; } }
 [hidden] { display: none !important; }
 @media (prefers-reduced-motion: no-preference) { .p output { transition: color .4s; } }
+
+/* ---- the page as one screen (04/11, Romain: "the page holds without scrolling"): header, circles, tabs, then the
+ * tab's panel taking what is left (it scrolls inside only if the window is too small). SIZE: AUTO = zoom from the
+ * window, or S M L XL. All settings rows the same height, so the three columns' rows line up ---- */
+html, body { height: 100%; overflow: hidden; }
+body::before { position: fixed; }
+.app { display: flex; flex-direction: column; height: 100vh; max-width: 1880px; margin: 0 auto; padding: 0 14px; }
+.app > * { flex: none; }
+.top { max-width: none; width: 100%; padding: 12px 0 6px; grid-template-columns: 1fr auto 1fr; gap: 10px 18px; }
+.brand { gap: 12px; }
+.brand .rib > span { font-size: 24px; line-height: 36px; padding: 0 28px; }
+.brand small { font-size: 12px; line-height: 1.25; }
+.link { gap: 8px; }
+.link .btn { padding: 6px 11px; font-size: 13px; }
+.transport { display: flex; gap: 8px; justify-content: center; }
+.tbtn { display: inline-flex; align-items: center; gap: 8px; min-height: 42px; padding: 0 16px; cursor: pointer; background: var(--bg);
+  border: 1px solid var(--frame); box-shadow: inset 0 0 0 2px var(--bg), inset 0 0 0 3px var(--rim);
+  font: 700 15px/1 var(--serif); letter-spacing: .12em; }
+.tbtn svg { width: 18px; height: 18px; fill: currentColor; }
+.tbtn:hover:not(:disabled) { border-color: var(--gold); }
+.tbtn:disabled { opacity: .4; cursor: default; }
+.tbtn.on { background: var(--main-bg); color: var(--main-tx); }
+.tbtn.rec svg { fill: var(--warn); }
+.tbtn.rec.on { background: var(--warn); color: var(--ontx); }
+.tbtn.rec.on svg { fill: var(--ontx); }
+.zoom { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); }
+.zoom select { padding: 5px 6px; font-size: 13px; }
+.row2 { display: flex; flex-wrap: wrap; gap: 4px 24px; align-items: center; border-top: 1px solid var(--rim); border-bottom: 1px solid var(--rim);
+  min-height: 46px; padding: 4px 0; }
+.bar { max-width: none; margin: 0; padding: 0; border: 0; gap: 8px 24px; }
+.bar .btn { padding: 5px 11px; font-size: 13px; }
+.bar select { padding: 5px 8px; font-size: 13px; }
+.msg { max-width: none; margin: 0 0 0 auto; padding: 0; min-height: 0; font-size: 13px; text-align: right; flex: 1 1 260px; }
+.live { max-width: none; margin: 0; padding: 10px 0 0; }
+.cols { gap: 12px; }
+.col { container-type: inline-size; padding: 32px 12px 12px; }
+.colin { display: grid; gap: 10px; grid-template-columns: 1fr; align-items: center; }
+@container (min-width: 440px) { .colin { grid-template-columns: var(--dial) 1fr; } }
+.dial { width: var(--dial); max-width: 100%; }
+.acts { margin-top: 0; gap: 6px; }
+.arow { gap: 4px; }
+.arow > span { min-width: 62px; font-size: 12px; }
+.act { min-height: 28px; padding: 2px 8px; font-size: 12px; }
+.tabs { max-width: none; margin: 10px 0 0; padding: 0; justify-content: space-between; align-items: end; overflow: visible; flex-wrap: wrap; }
+.tabl { display: flex; gap: 2px; overflow-x: auto; }
+.tab { padding: 8px 14px; font-size: 16px; }
+.globals { padding: 0 0 6px; gap: 8px; }
+.globals .act { min-height: 34px; padding: 4px 16px; font-size: 14px; }
+.panels { flex: 1 1 auto; min-height: 0; overflow: auto; padding-bottom: 8px; }
+.panel { max-width: none; padding: 0; }
+.strips { max-width: none; padding: 12px 0; gap: 12px; }
+.strip { container-type: inline-size; padding: 32px 12px 12px; }
+.p, .p.w, .p.enum, .p.w.enum { height: 30px; min-height: 30px; }
+.p select { padding: 2px 6px; height: 26px; }
+fieldset { margin-top: 8px; padding-top: 6px; }
+legend { font-size: 13px; }
+/* wide columns: two inner columns (the same in the three strips, so their rows stay level) */
+.gcols { display: grid; gap: 0 22px; }
+@container (min-width: 520px) { .gcols { grid-template-columns: 1fr 1fr; } .gcols > fieldset.c2 { grid-column: 2; } }
+.gcols > fieldset { margin-top: 0; }
+.gcols .gA, .gcols .gB { min-width: 0; }
+.shared { padding: 12px 0 0; gap: 12px; }
+.shared.fxrow { grid-template-columns: 1fr 1fr 1.5fr 1.5fr; }
+.fxrow [data-g="12"], .fxrow [data-g="13"] { grid-row: span 2; }
+.fxrow [data-g="14"] { grid-column: 1 / 3; }
+.fxrow [data-g="12"] fieldset, .fxrow [data-g="13"] fieldset { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; }
+.fxrow [data-g="12"] .fxvis, .fxrow [data-g="13"] .fxvis { grid-column: 1 / -1; }
+@media (max-width: 1300px) { .shared.fxrow { grid-template-columns: 1fr 1fr; } .fxrow [data-g="12"], .fxrow [data-g="13"] { grid-row: auto; } }
+.shared.wide { padding: 12px 0 0; }
+.shared.wide fieldset { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 24px; }
+.card { padding: 32px 12px 10px; container-type: inline-size; }
+.fxvis { margin: 0 0 8px; border: 1px solid var(--dark); background: color-mix(in srgb, var(--bg) 85%, var(--dark)); position: relative; }
+.fxvis svg { display: block; width: 100%; height: 86px; }
+.fxvis .ax { stroke: var(--dark); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.fxvis .ln { fill: none; stroke: var(--gold); stroke-width: 1.6; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.fxvis .ln2 { fill: none; stroke: var(--dim); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+.fxvis .area { fill: var(--gold); opacity: .22; }
+.fxvis .area2 { fill: var(--ink); opacity: .12; }
+.fxvis .tap { stroke: var(--gold); stroke-width: 3; vector-effect: non-scaling-stroke; }
+.fxvis .tap.dry { stroke: var(--ink); }
+.fxvis b { position: absolute; right: 6px; top: 4px; font: 11px var(--mono); color: var(--dim); font-weight: 400; }
+.fxvis.off .ln, .fxvis.off .tap, .fxvis.off .area { opacity: .3; }
+.foot { max-width: none; margin: 14px 0 0; padding: 10px 0 0; font-size: 12px; }
+.intro { margin: 14px auto; }
+@media (max-width: 900px) { html, body { overflow: auto; height: auto; } .app { height: auto; } .panels { overflow: visible; }
+  .top { grid-template-columns: 1fr; } .transport { justify-content: flex-start; } }
 </style>
 </head>
 <body>
+<div class="app" id="app">
 <header class="top">
-  <h1 class="brand"><span class="rib"><span>ALTER</span></span><small>Companion for the M-VAVE FM-1</small></h1>
+  <h1 class="brand"><span class="rib"><span>ALTER</span></span><small>Companion for<br>the M-VAVE FM-1</small></h1>
+  <div class="transport" role="group" aria-label="Transport">
+    <button class="tbtn" id="tPlay" disabled aria-label="Play"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5z"/></svg><span>PLAY</span></button>
+    <button class="tbtn" id="tStop" disabled aria-label="Stop"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5.5" y="5.5" width="13" height="13"/></svg><span>STOP</span></button>
+    <button class="tbtn rec" id="tRec" disabled aria-label="Record the knobs (REC)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5"/></svg><span>REC</span></button>
+  </div>
   <div class="link">
     <span class="state" id="state" data-on=""><i></i><span id="stateTxt">Not connected</span></span>
     <button class="btn main" id="bMidi">Connect the FM-1</button>
     <button class="btn" id="bEmu" title="The web emulator, open in another tab of this browser: its screen, keys and sound">Connect the emulator</button>
     <button class="btn" id="bDemo">Try without a synth</button>
+    <label class="zoom" title="The page's size: AUTO fits it to the window"><span>SIZE</span><select id="zoom" aria-label="Page size">
+      <option value="auto">AUTO</option><option value="0.8">S</option><option value="0.9">M</option><option value="1">L</option><option value="1.15">XL</option></select></label>
     <button class="btn theme" id="bTheme" aria-label="Switch to the DAY theme"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3a9 9 0 1 0 6 15.5A8 8 0 0 1 15 3z" fill="currentColor"/></svg><span>NIGHT</span></button>
   </div>
 </header>
 
-<section class="bar" id="bar" hidden>
-  <div class="grp"><span>Patch file</span>
-    <button class="btn" id="bOpen">Open…</button>
-    <button class="btn" id="bSave">Save</button>
-    <input type="file" id="file" accept=".json,application/json" hidden>
-  </div>
-  <div class="grp"><span>Scene in the FM-1</span>
-    <select id="slot" aria-label="USER slot"></select>
-    <button class="btn" id="bStore">Store here</button>
-    <button class="btn" id="bLoad">Load</button>
-  </div>
-</section>
-<p class="msg" id="msg" role="status"></p>
+<div class="row2">
+  <section class="bar" id="bar" hidden>
+    <div class="grp"><span>Patch file</span>
+      <button class="btn" id="bOpen">Open…</button>
+      <button class="btn" id="bSave">Save</button>
+      <input type="file" id="file" accept=".json,application/json" hidden>
+    </div>
+    <div class="grp"><span>Scene in the FM-1</span>
+      <select id="slot" aria-label="USER slot"></select>
+      <button class="btn" id="bStore">Store here</button>
+      <button class="btn" id="bLoad">Load</button>
+    </div>
+  </section>
+  <p class="msg" id="msg" role="status"></p>
+</div>
 
+<section class="live" id="live" hidden aria-label="The three circles"><div class="cols" id="cols"></div></section>
+
+<nav class="tabs" id="tabs" hidden>
+  <div class="tabl" role="tablist">
+    <button class="tab" role="tab" data-tab="sons" aria-selected="true"><i>I</i>Sounds</button>
+    <button class="tab" role="tab" data-tab="rythmes" aria-selected="false"><i>X</i>Rhythms</button>
+    <button class="tab" role="tab" data-tab="modulation" aria-selected="false"><i>XVIII</i>Modulation</button>
+    <button class="tab" role="tab" data-tab="effets" aria-selected="false"><i>XVI</i>Effects</button>
+  </div>
+  <div class="globals">
+    <button class="act" id="aChaos" title="A new draw on the three circles (as DICE 1 + 2 + 3)">CHAOS</button>
+    <button class="act" id="aTotal" title="Everything at random; pressed again within 3 seconds, it is undone">CHAOS TOTAL</button>
+  </div>
+</nav>
+
+<div class="panels" id="panels">
 <section class="intro tc" id="intro">
   <div class="rib"><span>The Link</span></div><span class="num">0</span>
   <p>Plug your FM-1 in over USB, switch it on with ALTER, then click “Connect the FM-1”. Chrome or Edge will ask to let
@@ -247,39 +359,23 @@ dialog input { width: 100%; background: var(--bg); border: 1px solid var(--rim);
     “Connect the emulator”: you hear it, and its screen and this page follow each other. “Try without a synth” runs ALTER
     inside this page, without sound.</p>
 </section>
-
-<section class="live" id="live" hidden aria-label="The three circles">
-  <div class="cols" id="cols"></div>
-  <div class="globals">
-    <button class="act" id="aChaos">CHAOS</button>
-    <button class="act" id="aTotal">CHAOS TOTAL</button>
-    <small>CHAOS: a new draw on the three circles. CHAOS TOTAL: everything at random; pressed again within 3 seconds, it is undone.</small>
-  </div>
-</section>
-
-<nav class="tabs" id="tabs" role="tablist" hidden>
-  <button class="tab" role="tab" data-tab="sons" aria-selected="true"><i>I</i>Sounds</button>
-  <button class="tab" role="tab" data-tab="rythmes" aria-selected="false"><i>X</i>Rhythms</button>
-  <button class="tab" role="tab" data-tab="modulation" aria-selected="false"><i>XVIII</i>Modulation</button>
-  <button class="tab" role="tab" data-tab="effets" aria-selected="false"><i>XVI</i>Effects</button>
-</nav>
 <section class="panel" data-panel="sons" role="tabpanel" hidden><main class="strips" id="strips"></main></section>
 <section class="panel" data-panel="rythmes" role="tabpanel" hidden><div class="shared" data-shared></div><div class="strips" data-cols></div></section>
-<section class="panel" data-panel="modulation" role="tabpanel" hidden><div class="strips" data-cols></div><div class="shared wide" data-shared></div></section>
-<section class="panel" data-panel="effets" role="tabpanel" hidden><div class="shared" data-shared></div></section>
+<section class="panel" data-panel="modulation" role="tabpanel" hidden><div class="strips" data-cols></div><div class="shared wide" data-wide></div></section>
+<section class="panel" data-panel="effets" role="tabpanel" hidden><div class="shared fxrow" data-shared></div><div class="shared wide" data-wide></div></section>
+<footer class="foot">
+  <p>ALTER is free firmware (GPL-3.0) built on Felucca. Code: <a href="https://github.com/Forban5929/Alter-FM1" target="_blank" rel="noopener">github.com/Forban5929/Alter-FM1</a>.
+    Fonts: TeX Gyre Pagella (GUST Font License), Inter Tight and IBM Plex Mono (SIL Open Font License).
+    <a href="../" target="_blank" rel="noopener">Web emulator</a> · <a href="../install/" target="_blank" rel="noopener">Install ALTER on the FM-1</a> · <span id="ver"></span></p>
+</footer>
+</div>
+</div>
 
 <dialog id="dlg">
   <p id="dlgText"></p>
   <input id="dlgInput" type="text" maxlength="40" aria-labelledby="dlgText">
   <div class="dlgBtns"><button class="btn" id="dlgNo">Cancel</button><button class="btn main" id="dlgOk">OK</button></div>
 </dialog>
-
-<footer class="foot">
-  <p>ALTER is free firmware (GPL-3.0) built on Felucca. Code: <a href="https://github.com/Forban5929/Alter-FM1" target="_blank" rel="noopener">github.com/Forban5929/Alter-FM1</a>.
-    Fonts: TeX Gyre Pagella (GUST Font License), Inter Tight and IBM Plex Mono (SIL Open Font License).</p>
-  <p><a href="../" target="_blank" rel="noopener">Web emulator</a> · <a href="../install/" target="_blank" rel="noopener">Install ALTER on the FM-1</a></p>
-  <p id="ver"></p>
-</footer>
 
 <script type="module">
 import { req, parse, splitFrames, CMD, F_ENUM, show, PATCH_KIND, ACT, SHARED } from "./link.js";
@@ -428,6 +524,7 @@ async function start(p, kind, label) {
     if (performance.now() - heard > 6000) lost();
   }, 1000);
   $("intro").hidden = true; $("bar").hidden = false; $("tabs").hidden = false;
+  tEnable(!!v2);
   selectTab(currentTab);
   say(kind === "demo" ? "The simulator runs: move a setting to see." : kind === "emu" ? "Connected to the emulator. Play it there: this page follows, and what you move here changes its sound." : "Connected. Turn a knob on the synth: it moves here too.");
 }
@@ -436,6 +533,7 @@ function lost() {
   say("The link with the synth is lost. Check the cable, then click “Connect the FM-1”.", true);
   $("state").dataset.on = ""; $("stateTxt").textContent = "Not connected";
   port.close(); port = null; clearInterval(pinger);
+  tEnable(false);
 }
 
 /* ---------- the three strips ---------- */
@@ -447,7 +545,7 @@ function build() {
     s.className = "strip tc";
     s.innerHTML = `<div class="rib"><span data-eng></span></div><span class="num">${ROMAN[c]}</span><span class="tag" data-mode></span>
       <select class="sound" data-sound aria-label="Sound of circle ${c + 1}"></select>
-      <div data-groups></div>`;
+      <div class="gcols" data-groups></div>`;
     const sel = s.querySelector("[data-sound]");
     info.engines.forEach((e, ei) => {
       const g = document.createElement("optgroup"); g.label = e;
@@ -484,9 +582,11 @@ async function refresh(c) {
 function drawControls(c) {
   const C = circ[c], box = C.el.querySelector("[data-groups]");
   box.innerHTML = ""; C.ctl = [];
+  const gA = document.createElement("div"), gB = document.createElement("div");   // (Engine + Output | Envelope + Effects)
+  gA.className = "gA"; gB.className = "gB"; box.append(gA, gB);
   for (const [name, a, b] of GROUPS) {
     const fs = document.createElement("fieldset");
-    if (a === 0) fs.className = "first";
+    if (a === 0 || name === "Envelope") fs.className = "first";
     fs.innerHTML = `<legend>${name}</legend>`;
     if (name === "Envelope") {                       // (its TYPE = ALGORITHM on the synth, v2: buildV2 puts it here)
       const th = document.createElement("div");
@@ -515,7 +615,7 @@ function drawControls(c) {
       }
       fs.append(row);
     }
-    box.append(fs);
+    (name === "Envelope" || name === "Effects" ? gB : gA).append(fs);
   }
 }
 const paint = (r, d) => r.style.setProperty("--f", `${((r.value - d.min) / Math.max(1, d.max - d.min)) * 100}%`);
@@ -642,7 +742,7 @@ const PLACE = {
   sons: { cols: [GR.ENV], shared: [] },
   rythmes: { cols: [GR.RYT, GR.GAM], shared: [GR.GAM, GR.TMP] },
   modulation: { cols: [GR.L1, GR.L2, GR.L3, GR.MTX], shared: [GR.LGL] },
-  effets: { cols: [], shared: [GR.DLY, GR.REV, GR.MST, GR.FA, GR.FB, GR.MRP] },
+  effets: { cols: [], shared: [GR.DLY, GR.REV, GR.FA, GR.FB, GR.MRP, GR.MST] },
 };
 const LANE_LIM = [[1, 127], [0, 127], [0, 127], [0, 127], [-7, 7], [0, 3]];   // (alter_ui.c alt_lane_lim)
 const LANE_SHORT = ["VELO", "CHNC", "DLY", "REV", "PITCH", "RATCH"];
@@ -720,7 +820,7 @@ const COLS = ["var(--c1)", "var(--c2)", "var(--c3)"];
 
 function buildV2() {
   const { vl, cdesc, sdesc } = v2;
-  curves.length = 0;
+  curves.length = 0; fxv.length = 0;
   // the circles' columns, at the top
   const cols = $("cols");
   cols.innerHTML = "";
@@ -728,7 +828,7 @@ function buildV2() {
     const col = document.createElement("div");
     col.className = "col tc";
     col.innerHTML = `<div class="rib"><span data-name>&nbsp;</span></div><span class="num">${ROMAN[c]}</span><span class="tag" data-tag></span>
-      <svg class="dial" viewBox="0 0 240 240" role="img" aria-label="Circle ${c + 1}"><circle class="ring" cx="120" cy="120" r="100"/>
+      <div class="colin"><svg class="dial" viewBox="0 0 240 240" role="img" aria-label="Circle ${c + 1}"><circle class="ring" cx="120" cy="120" r="100"/>
         <circle class="ring2" cx="120" cy="120" r="76"/><g data-steps></g>${dialCenter(c)}</svg>
       <div class="acts">
         <div class="arow"><button class="act" data-a="MUTE">MUTE</button><button class="act" data-a="TRIG">TRIGGER</button>
@@ -742,7 +842,7 @@ function buildV2() {
           <button class="act" data-a="RANDOM" title="LEN and HITS at random, with VELO, CHANCE and PITCH">RHYTHM</button></div>
         <div class="arow"><span>Lanes</span>${LANE_SHORT.map((n, ln) => `<button class="act" data-a="SHUF${ln}" title="${vl.lanes[ln]} at random">${n}</button>`).join("")}
           <button class="act" data-a="LANES" title="The six lanes at random">ALL</button></div>
-      </div>`;
+      </div></div>`;
     col.querySelectorAll("[data-a]").forEach((b) => {
       const a = b.dataset.a, id = a.startsWith("SHUF") ? ACT.SHUF0 + +a.slice(4) : ACT[a];
       b.onclick = () => doAct(c, id);
@@ -753,9 +853,10 @@ function buildV2() {
   for (const [tab, pl] of Object.entries(PLACE)) {
     const panel = document.querySelector(`[data-panel="${tab}"]`);
     const colsBox = tab === "sons" ? null : panel.querySelector("[data-cols]");
-    const shared = panel.querySelector("[data-shared]");
+    const shared = panel.querySelector("[data-shared]"), wide = panel.querySelector("[data-wide]");
     if (colsBox) colsBox.innerHTML = "";
     if (shared) shared.innerHTML = "";
+    if (wide) wide.innerHTML = "";
     if (tab === "sons") {                             // (the envelope's TYPE: in each strip's Envelope group)
       for (let c = 0; c < 3; c++) {
         const C = circ[c], th = C.el.querySelector("[data-type]");
@@ -778,6 +879,9 @@ function buildV2() {
       host.innerHTML = `<div class="rib"><span>Circle ${ROMAN[c]}</span></div><span class="num">${ROMAN[c]}</span>`;
       colsBox.append(host);
       if (tab === "modulation") { modColumn(c, host); continue; }
+      const gc = document.createElement("div"), gA = document.createElement("div");   // (two inner columns when wide)
+      gc.className = "gcols"; gA.className = "gA";
+      gc.append(gA); host.append(gc);
       pl.cols.forEach((g, gi) => {
         const fs = groupBox(vl.groups[g], gi === 0);
         cdesc.forEach((d, i) => {
@@ -786,16 +890,19 @@ function buildV2() {
           vctl[c][i] = t;
           fs.append(t.row);
         });
-        host.append(fs);
+        gA.append(fs);
       });
-      if (tab === "rythmes") host.append(laneEditor(c));
+      if (tab === "rythmes") { const gB = document.createElement("div"); gB.className = "gB"; gB.append(laneEditor(c)); gc.append(gB); }
     }
     for (const g of pl.shared) {
       const card = document.createElement("div");
       card.className = "card tc";
+      card.dataset.g = String(g);
       card.innerHTML = `<div class="rib"><span>${vl.groups[g]}</span></div>`;
       const fs = groupBox("", true);
       if (g === GR.LGL) fs.append(lfoCurve(SHARED, g));
+      const vis = fxVis(g);
+      if (vis) fs.append(vis);
       let n = 0;
       sdesc.forEach((d, i) => {
         if (d.grp !== g) return;
@@ -804,7 +911,7 @@ function buildV2() {
         fs.append(t.row);
         n++;
       });
-      if (n) { card.append(fs); shared.append(card); }
+      if (n) { card.append(fs); ((g === GR.MST || g === GR.LGL) && wide ? wide : shared).append(card); }
     }
   }
 }
@@ -837,6 +944,92 @@ function setVar(c, i, v, fromDevice) {
 function modTouch(c, i) {
   const d = c === SHARED ? v2.sdesc[i] : v2.cdesc[i];
   if (d && ((d.grp >= GR.L1 && d.grp <= GR.MTX) || d.grp === GR.LGL)) modMark(c, d.grp);
+  if (d && c === SHARED) fxTouch(d.grp);
+}
+
+/* ---------- EFFECTS: what DELAY, REVERB and the MASTER FILTER do, drawn from their settings (by the page, a picture of
+ * the idea: the synth's own sound is not measured) ---------- */
+const fxv = [];
+const svOf = (g, name) => { const i = v2.sdesc.findIndex((d) => d.grp === g && d.name === name); return i < 0 ? null : { d: v2.sdesc[i], v: v2.sval[i] | 0 }; };
+const svv = (g, name, def = 0) => svOf(g, name)?.v ?? def;
+function fxVis(g) {
+  if (![GR.DLY, GR.REV, GR.FA, GR.FB, GR.MRP].includes(g)) return null;
+  const el = document.createElement("div");
+  el.className = "fxvis";
+  el.innerHTML = `<svg viewBox="0 0 240 86" preserveAspectRatio="none" aria-hidden="true"></svg><b></b>`;
+  fxv.push({ g, el });
+  return el;
+}
+function fxTouch(g) {
+  const dep = g === GR.TMP ? [GR.DLY] : g === GR.FA || g === GR.FB ? [g, GR.MRP] : [g];
+  fxv.forEach((x) => { if (dep.includes(x.g)) drawFx(x); });
+}
+const f1 = (v) => v.toFixed(1);
+const DT_BEATS = { "1/4": 1, "1/8": 0.5, "1/16": 0.25, "1/32": 0.125, "8T": 1 / 3, "16T": 1 / 6, "1/2": 2, "1/1": 4, "2BAR": 8, "4BAR": 16,
+  "1/8D": 0.75, "1/16D": 0.375, "1/4D": 1.5 };
+function filtParams(g) {
+  return { freq: svv(g, "FREQ", 127), res: svv(g, "RES"), type: svv(g, "TYPE"), slope: svv(g, "SLOPE"), mix: svv(g, "MIX"), drive: svv(g, "DRIVE") };
+}
+// the MASTER FILTER's response (alter_filter.c: FREQ 20 Hz .. 18 kHz exponential; RES k = 2 .. -0.4; TYPE LP -> BP -> HP)
+function filtDb(P, f) {
+  const fc = 20 * Math.pow(900, P.freq / 127), k = Math.max(0.07, 2 - (2.4 * P.res) / 127), w = f / fc, w2 = w * w;
+  const D = Math.hypot(1 - w2, k * w), lp = 1 / D, hp = w2 / D, bp = (k * w) / D, t = P.type / 127;
+  let m = t < 0.5 ? lp * (1 - 2 * t) + bp * 2 * t : bp * (2 - 2 * t) + hp * (2 * t - 1);
+  if (P.slope) { const b = Math.sqrt(1 + w2 * w2); m *= t < 0.5 ? 1 / b : w2 / b; }
+  return 20 * Math.log10(Math.max(1e-4, m));
+}
+function filtPath(P) {
+  let d = "";
+  for (let x = 0; x <= 240; x += 3) {
+    const f = 20 * Math.pow(1000, x / 240), db = Math.max(-36, Math.min(24, filtDb(P, f)));
+    d += `${x ? "L" : "M"}${x} ${f1(82 - ((db + 36) / 60) * 78)}`;
+  }
+  return d;
+}
+const hz = (P) => { const f = 20 * Math.pow(900, P.freq / 127); return f >= 1000 ? `${(f / 1000).toFixed(f >= 10000 ? 0 : 1)} kHz` : `${Math.round(f)} Hz`; };
+function drawFx(x) {
+  if (!v2) return;
+  const svg = x.el.querySelector("svg"), lab = x.el.querySelector("b");
+  let g = "", off = false, txt = "";
+  const axes = (n) => { let a = ""; for (let k = 1; k < n; k++) a += `<line class="ax" x1="${f1((240 * k) / n)}" x2="${f1((240 * k) / n)}" y1="0" y2="86"/>`; return a + `<line class="ax" x1="0" x2="240" y1="78" y2="78"/>`; };
+  if (x.g === GR.DLY) {
+    const t = svOf(GR.DLY, "TIME"), name = t ? t.d.names[t.v - t.d.min] ?? "1/8" : "1/8", beats = DT_BEATS[name] ?? 0.5;
+    const fb = Math.min(0.97, svv(GR.DLY, "FEEDBACK") / 100), col = svv(GR.DLY, "COLOR", 64) / 127, taps = [1];
+    for (let k = 1; k < 24; k++) { const a = 0.8 * Math.pow(fb, k - 1) * Math.pow(1 - (1 - col) * 0.07, k); if (a < 0.04) break; taps.push(a); }
+    const n = Math.max(6, taps.length);
+    g = axes(4) + taps.map((a, k) => { const xx = 8 + (k * 224) / n; return `<line class="tap${k ? "" : " dry"}" x1="${f1(xx)}" x2="${f1(xx)}" y1="78" y2="${f1(78 - a * 70)}"/>`; }).join("");
+    const bpm = Math.max(40, svv(GR.TMP, "TEMPO", 120));
+    txt = `${name} · ${Math.round((beats * 60000) / bpm)} ms`;
+    off = !fb;
+  } else if (x.g === GR.REV) {
+    const ty = svv(GR.REV, "TYPE"), sz = svv(GR.REV, "SIZE", 64) / 127, dmp = svv(GR.REV, "DAMP", 64) / 127;
+    const rt = [0.2 + sz * 1.3, 0.06 + sz * 0.44, 0.8 + sz * 6, 2 + sz * sz * 58][ty] ?? 2, W = ty === 1 ? rt * 1.7 : rt * 1.15;
+    const amp = (tt, r) => ty === 1 ? (tt < rt ? 0.8 : 0.8 * Math.exp(-(tt - rt) / 0.012)) : (ty === 3 ? 1 - Math.exp(-tt / (r * 0.06)) : 1) * Math.exp((-6.9 * tt) / r);
+    let a = "M0 78", hi = "";
+    for (let k = 0; k <= 120; k++) {
+      const tt = (k / 120) * W, xx = k * 2;
+      a += `L${xx} ${f1(78 - amp(tt, rt) * 70)}`;
+      hi += `${k ? "L" : "M"}${xx} ${f1(78 - amp(tt, ty === 1 ? rt : rt * (1 - dmp * 0.75)) * 70)}`;
+    }
+    g = axes(4) + `<path class="area" d="${a}L240 78Z"/><path class="ln" d="${a.replace("M0 78", "M0 " + f1(78 - amp(0, rt) * 70))}"/><path class="ln2" d="${hi}"/>`;
+    if (ty !== 1 && ty !== 3) for (let k = 1; k <= 5; k++) { const xx = (k * 0.012 * (0.6 + sz)) / W * 240; g += `<line class="tap dry" x1="${f1(xx)}" x2="${f1(xx)}" y1="78" y2="${f1(78 - (0.9 - k * 0.12) * 70)}"/>`; }
+    txt = ty === 1 ? `gate ≈ ${Math.round(rt * 1000)} ms` : `≈ ${rt < 10 ? rt.toFixed(1) : Math.round(rt)} s`;
+  } else {                                           // FILTER A, B, MORPH
+    const A = filtParams(GR.FA), B = filtParams(GR.FB), m = svv(GR.MRP, "MORPH") / 127;
+    const lerp = { ...A };
+    for (const k of ["freq", "res", "type", "mix", "drive"]) lerp[k] = A[k] + (B[k] - A[k]) * m;
+    lerp.slope = m < 0.5 ? A.slope : B.slope;
+    const P = x.g === GR.FA ? A : x.g === GR.FB ? B : lerp;
+    let grid = "";
+    for (const f of [100, 1000, 10000]) { const xx = (Math.log(f / 20) / Math.log(1000)) * 240; grid += `<line class="ax" x1="${f1(xx)}" x2="${f1(xx)}" y1="0" y2="86"/>`; }
+    grid += `<line class="ax" x1="0" x2="240" y1="35.2" y2="35.2"/>`;
+    g = grid + (x.g === GR.MRP ? `<path class="ln2" d="${filtPath(A)}"/><path class="ln2" d="${filtPath(B)}"/>` : "") + `<path class="ln" d="${filtPath(P)}"/>`;
+    off = !P.mix;
+    txt = off ? "OFF (MIX 0)" : hz(P);
+  }
+  svg.innerHTML = g;
+  lab.textContent = txt;
+  x.el.classList.toggle("off", off);
 }
 
 /* ---------- MODULATION: LFO 1 2 3 and the matrix's SLOT 1..4 as sub-tabs; each LFO's curve, drawn by the page ---------- */
@@ -925,7 +1118,10 @@ function modColumn(c, host) {
   const lt = subTabs(fl, ["LFO 1", "LFO 2", "LFO 3"], lp, (k) => (modSel[c].lfo = k));
   [GR.L1, GR.L2, GR.L3].forEach((g, k) => (subs[c][g] = lt.btns[k]));
   lt.pick(modSel[c].lfo);
-  host.append(fl);
+  const gc = document.createElement("div");
+  gc.className = "gcols";
+  host.append(gc);
+  gc.append(fl);
   // the matrix: SLOT 1..4 (its rows are named "SLOT n …")
   const fm = groupBox(v2.vl.groups[GR.MTX]), mp = [0, 1, 2, 3].map((n) => {
     const p = document.createElement("div");
@@ -935,7 +1131,7 @@ function modColumn(c, host) {
   const mt = subTabs(fm, ["SLOT 1", "SLOT 2", "SLOT 3", "SLOT 4"], mp, (k) => (modSel[c].slot = k));
   subs[c][GR.MTX] = mt.btns[0]; subs[c].slot = mt.btns;
   mt.pick(modSel[c].slot);
-  host.append(fm);
+  gc.append(fm);
 }
 // the dots run at the LFO's speed (TEMPO and RATE); they are not locked to the synth's own phase. ~30 images a
 // second, and only while MODULATION is shown, the synth plays and the page is in view
@@ -1043,6 +1239,8 @@ function velAt(c, j, len) {
 function drawPlay(m) {
   const cols = $("cols").children;
   playing = !!m.playing;
+  $("tPlay").classList.toggle("on", !!m.playing);
+  $("tRec").classList.toggle("on", !!m.rec);
   m.circles.forEach((p, c) => {
     const col = cols[c];
     if (!col) return;
@@ -1092,6 +1290,7 @@ function selectTab(t) {
   currentTab = t;
   document.querySelectorAll(".tab").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === t)));
   document.querySelectorAll("[data-panel]").forEach((p) => (p.hidden = p.dataset.panel !== t));
+  refit();
 }
 document.querySelectorAll(".tab").forEach((b) => (b.onclick = () => selectTab(b.dataset.tab)));
 $("aChaos").onclick = () => doAct(0, ACT.CHAOS);
@@ -1118,6 +1317,34 @@ function dialogAsk(text, { input = null, ok = "OK", cancel = "Cancel" } = {}) {
 }
 
 function say(t, bad) { const m = $("msg"); m.textContent = t; m.classList.toggle("bad", !!bad); }
+
+/* the transport (PLAY / STOP / REC as on the synth) and the page's size */
+$("tPlay").onclick = () => doAct(0, ACT.PLAY);
+$("tStop").onclick = () => doAct(0, ACT.STOP);
+$("tRec").onclick = () => doAct(0, ACT.REC);
+const tEnable = (on) => ["tPlay", "tStop", "tRec"].forEach((id) => ($(id).disabled = !on));
+function applyZoom(z) {
+  const app = $("app"), narrow = innerWidth < 900;
+  app.style.zoom = String(z);
+  app.style.height = narrow ? "" : `${innerHeight / z}px`;
+  app.style.setProperty("--dial", `${Math.round(Math.max(130, Math.min(230, (innerHeight / z) * 0.22)))}px`);
+}
+// AUTO: the largest size at which the open tab holds in the window (what does not fit then scrolls inside the panel)
+function fit() {
+  const sel = $("zoom").value;
+  if (sel !== "auto") return applyZoom(+sel);
+  const P = $("panels");
+  for (let z = 1.25; z >= 0.6; z -= 0.05) {
+    applyZoom(z);
+    if (P.scrollHeight <= P.clientHeight + 2) return;
+  }
+}
+let fitT = 0;
+const refit = () => { clearTimeout(fitT); fitT = setTimeout(fit, 120); };
+addEventListener("resize", refit);
+try { const z = localStorage.getItem("alter.zoom"); if (z) $("zoom").value = z; } catch {}
+$("zoom").onchange = () => { try { localStorage.setItem("alter.zoom", $("zoom").value); } catch {} fit(); };
+fit();
 
 /* the two themes, as on the synth (EDIT held: SETTINGS > THEME): NIGHT and DAY, kept in this browser */
 const MOON = '<path d="M15 3a9 9 0 1 0 6 15.5A8 8 0 0 1 15 3z" fill="currentColor"/>';
