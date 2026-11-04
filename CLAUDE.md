@@ -13,7 +13,7 @@
   https://forban5929.github.io/Alter-FM1/install/ (`tools/alter/make_install.py` = installateur Felucca `web/index_pkg.html`
   + fm1pkg.js + fm1ota.js, protocole USB intact, retour V15/secours → The Firmware Hub). Le cloud ne peut pas télécharger le
   compilateur JieLi : tout passe par GitHub. Suivre : `gh run list -R Forban5929/alter-fm1` / `gh run view ID --log`.
-- Mesuré (03/11) : app 374 Ko / 568 Ko (XIP), RAM 66 / 72 Ko, pool 307 / 360 Ko → **pas besoin de retirer Felucca pour la place.**
+- Mesuré (04/11, après page compagnon + réverbs) : app 378 Ko / 582 Ko (XIP), RAM 68,6 / 73,7 Ko, pool 318 / 369 Ko.
 - Corrigé pour la vraie puce : `alter_divdi.c` (__udivdi3/__divdi3/__umoddi3/__moddi3 : pas de bibliothèque du compilateur ;
   testé exact sur 5 M valeurs ; ~64 tours/appel) · `tools/size_fns.py` ignore les fichiers retirés · contrôle ROM de
   `tools/build.py` : `ROM_CONST_OK` autorise la limite −(1<<22) d'afl_block (comparaison, pas une adresse).
