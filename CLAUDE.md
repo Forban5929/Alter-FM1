@@ -81,6 +81,9 @@
   MODULATION (04/11) : sous-onglets LFO 1/2/3 et SLOT 1..4 (◆ = utilisé), LFO GLOBAL en bas sur toute la largeur ; COURBE de chaque LFO dessinée par la page
   (forme d'après WAVE/DEPTH, point qui court à TEMPO×RATE, PAS calé sur la phase du synthé, S&H = tirage fixe ; ~30 img/s
   seulement onglet ouvert + PLAY ; rien de plus par USB : `modColumn`, `lfoCurve`, `curveLoop`).
+  **Relié à l'ÉMULATEUR web (04/11, choix de Romain)** : bouton « Connect the emulator » ; l'émulateur (racine du site) ouvert et
+  allumé dans un autre onglet → BroadcastChannel « alter-link » (même site seulement : pas dans les artifacts) → index.html relaie
+  → worklet.js message « link » (web_link_in, web_link_sync toutes les 20 ms tant que la page parle). Son + écran + clavier.
   Plus tard : enveloppes des modes PERC/STAB dans la page, patch fichier = scène entière ?, assistant d'installation façon baudgirl.
   (L'ancien éditeur Felucca, protocole « FL », est dans l'historique git, commit 8b8f548^ : web/EDITOR_PROTOCOL.md.)
 

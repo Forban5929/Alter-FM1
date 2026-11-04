@@ -501,6 +501,7 @@ async function switchOn() {
       node.port.onmessage = (e) => {
         const m = e.data;
         if (m.type === "ready") res();
+        else if (m.type === "link") linkCh?.postMessage({ to: "page", data: m.data });
         else if (m.type === "error") rej(new Error(m.message));
         else if (m.type === "frame") {
           if (m.fb) drawScreen(m.fb);
@@ -529,6 +530,14 @@ async function switchOn() {
   }
 }
 document.getElementById("go").addEventListener("click", switchOn);
+// ALTER LINK: the companion page (/editor/, same site) talks to this emulator as to an FM-1 over USB, in another tab
+const linkCh = typeof BroadcastChannel === "function" ? new BroadcastChannel("alter-link") : null;
+if (linkCh) linkCh.onmessage = (e) => {
+  const m = e.data || {};
+  if (m.to !== "emu") return;
+  if (m.hello) linkCh.postMessage({ to: "page", here: true, on: !!node });
+  else if (m.data && node) send({ type: "link", data: m.data });
+};
 document.addEventListener("visibilitychange", () => send({ type: "visible", on: !document.hidden }));
 </script>
 </body>

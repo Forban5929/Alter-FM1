@@ -93,6 +93,21 @@ if (typeof registerProcessor === "function") {
       else if (m.type === "master") ex.web_master(m.value | 0);
       else if (m.type === "midi") ex.web_midi(m.data[0] | 0, m.data[1] | 0, m.data[2] | 0);
       else if (m.type === "visible") this.period = m.on ? 1 / 30 : 1 / 4;
+      else if (m.type === "link" && ex.web_link_in) {   // (ALTER LINK: the companion page, through the emulator's page)
+        const b = m.data;
+        new Uint8Array(ex.memory.buffer, ex.web_link_in_buf(), b.length).set(b);
+        ex.web_link_in(b.length);
+        this.linkUntil = currentTime + 10;            // (its pushes go on while it talks: lk_sync every ~20 ms)
+        this.linkOut();
+      }
+    }
+
+    linkOut() {
+      const ex = this.ex, n = ex.web_link_out_n();
+      if (!n) return;
+      const data = new Uint8Array(ex.memory.buffer, ex.web_link_out(), n).slice();
+      ex.web_link_out_clear();
+      this.port.postMessage({ type: "link", data }, [data.buffer]);
     }
 
     publish() {
@@ -151,6 +166,11 @@ if (typeof registerProcessor === "function") {
       this.frames += n;
       out[0].set(new Float32Array(ex.memory.buffer, ex.web_out_l(), n));
       if (out[1]) out[1].set(new Float32Array(ex.memory.buffer, ex.web_out_r(), n));
+      if (this.linkUntil > currentTime && currentTime - (this.linkLast || 0) >= 0.02) {
+        this.linkLast = currentTime;
+        ex.web_link_sync();
+        this.linkOut();
+      }
       if (currentTime - this.lastFrame >= this.period) {
         this.lastFrame = currentTime;
         this.publish();

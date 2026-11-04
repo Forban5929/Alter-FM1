@@ -69,7 +69,7 @@ button, select, input { font: inherit; color: inherit; }
 .state { display: inline-flex; align-items: center; gap: 8px; color: var(--dim); }
 .state i { width: 9px; height: 9px; transform: rotate(45deg); border: 1px solid var(--gold); }
 .state[data-on="midi"] i { background: var(--c2); border-color: var(--c2); }
-.state[data-on="demo"] i { background: var(--c3); border-color: var(--c3); }
+.state[data-on="demo"] i, .state[data-on="emu"] i { background: var(--c3); border-color: var(--c3); }
 .btn { background: transparent; border: 1px solid var(--rim); padding: 8px 14px; cursor: pointer; letter-spacing: .02em; }
 .btn:hover { border-color: var(--gold); }
 .btn.main { background: var(--main-bg); color: var(--main-tx); border-color: var(--main-bg); font-weight: 600; }
@@ -214,6 +214,7 @@ dialog input { width: 100%; background: var(--bg); border: 1px solid var(--rim);
   <div class="link">
     <span class="state" id="state" data-on=""><i></i><span id="stateTxt">Not connected</span></span>
     <button class="btn main" id="bMidi">Connect the FM-1</button>
+    <button class="btn" id="bEmu" title="The web emulator, open in another tab of this browser: its screen, keys and sound">Connect the emulator</button>
     <button class="btn" id="bDemo">Try without a synth</button>
     <button class="btn theme" id="bTheme" aria-label="Switch to the DAY theme"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3a9 9 0 1 0 6 15.5A8 8 0 0 1 15 3z" fill="currentColor"/></svg><span>NIGHT</span></button>
   </div>
@@ -242,7 +243,9 @@ dialog input { width: 100%; background: var(--bg); border: 1px solid var(--rim);
     <li>“Save” keeps the three sounds in a file on your computer, to share with anyone.</li>
     <li>“Store here” keeps the whole scene (sounds, rhythms, effects) in a USER slot of the synth, like holding SAVE.</li>
   </ol>
-  <p>No synth at hand? “Try without a synth” runs ALTER inside the page, without sound.</p>
+  <p>No synth at hand? Open the <a href="../" target="_blank" rel="noopener">web emulator</a> in another tab, switch it on, then click
+    “Connect the emulator”: you hear it, and its screen and this page follow each other. “Try without a synth” runs ALTER
+    inside this page, without sound.</p>
 </section>
 
 <section class="live" id="live" hidden aria-label="The three circles">
@@ -274,6 +277,7 @@ dialog input { width: 100%; background: var(--bg); border: 1px solid var(--rim);
 <footer class="foot">
   <p>ALTER is free firmware (GPL-3.0) built on Felucca. Code: <a href="https://github.com/Forban5929/Alter-FM1" target="_blank" rel="noopener">github.com/Forban5929/Alter-FM1</a>.
     Fonts: TeX Gyre Pagella (GUST Font License), Inter Tight and IBM Plex Mono (SIL Open Font License).</p>
+  <p><a href="../" target="_blank" rel="noopener">Web emulator</a> · <a href="../install/" target="_blank" rel="noopener">Install ALTER on the FM-1</a></p>
   <p id="ver"></p>
 </footer>
 
@@ -373,6 +377,23 @@ async function connectDemo() {
   await start(makePort(send, () => clearInterval(tick)), "demo", "Simulator (no synth, no sound)");
 }
 
+// the web emulator (the site's home page, another tab): its page relays our frames to its ALTER (worklet.js "link")
+let emuCh = null;
+async function connectEmu() {
+  if (typeof BroadcastChannel !== "function") return say("This browser cannot reach the emulator's tab.", true);
+  emuCh?.close();
+  const ch = (emuCh = new BroadcastChannel("alter-link"));
+  const reply = await new Promise((done) => {
+    const t = setTimeout(() => done(null), 1200);
+    ch.onmessage = (e) => { if (e.data?.to === "page" && e.data.here) { clearTimeout(t); done(e.data); } };
+    ch.postMessage({ to: "emu", hello: true });
+  });
+  if (!reply) { ch.close(); return say("Emulator not found. Open it in another tab (link in the footer), click “Switch on”, then come back here.", true); }
+  if (!reply.on) { ch.close(); return say("The emulator is open but not switched on: click “Switch on” in its tab, then try again.", true); }
+  ch.onmessage = (e) => { const m = e.data; if (m?.to === "page" && m.data) splitFrames(m.data).forEach((f) => port && port.onFrame(f)); };
+  await start(makePort((b) => ch.postMessage({ to: "emu", data: b }), () => { ch.onmessage = null; ch.close(); }), "emu", "Web emulator (another tab)");
+}
+
 let pinger = 0, descs = [], heard = 0;
 async function start(p, kind, label) {
   if (port) { port.close(); clearInterval(pinger); }
@@ -408,7 +429,7 @@ async function start(p, kind, label) {
   }, 1000);
   $("intro").hidden = true; $("bar").hidden = false; $("tabs").hidden = false;
   selectTab(currentTab);
-  say(kind === "demo" ? "The simulator runs: move a setting to see." : "Connected. Turn a knob on the synth: it moves here too.");
+  say(kind === "demo" ? "The simulator runs: move a setting to see." : kind === "emu" ? "Connected to the emulator. Play it there: this page follows, and what you move here changes its sound." : "Connected. Turn a knob on the synth: it moves here too.");
 }
 function lost() {
   if (!port) return;
@@ -1116,6 +1137,7 @@ $("bTheme").onclick = () => setTheme(document.documentElement.dataset.theme === 
 
 $("bMidi").onclick = connectMidi;
 $("bDemo").onclick = connectDemo;
+$("bEmu").onclick = connectEmu;
 $("bSave").onclick = savePatch;
 $("bOpen").onclick = () => $("file").click();
 $("file").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) openPatch(f); };

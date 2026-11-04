@@ -25,6 +25,8 @@ Patch fichier : JSON `alter-fm1-patch` v1 (moteur, nom du son, valeurs par id) ;
 Page : lit les DESC des 4 moteurs UNE fois à la connexion ; une réponse perdue = redemandée 1 fois ; coupée après 3 PING
 sans aucune réponse pendant 6 s ; un PING après > 3 s de silence relance les poussées (WATCH) ; un RELOAD pendant une lecture = relu après (un seul refresh par cercle).
 Mode démo : `editor/?demo` fait tourner `../felucca.wasm` dans la page (exports `web_link_*`, sans son).
+**Émulateur** (04/11) : « Connect the emulator » parle à l'émulateur web d'un autre onglet (BroadcastChannel `alter-link`,
+`{to:"emu", hello|data}` / `{to:"page", here, on | data}`), relayé par `web/emu/index.html` vers `worklet.js` (`type: "link"`).
 
 ## v2 (04/11) — rythmes, couloirs, LFO, matrice, effets partagés, actions, cercles en direct
 
