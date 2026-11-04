@@ -92,6 +92,8 @@ static void alt_fx_get(uint8_t *b)
         b[22u + 2u * k] = (uint8_t)trk[k].p[P_IB];
         b[23u + 2u * k] = (uint8_t)trk[k].p[P_IC];
     }
+    b[28] = (uint8_t)(song.g[G_DMODE] + 1);         /* the delay's MODE + 1 and TAPE (04/11; 0: stored before them) */
+    b[29] = (uint8_t)song.g[G_DTAPE];
 }
 static void alt_fx_put(const uint8_t *b)
 {
@@ -109,6 +111,15 @@ static void alt_fx_put(const uint8_t *b)
         trk[k].p[P_IC] = b[23u + 2u * k];
     }
     fm1_irq_on();
+    if (b[28] && b[28] <= DM_N) {                /* the delay's MODE and TAPE (04/11); before them: ECHO, a little TAPE */
+        song.g[G_DMODE] = (int16_t)(b[28] - 1u);
+        song.g[G_DTAPE] = (int16_t)(b[29] & 127u);
+    } else {
+        song.g[G_DMODE] = DM_ECHO;
+        song.g[G_DTAPE] = 15;
+    }
+    if (song.g[G_DTIME] != 0 && song.g[G_DTIME] != 1 && song.g[G_DTIME] != 2 && song.g[G_DTIME] != 10)
+        song.g[G_DTIME] = song.g[G_DTIME] == 3 || song.g[G_DTIME] == 5 || song.g[G_DTIME] == 11 ? 2 : 0;   /* (old times) */
 }
 static struct {
     uint32_t magic;
@@ -253,7 +264,7 @@ static void alt_scene_get(alt_scene_rec_t *s, alt_rhy_t *alt_scene_rhy)
         o->dose = au.cfg[c].dose;
         o->root = au.cfg[c].root;
         o->chord = au.cfg[c].chord;
-        o->rsv = 0;
+        o->rsv = (uint8_t)(alt_rmb[c] ? alt_rmb[c] + 1u : 0u);   /* its RUMBLE + 1 (04/11; 0: none, or before it) */
         for (k = 0; k < 8u; k++)
             o->e[k] = (int8_t)clamp(alt_base(c, P_E0 + k), -128, 127);
         for (k = 0; k < ALT_NSP; k++)
@@ -294,6 +305,8 @@ static void alt_scene_put(const alt_scene_rec_t *s, const alt_rhy_t *rhy)
             t->p[P_E0 + k] = o->e[k];
         for (k = 0; k < ALT_NSP; k++)
             t->p[ALT_SP[k]] = o->p[k];
+        if (o->rsv)
+            alt_rmb[c] = (uint8_t)((o->rsv - 1u) & 127u);   /* (else: its sound's own, alt_load_sound) */
         t->p[P_LD_PIT] = t->p[P_LD_FLT] = t->p[P_LD_SHP] = t->p[P_LD_AMP] = 0;   /* (the LFOs are ours: alt_cl) */
         for (k = 0; k < CL_N; k++) {
             alt_cl[c][k].wave = (uint8_t)((o->lfo[3u * k] & 7u) % GW_N);

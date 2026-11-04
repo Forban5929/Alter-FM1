@@ -29,7 +29,7 @@
  * DICE 1 2 3 (a tap: a new draw at once; held 0.6 s: the clean pattern again), SHIFT -1 +1 (a tap: the chosen
  * circle turned a step, kept), LOCK (TURING); the blacks in their groups 3-2-3-2-1 (Romain, 01/11): CIRCLE 1 2 3 (a tap:
  * that circle chosen, as SELECT; the three together: TOTAL CHAOS) | tapped DENSITY - + (a hit less / more, kept) |
- * held, on the chosen circle: DUB DELAY, DUB REVERB, DESTROY | ROLL 1/16, ROLL 1/32 | TRIGGER. The whites C4..G5
+ * held, on the chosen circle: DUB DELAY, DUB REVERB, DESTROY | ROLL 1/16, ROLL 1/8 | TRIGGER. The whites C4..G5
  * after LOCK: free. All on the grid (alter_play.c). LEDs: the keys that act faint, bright when engaged (a circle muted, a
  * fill held, a tap just made); the others dark.
  * The screen: three concentric circles (circle 1 outside), each a voice's hits, lit as they play; the chosen one a
@@ -50,7 +50,7 @@ static const alt_key_t ALT_KEY[27] = {    /* k: semitones above F3 (whites 0 2 4
     [1] = {AK_SEL, 0, "CIRCLE 1"}, [3] = {AK_SEL, 1, "CIRCLE 2"}, [5] = {AK_SEL, 2, "CIRCLE 3"},
     [8] = {AK_DENS, 0, "DENSITY -"}, [10] = {AK_DENS, 1, "DENSITY +"},
     [13] = {AK_FILL, AF_DLY, "DUB DELAY"}, [15] = {AK_FILL, AF_REV, "DUB REVERB"}, [17] = {AK_FILL, AF_DESTROY, "DESTROY"},
-    [20] = {AK_FILL, AF_ROLL16, "ROLL 1/16"}, [22] = {AK_FILL, AF_ROLL32, "ROLL 1/32"},
+    [20] = {AK_FILL, AF_ROLL16, "ROLL 1/16"}, [22] = {AK_FILL, AF_ROLL32, "ROLL 1/8"},
     [25] = {AK_TRIG, 0, "TRIGGER"},         /* a hit of the chosen circle at once; + REC: added to it (alter_play.c alt_trig_now) */
 };
 #define ALT_DIE_HOLD_MS 600u
@@ -61,7 +61,8 @@ static const alt_key_t ALT_KEY[27] = {    /* k: semitones above F3 (whites 0 2 4
 /* the quick pages: their buttons, names and four knobs (P_* of the chosen circle's part, or ALT_QK_* below;
  * QK_ENG: the engine's own) */
 enum { QP_NONE, QP_SEQ, QP_ENV, QP_FX, QP_LFO, QP_EDIT, QP_SCL, QP_GLO, QP_N };
-enum { QK_SCALE = 200, QK_ROOT, QK_DOSE, QK_BPM, QK_SWING, QK_RHY, QK_ENG, QK_ENGX, QK_CHORD, QK_LWAVE, QK_LRATE,
+#define QP_SYS 15u                                /* (no button of its own: HOME held 0.5 s, the SYSTEM menu, 04/11) */
+enum { QK_RUMBLE = 199, QK_SCALE = 200, QK_ROOT, QK_DOSE, QK_BPM, QK_SWING, QK_RHY, QK_ENG, QK_ENGX, QK_CHORD, QK_LWAVE, QK_LRATE,
        QK_LDEPTH, QK_LDEST, QK_ENV };
 static const uint8_t ALT_QP_BTN[QP_N] = {0, B_SEQ, B_ENV, B_FX, B_LFO, B_EDIT, B_SCL, B_GLO};
 static const char *const ALT_QP_NAME[QP_N] = {"", "RHYTHM", "ENV", "FX", "LFO", "EDIT", "SCALE", "GLOBAL"};
@@ -213,6 +214,7 @@ static void alt_load_sound(uint32_t c, uint32_t i)
     for (j = 0; j < 4u; j++)
         t->p[P_DIST + j] = pr->fx[j];
     t->p[P_LEVEL] = pr->level;
+    alt_rmb[c] = pr->rumble;                     /* (its RUMBLE: the KICK's, 04/11) */
     t->p[P_VOICE] = V_POLY;
     t->p[P_ITYPE] = 0;
     for (j = 0; j < ALT_NSLOT; j++)
@@ -273,8 +275,8 @@ static uint32_t alt_qk(uint32_t q, uint32_t i)
 {
     const engine_t *e = ENGINES[eng_idx(trk[au.sel].eng_req)];
     uint32_t id = ALT_QP_K[q][i];
-    if (id == QK_ENG)
-        return e->knob[i];
+    if (id == QK_ENG)                            /* (a sound with a RUMBLE: KNOB 4 is it, 04/11; the KICK's MODE stays) */
+        return i == 3u && ALT_PRE[au.pre[au.sel % AS_NCIRC] % ALT_NPRE].rumble ? QK_RUMBLE : e->knob[i];
     if (id == QK_ENGX) {                         /* the engine's E1..E8 its four knobs leave, in order */
         uint32_t k, j, n = 0;
         for (k = 0; k < 8u; k++) {
@@ -361,6 +363,9 @@ static void alt_turn(uint32_t q, uint32_t i, int32_t s)
         return;
     case QK_BPM:
         song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + s, GP[G_BPM].min, GP[G_BPM].max);
+        return;
+    case QK_RUMBLE:
+        alt_rmb[au.sel % AS_NCIRC] = (uint8_t)clamp((int32_t)alt_rmb[au.sel % AS_NCIRC] + s * 2, 0, 127);
         return;
     case QK_SWING:
         song.g[G_SWING] = (int16_t)clamp(song.g[G_SWING] + s * 2, GP[G_SWING].min, GP[G_SWING].max);
@@ -570,6 +575,11 @@ static void alt_rat_draw(as_circ_t *sc, uint32_t pct)
         sc->srat[alt_cr(len < AS_NLANE ? len : AS_NLANE)] = (uint8_t)(alt_cr(16u) ? 1u : 2u);
 }
 static uint32_t alt_crng;
+static uint32_t alt_cr(uint32_t n);
+/* a random VELO / CHANCE lane step (Romain 04/11, alter_seq.c as_vpct / as_cpct): mostly the normal 96 (100 %), 72,
+ * 48; the chance mostly 127, fewer sure steps the more hits the circle has (25 % at the least) */
+static uint8_t alt_rvel(void) { return (uint8_t)(AS_VEL[AS_NORMAL] * as_vpct(alt_cr(1024u)) / 100u); }
+static uint8_t alt_rch(uint32_t hits) { uint32_t a = alt_cr(1024u); return (uint8_t)(127u * as_cpct(a, alt_cr(1024u), hits) / 100u); }
 static void alt_lane_shuffle(void)
 {
     as_circ_t *sc = &alt_seq.c[au.sel % AS_NCIRC];
@@ -582,9 +592,9 @@ static void alt_lane_shuffle(void)
     for (k = 0; k < AS_NLANE; k++) {
         int32_t v = lo + (int32_t)alt_cr((uint32_t)(hi - lo + 1));
         if (ln == LN_VELO)
-            sc->svel[k] = (uint8_t)v;
+            sc->svel[k] = alt_rvel();
         else if (ln == LN_CHANCE)
-            sc->chance[k] = sc->chance[k + AS_NLANE] = (uint8_t)v;
+            sc->chance[k] = sc->chance[k + AS_NLANE] = alt_rch(sc->cfg.hits);
         else if (ln == LN_DLY)
             sc->sdly[k] = (uint8_t)v;
         else if (ln == LN_REV)
@@ -734,15 +744,47 @@ static int16_t alt_crange(const param_desc_t *d, int32_t div)   /* anywhere in d
 
 /* LE HASARD (Romain 03/11) : un son tiré n'est jamais un son RESO (« pas dans le style », brouillon dans le hasard ;
  * RESO reste choisissable à la main dans PRESETS) */
+/* SYSTEM (HOME held, 04/11): what the random may draw, kept in the settings (alt_sys, a byte row no engine uses:
+ * favorites.factory[13], engine 13 retired): [0] ALT_SYS_OK once set, [1] the engines it may draw (bit = ALT_ENGS index;
+ * default ALTER PHYS NOISE, RESO off as Romain asked 03/11), [2] the envelope modes CHAOS TOTAL may draw (bit = AM_*:
+ * FREE PERC STAB), [3] CLOCK + 1, [4] MIDI IN + 1, [5] the MIXER's MASTER + 1 */
+#define alt_sys (favorites.factory[13])
+#define ALT_SYS_OK 0xA7u
+static void alt_sys_init(void)
+{
+    if (alt_sys[0] != ALT_SYS_OK) {
+        uint32_t k;
+        for (k = 0; k < 32u; k++)
+            alt_sys[k] = 0;
+        alt_sys[0] = ALT_SYS_OK;
+        alt_sys[1] = 7u;                         /* ALTER PHYS NOISE */
+        alt_sys[2] = 7u;                         /* FREE PERC STAB */
+    }
+    if (alt_sys[3])
+        song.g[G_CLOCK] = (int16_t)(alt_sys[3] - 1u);
+    if (alt_sys[4])
+        song.g[G_ROUTE] = (int16_t)(alt_sys[4] - 1u);
+    if (alt_sys[5])
+        alt_mgain = (uint8_t)(alt_sys[5] - 1u);
+}
+static uint8_t alt_die_w[AS_NCIRC];               /* what each DICE key draws, from the OCT held at its press */
 static uint32_t alt_rand_pre(void)
 {
-    uint32_t pi = 0, n;
-    for (n = 0; n < 64u; n++) {
+    uint32_t pi = 0, n, ok = alt_sys[0] == ALT_SYS_OK && (alt_sys[1] & 15u) ? alt_sys[1] & 15u : 7u;
+    for (n = 0; n < 200u; n++) {
         pi = alt_cr(ALT_NPRE);
-        if (ALT_ENGS[ALT_PRE[pi].eng % ALT_NENG] != ENGI_RESO)
+        if ((ok >> (ALT_PRE[pi].eng % ALT_NENG)) & 1u)
             break;
     }
     return pi;
+}
+static uint32_t alt_rand_mode(void)              /* an envelope mode the SYSTEM menu lets the random draw */
+{
+    uint32_t ok = alt_sys[0] == ALT_SYS_OK && (alt_sys[2] & 7u) ? alt_sys[2] & 7u : 7u, m, n;
+    for (n = 0; n < 32u; n++)
+        if ((ok >> (m = alt_cr(3u))) & 1u)
+            return m;
+    return AM_FREE;
 }
 
 /* BUDGET D'EFFETS du hasard (Romain 03/11 : « certaines peuvent être hautes, mais tout ne peut pas être haut ») :
@@ -902,8 +944,8 @@ static void alt_chaos(void)
                 if (alt_cr(100u) < 40u)
                     pick |= 1u << k;
             for (k = 0; k < AS_NLANE; k++) {
-                uint8_t ch = (pick & 2u) && alt_cr(2u) ? (uint8_t)(40u + alt_cr(88u)) : 127u;
-                sc->svel[k] = (pick & 1u) && alt_cr(2u) ? (uint8_t)(40u + alt_cr(88u)) : AS_VEL[AS_NORMAL];
+                uint8_t ch = (pick & 2u) ? alt_rch(cf->hits) : 127u;   /* (04/11: the random's VELO and CHANCE) */
+                sc->svel[k] = (pick & 1u) ? alt_rvel() : AS_VEL[AS_NORMAL];
                 sc->chance[k] = sc->chance[k + AS_NLANE] = ch;
                 sc->sdly[k] = (pick & 4u) && alt_cr(2u) ? (uint8_t)alt_cr(52u) : 0u;   /* (0..51: 40 %) */
                 sc->srev[k] = (pick & 8u) && alt_cr(2u) ? (uint8_t)alt_cr(52u) : 0u;
@@ -916,6 +958,7 @@ static void alt_chaos(void)
         fm1_irq_on();
         alt_post_now |= (uint8_t)(1u << c);
         alt_post_circle(c);
+        alt_roll_w[c] = AS_DW_ALL;
         alt_roll_cnt[c]++;                       /* and the die at full DOSE */
         alt_cal(c);                              /* (its level aligned on its first hits) */
     }
@@ -939,9 +982,9 @@ static void alt_lanes_random(void)
         for (k = 0; k < AS_NLANE; k++) {
             int32_t v = lo + (int32_t)alt_cr((uint32_t)(hi - lo + 1));
             if (LN[i] == LN_VELO)
-                sc->svel[k] = (uint8_t)v;
+                sc->svel[k] = alt_rvel();
             else if (LN[i] == LN_CHANCE)
-                sc->chance[k] = sc->chance[k + AS_NLANE] = (uint8_t)v;
+                sc->chance[k] = sc->chance[k + AS_NLANE] = alt_rch(au.cfg[au.sel % AS_NCIRC].hits);
             else
                 sc->spitch[k] = (int8_t)v;
         }
@@ -969,8 +1012,8 @@ static void alt_lanes_random(void)
  * The volume kept (Romain): each sound's LEVEL as it is, INSERT LEVEL at most 0 dB, delay FEEDBACK under the howl.
  * The same combo within 3 s puts everything back as it was (alt_tc_undo) */
 #define ALT_TC_UNDO_MS 3000u
-static const uint8_t ALT_DT[11] = {3, 5, 2, 11, 4, 1, 10, 0, 12, 6, 7};   /* (the delay's times: params.c N_DTIME) */
-static const uint8_t ALT_TC_G[7] = {G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX, G_RTYPE, G_RSIZE, G_RDAMP};
+static const uint8_t ALT_DT[4] = {2, 1, 10, 0};   /* (the delay's times: params.c N_DTIME; 1/16 1/8 1/8D 1/4, Romain 04/11) */
+static const uint8_t ALT_TC_G[9] = {G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX, G_RTYPE, G_RSIZE, G_RDAMP, G_DMODE, G_DTAPE};
 static struct {
     uint8_t ok;
     uint8_t eng[AS_NCIRC], pre[AS_NCIRC], mode[AS_NCIRC], scale;
@@ -986,6 +1029,7 @@ static struct {
     int16_t g[sizeof ALT_TC_G];
     uint8_t afx_sel[AFX_NS], afx_edit;
     int32_t cal[AS_NCIRC];
+    uint8_t rmb[AS_NCIRC];                       /* (the RUMBLE, 04/11) */
 } alt_tcu __attribute__((section(".pool")));   /* (main loop only) */
 
 static void alt_tc_snap(void)
@@ -1000,6 +1044,7 @@ static void alt_tc_snap(void)
             alt_tcu.p[c][k] = (int16_t)alt_base(c, k);   /* (without the die's offsets) */
         alt_tcu.cfg[c] = au.cfg[c];
         alt_tcu.cal[c] = ac_tg[c];
+        alt_tcu.rmb[c] = alt_rmb[c];
         for (k = 0; k < CL_N; k++)
             alt_tcu.cl[c][k] = alt_cl[c][k];
         for (k = 0; k < AE_N; k++)
@@ -1061,6 +1106,7 @@ static void alt_tc_undo(void)
         alt_post_circle(c);
         alt_clear_cnt[c]++;                      /* (the die CHAOS rolled: clean again) */
         alt_cal_to(c, alt_tcu.cal[c]);           /* (its level as it was) */
+        alt_rmb[c] = alt_tcu.rmb[c];
     }
     alt_seq.scale = alt_tcu.scale;
     for (k = 0; k < sizeof ALT_TC_G; k++)
@@ -1086,6 +1132,8 @@ static void alt_total_chaos(void)
     song.g[G_DFDBK] = (int16_t)alt_cr(101u);            /* howl: 0..100 of 120) */
     song.g[G_DCOLOR] = (int16_t)alt_cr(128u);
     song.g[G_DMIX] = (int16_t)(40u + alt_cr(88u));
+    song.g[G_DMODE] = (int16_t)alt_cr(3u);              /* ECHO PING-PONG GHOST, TAPE (04/11) */
+    song.g[G_DTAPE] = (int16_t)alt_cr(100u);
     song.g[G_RTYPE] = (int16_t)alt_cr(4u);   /* SHORT GATED HALL CLOUD */
     song.g[G_RSIZE] = (int16_t)alt_cr(128u);
     song.g[G_RDAMP] = (int16_t)alt_cr(128u);
@@ -1133,7 +1181,7 @@ static void alt_total_chaos(void)
         alt_gate_left[c] = 0;
         fm1_irq_on();
         afx_edit |= (uint8_t)(1u << c);
-        alt_emode[c] = (uint8_t)alt_cr(AM_NSEL); /* FREE PERC STAB, and its settings */
+        alt_emode[c] = (uint8_t)alt_rand_mode(); /* FREE PERC STAB (those SYSTEM allows), and its settings */
         for (k = 0; k < AE_N; k++)
             alt_envp[c][k] = (uint8_t)alt_cr(128u);
         cf->type = (uint8_t)alt_cr(AS_NTYPE);    /* the rhythm: EUCLID or TURING, anything in it, at once */
@@ -1164,6 +1212,7 @@ static void alt_total_chaos(void)
         fm1_irq_on();
         alt_post_now |= (uint8_t)(1u << c);
         alt_post_circle(c);
+        alt_roll_w[c] = AS_DW_ALL;
         alt_roll_cnt[c]++;                       /* and the die at full DOSE */
         alt_cal(c);                              /* (its level aligned on its first hits) */
     }
@@ -1181,7 +1230,7 @@ static void alt_select(uint32_t i)
 /* the page buttons, all alike (Romain, 01/11): a tap = the quick page (the four knobs over the circles; tapped again:
  * gone), held 0.5 s = the button's menu, which stays (the button tapped, HOME or another page button: gone).
  * Menus: SEQ (lanes), FX (the FX page), LFO (LFO 1 2 3 GLOBAL MTX), ENV (the envelope drawn), EDIT (SETTINGS), SCL (the
- * scales). GLO has none yet: held = tapped */
+ * scales), GLO (the MIXER, 04/11); HOME held: SYSTEM (04/11) */
 #define ALT_MENU_HOLD_MS 500u
 static uint32_t alt_menu_cur(void)
 {
@@ -1192,7 +1241,7 @@ static void alt_menu_set(uint32_t q)
     au.seq_open = (uint8_t)(q == QP_SEQ);
     afp.open = (uint8_t)(q == QP_FX);
     au.mat_open = (uint8_t)(q == QP_LFO);
-    au.mn = (uint8_t)(q == QP_ENV || q == QP_EDIT || q == QP_SCL ? q : 0u);
+    au.mn = (uint8_t)(q == QP_ENV || q == QP_EDIT || q == QP_SCL || q == QP_GLO || q == QP_SYS ? q : 0u);
     au.qp = (uint8_t)(q == QP_ENV || q == QP_SCL ? q : QP_NONE);   /* (ENV, SCL: their quick page's knobs, drawn big) */
     au.step_down = 0;
     au.dd = 0;
@@ -1201,11 +1250,13 @@ static void alt_menu_set(uint32_t q)
 static const char *alt_menu_name(uint32_t q)
 {
     return q == QP_SEQ ? "SEQ" : q == QP_FX ? "FX" : q == QP_LFO ? "LFO" : q == QP_ENV ? "ENVELOPE" :
-           q == QP_EDIT ? "SETTINGS" : q == QP_SCL ? "SCALES" : "";
+           q == QP_EDIT ? "SETTINGS" : q == QP_SCL ? "SCALES" : q == QP_GLO ? "MIXER" : q == QP_SYS ? "SYSTEM" : "";
 }
 
 static void afp_input(uint32_t pressed);                     /* the FX page (alter_fxpage.c, with the screen below) */
 static void alt_set_input(void);                 /* SETTINGS (with the screens below) */
+static void alt_mix_turn(uint32_t i, int32_t s);  /* the MIXER */
+static void alt_sys_input(void);                  /* SYSTEM (HOME held) */
 static int alter_ui_input(uint32_t pressed)
 {
     uint32_t keys = fm1_in.notes, down, k, i, ours = alt_ours(), q, octs, both;
@@ -1258,6 +1309,7 @@ static int alter_ui_input(uint32_t pressed)
         for (i = 0; i < AS_NCIRC; i++)
             au.cfg[i] = alt_seq.c[i].next;
         au.ready = 1;
+        alt_sys_init();                          /* (SYSTEM's settings: CLOCK, MIDI IN, MASTER, the random's choices) */
         alt_select(song.sel < AS_NCIRC ? song.sel : 0u);
         alt_banks_load();                        /* the USER slots, from the flash */
         alt_load_scene(0);                       /* power-on: the first scene */
@@ -1298,11 +1350,23 @@ static int alter_ui_input(uint32_t pressed)
             au.rec_t0 = 0;
         }
     }
-    if ((pressed >> panel.btn[B_HOME]) & 1u) {   /* HOME: the circles, no page */
-        au.qp = QP_NONE;
-        au.lockc = 0;
-        au.scene_open = 0;
-        alt_menu_set(0);
+    {                                            /* HOME: the circles, no page; held 0.5 s: SYSTEM (04/11) */
+        static uint32_t home_t0;
+        uint32_t hd = (fm1_in.buttons >> panel.btn[B_HOME]) & 1u;
+        if ((pressed >> panel.btn[B_HOME]) & 1u) {
+            int was = au.mn == QP_SYS;
+            au.qp = QP_NONE;
+            au.lockc = 0;
+            au.scene_open = 0;
+            alt_menu_set(0);
+            home_t0 = was ? 0u : fm1_ms | 1u;   /* (tapped on SYSTEM: out, no new hold) */
+        } else if (hd && home_t0 && !octs && (int32_t)(fm1_ms - home_t0) >= (int32_t)ALT_MENU_HOLD_MS) {
+            alt_menu_set(QP_SYS);
+            au.set_row = 0;
+            alt_say("SYSTEM");
+            home_t0 = 0;
+        } else if (!hd)
+            home_t0 = 0;
     }
     if (((pressed >> panel.btn[B_SAVE]) & 1u) && !au.scene_open) {   /* SAVE: the SAVE page (its press opens it) */
         au.scene_open = 1;
@@ -1352,7 +1416,7 @@ static int alter_ui_input(uint32_t pressed)
             if (alt_menu_cur() && alt_menu_cur() != q)
                 alt_menu_set(0);                 /* (another page: the menu open closes) */
             alt_say(alt_qp_name(q));
-        } else if (dn && q != QP_GLO && alt_menu_cur() != q && !((au.mhold >> q) & 1u) &&
+        } else if (dn && alt_menu_cur() != q && !((au.mhold >> q) & 1u) &&
                    (int32_t)(fm1_ms - au.qp_t0[q]) >= (int32_t)ALT_MENU_HOLD_MS) {
             alt_menu_set(q);                     /* held: its menu */
             au.mhold |= (uint8_t)(1u << q);
@@ -1376,6 +1440,11 @@ static int alter_ui_input(uint32_t pressed)
         au.keys = keys;
         return 1;
     }
+    if (au.mn == QP_SYS) {                       /* SYSTEM */
+        alt_sys_input();
+        au.keys = keys;
+        return 1;
+    }
     if (((fm1_in.buttons >> panel.btn[B_SEQ]) & 1u) && (s = panel_enc(EN_ALGO)) != 0)
         alt_seq_type(s);                         /* SEQ held + ALGORITHM: the chosen circle's engine */
     if (au.seq_open) {                           /* the SEQ menu */
@@ -1388,7 +1457,12 @@ static int alter_ui_input(uint32_t pressed)
         afp_input(pressed);
     for (i = 0; i < 4u; i++)
         if ((s = panel_enc(EN_K1 + i)) != 0 && !au.lockc)
-            alt_turn(q, i, s);
+        {
+            if (au.mn == QP_GLO)
+                alt_mix_turn(i, s);              /* the MIXER's faders */
+            else
+                alt_turn(q, i, s);
+        }
     if ((s = panel_enc(EN_SELECT)) != 0 && !au.lockc)
         alt_select((uint32_t)((int32_t)au.sel + s + 3 * 16));
     if ((s = panel_enc(EN_ALGO)) != 0 && !au.lockc) {   /* the chosen circle's envelope mode */
@@ -1451,6 +1525,8 @@ static int alter_ui_input(uint32_t pressed)
                 alt_hold = 0;
                 return 1;
             } else if (a->kind == AK_DIE) {
+                uint32_t dn2 = (fm1_in.buttons >> panel.btn[B_OCTDN]) & 1u, up2 = (fm1_in.buttons >> panel.btn[B_OCTUP]) & 1u;
+                alt_die_w[i2] = (uint8_t)(dn2 ? AS_DW_VC : up2 ? AS_DW_PDR : AS_DW_RHY);   /* (Romain 04/11: three dice) */
                 au.die_t0[i2] = fm1_ms | 1u;
                 au.die_clean_done &= (uint8_t)~(1u << i2);
                 if ((keys & ALT_DICE_KEYS) == ALT_DICE_KEYS) {   /* the three dice at once: CHAOS (no roll, no clean) */
@@ -1498,6 +1574,8 @@ static int alter_ui_input(uint32_t pressed)
             }
         } else if (au.die_t0[i2]) {              /* let go: a tap rolls, at once */
             if (!((au.die_clean_done >> i2) & 1u)) {
+                alt_roll_w[i2] = alt_die_w[i2];      /* DICE: the pattern · OCT- + DICE: velocity and chance ·
+                                                  * OCT+ + DICE: pitch, delay and reverb throws */
                 alt_roll_cnt[i2]++;
                 if (au.cfg[i2].chord != AS_CH_OFF) {   /* (le hasard : jamais d'accord, Romain 03/11) */
                     au.cfg[i2].chord = AS_CH_OFF;
@@ -1505,7 +1583,7 @@ static int alter_ui_input(uint32_t pressed)
                 }
                 alt_cal(i2);
                 au.tap_ms[k] = fm1_ms | 1u;
-                alt_say("NEW DRAW");
+                alt_say(alt_die_w[i2] == AS_DW_VC ? "VELO + CHANCE" : alt_die_w[i2] == AS_DW_PDR ? "PITCH + FX" : "NEW PATTERN");
             }
             au.die_t0[i2] = 0;
         }
@@ -1785,6 +1863,12 @@ static int32_t alt_kv(uint32_t q, uint32_t i, const char **name, char *txt, int3
         *fill = clamp(v - 40, 0, 200) / 4;
         alt_num(txt, v, 0);
         return v;
+    case QK_RUMBLE:
+        *name = "RUMBLE";
+        v = alt_rmb[au.sel % AS_NCIRC];
+        *fill = v * 50 / 127;
+        alt_num(txt, v, 0);
+        return v + 1000;
     case QK_SWING:
         *name = "SWING";
         v = song.g[G_SWING];
@@ -2447,6 +2531,199 @@ static void alt_scl_scene(void)
     alt_foot(QP_SCL);
 }
 
+/* MIXER (XIV, Temperance; GLO held, Romain 04/11): KNOB 1 2 3 = the three circles' LEVEL (as VOLUME on GLO's quick
+ * page, through the queue: REC and the scene keep it), KNOB 4 = the MASTER gain (fx.c alt_mgain, 100 = 0 dB; not
+ * stored: 0 dB at power-on). The meter: the loudest sample into the output (fx.c alt_mpk) against the FM-1's own
+ * limits: under the limiter (white), the limiter at work (gold, from -5 dB), the soft clip saturating (red, 0 dB and
+ * over); its peak held 1 s. The keys play on */
+static int32_t alt_mix_pk, alt_mix_hold;
+static uint32_t alt_mix_ms;
+static void alt_mix_turn(uint32_t i, int32_t s)
+{
+    if (i < AS_NCIRC)
+        alt_qpush(i, P_LEVEL, s * 2);
+    else
+    {
+        alt_mgain = (uint8_t)clamp((int32_t)alt_mgain + s * 2, 0, 127);
+        alt_sys[5] = (uint8_t)(alt_mgain + 1u);   /* (kept: SYSTEM's settings) */
+        settings_save();
+    }
+}
+static void alt_mix_poll(void)                   /* once a frame: the meter falls ~20 dB/s, its peak held 1 s */
+{
+    int32_t a = alt_mpk;
+    alt_mpk = 0;
+    alt_mix_pk -= alt_mix_pk >> 3;
+    if (a > alt_mix_pk)
+        alt_mix_pk = a;
+    if (a >= alt_mix_hold || fm1_ms - alt_mix_ms > 1000u) {
+        alt_mix_hold = a;
+        alt_mix_ms = fm1_ms;
+    }
+}
+static int32_t alt_mix_y(int32_t a, int32_t top, int32_t h)   /* a level (32767 = 0 dB) to a height: -40 .. +6 dB */
+{
+    int32_t db = 0, x = a > 0 ? a : 1;
+    while (x < 32767 && db > -40)                /* (in 1/2 dB: x up by 6 % a step) */
+        x += x / 16 + 1, db--;
+    while (x > 32767 * 2 && db < 12)
+        x -= x / 17, db++;
+    db = clamp(db / 2, -40, 6);
+    return top + h - (db + 40) * h / 46;
+}
+static void alt_mix_scene(void)
+{
+    uint32_t c;
+    int32_t top = 56, h = 120, y0 = top + h, x, y, yl = alt_mix_y(LIM_T, top, h), y0db = alt_mix_y(32767, top, h);
+    char b[12];
+    alt_card("MIXER", "XIV");
+    for (c = 0; c <= AS_NCIRC; c++) {            /* the faders: three circles, then the master */
+        int32_t v = c < AS_NCIRC ? clamp(trk[c].p[P_LEVEL], 0, 127) : alt_mgain, fy;
+        uint16_t col = c < AS_NCIRC ? ALT_COL[c] : ALT_GOLD;
+        x = 18 + (int32_t)c * 46;
+        cv_rect(x + 6, top, 2, h, ALT_DARK);
+        fy = y0 - v * h / 127;
+        cv_rect(x + 6, fy, 2, y0 - fy, c < AS_NCIRC && alt_seq.c[c].cfg.mute ? ALT_GREY : col);
+        cv_rect(x, fy - 2, 14, 5, col);
+        if (c < AS_NCIRC) {
+            if (v <= 0)
+                alt_scopy(b, "OFF", sizeof b);
+            else {
+                int32_t d = LEVEL_DB_X10[v];
+                alt_num(b, (d + (d < 0 ? -5 : 5)) / 10, 0);   /* (whole dB) */
+            }
+        } else
+            alt_num(b, v, 0);
+        cv_text(x + 7 - text_w(ALT_FS, b) / 2, y0 + 6, ALT_FS, b, ALT_INK);
+        {
+            const char *nm = c == 0 ? "I" : c == 1 ? "II" : c == 2 ? "III" : "MST";
+            cv_text(x + 7 - text_w(ALT_FS, nm) / 2, top - 16, ALT_FS, nm, col);
+        }
+    }
+    x = 204;                                     /* the output meter, its zones marked */
+    y = alt_mix_y(alt_mix_pk, top, h);
+    cv_rect(x, top, 12, h, ALT_DARK);
+    if (y < y0)
+        cv_rect(x, y, 12, y0 - y, ALT_INK);
+    if (y < yl)
+        cv_rect(x, y, 12, yl - y, ALT_GOLD);
+    if (y < y0db)
+        cv_rect(x, y, 12, y0db - y, RGB(220, 40, 40));
+    y = alt_mix_y(alt_mix_hold, top, h);
+    cv_rect(x - 2, y, 16, 2, alt_mix_hold > 32767 ? RGB(220, 40, 40) : alt_mix_hold > LIM_T ? ALT_GOLD : ALT_INK);
+    cv_rect(x + 14, y0db, 6, 1, RGB(220, 40, 40));
+    cv_rect(x + 14, yl, 6, 1, ALT_GOLD);
+    cv_text(x + 6 - text_w(ALT_FS, "OUT") / 2, top - 16, ALT_FS, "OUT", ALT_DIM);
+    {
+        const char *st = alt_mix_hold > 32767 ? "CLIP" : alt_mix_hold > LIM_T ? "LIMIT" : "OK";
+        cv_text(x + 6 - text_w(ALT_FS, st) / 2, y0 + 6, ALT_FS, st,
+            alt_mix_hold > 32767 ? RGB(220, 40, 40) : alt_mix_hold > LIM_T ? ALT_GOLD : ALT_DIM);
+    }
+    cv_rect(8, 196, 224, 1, alt_gold_line(30));
+    cv_text(8, 206, ALT_FS, "KNOB 1 2 3  CIRCLES (dB)", ALT_INK);
+    cv_text(8, 220, ALT_FS, "KNOB 4  MASTER", ALT_INK);
+}
+
+/* SYSTEM (XXI, the World; HOME held 0.5 s, Romain 04/11): two tabs (ALGORITHM), rows (SELECT), KNOB 1 changes the
+ * row; the battery in the corner. Kept in the settings (alt_sys above), from the next frame:
+ *   MIDI    CLOCK (INT, USB, TRS: the Analog Rytm's clock through the TRS jack), MIDI IN (Felucca's G_ROUTE: CH1-4 =
+ *           channels 1 2 3 play / move circles 1 2 3), 2ND CORE (Felucca's setting, from the next power-on)
+ *   RANDOM  which engines (ALTER PHYS NOISE RESO) the random's sounds may come from, which modes (FREE PERC STAB)
+ *           CHAOS TOTAL may give: ON / OFF each (at least one stays on) */
+enum { SYS_CLOCK, SYS_MIDIIN, SYS_CPU2, SYS_NMIDI };
+enum { SYS_TMIDI, SYS_TRAND, SYS_NT };
+static const char *const SYS_TAB[SYS_NT] = {"MIDI", "RANDOM"};
+static const char *const SYS_MROW[SYS_NMIDI] = {"CLOCK", "MIDI IN", "2ND CORE"};
+static const char *const SYS_RROW[7] = {"ALTER", "PHYS", "NOISE", "RESO", "FREE", "PERC", "STAB"};
+static uint8_t alt_sys_tab;
+static uint32_t alt_sys_rows(void) { return alt_sys_tab == SYS_TMIDI ? SYS_NMIDI : 7u; }
+static const char *alt_sys_text(uint32_t r)
+{
+    if (alt_sys_tab == SYS_TRAND) {
+        uint32_t m = r < 4u ? alt_sys[1] >> r : alt_sys[2] >> (r - 4u);
+        return (m & 1u) ? "ON" : "OFF";
+    }
+    if (r == SYS_CLOCK)
+        return N_CLOCK[clamp(song.g[G_CLOCK], 0, (int32_t)NELEM(N_CLOCK) - 1)];
+    if (r == SYS_MIDIIN)
+        return N_ROUTE[clamp(song.g[G_ROUTE], 0, (int32_t)NELEM(N_ROUTE) - 1)];
+#if FELUCCA_CPU2
+    return menu_vname(MI_CPU2, menu_get(MI_CPU2));
+#else
+    return "-";
+#endif
+}
+static void alt_sys_turn(uint32_t r, int32_t s)
+{
+    int32_t d = s > 0 ? 1 : -1;
+    if (alt_sys_tab == SYS_TRAND) {
+        uint8_t *b = &alt_sys[r < 4u ? 1 : 2];
+        uint32_t bit = 1u << (r < 4u ? r : r - 4u), all = r < 4u ? 15u : 7u, v = d > 0 ? *b | bit : *b & ~bit;
+        if (v & all)                             /* (one stays on) */
+            *b = (uint8_t)v;
+    } else if (r == SYS_CLOCK) {
+        song.g[G_CLOCK] = (int16_t)clamp(song.g[G_CLOCK] + d, 0, (int32_t)NELEM(N_CLOCK) - 1);
+        alt_sys[3] = (uint8_t)(song.g[G_CLOCK] + 1);
+    } else if (r == SYS_MIDIIN) {
+        song.g[G_ROUTE] = (int16_t)clamp(song.g[G_ROUTE] + d, 0, (int32_t)NELEM(N_ROUTE) - 1);
+        alt_sys[4] = (uint8_t)(song.g[G_ROUTE] + 1);
+    }
+#if FELUCCA_CPU2
+    else if (r == SYS_CPU2)
+        menu_put(MI_CPU2, menu_step(MI_CPU2, d));
+#endif
+    settings_save();
+}
+static void alt_sys_input(void)
+{
+    int32_t s;
+    uint32_t i;
+    if ((s = panel_enc(EN_ALGO)) != 0) {
+        alt_sys_tab = (uint8_t)(s > 0 ? SYS_TRAND : SYS_TMIDI);
+        au.set_row = 0;
+    }
+    if ((s = panel_enc(EN_SELECT)) != 0)
+        au.set_row = (uint8_t)clamp((int32_t)au.set_row + s, 0, (int32_t)alt_sys_rows() - 1);
+    for (i = 0; i < 4u; i++)
+        if ((s = panel_enc(EN_K1 + i)) != 0 && i == 0u)
+            alt_sys_turn(au.set_row, s);
+    (void)panel_enc(EN_PRESET);
+    alt_hold = 0;
+}
+static void alt_sys_battery(int32_t x, int32_t y)   /* the battery: 3 bars (Felucca's thresholds) or USB power */
+{
+    int32_t l = batt_shown(), k;
+    uint16_t c = l == 4 ? ALT_GOLD : l <= 1 ? RGB(220, 40, 40) : ALT_INK;
+    cv_frame(x, y, 26, 12, c);
+    cv_rect(x + 26, y + 3, 2, 6, c);
+    for (k = 0; k < 3; k++)
+        if (l == 4 || k < l)
+            cv_rect(x + 2 + k * 8, y + 2, 6, 8, c);
+    cv_text_r(x - 4, y, ALT_FS, l == 4 ? "USB" : l == 0 ? "LOW" : l == 1 ? "1/3" : l == 2 ? "2/3" : "FULL", c, ALT_BG);
+}
+static void alt_sys_scene(void)
+{
+    uint32_t r, n = alt_sys_rows();
+    uint16_t col = ALT_COL[au.sel % AS_NCIRC], hl = alt_gold_line(16);
+    alt_card("SYSTEM", "XXI");
+    alt_sys_battery(200, 24);
+    alt_tabs(40, SYS_TAB, SYS_NT, alt_sys_tab, ALT_GOLD);
+    for (r = 0; r < n; r++) {
+        int32_t y = 62 + (int32_t)r * 19;
+        const char *nm = alt_sys_tab == SYS_TMIDI ? SYS_MROW[r] : SYS_RROW[r];
+        if (r == au.set_row) {
+            cv_rect(8, y - 3, 224, 18, hl);
+            alt_diamond(15, y + 6, 3, 3, col);
+        }
+        cv_text_on(24, y, ALT_FM, nm, ALT_INK, r == au.set_row ? hl : ALT_BG);
+        cv_text_r(226, y, ALT_FM, alt_sys_text(r), r == au.set_row ? col : ALT_DIM, r == au.set_row ? hl : ALT_BG);
+    }
+    cv_rect(8, 196, 224, 1, alt_gold_line(30));
+    cv_text(8, 202, ALT_FS, alt_sys_tab == SYS_TMIDI ? "TRS = THE RYTM'S CLOCK" : "ENGINES: CHAOS, CHAOS TOTAL",
+            ALT_DIM);
+    cv_text(8, 216, ALT_FS, alt_sys_tab == SYS_TMIDI ? "2ND CORE: AFTER A RESTART" : "MODES: CHAOS TOTAL", ALT_DIM);
+}
+
 /* SETTINGS (I, the Magician; EDIT held): rows, SELECT picks one, KNOB 1 or ALGORITHM changes it. THEME: NIGHT / DAY,
  * its emblem (the moon, the sun) under it */
 enum { SET_THEME, SET_N };
@@ -2691,6 +2968,14 @@ static void alt_scene(uint32_t q, uint32_t flash)
         alt_set_scene();
         return;
     }
+    if (au.mn == QP_GLO) {
+        alt_mix_scene();
+        return;
+    }
+    if (au.mn == QP_SYS) {
+        alt_sys_scene();
+        return;
+    }
     /* the card's engraving: rays from the centre (under everything, kept off the knobs) */
     for (i = 0; i < 48u; i++) {
         uint32_t tn = i * (0xFFFFFFFFu / 48u);
@@ -2872,6 +3157,19 @@ static void alter_draw(void)
           au.pre[au.sel] * 53u;
     sig = sig * 31u + (au.mat_open ? alt_mat_sig() * 2u + 1u : 0u) + (au.seq_open ? alt_seq_sig() * 4u + 3u : 0u) +
           (afp.open ? afp_sig() * 8u + 5u : 0u);
+    if (au.mn == QP_GLO) {                       /* (the MIXER: its faders and meter) */
+        alt_mix_poll();
+        sig = sig * 31u + (uint32_t)alt_mix_pk / 600u * 7u + (uint32_t)alt_mix_hold / 600u * 11u + alt_mgain * 13u;
+        for (i = 0; i < AS_NCIRC; i++)
+            sig = sig * 31u + (uint32_t)trk[i].p[P_LEVEL] + alt_seq.c[i].cfg.mute * 128u;
+    }
+    if (au.mn == QP_SYS)                         /* (SYSTEM: its tab, values, the battery) */
+        sig = sig * 31u + alt_sys_tab * 7u + alt_sys[1] * 11u + alt_sys[2] * 13u + (uint32_t)song.g[G_CLOCK] * 17u +
+              (uint32_t)song.g[G_ROUTE] * 19u + (uint32_t)batt_shown() * 23u
+#if FELUCCA_CPU2
+              + menu_get(MI_CPU2) * 29u
+#endif
+              ;
     sig = sig * 31u + au.mn * 61u + au.set_row * 67u + (uint32_t)ALT_DAY * 71u + au.cfg[au.sel % AS_NCIRC].chord * 73u;
     sig = sig * 31u + alt_dial_live() * 83u;
     sig = sig * 31u + (uint32_t)ar_on * 89u + (ar_n[au.sel % AS_NCIRC] != 0) * 97u;   /* (REC's mark) */     /* (a number shown while its knob turns, then gone) */
@@ -2904,7 +3202,8 @@ static void alter_draw(void)
  * part a (as its own SAVE page would: the test that ALTER keeps Felucca's sequencer quiet), 7 the FX page's preset b
  * of slot a (alter_fx.c AFX_S_*: 0..2 a circle's DIST), 8 MASTER setting a (amx) to b, 9 circle a's
  * DELAY lane at step b off, 10 circle a's envelope mode settings to their defaults, 11 circle a aligns its level,
- * 12 the MASTER FILTER's setting a (0..10 A, 11..21 B, 22 MORPH) to b, 13 its preset b into snapshot a */
+ * 12 the MASTER FILTER's setting a (0..10 A, 11..21 B, 22 MORPH) to b, 13 its preset b into snapshot a, 14..16 below,
+ * 17 circle a & 3's part setting a >> 8 to b (255: its RUMBLE), 18 every RUMBLE muted (a = 1) or not */
 /* the browser build's tool: USER scene u's records as bytes (its scene, its three rhythms, its effects, its envelope
  * settings), so tools/alter/alter_user_scene.mjs can turn a USER scene into a factory one (alter_sounds.c) */
 #define ALT_DUMP_N (sizeof(alt_scene_rec_t) + sizeof(alt_rhy_t) * AS_NCIRC + 1u + ALT_FXREC + 1u + AS_NCIRC * AE_N)
@@ -2940,6 +3239,8 @@ static int32_t alt_peek(uint32_t c, uint32_t w)
 }
 static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
 {
+    if (op == 18u)                               /* (before the view is ready too: the tests' first call) */
+        rmb_mute = (uint8_t)(a != 0);
     if (!au.ready)
         return;
     switch (op) {
@@ -2965,6 +3266,15 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
     case 14:                                     /* (a test: circle a's engine setting b >> 8 (0..7) to (int8) b) */
         fm1_irq_off();
         trk[a % AS_NCIRC].p[P_E0 + ((b >> 8) & 7u)] = (int8_t)(b & 255u);
+        fm1_irq_on();
+        break;
+    case 17:                                     /* (a test: circle a & 3's part setting a >> 8 to (int8) b; a >> 8 = 255:
+                                                  * its RUMBLE to b) */
+        fm1_irq_off();
+        if ((a >> 8) == 255u)
+            alt_rmb[a & 3u] = (uint8_t)b;
+        else if ((a >> 8) < P_COUNT)
+            trk[(a & 3u) % AS_NCIRC].p[a >> 8] = (int8_t)(b & 255u);
         fm1_irq_on();
         break;
     case 16:                                     /* (a test: the reverb: TYPE a >> 8, SIZE a & 255, DAMP b) */

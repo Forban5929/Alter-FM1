@@ -14,6 +14,7 @@ static int16_t rev_ap[REV_APS] __attribute__((section(".pool")));
 static struct {
     uint32_t dly_w, cho_w, cho_ph;
     int32_t dly_lp;
+    uint32_t dl_cur, dl_old, dxf;        /* ALTER: the delay's time now, the one it fades from, samples of fade left */
     uint8_t rtype;                       /* the reverb model running (G_RTYPE: 0 SHORT, 1 GATED, 2 HALL, 3 CLOUD) */
 } fx;
 
@@ -125,6 +126,20 @@ static void track_dist(track_t *t, int32_t *b, uint32_t n)
  * get quieter instead of crushed. */
 #define LIM_T 18000
 static int32_t lim_env = LIM_T;
+/* ALTER's MIXER (04/11, GLO held): the loudest sample into the limiter since the screen last looked (alt_mix_scene:
+ * under LIM_T clean, from LIM_T the limiter works, above 32767 the soft clip saturates: red), and KNOB 4's MASTER
+ * gain (0..127, 100 = 0 dB, 127 ~ +4 dB; on top of the FM-1's own volume pot), its value now gliding (Q12) */
+static volatile int32_t alt_mpk;
+static volatile uint8_t alt_mgain = 100;
+static int32_t alt_mg_now = 4096;
+static inline int32_t alt_mg_block(int32_t mg)
+{
+    int32_t t = (int32_t)alt_mgain * alt_mgain * 4096 / 10000;
+    alt_mg_now += (t - alt_mg_now) >> 2;
+    if (alt_mg_now - t < 8 && t - alt_mg_now < 8)
+        alt_mg_now = t;
+    return (int32_t)(((int64_t)mg * alt_mg_now) >> 12);
+}
 /* MENU > USB LEVEL FIXED (for #42: record over USB with the speaker turned down): the mix goes to master_out at the
  * full MASTER level, USB audio takes that (audio.c uac_tap), and only then does MASTER scale what the DAC gets
  * (usb_fixed_dac). MASTER (0, the default): MASTER before master_out, as always (USB follows the knob) */
@@ -207,6 +222,8 @@ static inline void master_out(int32_t *l, int32_t *r)
     al = *l < 0 ? -*l : *l;
     ar = *r < 0 ? -*r : *r;
     a = al > ar ? al : ar;
+    if (a > alt_mpk)
+        alt_mpk = a;
     if (a > lim_env)
         lim_env += (a - lim_env) >> 2;
     else if (lim_env > LIM_T)
@@ -500,12 +517,44 @@ static __attribute__((noinline)) void rev_switch(const int32_t *rev_in, int32_t 
     fx.rtype = (uint8_t)rt;
 }
 
+/* ALTER (04/11, Romain): the delay's MODE and TAPE, in two globals Felucca left inert (no page, not stored by it):
+ *   MODE  0 ECHO (one line, as Felucca's) · 1 PING-PONG (taps at T and 2T, the loop at 2T: the echoes go left,
+ *         right, left..., one buffer) · 2 GHOST (taps at T and 3T, soft, the loop at 4T: quiet ghost notes at
+ *         +1 and +3 steps that come back a beat later, softer)
+ *   TAPE  0 clean .. 127: what goes into the line through a tanh (driven up to ~3x, its gain at low level kept),
+ *         and darker (the colour down): a tape echo's saturation, in the loop, so each echo is warmer
+ * A TIME change fades from the old taps to the new over ~46 ms (DXF): no jump in the read, no click. The stereo of
+ * PING-PONG and GHOST: their left - right into the reverb's side signal (rev_side, which mix_block spreads) */
+#define G_DMODE G_DRLVL
+#define G_DTAPE G_DRREV
+enum { DM_ECHO, DM_PING, DM_GHOST, DM_N };
+#define DXF_SH 11u                       /* the fade: 2048 samples */
+static int32_t dly_sd[CTL] __attribute__((section(".pool")));
+static inline int32_t dly_at(uint32_t d) { return dly_buf[(fx.dly_w - (d >= DLY_LEN ? DLY_LEN - 1u : d)) & (DLY_LEN - 1u)]; }
+static inline int32_t dly_tap(uint32_t k)        /* the tap k times the time, through the fade */
+{
+    int32_t a = dly_at(fx.dl_cur * k);
+    if (fx.dxf) {
+        int32_t b = dly_at(fx.dl_old * k);
+        a = b + (int32_t)(((int64_t)(a - b) * (int32_t)((1u << DXF_SH) - fx.dxf)) >> DXF_SH);
+    }
+    return a;
+}
+
 /* process the three buses for one block; sends in, wet stereo-equal out */
 static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t *rev_in, int32_t *wet,
                      uint32_t n)
 {
-    uint32_t i, dl = delay_samples();
-    int32_t fb = song.g[G_DFDBK] * 230, col = 2000 + song.g[G_DCOLOR] * 240;
+    uint32_t i, dl = delay_samples(), dm = (uint32_t)song.g[G_DMODE] < DM_N ? (uint32_t)song.g[G_DMODE] : DM_ECHO;
+    int32_t tape = clamp(song.g[G_DTAPE], 0, 127), tg = 32768 + tape * 512, tinv = (int32_t)((1u << 30) / (uint32_t)tg);
+    int32_t fb = song.g[G_DFDBK] * 230, col = 2000 + song.g[G_DCOLOR] * 240 - tape * 110, sd = 0;
+    if (col < 1600)
+        col = 1600;
+    if (dl != fx.dl_cur) {                       /* a new time: fade from where the taps were */
+        fx.dl_old = fx.dl_cur ? fx.dl_cur : dl;
+        fx.dl_cur = dl;
+        fx.dxf = 1u << DXF_SH;
+    }
     int32_t dmix = song.g[G_DMIX] * 258;
     int32_t cdepth = song.g[G_CDEPTH] * 6, rt;
     uint32_t cinc = LFO_INC[song.g[G_CRATE] & 127] / CTL;
@@ -525,13 +574,34 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
             y += (c0 + (((c1 - c0) * f) >> 8)) << 1;
         }
         fx.cho_w++;
-        /* delay with a low-passed feedback */
-        x = dly_buf[(fx.dly_w - dl) & (DLY_LEN - 1u)];
-        fx.dly_lp += mulq15(x - fx.dly_lp, col);
-        dly_buf[fx.dly_w & (DLY_LEN - 1u)] =
-            (int16_t)clamp((dly_in[i] >> 1) + mulq15(fx.dly_lp, fb), -32768, 32767);
-        fx.dly_w++;
-        y += mulq15(x << 1, dmix);
+        /* delay with a low-passed feedback (ALTER: its MODE's taps, TAPE in the loop, the time's fade) */
+        {
+            int32_t lp, w, o, s = 0;
+            x = dly_tap(1u);
+            if (dm == DM_PING) {
+                int32_t x2 = dly_tap(2u);
+                lp = x2;
+                o = (x + x2) >> 1;
+                s = (x - x2) >> 1;
+            } else if (dm == DM_GHOST) {
+                int32_t x3 = dly_tap(3u);
+                lp = dly_tap(4u);
+                o = (x * 9 + x3 * 6) >> 4;               /* (soft: ghosts, under the hit) */
+                s = (x * 3 - x3 * 3) >> 4;
+            } else
+                lp = x, o = x;
+            fx.dly_lp += mulq15(lp - fx.dly_lp, col);
+            w = (dly_in[i] >> 1) + mulq15(fx.dly_lp, fb);
+            if (tape)
+                w = mulq15(softclip((int32_t)(((int64_t)w * tg) >> 15)), tinv);
+            dly_buf[fx.dly_w & (DLY_LEN - 1u)] = (int16_t)clamp(w, -32768, 32767);
+            fx.dly_w++;
+            if (fx.dxf)
+                fx.dxf--;
+            y += mulq15(o << 1, dmix);
+            dly_sd[i] = mulq15(s << 1, dmix);
+            sd |= s;
+        }
         wet[i] = y;
     }
     rt = song.g[G_RTYPE];
@@ -541,6 +611,14 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
         rev_switch(rev_in, wet, n, rt);
     else
         rev_hall(rev_in, wet, n, (uint32_t)rt);
+    if (sd) {                                    /* the delay's stereo (PING-PONG, GHOST) into the side */
+        if (!hl.side)
+            for (i = 0; i < n; i++)
+                rev_side[i] = 0;
+        hl.side = 1;
+        for (i = 0; i < n; i++)
+            rev_side[i] += dly_sd[i];
+    }
 }
 
 /* after the buses: HALL's stereo difference to the left and from the right of the dry mix (the wet bus adds the
@@ -755,6 +833,19 @@ static int32_t wet[CTL];                                 /* (the dry mix and the
 static int32_t send_c[CTL], send_d[CTL], send_r[CTL], wet[CTL], mix_l[CTL], mix_r[CTL];
 #endif
 
+/* ALTER (04/11): the delay and reverb sends glide to a new value (a DUB DELAY / DUB REVERB key, REC, a preset) over
+ * ~3 ms instead of jumping in one sample: a jump into a bus with a sound playing is a click (Romain: "petits clics").
+ * Per part, a quarter of the way a block, spread over the block's samples; within 1/128 it is the value */
+static int32_t snd_now[NTRK][2];
+static inline void snd_glide(uint32_t k, uint32_t j, int32_t tgt, int32_t *v0, int32_t *dv, uint32_t n)
+{
+    int32_t c = snd_now[k % NTRK][j], d = tgt - c;
+    *v0 = c;
+    c = d > 256 || d < -256 ? c + d / 4 : tgt;
+    snd_now[k % NTRK][j] = c;
+    *dv = (c - *v0) / (int32_t)(n ? n : 1u);
+}
+
 /* SPREAD (#148): a POLY or UNISON part whose SPRD is above 0. Its voices start left and right of PAN in turn (voice.c
  * voice_start; UNISON's detuned voices alternate), at PAN -/+ SPRD / 2 (SPRD 127: hard left and right), with the pan
  * law PAN has (the far side down, the near one as it is). track_render gives every voice (b, as always) and the left
@@ -773,9 +864,14 @@ static __attribute__((noinline)) void mix_spread(track_t *t, int32_t *b, uint32_
     int32_t gla = 4096 - (pa > 0 ? pa * 64 : 0), gra = 4096 + (pa < 0 ? pa * 64 : 0);
     int32_t glb = 4096 - (pb > 0 ? pb * 64 : 0), grb = 4096 + (pb < 0 ? pb * 64 : 0);
     int32_t glm = (gla + glb) >> 1, grm = (gra + grb) >> 1, gld = (gla - glb) >> 1, grd = (gra - grb) >> 1;
-    int32_t c = t->p[P_CHOR] * 258, dl = t->p[P_DLY] * 258, r = t->p[P_REV] * 258, pk = t->peak;
-    int32_t xmax = c > dl ? c : dl;
-    xmax = 0x7FFFFFFF / ((xmax > r ? xmax : r) | 1);
+    int32_t c = t->p[P_CHOR] * 258, dl, r, pk = t->peak, ddl, dr;
+    int32_t xmax;
+    snd_glide((uint32_t)(t - trk), 0u, t->p[P_DLY] * 258, &dl, &ddl, n);
+    snd_glide((uint32_t)(t - trk), 1u, t->p[P_REV] * 258, &r, &dr, n);
+    xmax = c > dl ? c : dl;
+    xmax = xmax > t->p[P_DLY] * 258 ? xmax : t->p[P_DLY] * 258;
+    xmax = xmax > r ? xmax : r;
+    xmax = 0x7FFFFFFF / ((xmax > t->p[P_REV] * 258 ? xmax : t->p[P_REV] * 258) | 1);
     for (i = 0; i < n; i++)
         d[i] = (d[i] << 1) - b[i];                      /* left - right */
     track_dist(t, b, n);
@@ -792,10 +888,12 @@ static __attribute__((noinline)) void mix_spread(track_t *t, int32_t *b, uint32_
             pk = a;
         if (c)
             SM(c)[i] += mulq15(xs, c);
-        if (dl)
+        if (dl | ddl)
             SM(d)[i] += mulq15(xs, dl);
-        if (r)
+        if (r | dr)
             SM(v)[i] += mulq15(xs, r);
+        dl += ddl;
+        r += dr;
         SM(l)[i] += ((x * glm) >> 12) + ((y * gld) >> 12);
         SM(r)[i] += ((x * grm) >> 12) + ((y * grd) >> 12);
     }
@@ -832,7 +930,8 @@ static void mix_part(track_t *t, uint32_t n SM_DECL)
 #endif
         t->tail = t->p[P_ITYPE] ? 64 : 16;              /* blocks of DIST / INSERT state to run out after the last
                                                          * voice (the INSERT's: 46 ms, a flanger's feedback) */
-    else if ((!t->tail || !(t->p[P_DIST] | t->p[P_ITYPE]) || !--t->tail) && !slicer_busy(t)) {
+    else if ((!t->tail || !(t->p[P_DIST] | t->p[P_ITYPE]) || !--t->tail) && !slicer_busy(t) &&
+             !rmb_busy((uint32_t)(t - trk))) {          /* (ALTER: the RUMBLE's tail runs on) */
         slicer_track(t, 0, n);                          /* (the SLICER's step clock runs on) */
         if (t->ins_run && !t->p[P_ITYPE])
             ins_rest(t);                                /* TYPE OFF while silent: no fade-out left for the next note */
@@ -846,6 +945,8 @@ static void mix_part(track_t *t, uint32_t n SM_DECL)
         track_dist(t, b, n);
         if (t->p[P_ITYPE] | t->ins_run)
             track_insert(t, b, n);                      /* the INSERT (1.5): off, nothing */
+        if ((uint32_t)(t - trk) < AM_NC && (alt_rmb[t - trk] || rmb_busy((uint32_t)(t - trk))))
+            rmb_part((uint32_t)(t - trk), b, n);        /* ALTER: the RUMBLE (alter_fx.c) */
         slicer_track(t, b, n);                          /* slicer.c: before the level, pan and sends */
         if ((pf.mute >> (t - trk)) & 1u)
             perf_mute((uint32_t)(t - trk), b, n);       /* perform.c: a black key in the FX layer */
@@ -856,9 +957,13 @@ static void mix_part(track_t *t, uint32_t n SM_DECL)
         ac_measure((uint32_t)(t - trk), b, LEVEL_Q12[t->p[P_LEVEL] & 127], n);   /* (ALTER's alignment: its measure */
         lvl = (int32_t)(((int64_t)lvl * AC_G(t)) >> 15);                          /* and its gain) */
         int32_t gl = 4096 - (pan > 0 ? pan * 64 : 0), gr = 4096 + (pan < 0 ? pan * 64 : 0);
-        int32_t c = t->p[P_CHOR] * 258, d = t->p[P_DLY] * 258, r = t->p[P_REV] * 258, pk = t->peak;
-        int32_t xmax = c > d ? c : d;
-        xmax = 0x7FFFFFFF / ((xmax > r ? xmax : r) | 1);   /* sends: loud chords at a high LEVEL */
+        int32_t c = t->p[P_CHOR] * 258, d, r, pk = t->peak, dd, dr, xmax;
+        snd_glide((uint32_t)(t - trk), 0u, t->p[P_DLY] * 258, &d, &dd, n);   /* (ALTER: the sends glide) */
+        snd_glide((uint32_t)(t - trk), 1u, t->p[P_REV] * 258, &r, &dr, n);
+        xmax = c > d ? c : d;
+        xmax = xmax > t->p[P_DLY] * 258 ? xmax : t->p[P_DLY] * 258;
+        xmax = xmax > r ? xmax : r;
+        xmax = 0x7FFFFFFF / ((xmax > t->p[P_REV] * 258 ? xmax : t->p[P_REV] * 258) | 1);   /* sends: loud chords at a high LEVEL */
         for (i = 0; i < n; i++) {
             int32_t x = ((b[i] >> 2) * lvl) >> 10, a = x < 0 ? -x : x;   /* pre-shift: 8 loud voices */
             int32_t xs = clamp(x, -xmax, xmax);         /* sends: mulq15 would overflow */
@@ -866,10 +971,12 @@ static void mix_part(track_t *t, uint32_t n SM_DECL)
                 pk = a;
             if (c)
                 SM(c)[i] += mulq15(xs, c);
-            if (d)
+            if (d | dd)
                 SM(d)[i] += mulq15(xs, d);
-            if (r)
+            if (r | dr)
                 SM(v)[i] += mulq15(xs, r);
+            d += dd;
+            r += dr;
             SM(l)[i] += (x * gl) >> 12;
             SM(r)[i] += (x * gr) >> 12;
         }
@@ -900,7 +1007,7 @@ static __attribute__((noinline)) void scope_take_mix(uint32_t n)
 static __attribute__((noinline)) void perf_master(int32_t *out, uint32_t n)
 {
     uint32_t i;
-    int32_t mg = fx_usb_fixed ? MASTER_FULL : (int32_t)song.master_q12;   /* (USB LEVEL FIXED: MASTER after) */
+    int32_t mg = (int32_t)(((int64_t)(fx_usb_fixed ? MASTER_FULL : (int32_t)song.master_q12) * alt_mg_now) >> 12);
     for (i = 0; i < n; i++) {
         mix_l[i] = (((mix_l[i] + wet[i]) >> 2) * mg) >> 10;
         mix_r[i] = (((mix_r[i] + wet[i]) >> 2) * mg) >> 10;
@@ -974,7 +1081,8 @@ static void mix_block(int32_t *out, uint32_t n)
 {
     uint32_t i;
     int perf;
-    int32_t mg = fx_usb_fixed ? MASTER_FULL : (int32_t)song.master_q12;   /* (USB LEVEL FIXED: MASTER after) */
+    int32_t mg = alt_mg_block(fx_usb_fixed ? MASTER_FULL : (int32_t)song.master_q12);   /* (USB LEVEL FIXED: MASTER after;
+                                                         * ALTER's MIXER gain) */
     for (i = 0; i < n; i++)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
     events_block(n);

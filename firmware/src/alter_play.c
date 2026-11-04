@@ -74,6 +74,8 @@ static volatile uint8_t alt_qw, alt_qr;          /* .. this side reads at alt_qr
 static volatile int32_t alt_shift_tot[AS_NCIRC];     /* SHIFT taps, +-1 each */
 static volatile int32_t alt_dens_tot[AS_NCIRC];      /* DENSITY taps, +-1 each */
 static volatile uint32_t alt_roll_cnt[AS_NCIRC], alt_clear_cnt[AS_NCIRC];   /* DICE taps, DICE held */
+static volatile uint8_t alt_roll_w[AS_NCIRC] = {AS_DW_ALL, AS_DW_ALL, AS_DW_ALL};   /* what the next roll draws (alter_seq.c
+                                                  * AS_DW_*: a DICE tap its part, CHAOS all; the UI sets it, then counts) */
 static volatile uint32_t alt_preset_cnt[AS_NCIRC];   /* a preset loaded on a part (the offsets forgotten) */
 static as_cfg_t alt_post_cfg[AS_NCIRC];          /* a circle's new settings .. */
 static volatile uint8_t alt_post;                /* .. waiting, bit i (the UI clears it before writing alt_post_cfg[i]) */
@@ -331,7 +333,8 @@ static void alt_take(void)
         }
         if ((n = alt_roll_cnt[c]) != alt_roll_seen[c]) {
             alt_roll_seen[c] = n;
-            as_roll(&alt_seq, c);
+            as_roll_w(&alt_seq, c, alt_roll_w[c]);
+            alt_roll_w[c] = AS_DW_ALL;
             ar_clear(c);                         /* (a draw: REC's moves gone, Romain 01/11) */
         }
         if ((n = alt_clear_cnt[c]) != alt_clear_seen[c]) {
@@ -385,7 +388,7 @@ static uint32_t alt_roll_period(uint32_t h, uint32_t p)
     if ((h >> AF_BUILD) & 1u)
         return alt_roll_n < 4u ? 2u * p : alt_roll_n < 12u ? p : p / 2u;
     if ((h >> AF_ROLL32) & 1u)
-        return p / 2u;
+        return 2u * p;                           /* (AF_ROLL32 is the ROLL 1/8 since 04/11: 1/32 "pas musical") */
     return p;
 }
 
@@ -680,11 +683,9 @@ static void alter_tick_(uint32_t n)
             alt_roll_pos -= (int32_t)per;
             alt_on(alt_tgt, as_note(&alt_seq, r->cfg.root, 0), v > 124u ? 124u : v, 0, 0);
             alt_roll_n++;
-            if (ar_on && r->cfg.len) {           /* REC: ROLL 1/16 adds the step, ROLL 1/32 doubles it too */
+            if (ar_on && r->cfg.len) {           /* REC: a roll's hit adds its step (ROLL 1/8: every other one) */
                 uint32_t k = (r->pos + r->cfg.len - 1u) % r->cfg.len;
                 as_add(&alt_seq, alt_tgt, k);
-                if ((h >> AF_ROLL32) & 1u)
-                    alt_fxr[alt_tgt][k] |= AFR_R32;
             }
         }
     }

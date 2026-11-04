@@ -95,7 +95,9 @@ typedef struct {
     uint8_t tfreeze;                /* TURING: 1 = frozen (the host's LOCK key writes it) */
     int8_t dforce[AS_MAXLEN];       /* the draw: -1 0 +1 */
     int8_t pitch[AS_MAXLEN];        /* scale degrees above the root */
-    int8_t vel[AS_MAXLEN];          /* velocity offset */
+    int8_t vel[AS_MAXLEN];          /* the hit's velocity, % of its own: 100 (0 = 100), 75, 50 (04/11) */
+    uint8_t ddly[AS_MAXLEN];        /* the draw's throws into the delay and the reverb, 0..127 (04/11) */
+    uint8_t drev[AS_MAXLEN];
     uint8_t glide[AS_MAXLEN];       /* 1 = slide into this step's note */
     int8_t timb[AS_MAXLEN][AS_NTIMB];
     uint8_t rat[AS_MAXLEN];         /* repeats in the step: 0..3 */
@@ -219,57 +221,106 @@ static int32_t as_uni(uint32_t *s, int32_t r)
 /* 1 with a chance of n / 1024 */
 static int as_coin(uint32_t *s, int32_t n) { return (int32_t)(as_rand(s) % 1024u) < n; }
 
-/* a new draw of circle i, over all 32 steps (a longer LEN later finds them ready) */
-static void as_draw(as_seq_t *q, uint32_t i)
+/* RANDOM VELOCITY AND CHANCE (Romain 04/11): a hit's normal state is 100 %; the random gives it most of the time.
+ * VELO: 100 % 7 times in 10, 75 % 2 in 10, 50 % 1 in 10, never lower. CHANCE: 100 % as a rule, and the more hits the
+ * pattern has, the more of them play less surely: none with 1 or 2 hits, then 4 % more of the hits per hit (45 % at
+ * most); those: 75 % half the time, 50 % a third, 25 % a sixth (25 % the floor). r: a draw 0..1023 */
+static uint32_t as_vpct(uint32_t r) { r &= 1023u; return r < 717u ? 100u : r < 922u ? 75u : 50u; }
+static uint32_t as_cpct(uint32_t r, uint32_t r2, uint32_t hits)
+{
+    uint32_t p = hits <= 2u ? 0u : (hits - 2u) * 41u;
+    p = p > 460u ? 460u : p;
+    if ((r & 1023u) >= p)
+        return 100u;
+    r2 &= 1023u;
+    return r2 < 512u ? 75u : r2 < 853u ? 50u : 25u;
+}
+static uint32_t as_bits(uint32_t m) { uint32_t n = 0; for (; m; m &= m - 1u) n++; return n; }
+
+/* a new draw of circle i, over all 32 steps (a longer LEN later finds them ready). What it draws (Romain 04/11: three
+ * dice, each its own): AS_DW_RHY the pattern (HITS, ROT, flams, a ratchet) · AS_DW_VC the velocities and chances ·
+ * AS_DW_PDR the pitches and throws into the delay and reverb · AS_DW_SND (CHAOS's full draw only) glide, length,
+ * envelope, timbre. What it does not draw stays as the last draw left it (a fresh draw: as the clean pattern) */
+enum { AS_DW_RHY = 1, AS_DW_VC = 2, AS_DW_PDR = 4, AS_DW_SND = 8, AS_DW_ALL = 15 };
+static void as_draw_w(as_seq_t *q, uint32_t i, uint32_t w)
 {
     as_circ_t *c = &q->c[i];
-    int32_t d = c->next.dose, k, j, lk = c->locks;
-    uint32_t *s = &c->seed;
-    /* the rhythm: HITS moved by up to half the circle, ROT anywhere (each with a chance rising with DOSE) */
-    c->dhits = 0;
-    c->drot = 0;
-    if (!(lk & AS_LK_RHYTHM)) {
-        if (as_coin(s, d * 8))
-            c->dhits = (int8_t)as_uni(s, 1 + d * 7 / 127);
-        if (as_coin(s, d * 7))
-            c->drot = (uint8_t)(as_rand(s) % AS_MAXLEN);
+    int32_t d = c->next.dose, k, j, lk = c->locks, ndly = 0, nrev = 0;
+    uint32_t *s = &c->seed, hits;
+    if (!c->die)                                        /* (from the clean pattern: nothing left of an old draw) */
+        w |= 0x100u;
+    if (w & (AS_DW_RHY | 0x100u)) {                     /* the rhythm: HITS moved by up to half the circle, ROT anywhere */
+        c->dhits = 0;
+        c->drot = 0;
+        for (k = 0; k < AS_MAXLEN; k++)
+            c->rat[k] = c->flam[k] = 0;
+        if ((w & AS_DW_RHY) && !(lk & AS_LK_RHYTHM)) {
+            if (as_coin(s, d * 8))
+                c->dhits = (int8_t)as_uni(s, 1 + d * 7 / 127);
+            if (as_coin(s, d * 7))
+                c->drot = (uint8_t)(as_rand(s) % AS_MAXLEN);
+            for (k = 0; k < AS_MAXLEN; k++)
+                if (as_coin(s, d * 2))
+                    c->flam[k] = 1;
+            /* a ratchet (Romain 04/11): none as a rule; at most ONE step, x2 mostly, x3 1 in 16; a quarter at DOSE 127 */
+            if (as_coin(s, d * 2)) {
+                k = as_rand(s) % (c->cfg.len ? c->cfg.len : 16u);
+                c->rat[k] = (uint8_t)(as_rand(s) % 16u ? 1u : 2u);
+                c->flam[k] = 0;
+            }
+        }
     }
+    hits = as_bits(c->pat & (c->cfg.len >= 32u ? 0xFFFFFFFFu : (1u << c->cfg.len) - 1u));
+    if (hits == 0u)
+        hits = c->cfg.hits;
     for (k = 0; k < AS_MAXLEN; k++) {
-        c->dforce[k] = 0;
-        if (!(lk & AS_LK_FORCE) && as_coin(s, 120 + d * 6))
-            c->dforce[k] = (int8_t)(as_rand(s) & 1u ? 1 : -1);
-        c->pitch[k] = 0;                                /* up to 3 octaves of degrees, the root less often */
-        if (!(lk & AS_LK_PITCH) && as_coin(s, d * 7))
-            c->pitch[k] = (int8_t)(as_rand(s) % (uint32_t)(1 + d * 21 / 127));
-        c->vel[k] = (int8_t)(lk & AS_LK_VEL ? 0 : as_uni(s, 4 + d * 20 / 127));
-        c->glide[k] = (uint8_t)(!(lk & AS_LK_GLIDE) && as_coin(s, d * 3));
-        for (j = 0; j < AS_NTIMB; j++)
-            c->timb[k][j] = (int8_t)(lk & AS_LK_TIMB ? 0 : as_uni(s, d * 5 / 8));
-        c->rat[k] = 0;
-        c->flam[k] = 0;
-        c->dchance[k] = 127;
-        if (!(lk & AS_LK_RHYTHM)) {
-            if (as_coin(s, d * 2))
-                c->flam[k] = 1;
-            if (as_coin(s, d * 2))
-                c->dchance[k] = (uint8_t)(25u + as_rand(s) % 70u);
+        if (w & (AS_DW_VC | 0x100u)) {
+            c->dforce[k] = 0;
+            c->vel[k] = 100;
+            c->dchance[k] = 127;
+            if (w & AS_DW_VC) {
+                if (!(lk & AS_LK_VEL))
+                    c->vel[k] = (int8_t)as_vpct(as_rand(s));
+                if (!(lk & AS_LK_RHYTHM)) {
+                    uint32_t r1 = as_rand(s), r2 = as_rand(s);
+                    c->dchance[k] = (uint8_t)(as_cpct(r1, r2, hits) * 127u / 100u);
+                }
+            }
         }
-        c->gate[k] = 1;
-        c->env[k] = 0;
-        if (!(lk & AS_LK_ENV)) {
-            if (as_coin(s, d * 3))
-                c->gate[k] = (uint8_t)(2u + as_rand(s) % 3u);
-            c->env[k] = (int8_t)as_uni(s, d * 50 / 127);
+        if (w & (AS_DW_PDR | 0x100u)) {
+            c->pitch[k] = 0;
+            c->ddly[k] = c->drev[k] = 0;
+            if (w & AS_DW_PDR) {
+                if (!(lk & AS_LK_PITCH) && as_coin(s, d * 7))   /* up to 3 octaves of degrees, the root less often */
+                    c->pitch[k] = (int8_t)(as_rand(s) % (uint32_t)(1 + d * 21 / 127));
+                if (ndly < 3 && as_coin(s, 150))                 /* a few throws (3 at most each): 50..110 */
+                    c->ddly[k] = (uint8_t)(50u + as_rand(s) % 61u), ndly++;
+                if (nrev < 3 && as_coin(s, 120))
+                    c->drev[k] = (uint8_t)(50u + as_rand(s) % 61u), nrev++;
+            }
         }
-    }
-    /* a ratchet (Romain 04/11): none as a rule; at most ONE step of the circle, x2 mostly, x3 almost never (1 in 16);
-     * a chance rising with DOSE, a quarter at 127 */
-    if (!(lk & AS_LK_RHYTHM) && as_coin(s, d * 2)) {
-        k = as_rand(s) % (c->cfg.len ? c->cfg.len : 16u);
-        c->rat[k] = (uint8_t)(as_rand(s) % 16u ? 1u : 2u);
-        c->flam[k] = 0;
+        if (w & (AS_DW_SND | 0x100u)) {
+            c->glide[k] = 0;
+            c->gate[k] = 1;
+            c->env[k] = 0;
+            for (j = 0; j < AS_NTIMB; j++)
+                c->timb[k][j] = 0;
+            if (w & AS_DW_SND) {
+                if (!(lk & AS_LK_FORCE) && as_coin(s, 120 + d * 6))
+                    c->dforce[k] = (int8_t)(as_rand(s) & 1u ? 1 : -1);
+                c->glide[k] = (uint8_t)(!(lk & AS_LK_GLIDE) && as_coin(s, d * 3));
+                for (j = 0; j < AS_NTIMB; j++)
+                    c->timb[k][j] = (int8_t)(lk & AS_LK_TIMB ? 0 : as_uni(s, d * 5 / 8));
+                if (!(lk & AS_LK_ENV)) {
+                    if (as_coin(s, d * 3))
+                        c->gate[k] = (uint8_t)(2u + as_rand(s) % 3u);
+                    c->env[k] = (int8_t)as_uni(s, d * 50 / 127);
+                }
+            }
+        }
     }
 }
+static void as_draw(as_seq_t *q, uint32_t i) { as_draw_w(q, i, AS_DW_ALL); }
 
 /* bits n..: turned by r within n */
 static uint32_t as_rot(uint32_t m, uint32_t n, uint32_t r)
@@ -376,15 +427,16 @@ static void as_density(as_seq_t *q, uint32_t i, int32_t d)
     as_repat(c);
 }
 
-/* the die of circle i: a new draw, at once, kept until the next roll */
-static void as_roll(as_seq_t *q, uint32_t i)
+/* the die of circle i: a new draw (w: AS_DW_*, what it draws), at once, kept until the next roll */
+static void as_roll_w(as_seq_t *q, uint32_t i, uint32_t w)
 {
     if (i < AS_NCIRC) {
-        as_draw(q, i);
+        as_draw_w(q, i, w);
         q->c[i].die = 1;
         as_repat(&q->c[i]);
     }
 }
+static void as_roll(as_seq_t *q, uint32_t i) { as_roll_w(q, i, AS_DW_ALL); }
 
 /* the clean pattern again: the draw forgotten */
 static void as_clear(as_seq_t *q, uint32_t i)
@@ -579,7 +631,12 @@ static void as_step(as_seq_t *q, as_event_t ev[AS_NCIRC])
                 e->gate = c->gate[k];
                 e->env = c->env[k];
                 deg += c->pitch[k];
-                vel += c->vel[k];
+                if (c->vel[k] > 0 && c->vel[k] < 100)  /* (the draw's 75 / 50 %) */
+                    vel = vel * c->vel[k] / 100;
+                if (c->ddly[k] > e->dly)
+                    e->dly = c->ddly[k];
+                if (c->drev[k] > e->rev)
+                    e->rev = c->drev[k];
                 e->glide = c->glide[k];
                 for (j = 0; j < AS_NTIMB; j++)
                     e->timb[j] = c->timb[k][j];

@@ -12,6 +12,7 @@ const check = (what, ok) => { console.log(`fx: ${what.padEnd(78)} ${ok ? "ok" : 
 const { instance } = await WebAssembly.instantiate(wasm, {});
 const ex = instance.exports, mem = ex.memory;
 ex._initialize(); ex.web_nor_erase(); ex.web_boot();
+ex.web_alter(18, 1, 0);                                         // (the KICK's RUMBLE off: as the levels were measured)
 const render = (n, keep) => {
   const got = [];
   for (let k = 0; k < n; k += 128) {

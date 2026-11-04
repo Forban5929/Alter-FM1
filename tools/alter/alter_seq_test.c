@@ -353,6 +353,49 @@ int main(void)
         as_set(&w, 0, c);
         check("LEN 32 asked: 16 kept (as_clean)", w.c[0].next.len == 16);
     }
+    {   /* the three dice (Romain 04/11): each draws its part only; VELO 100 / 75 / 50 ~ 70 / 20 / 10; CHANCE 25 % at least,
+         * none lower with 1 or 2 hits */
+        as_seq_t w;
+        as_cfg_t c;
+        uint32_t i, k, v[3] = {0, 0, 0}, low = 0, few = 0, other = 0;
+        as_init(&w, 77);
+        c = w.c[0].cfg;
+        c.len = 16;
+        c.hits = 8;
+        c.dose = 127;
+        as_set(&w, 0, c);
+        w.c[0].cfg = w.c[0].next;
+        as_repat(&w.c[0]);
+        for (i = 0; i < 200u; i++) {
+            as_roll_w(&w, 0, AS_DW_RHY);
+            for (k = 0; k < AS_MAXLEN; k++)
+                other += w.c[0].vel[k] != 100 || w.c[0].pitch[k] || w.c[0].dchance[k] != 127 || w.c[0].ddly[k];
+        }
+        check("DICE alone: the pattern only (velocity, chance, pitch, throws untouched)", other == 0);
+        as_clear(&w, 0);
+        for (i = 0; i < 300u; i++) {
+            as_roll_w(&w, 0, AS_DW_VC);
+            for (k = 0; k < 16u; k++) {
+                v[w.c[0].vel[k] == 100 ? 0 : w.c[0].vel[k] == 75 ? 1 : 2]++;
+                low += w.c[0].dchance[k] < 31u;
+                other += w.c[0].pitch[k] != 0 || w.c[0].dhits != 0;
+            }
+        }
+        printf("  OCT- + DICE: velocity 100/75/50 %u/%u/%u of %u\n", v[0], v[1], v[2], v[0] + v[1] + v[2]);
+        check("OCT- + DICE: velocity mostly 100 % (65..75 %), 75 % ~ 20 %, 50 % ~ 10 %, chance >= 25 %, nothing else",
+              v[0] * 100u > 65u * 4800u && v[0] * 100u < 75u * 4800u && v[2] * 100u > 6u * 4800u && v[2] * 100u < 14u * 4800u &&
+              low == 0 && other == 0);
+        c.hits = 2;
+        as_set(&w, 0, c);
+        w.c[0].cfg = w.c[0].next;
+        as_repat(&w.c[0]);
+        for (i = 0; i < 200u; i++) {
+            as_roll_w(&w, 0, AS_DW_VC);
+            for (k = 0; k < 16u; k++)
+                few += w.c[0].dchance[k] != 127;
+        }
+        check("OCT- + DICE with 2 hits: every chance 100 %", few == 0);
+    }
     printf(fails ? "%d FAILED\n" : "all ok\n", fails);
     return fails != 0;
 }

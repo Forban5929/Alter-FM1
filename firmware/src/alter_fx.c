@@ -26,7 +26,7 @@ static volatile uint8_t am_dk;           /* the duck's depth now, 0..100 % */
 
 /* ---- the presets ------------------------------------------------------------------------------------------- */
 typedef struct { const char *name; uint8_t dist, type, a, b, c, mix; } afx_dist_t;
-typedef struct { const char *name; uint8_t time, fb, col, mix; } afx_dly_t;
+typedef struct { const char *name; uint8_t time, fb, col, mix, mode, tape; } afx_dly_t;
 typedef struct { const char *name; uint8_t type, size, damp; } afx_rev_t;
 typedef struct { const char *name; uint8_t v[AMX_N]; } afx_mst_t;
 
@@ -42,17 +42,16 @@ static const afx_dist_t AFX_DIST[] = {
     {"BITS", 0, IT_CRUSH, 40, 70, 95, 100},
     {"DESTROY", 70, IT_CRUSH, 16, 30, 70, 100},
 };
-/* DELAY: TIME (params.c N_DTIME: 0 1/4 1 1/8 2 1/16 3 1/32 4 8T 5 16T 6 1/2 10 1/8D 11 1/16D 12 1/4D), FDBK (0..120),
- * COLOR (dark .. bright), its return level */
+/* DELAY: TIME (params.c N_DTIME: 0 1/4 1 1/8 2 1/16 10 1/8D; Romain 04/11: only these four), FDBK (0..120),
+ * COLOR (dark .. bright), its return level, MODE (fx.c DM_*: ECHO, PING-PONG, GHOST), TAPE (fx.c: saturation).
+ * SLAP, SPACE (like the dub), TRIPLET, 16TH DOT gone (04/11); DUB LONG was 1/4D: now 1/4, more feedback */
 static const afx_dly_t AFX_DLY[] = {
-    {"ECHO", 1, 60, 70, 90},             /* (Felucca's power-on) */
-    {"SLAP", 3, 10, 100, 90},
-    {"DUB", 10, 85, 45, 105},
-    {"DUB LONG", 12, 95, 35, 105},
-    {"TAPE", 0, 70, 55, 95},
-    {"TRIPLET", 4, 60, 70, 95},
-    {"16TH DOT", 11, 75, 90, 90},
-    {"SPACE", 6, 105, 30, 95},
+    {"ECHO", 1, 60, 70, 90, 0, 15},       /* (the power-on) */
+    {"DUB", 10, 85, 45, 105, 0, 45},
+    {"DUB LONG", 0, 102, 35, 105, 0, 55},
+    {"PING-PONG", 1, 75, 65, 100, 1, 20},
+    {"GHOST", 2, 70, 50, 110, 2, 30},
+    {"TAPE", 0, 75, 60, 95, 0, 110},
 };
 /* REVERB: TYPE (0 SHORT 1 GATED 2 HALL 3 CLOUD: fx.c RV_*), SIZE, DAMP (8 presets: the page's PRESETS) */
 static const afx_rev_t AFX_REV[] = {
@@ -80,6 +79,122 @@ static const afx_mst_t AFX_MST[] = {
 #define AFX_NDLY (sizeof AFX_DLY / sizeof AFX_DLY[0])
 #define AFX_NREV (sizeof AFX_REV / sizeof AFX_REV[0])
 #define AFX_NMST (sizeof AFX_MST / sizeof AFX_MST[0])
+
+/* ---- RUMBLE (Romain 04/11): the techno rumble in one knob, for the KICK sound -------------------------------------
+ * The kick into a dark reverb (4 combs + 1 diffuser at 11 kHz, ~1 s, its own memory: not the shared reverb), the
+ * reverb driven into a tanh (the distorted texture), low-passed (~180 Hz, two poles), and ducked by the kick itself
+ * (an envelope of the dry kick: the rumble falls under each hit and swells back after it). Added to the circle's sound
+ * after its DIST / INSERT, before its LEVEL (so the MIXER, the sends and the alignment take it as the kick's). One
+ * unit: the first circle whose RUMBLE is above 0. 0 = nothing runs (the circle bit for bit as before) */
+static volatile uint8_t alt_rmb[4];               /* each circle's RUMBLE 0..127 (alter_ui.c: the KICK's knob 4) */
+#define RMB_N 4u
+static const uint16_t RMB_LEN[RMB_N] = {331, 409, 457, 491};   /* (11.025 kHz: 30 .. 45 ms, no common factor) */
+#define RMB_AP 113u
+static int16_t rmb_buf[331 + 409 + 457 + 491] __attribute__((section(".pool")));
+static int16_t rmb_apb[RMB_AP] __attribute__((section(".pool")));
+static struct {
+    uint16_t w[RMB_N], apw;
+    int32_t lp[RMB_N], acc, l1, l2, env, prev, now, gn, pk;
+    uint8_t ph, owner, live;
+} rmb;
+static int32_t rmb_tail;                          /* samples of tail left after the knob went to 0 or the kick stopped */
+static uint8_t rmb_mute;                          /* (the browser build's tests: no rumble, web_alter op 18) */
+static uint32_t rmb_who(void)                     /* the circle with the rumble, or 3 (none) */
+{
+    uint32_t c;
+    if (rmb_mute)
+        return 3u;
+    for (c = 0; c < 3u; c++)
+        if (alt_rmb[c])
+            return c;
+    return 3u;
+}
+static int rmb_busy(uint32_t c) { return c == rmb.owner && rmb_tail > 0; }
+static __attribute__((noinline)) void rmb_part(uint32_t c, int32_t *b, uint32_t n)
+{
+    uint32_t i, k, amt = alt_rmb[c & 3u];
+    int32_t g, fb = 27500;                        /* (each comb ~0.84: about a second at 11 kHz) */
+    if (c != rmb_who()) {
+        if (c == rmb.owner && rmb_tail > 0)
+            amt = 0;                              /* (its tail runs out) */
+        else
+            return;
+    }
+    if (c != rmb.owner) {                         /* a new owner: from silence */
+        uint32_t j;
+        for (j = 0; j < sizeof rmb_buf / sizeof rmb_buf[0]; j++)
+            rmb_buf[j] = 0;
+        for (j = 0; j < RMB_AP; j++)
+            rmb_apb[j] = 0;
+        for (j = 0; j < sizeof rmb; j++)
+            ((uint8_t *)&rmb)[j] = 0;
+        rmb.owner = (uint8_t)c;
+    }
+    if (amt)
+        rmb_tail = FS * 2;
+    else if ((rmb_tail -= (int32_t)n) <= 0)
+        return;
+    g = (int32_t)amt * 40;                        /* (127: ~1.2 x the drive's output, then the duck) */
+    {                                             /* the kick's level (a slow peak): the drive is relative to it, so
+                                                   * the rumble follows the kick's LEVEL, whatever it is */
+        int32_t m = 0;
+        for (i = 0; i < n; i++) {
+            int32_t a = b[i] >> 3;
+            a = a < 0 ? -a : a;
+            m = a > m ? a : m;
+        }
+        rmb.pk = m > rmb.pk ? m : rmb.pk - (rmb.pk >> 8);
+    }
+    {
+    int32_t ref = rmb.pk + 64, inv = (int32_t)((1u << 28) / (uint32_t)ref);   /* (Q14 / ref, Q14 later) */
+    for (i = 0; i < n; i++) {
+        int32_t x = b[i] >> 3, a = x < 0 ? -x : x, y;
+        /* the duck: the kick's envelope (fast up, ~60 ms down), the rumble pulled under it */
+        if (a > rmb.env)
+            rmb.env += (a - rmb.env) >> 3;
+        else
+            rmb.env -= (rmb.env >> 10) + ((rmb.env - a) >> 10);
+        rmb.acc += x;
+        if (++rmb.ph >= 4u) {                     /* every 4th sample: the reverb at 11 kHz */
+            int32_t in = rmb.acc >> 2, s = 0, o = 0;
+            uint32_t base = 0;
+            rmb.ph = 0;
+            rmb.acc = 0;
+            for (k = 0; k < RMB_N; k++) {
+                int16_t *ln = rmb_buf + base;
+                int32_t v = ln[rmb.w[k]];
+                rmb.lp[k] += (v - rmb.lp[k]) >> 2;   /* (dark: each echo duller) */
+                ln[rmb.w[k]] = (int16_t)clamp(in + ((rmb.lp[k] * fb) >> 15), -32767, 32767);
+                if (++rmb.w[k] >= RMB_LEN[k])
+                    rmb.w[k] = 0;
+                s += v;
+                base += RMB_LEN[k];
+            }
+            s >>= 1;
+            o = rmb_apb[rmb.apw];                    /* one diffuser */
+            rmb_apb[rmb.apw] = (int16_t)clamp(s + (o >> 1), -32767, 32767);
+            if (++rmb.apw >= RMB_AP)
+                rmb.apw = 0;
+            rmb.prev = rmb.now;
+            rmb.now = o - (s >> 1);
+        }
+        y = rmb.prev + (((rmb.now - rmb.prev) * (int32_t)rmb.ph) >> 2);   /* (back to 44.1 kHz between samples) */
+        y = (int32_t)(((int64_t)y * inv) >> 14);  /* (the tail over the kick's peak, Q14) */
+        y = softclip(clamp(y * 3, -65535, 65535)); /* the drive: the texture */
+        y = (int32_t)(((int64_t)y * ref) >> 15);  /* (back to the kick's scale) */
+        rmb.l1 += (y - rmb.l1) >> 5;              /* ~180 Hz, two poles */
+        rmb.l2 += (rmb.l1 - rmb.l2) >> 5;
+        y = rmb.l2;
+        {
+            int32_t dk = (int32_t)(((int64_t)rmb.env * inv) >> 11);   /* (the kick's envelope over its peak, x 8) */
+            dk = dk > 16384 ? 16384 : dk;          /* (an eighth of its peak or more: down to 6 %) */
+            y = (int32_t)(((int64_t)y * (32768 - ((dk * 30720) >> 14))) >> 15);
+        }
+        rmb.gn += (g - rmb.gn) >> 9;              /* (the knob glides: no step, and a fade to 0) */
+        b[i] += (int32_t)(((int64_t)y * rmb.gn) >> 6);
+    }
+    }
+}
 
 /* ---- the duck: what pumps, how far it is now ---------------------------------------------------------------- */
 #define AM_NC 3u                          /* the circles (parts 0..2) */

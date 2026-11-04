@@ -18,6 +18,7 @@ typedef struct {
     uint8_t fx[4];               /* DIST CHOR DLY REV */
     uint8_t level;
     uint8_t mode;                /* the envelope mode it is made for (alter_play.c AM_*: the renders use it) */
+    uint8_t rumble;              /* not 0: the sound has a RUMBLE (alter_fx.c), KNOB 4 sets it, this its start (04/11) */
 } alt_pre_t;
 
 /* ALTER {MRPH SPRD HARM MODE AMNT NOIS TILT DRFT}: MODE 0 SKIN, 1 LIQUID, 2 METAL */
@@ -38,24 +39,25 @@ static const alt_pre_t ALT_PRE[] = {
     /* PHYS */
     {"TOMS", 1, {PM_MEMB, 0, 52, 40, 30, 100, 40, 30}, {0, 100, 127, 70}, {0, 0, 0, 40}, 104, 1},
     {"GONG", 1, {PM_MODAL, 100, 90, 112, 10, 100, 0, 10}, {0, 100, 127, 90}, {0, 0, 20, 55}, 104, 0},
-    {"BARS", 1, {PM_MODAL, 34, 80, 100, 15, 90, 0, 10}, {0, 100, 127, 80}, {0, 15, 30, 50}, 110, 2},
+    {"BARS", 1, {PM_MODAL, 55, 110, 100, 45, 90, 0, 10}, {0, 100, 127, 80}, {15, 15, 30, 50}, 126, 2},   /* (04/11: brighter, +10 dB) */
     {"SCRAPE", 1, {PM_MODAL, 98, 100, 120, 10, 100, 127, 50}, {40, 90, 127, 90}, {10, 30, 20, 70}, 124, 3},
-    {"BUZZ", 1, {PM_STRING, 10, 90, 90, 40, 100, 0, 20}, {0, 100, 127, 60}, {20, 0, 25, 30}, 122, 0},
+    {"BUZZ", 1, {PM_STRING, 30, 100, 90, 40, 100, 0, 20}, {0, 100, 127, 60}, {40, 0, 25, 30}, 124, 0},   /* (04/11: more buzz, +3 dB) */
     {"SITAR", 1, {PM_SYMP, 127, 80, 88, 64, 100, 92, 0}, {40, 100, 127, 100}, {0, 10, 20, 60}, 96, 3},
     /* NOISE */
-    {"HAT", 2, {0, 0, 115, 80, 64, 0, 0, 0}, {0, 25, 0, 20}, {0, 0, 10, 15}, 114, 1},
+    {"HAT", 2, {0, 0, 115, 60, 64, 0, 0, 12}, {0, 32, 0, 20}, {22, 0, 10, 15}, 127, 1},   /* (04/11: louder +4 dB, DIST, longer) */
     {"SNARE", 2, {0, 30, 85, 40, 64, 40, 0, 0}, {0, 40, 0, 30}, {10, 0, 15, 30}, 124, 1},
     {"METAL", 2, {3, 0, 100, 40, 100, 32, 0, 0}, {0, 75, 40, 60}, {0, 20, 30, 45}, 110, 1},
     {"CRUSH", 2, {0, 20, 90, 30, 64, 20, 0, 90}, {0, 50, 0, 40}, {30, 0, 20, 25}, 122, 0},
     {"RAIN", 2, {1, 30, 88, 80, 64, 105, 40, 0}, {10, 90, 127, 70}, {0, 0, 20, 70}, 110, 0},
     {"WIND", 2, {0, 64, 70, 100, 127, 0, 70, 0}, {90, 90, 110, 90}, {0, 30, 20, 80}, 100, 3},
-    {"ARCADE", 2, {2, 0, 127, 0, 127, 112, 0, 84}, {0, 80, 0, 50}, {0, 0, 10, 20}, 110, 0},
+    {"ARCADE", 2, {2, 0, 110, 90, 127, 112, 0, 70}, {0, 60, 0, 50}, {0, 0, 10, 20}, 116, 1},   /* (04/11: tuned, resonant) */
     /* (added after the others: the USER scenes keep their sounds' numbers) */
     {"WARM", 0, {30, 0, 45, AL_S, 35, 0, -30, 8}, {2, 70, 50, 60}, {0, 20, 25, 40}, 108, 2},     /* deep house chords */
     {"PAD", 0, {12, 0, 40, AL_S, 50, 0, -40, 25}, {90, 110, 110, 100}, {0, 30, 10, 70}, 100, 3}, /* a soft, slow pad */
     {"OPEN HAT", 2, {0, 0, 115, 80, 64, 0, 0, 0}, {0, 62, 0, 55}, {0, 0, 10, 20}, 126, 0},
-    {"KICK", 0, {0, 0, 0, AL_L, 64, 10, 0, 0}, {0, 85, 0, 70}, {25, 0, 0, 0}, 118, 1},   /* a full kick: a sine, a short
-                                  * drop (~2 octaves, ~14 ms), a long body, DIST for the fat */
+    {"KICK", 0, {0, 0, 0, AL_L, 64, 20, 0, 0}, {0, 85, 0, 70}, {40, 0, 0, 0}, 124, 1, 70},   /* a full kick: a sine, a short
+                                  * drop (~2 octaves, ~14 ms), a long body, DIST for the fat (04/11: fatter: DIST 40, +4.5 dB,
+                                  * RUMBLE 45 on KNOB 4) */
     /* RESO {MATR SPRD RES DIRT OUT DCAY PING SWEP} (eng_reso.c): the four main knobs MATTER SPREAD RESONANCE DIRT */
     {"ZAP", 3, {10, 50, 100, 50, RESO_MIX, 25, RP_ALL, 80}, {0, 85, 0, 60}, {10, 0, 10, 20}, 111, 1},
     {"CLANK", 3, {50, 85, 100, 45, RESO_MIX, 20, RP_ALL, 20}, {0, 90, 127, 70}, {10, 0, 20, 30}, 112, 1},
@@ -98,11 +100,11 @@ typedef struct {
 
 static const alt_scene_t ALT_SCENE[] = {
     {"TECHNO", "PERC . STAB . TEXTURE", 132, AS_SC_PHRY, 0,
-     {{"KICK", 1, 16, 4, 0, 127, 36, AS_CH_OFF, -6, 0, 45, 85, 13, 51},   /* the 4th kick 40 % into the delay */
+     {{"KICK", 1, 16, 4, 0, 127, 36, AS_CH_OFF, -12, 0, 45, 85, 13, 51},   /* the 4th kick 40 % into the delay */
       {"STAB", 2, 16, 3, 3, 127, 48, AS_CH_TRI, 0, 0},
       {"CRUSH", 0, 16, 11, 0, 110, 60, AS_CH_OFF, 0, 0}}, 0, 0, 0},
     {"HOUSE", "DEEP . WARM CHORDS . OPEN HAT", 122, AS_SC_DOR, 8,
-     {{"KICK", 1, 16, 4, 0, 127, 36, AS_CH_OFF, -6, 0, 45, 85, 0, 0},   /* four to the floor */
+     {{"KICK", 1, 16, 4, 0, 127, 36, AS_CH_OFF, -12, 0, 45, 85, 0, 0},   /* four to the floor */
       {"WARM", 2, 16, 3, 3, 127, 48, AS_CH_7TH, -4, 0},     /* minor 7th stabs off the beat (steps 3 9 14) */
       {"OPEN HAT", 0, 16, 4, 2, 127, 60, AS_CH_OFF, -6, 0}}, 0, 0, 0},   /* between the kicks */
     {"AMBIENT", "ROMAIN'S USER 01", 70, AS_SC_MIN, 0,

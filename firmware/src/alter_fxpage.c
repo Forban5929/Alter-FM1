@@ -17,7 +17,7 @@ enum { AFP_DIST, AFP_DLY, AFP_REV, AFP_MST, AFP_FLT, AFP_N };
 static const char *const AFP_TAB[AFP_N] = {"DIST", "DELAY", "REVERB", "MASTER", "FILTER"};
 static const char *const AFP_RTYPE[4] = {"SHORT", "GATED", "HALL", "CLOUD"};
 /* the delay's times, short to long (params.c N_DTIME's ids) */
-static const uint8_t AFP_DT[] = {3, 5, 2, 11, 4, 1, 10, 0, 12, 6, 7};
+static const uint8_t AFP_DT[] = {2, 1, 10, 0};   /* 1/16 1/8 1/8D 1/4 (Romain 04/11) */
 #define AFP_NDT sizeof AFP_DT
 
 static uint32_t afp_dt_pos(void)
@@ -26,7 +26,7 @@ static uint32_t afp_dt_pos(void)
     for (i = 0; i < AFP_NDT; i++)
         if (AFP_DT[i] == (uint32_t)song.g[G_DTIME])
             return i;
-    return 5;
+    return 1;
 }
 
 /* ---- the presets on ---------------------------------------------------------------------------------------- */
@@ -60,6 +60,8 @@ static void afp_dly_apply(uint32_t i)
     song.g[G_DFDBK] = d->fb;
     song.g[G_DCOLOR] = d->col;
     song.g[G_DMIX] = d->mix;
+    song.g[G_DMODE] = d->mode;
+    song.g[G_DTAPE] = d->tape;
 }
 static void afp_rev_apply(uint32_t i)
 {
@@ -113,7 +115,7 @@ static void afp_turn(uint32_t i, int32_t s)
         else if (i == 1u)
             afp_g(G_DFDBK, s, 0, 120);
         else if (i == 2u)
-            afp_g(G_DCOLOR, s, 0, 127);
+            afp_g(G_DTAPE, s, 0, 127);           /* TAPE (04/11: COLOR follows the preset) */
         else {
             afp_part(P_DLY, s);
             return;
@@ -330,7 +332,7 @@ static void afl_ab(int32_t y, uint16_t col)
 /* knob value k of the tab: its name, its text, a fill of 50 px (-1: text only) */
 static void afp_kv(uint32_t k, const char **name, char *txt, int32_t *fill)
 {
-    static const char *const KN[3][4] = {{"DRIVE", "TYPE", "AMNT", "MIX"}, {"TIME", "FEEDBK", "COLOR", "SEND"},
+    static const char *const KN[3][4] = {{"DRIVE", "TYPE", "AMNT", "MIX"}, {"TIME", "FEEDBK", "TAPE", "SEND"},
                                          {"TYPE", "SIZE", "DAMP", "SEND"}};
     uint32_t c = au.sel % AS_NCIRC;
     const track_t *t = &trk[c];
@@ -391,7 +393,7 @@ static void afp_kv(uint32_t k, const char **name, char *txt, int32_t *fill)
         return;
     }
     case 5: v = song.g[G_DFDBK]; max = 120; break;
-    case 6: v = song.g[G_DCOLOR]; break;
+    case 6: v = song.g[G_DTAPE]; break;
     case 7: v = t->p[P_DLY]; break;
     case 8: {
         const char *s = AFP_RTYPE[clamp(song.g[G_RTYPE], 0, 3)];
