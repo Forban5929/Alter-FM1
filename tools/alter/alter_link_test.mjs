@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // ALTER LINK (firmware/src/alter_link.c) against the browser build: node tools/alter/alter_link_test.mjs build/emu/felucca.wasm
 import fs from "node:fs";
-import { req, parse, splitFrames, CMD, F_ENUM } from "../../web/alter/link.js";
+import { req, parse, splitFrames, CMD, F_ENUM, ACT, SHARED } from "../../web/alter/link.js";
 
 const wasm = fs.readFileSync(process.argv[2] || "build/emu/felucca.wasm");
 let fails = 0;
@@ -95,6 +95,68 @@ const silent = out().length;
 one(req.ping()); ex.web_link_sync();
 const back = out();
 check(`page muette > 3 s : rien envoyé (${silent}), puis un PING et le changement arrive (${back.length})`, silent === 0 && back.length > 0);
+
+// ---- v2 (04/11): every other setting, the lanes, the actions, the circles as they play ----
+one(req.watch(0));
+const vl = one(req.vlist());
+check(`VLIST : ${vl?.groups?.length} groupes, ${vl?.nc} réglages par cercle, ${vl?.ns} partagés, couloirs ${vl?.lanes?.join(" ")}`,
+  vl && vl.nc >= 30 && vl.ns >= 40 && vl.lanes.length === 6 && vl.nact === 26);
+const cdesc = [], sdesc = [];
+for (let i = 0; i < vl.nc; i++) cdesc.push(one(req.vdesc(1, i, 0)));
+for (let i = 0; i < vl.ns; i++) sdesc.push(one(req.vdesc(0, i)));
+const sane = (d) => d && d.name && d.min <= d.max && (!d.names.length || d.names.length === d.max - d.min + 1);
+check(`VDESC : ${vl.nc + vl.ns} réglages décrits, listes complètes (ex. ${cdesc.slice(0, 3).map((d) => d.name).join(", ")} ; matrice ${cdesc.find((d) => d.grp === 6)?.name})`,
+  cdesc.every(sane) && sdesc.every(sane));
+const ix = (list, name, grp) => list.findIndex((d) => d.name === name && (grp == null || d.grp === grp));
+const all = (c) => one(req.vall(c)).values;
+const LEN = ix(cdesc, "LEN"), HITS = ix(cdesc, "HITS");
+let r = one(req.vset(1, LEN, 7));
+check(`VSET LEN du cercle 2 = 7 (gardé ${r?.value}), HITS ramené dans LEN`, r?.value === 7 && all(1)[HITS] <= 7);
+r = one(req.vset(1, LEN, 40));
+check(`VSET LEN 40 : ${r?.value} (16 au plus)`, r?.value === 16);
+const RT = ix(sdesc, "TYPE", 10), BPM = ix(sdesc, "TEMPO");
+one(req.vset(SHARED, RT, 3)); one(req.vset(SHARED, BPM, 133));
+const shv = all(SHARED);
+check(`VSET partagés : réverb ${sdesc[RT].names[shv[RT]]}, tempo ${shv[BPM]}`, sdesc[RT].names[shv[RT]] === "CLOUD" && shv[BPM] === 133);
+const DEP = ix(cdesc, "DEPTH", 3);
+r = one(req.vset(0, DEP, -20));
+check(`VSET LFO 1 DEPTH du cercle 1 = -20 (gardé ${r?.value})`, r?.value === -20 && all(0)[DEP] === -20);
+
+// the lanes
+const ln0 = one(req.lane(2, 0));
+check(`LANE : VELO du cercle 3, 16 valeurs (${ln0?.values?.slice(0, 4).join(" ")} ...)`, ln0?.values?.length === 16);
+r = one(req.lset(2, 4, 5, 9));
+check(`LSET PITCH pas 6 = 9 : gardé ${r?.value} (-7..7)`, r?.value === 7 && one(req.lane(2, 4)).values[5] === 7);
+
+// the actions
+const hitsBefore = all(0)[HITS];
+check("ACT DENSITÉ + sur le cercle 1", one(req.act(0, ACT.DENSP))?.ok === 1 && all(0)[HITS] === Math.min(hitsBefore + 1, all(0)[LEN]));
+const v0 = one(req.lane(0, 0)).values.join();
+one(req.act(0, ACT.SHUF0 + 0));
+check("ACT HASARD VÉLO : le couloir VELO du cercle 1 change", one(req.lane(0, 0)).values.join() !== v0);
+one(req.act(0, ACT.FLATALL));
+const flat = [0, 1, 2, 3, 4, 5].map((ln) => one(req.lane(0, ln)).values);
+check("ACT TOUT À PLAT : CHANCE 127, DLY REV PITCH RATCH 0", flat[1].every((x) => x === 127) && flat.slice(2).every((l) => l.every((x) => x === 0)));
+one(req.act(0, ACT.LANES));
+check("ACT TOUTES LES SÉQUENCES : les couloirs ne sont plus à plat", [1, 2, 3].some((ln) => one(req.lane(0, ln)).values.some((x, k) => x !== flat[ln][k])));
+const mu = all(0)[ix(cdesc, "MUTE")];
+one(req.act(0, ACT.MUTE));
+check("ACT MUTE : le cercle 1 bascule", all(0)[ix(cdesc, "MUTE")] === 1 - mu);
+one(req.act(0, ACT.MUTE));
+const s1 = one(req.state(1)).values.join();
+check("ACT CHAOS : le son du cercle 2 change", one(req.act(0, ACT.CHAOS))?.ok === 1 && one(req.state(1)).values.join() !== s1);
+check("ACT inconnue : refusée (ok 0)", one(req.act(0, 99))?.ok === 0);
+
+// pushes: a value changed on the device, a lane, and the circles playing
+one(req.watch(1)); ex.web_link_sync(); out();
+ex.web_alter(15, 0, 9 | 3 << 8); render(2000); ex.web_link_sync();   // (circle 1: LEN 9 HITS 3, as the device's knobs)
+let pu = out();
+check(`poussée : un réglage changé sur la machine arrive (${pu.filter((p) => p.cmd === CMD.VCHANGED).map((p) => cdesc[p.i]?.name + "=" + p.value).join(" ")})`,
+  pu.some((p) => p.cmd === CMD.VCHANGED && p.circ === 0 && p.i === LEN && p.value === 9));
+ex.web_buttons(1 << 10); render(2000); ex.web_buttons(0);
+let plays = 0, moved = new Set();
+for (let k = 0; k < 30; k++) { render(1470); one(req.ping()); ex.web_link_sync(); for (const p of out()) if (p.cmd === CMD.PLAY) { plays++; moved.add(p.circles[0].pos); } }
+check(`poussée : PLAY pendant 1 s de jeu (${plays} images, ${moved.size} pas différents vus)`, plays >= 10 && moved.size >= 3);
 
 // junk: not ours, or bad lengths -> no reply
 check("trames étrangères ou fausses : aucune réponse", send([0xf0, 0x7d, 0x46, 0x4c, 1, 0xf7]).length === 0 && send(req.state(7)).length === 0 && send([0xf0, 0x7d, 0x41, 0x4c, 4, 0, 0xf7]).length === 0);

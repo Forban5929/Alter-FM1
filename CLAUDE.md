@@ -68,7 +68,13 @@
   2e essai (04/11) : coupure en enregistrant un patch + chargement raté → corrigé : prompt()/confirm() du navigateur
   GÈLENT la page (plus de PING) → fenêtres <dialog> dans la page ; SOUND répond par STATE (la page attendait SOUND).
   **Jamais prompt/alert/confirm dans cette page.** Test navigateur : `tools/alter/editor_browser_test.mjs` (10/10, voir en-tête).
-  Plus tard (Romain) : cercles/rythme, LFO/MTX, MASTER FILTER, écran agrandi. Puis : assistant d'installation façon baudgirl.
+  **Essai FM-1 (04/11, Romain) de la version ratchet/DRONE/FREE/réverbs + page : OK** ; « CUT » à 6 en 30 min, rien d'audible
+  (laissé tel quel ; si audible un jour : chercher quel son/effet fait les pics). CPU CLOUD pas noté.
+  **v2 (04/11, choix de Romain)** : en haut 3 colonnes égales = cercle dessiné en direct (PLAY poussé) + boutons (MUTE TRIGGER
+  CHOISIR, DENSITÉ −/+, DÉCALER, DÉ PROPRE RYTHME, hasard par couloir + TOUTES), CHAOS / CHAOS TOTAL ; onglets SONS | RYTHMES
+  (+ éditeur de couloirs glissé, Au hasard / À plat) | MODULATION | EFFETS. Protocole : LINK.md « v2 » (`LK_V`, `lk_act`).
+  Tests : alter_link_test 41/41, editor_browser_test 15/15. **Pas encore essayé sur la FM-1.**
+  Plus tard : enveloppes des modes PERC/STAB dans la page, patch fichier = scène entière ?, assistant d'installation façon baudgirl.
   (L'ancien éditeur Felucca, protocole « FL », est dans l'historique git, commit 8b8f548^ : web/EDITOR_PROTOCOL.md.)
 
 ## Rôle de Claude

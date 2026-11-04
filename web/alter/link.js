@@ -2,7 +2,12 @@
 // ALTER LINK: the companion page's SysEx (firmware/src/alter_link.c, docs/alter/LINK.md). Builds requests, reads
 // replies. Used by the page (web/alter/editor.html) and the test (tools/alter/alter_link_test.mjs).
 export const HDR = [0x7d, 0x41, 0x4c];
-export const CMD = { INFO: 1, STATE: 2, DESC: 3, SET: 4, SOUND: 5, SCENE: 6, WATCH: 7, CHANGED: 8, RELOAD: 9, PING: 10 };
+export const CMD = { INFO: 1, STATE: 2, DESC: 3, SET: 4, SOUND: 5, SCENE: 6, WATCH: 7, CHANGED: 8, RELOAD: 9, PING: 10,
+  VLIST: 11, VDESC: 12, VALL: 13, VSET: 14, LANE: 15, LSET: 16, ACT: 17, PLAY: 18, VCHANGED: 19, LCHANGED: 20 };
+// the actions (alter_link.c LA_*): a circle's, then CHAOS / TOTAL (any circle number)
+export const ACT = { MUTE: 0, DIE: 1, CLEAN: 2, DENSM: 3, DENSP: 4, SHL: 5, SHR: 6, TRIG: 7, RANDOM: 8, LANES: 9,
+  FLATALL: 10, SHUF0: 11, FLAT0: 17, CHAOS: 23, TOTAL: 24, SELECT: 25 };
+export const SHARED = 3;   // (VALL / VSET: the shared settings)
 export const F_ENUM = 8;
 
 const v14 = (v) => { const u = Math.max(-8192, Math.min(8191, v | 0)) + 8192; return [u & 127, (u >> 7) & 127]; };
@@ -18,6 +23,14 @@ export const req = {
   sceneLoad: (slot) => frame(CMD.SCENE, 2, slot),
   watch: (on) => frame(CMD.WATCH, on ? 1 : 0),
   ping: () => frame(CMD.PING),
+  vlist: () => frame(CMD.VLIST),
+  vdesc: (scope, i, c = 0) => frame(CMD.VDESC, scope, i, c),
+  vall: (c) => frame(CMD.VALL, c),
+  vset: (c, i, v) => frame(CMD.VSET, c, i, ...v14(v)),
+  lane: (c, ln) => frame(CMD.LANE, c, ln),
+  lset: (c, ln, k, v) => frame(CMD.LSET, c, ln, k, ...v14(v)),
+  act: (c, a) => frame(CMD.ACT, c, a),
+  play: () => frame(CMD.PLAY),
 };
 
 // split a byte stream into frames F0..F7
@@ -68,6 +81,39 @@ export function parse(f) {
     case CMD.WATCH: return { cmd, on: b() };
     case CMD.RELOAD: return { cmd, circ: b() };
     case CMD.PING: return { cmd };
+    case CMD.VLIST: {
+      const ng = b(), groups = [];
+      for (let k = 0; k < ng; k++) groups.push(s());
+      const nc = b(), ns = b(), nl = b(), lanes = [];
+      for (let k = 0; k < nl; k++) lanes.push(s());
+      return { cmd, groups, nc, ns, lanes, nact: b() };
+    }
+    case CMD.VDESC: {
+      const scope = b(), i2 = b(), grp = b(), min = v(), max = v(), name = s(), names = [];
+      while (i < f.length) names.push(s());
+      return { cmd, scope, i: i2, grp, min, max, name, names };
+    }
+    case CMD.VALL: {
+      const circ = b(), n = b(), values = [];
+      for (let k = 0; k < n; k++) values.push(v());
+      return { cmd, circ, values };
+    }
+    case CMD.VSET: case CMD.VCHANGED: return { cmd, circ: b(), i: b(), value: v() };
+    case CMD.LANE: case CMD.LCHANGED: {
+      const circ = b(), lane = b(), values = [];
+      while (i + 1 < f.length) values.push(v());
+      return { cmd, circ, lane, values };
+    }
+    case CMD.LSET: return { cmd, circ: b(), lane: b(), step: b(), value: v() };
+    case CMD.ACT: return { cmd, circ: b(), act: b(), ok: b() };
+    case CMD.PLAY: {
+      const playing = b(), sel = b(), circles = [];
+      for (let c = 0; c < 3; c++) {
+        const pos = b(), len = b(), m = b(), p0 = b(), p1 = b(), p2 = b(), hits = b();
+        circles.push({ pos, len, mute: m & 1, die: (m >> 1) & 1, pat: p0 | (p1 << 7) | (p2 << 14), hits });
+      }
+      return { cmd, playing, sel, circles };
+    }
     default: return { cmd };
   }
 }

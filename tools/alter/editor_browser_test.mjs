@@ -66,7 +66,23 @@ check("fenêtre « Charger USER 2 ? » ouverte", await ev(`document.getElementBy
 await sleep(4000);
 await ev(`document.getElementById("dlgOk").click()`);
 check("USER 2 chargée : le réglage revient à 99", await until(`document.getElementById("p0_0").value === "99"`, 10000));
+await until(`document.getElementById("msg").textContent.includes("chargée")`, 8000);
 check(`message : ${await msg()}`, (await msg()).includes("chargée"));
+// v2 (04/11): the circles drawn, a circle's action, a rhythm setting, a lane, the tabs
+check("v2 : les 3 cercles dessinés (pas autour de chaque cercle)", await until(`[...document.querySelectorAll("#cols [data-steps]")].every((g) => g.children.length >= 4)`, 8000));
+const hitsIx = await ev(`window.__alter.v2.cdesc.findIndex((d) => d.name === "HITS")`);
+const h0 = await ev(`window.__alter.v2.cval[0][${hitsIx}]`);
+await ev(`document.querySelector('#cols .col [data-a="DENSM"]').click()`);
+check(`v2 : DENSITÉ − sur le cercle 1 (HITS ${h0} -> ${h0 - 1})`, await until(`window.__alter.v2.cval[0][${hitsIx}] === ${h0 - 1}`, 5000));
+await ev(`document.querySelector('[data-tab="rythmes"]').click()`);
+const lenIx = await ev(`window.__alter.v2.cdesc.findIndex((d) => d.name === "LEN")`);
+await ev(`(() => { const r = document.getElementById("v1_${lenIx}"); r.value = 9; r.dispatchEvent(new Event("input")); })()`);
+await sleep(1500);
+check("v2 : LEN du cercle 2 réglé à 9 depuis la page (relu de la machine)", await until(`window.__alter.v2.cval[1][${lenIx}] === 9`, 5000));
+await ev(`document.querySelector('[data-panel="rythmes"] .lanes [data-do="flat"]').click()`);
+check("v2 : couloir VELO du cercle 1 « À plat » : 16 barres égales", await until(`(() => { const b = [...document.querySelectorAll('[data-panel="rythmes"] .lanes')][0].querySelectorAll("rect.bar"); return b.length === 16 && new Set([...b].map((x) => x.getAttribute("height"))).size === 1; })()`, 5000));
+await ev(`document.querySelector('[data-tab="effets"]').click()`);
+check("v2 : onglet Effets visible (DELAY, REVERB, MASTER, FILTRE A et B)", await ev(`document.querySelectorAll('[data-panel="effets"] .card').length === 6 && !document.querySelector('[data-panel="effets"]').hidden`));
 await cmd("Page.captureScreenshot").then((r) => fs.writeFileSync("/tmp/alter_editor.png", Buffer.from(r.result.data, "base64")));
 console.log(res.join("\n"));
 if (logs.length) console.log("console:", logs.slice(0, 60).join(" | "));

@@ -85,6 +85,61 @@ dialog::backdrop { background: rgba(14, 12, 16, .7); }
 dialog p { margin: 0 0 14px; }
 dialog input { width: 100%; background: var(--faint); border: 1px solid var(--rest); border-radius: 6px; padding: 8px 10px; margin-bottom: 14px; }
 .dlgBtns { display: flex; gap: 10px; justify-content: flex-end; }
+/* v2: the circles as they play, their actions; the tabs; the lanes */
+.live { max-width: 1180px; margin: 0 auto; padding: 16px 16px 0; }
+.cols { display: grid; gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.col { background: var(--card); border: 1px solid var(--faint); border-radius: 14px; padding: 14px 14px 16px; --c: var(--c1); }
+.col:nth-child(2) { --c: var(--c2); } .col:nth-child(3) { --c: var(--c3); }
+.col.sel { border-color: var(--c); }
+.dial { display: block; width: min(100%, 260px); margin: 0 auto; aspect-ratio: 1; }
+.dial .track { fill: none; stroke: var(--faint); stroke-width: 2; }
+.dial .st { fill: var(--card); stroke: var(--rest); stroke-width: 2; }
+.dial .st.on { fill: var(--c); stroke: var(--c); }
+.dial .st.now { stroke: var(--ink); stroke-width: 3; }
+.dial .core { fill: var(--faint); }
+.dial .core.hit { fill: var(--c); }
+.dial text { fill: var(--c); font-family: var(--dot); font-size: 34px; }
+.col.muted .dial { opacity: .35; }
+.cname { text-align: center; font-family: var(--dot); font-size: 15px; color: var(--c); margin: 4px 0 10px; min-height: 22px; }
+.acts { display: grid; gap: 8px; }
+.arow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.arow > span { color: var(--gold); font-size: 14px; min-width: 84px; }
+.act { background: var(--faint); border: 1px solid var(--rest); border-radius: 6px; padding: 5px 10px; cursor: pointer;
+  font-family: var(--dot); font-size: 14px; line-height: 1.2; min-height: 32px; }
+.act:hover { border-color: var(--c); }
+.act:active { background: var(--c); color: var(--card); }
+.act.on { background: var(--c); color: var(--card); border-color: var(--c); }
+.globals { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 14px 2px 0; }
+.globals .act { --c: var(--warn); min-height: 40px; padding: 8px 16px; }
+.globals small { color: var(--rest); }
+.tabs { max-width: 1180px; margin: 24px auto 0; padding: 0 16px; display: flex; gap: 4px; border-bottom: 1px solid var(--faint);
+  overflow-x: auto; }
+.tab { background: none; border: 0; border-bottom: 3px solid transparent; padding: 10px 16px; cursor: pointer; color: var(--gold);
+  font-size: 17px; white-space: nowrap; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+.panel { max-width: 1180px; margin: 0 auto; padding: 0 16px; }
+.panel > .strips { padding: 16px 0; }
+.shared { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); padding: 16px 0 0; }
+.card { background: var(--card); border: 1px solid var(--faint); border-radius: 14px; padding: 6px 16px 14px; --c: var(--gold); }
+.card fieldset:first-child, .strip fieldset.first { border-top: 0; }
+.lanes { margin-top: 14px; border-top: 1px solid var(--faint); padding-top: 10px; }
+.ltabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.ltabs .act { font-size: 13px; padding: 3px 8px; min-height: 28px; }
+.lbars { display: block; width: 100%; height: 120px; touch-action: none; cursor: crosshair; }
+.lbars .bg { fill: var(--faint); }
+.lbars .bar { fill: var(--c); }
+.lbars .bar.off { fill: var(--rest); opacity: .45; }
+.lbars .mid { stroke: var(--rest); stroke-width: 1; }
+.lfoot { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
+.lfoot output { margin-left: auto; font-family: var(--dot); font-size: 14px; color: var(--gold); }
+.v2off { padding: 18px 0; color: var(--gold); }
+.p.w { grid-template-columns: 112px 1fr 64px; }
+.p.w.enum { grid-template-columns: 112px 1fr; }
+.card .p.w { grid-template-columns: 78px 1fr 46px; }
+.card .p.w.enum { grid-template-columns: 78px 1fr; }
+.shared { align-items: start; }
+.dial.hit text { fill: var(--card); }
+@media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
 [hidden] { display: none !important; }
 @media (prefers-reduced-motion: no-preference) { .p output { transition: color .4s; } }
 </style>
@@ -124,7 +179,25 @@ dialog input { width: 100%; background: var(--faint); border: 1px solid var(--re
   <p>Pas de machine sous la main ? « Essayer sans machine » fait tourner ALTER dans la page, sans le son.</p>
 </section>
 
-<main class="strips" id="strips" hidden></main>
+<section class="live" id="live" hidden aria-label="Les trois cercles">
+  <div class="cols" id="cols"></div>
+  <div class="globals">
+    <button class="act" id="aChaos">CHAOS</button>
+    <button class="act" id="aTotal">CHAOS TOTAL</button>
+    <small>CHAOS : un nouveau tirage sur les trois cercles. CHAOS TOTAL : tout au hasard ; le retaper dans les 3 secondes l'annule.</small>
+  </div>
+</section>
+
+<nav class="tabs" id="tabs" role="tablist" hidden>
+  <button class="tab" role="tab" data-tab="sons" aria-selected="true">Sons</button>
+  <button class="tab" role="tab" data-tab="rythmes" aria-selected="false">Rythmes</button>
+  <button class="tab" role="tab" data-tab="modulation" aria-selected="false">Modulation</button>
+  <button class="tab" role="tab" data-tab="effets" aria-selected="false">Effets</button>
+</nav>
+<section class="panel" data-panel="sons" role="tabpanel" hidden><main class="strips" id="strips"></main></section>
+<section class="panel" data-panel="rythmes" role="tabpanel" hidden><div class="shared" data-shared></div><div class="strips" data-cols></div></section>
+<section class="panel" data-panel="modulation" role="tabpanel" hidden><div class="shared" data-shared></div><div class="strips" data-cols></div></section>
+<section class="panel" data-panel="effets" role="tabpanel" hidden><div class="shared" data-shared></div></section>
 
 <dialog id="dlg">
   <p id="dlgText"></p>
@@ -138,7 +211,7 @@ dialog input { width: 100%; background: var(--faint); border: 1px solid var(--re
 </footer>
 
 <script type="module">
-import { req, parse, splitFrames, CMD, F_ENUM, show, PATCH_KIND } from "./link.js";
+import { req, parse, splitFrames, CMD, F_ENUM, show, PATCH_KIND, ACT, SHARED } from "./link.js";
 
 const $ = (id) => document.getElementById(id);
 const MODES = ["FREE", "PERC", "STAB", "DRONE"];
@@ -157,6 +230,9 @@ function makePort(sendBytes, close) {
       heard = performance.now();
       if (m.cmd === CMD.CHANGED) return pushChanged(m);
       if (m.cmd === CMD.RELOAD) return pushReload(m);
+      if (m.cmd === CMD.VCHANGED) return pushVar(m);
+      if (m.cmd === CMD.LCHANGED) return pushLane(m);
+      if (m.cmd === CMD.PLAY) return drawPlay(m);
       const i = waiters.findIndex((w) => w.cmd === m.cmd && (!w.match || w.match(m)));
       if (i >= 0) { const w = waiters.splice(i, 1)[0]; clearTimeout(w.t); w.ok(m); }
     },
@@ -176,6 +252,12 @@ const sameAsk = (b) => {
   const cmd = b[4];
   if (cmd === CMD.STATE || cmd === CMD.SOUND) return (m) => m.circ === b[5];
   if (cmd === CMD.DESC || cmd === CMD.SET) return (m) => m.circ === b[5] && m.id === b[6];
+  if (cmd === CMD.VDESC) return (m) => m.scope === b[5] && m.i === b[6];
+  if (cmd === CMD.VALL) return (m) => m.circ === b[5];
+  if (cmd === CMD.VSET) return (m) => m.circ === b[5] && m.i === b[6];
+  if (cmd === CMD.LANE) return (m) => m.circ === b[5] && m.lane === b[6];
+  if (cmd === CMD.LSET) return (m) => m.circ === b[5] && m.lane === b[6] && m.step === b[7];
+  if (cmd === CMD.ACT) return (m) => m.circ === b[5] && m.act === b[6];
   return null;
 };
 function ask(bytes, ms = 1500, tries = 2) {
@@ -209,6 +291,7 @@ async function connectDemo() {
     ex = instance.exports; mem = ex.memory;
     ex._initialize(); ex.web_nor_erase(); ex.web_boot();
     for (let k = 0; k < 44100 * 3; k += 128) ex.web_render(128);   // (3 s: ALTER loads its first scene, as a running FM-1 has)
+    ex.web_buttons(1 << 10); for (let k = 0; k < 2048; k += 128) ex.web_render(128); ex.web_buttons(0);   // (PLAY: it turns)
   } catch { return say("Le simulateur n'a pas pu démarrer sur cette page.", true); }
   const drain = () => {
     const n = ex.web_link_out_n();
@@ -247,13 +330,16 @@ async function start(p, kind, label) {
     return say("La machine a cessé de répondre pendant la lecture des réglages. Débranche et rebranche l'USB, puis réessaie.", true);
   }
   await listSlots();
+  try { await startV2(); } catch { v2 = null; }      // (an older firmware: no v2, the sounds only)
+  showV2();
   await ask(req.watch(1));
   heard = performance.now();                         // cut only when NOTHING came back for 6 s (any reply, any push)
   pinger = setInterval(() => {
     ask(req.ping(), 1500, 1).catch(() => {});
     if (performance.now() - heard > 6000) lost();
   }, 1000);
-  $("intro").hidden = true; $("bar").hidden = false; $("strips").hidden = false;
+  $("intro").hidden = true; $("bar").hidden = false; $("tabs").hidden = false;
+  selectTab(currentTab);
   say(kind === "demo" ? "Le simulateur tourne : bouge un réglage pour voir." : "C'est branché. Tourne un knob sur la machine : il bouge ici aussi.");
 }
 function lost() {
@@ -450,9 +536,306 @@ async function load() {
     const r = await ask(req.sceneLoad(i), 3000);
     if (r.rc !== 1) return say(`USER ${i + 1} n'a pas pu être chargée.`, true);
     for (let c = 0; c < 3; c++) await refresh(c);
+    if (v2) await readV2();
     say(`USER ${i + 1} chargée.`);
   } catch { soft(); }
 }
+
+/* ---------- v2: every other setting (rhythms, lanes, LFO, matrix, shared effects), the circles as they play ---------- */
+// LK_GRP's numbers (alter_link.c)
+const GR = { RYT: 0, GAM: 1, ENV: 2, L1: 3, L2: 4, L3: 5, MTX: 6, LGL: 7, TMP: 8, DLY: 9, REV: 10, MST: 11, FA: 12, FB: 13, MRP: 14 };
+// where each group goes: a circle's column on a tab, or the tab's shared cards
+const PLACE = {
+  sons: { cols: [GR.ENV], shared: [] },
+  rythmes: { cols: [GR.RYT, GR.GAM], shared: [GR.GAM, GR.TMP] },
+  modulation: { cols: [GR.L1, GR.L2, GR.L3, GR.MTX], shared: [GR.LGL] },
+  effets: { cols: [], shared: [GR.DLY, GR.REV, GR.MST, GR.FA, GR.FB, GR.MRP] },
+};
+const LANE_LIM = [[1, 127], [0, 127], [0, 127], [0, 127], [-7, 7], [0, 3]];   // (alter_ui.c alt_lane_lim)
+const LANE_SHORT = ["VELO", "CHNC", "DLY", "REV", "PITCH", "RATCH"];
+const NOTE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+let v2 = null, currentTab = "sons";
+const vctl = [[], [], [], []];                      // the controls of circle 0..2's settings, [3] the shared ones
+const lane = [0, 1, 2].map(() => ({ sel: 0, values: [[], [], [], [], [], []], el: null, drag: false }));
+
+const showV = (d, v) => (d.names.length ? d.names[v - d.min] ?? String(v)
+  : d.name === "NOTE" ? `${NOTE[v % 12]}${Math.floor(v / 12) - 1}`
+  : d.name === "TEMPO" ? `${v} BPM` : String(v));
+
+async function startV2() {
+  const vl = await ask(req.vlist());
+  v2 = { vl, cdesc: [], sdesc: [], cval: [[], [], []], sval: [] };
+  say("Lecture des rythmes, LFO et effets…");
+  for (let i = 0; i < vl.nc; i++) v2.cdesc.push(await ask(req.vdesc(1, i, 0)));
+  for (let i = 0; i < vl.ns; i++) v2.sdesc.push(await ask(req.vdesc(0, i)));
+  buildV2();
+  await readV2();
+}
+async function readV2() {
+  for (let c = 0; c < 3; c++) (await ask(req.vall(c))).values.forEach((v, i) => setVar(c, i, v));
+  (await ask(req.vall(SHARED))).values.forEach((v, i) => setVar(SHARED, i, v));
+  for (let c = 0; c < 3; c++)
+    for (let ln = 0; ln < 6; ln++) lane[c].values[ln] = (await ask(req.lane(c, ln))).values;
+  for (let c = 0; c < 3; c++) drawLane(c);
+}
+function showV2() {
+  $("live").hidden = !v2;
+  for (const t of ["rythmes", "modulation", "effets"]) {
+    const p = document.querySelector(`[data-panel="${t}"]`);
+    if (!v2) p.innerHTML = `<p class="v2off">Ce firmware ne connaît que les sons. Installe la dernière version d'ALTER pour régler ici les rythmes, les LFO et les effets.</p>`;
+  }
+}
+
+/* a setting's row: a list or a slider (the shared CSS of the sounds' strips) */
+function varRow(d, uid, onSet) {
+  const row = document.createElement("div");
+  if (d.names.length) {
+    row.className = "p w enum";
+    row.innerHTML = `<label for="${uid}" title="${d.name}">${d.name}</label><select id="${uid}"></select>`;
+    const s = row.querySelector("select");
+    d.names.forEach((nm, i) => s.append(new Option(nm, d.min + i)));
+    s.onchange = () => onSet(+s.value);
+    return { row, input: s, d, set(v) { s.value = v; } };
+  }
+  row.className = "p w";
+  row.innerHTML = `<label for="${uid}" title="${d.name}">${d.name}</label>
+    <input type="range" id="${uid}" min="${d.min}" max="${d.max}" step="1"><output></output>`;
+  const r = row.querySelector("input"), o = row.querySelector("output");
+  const t = { row, input: r, d, dragging: false, set(v) { if (t.dragging) return; r.value = v; paint(r, d); o.textContent = showV(d, v); } };
+  r.oninput = () => { paint(r, d); o.textContent = showV(d, +r.value); onSet(+r.value); };
+  r.onpointerdown = () => (t.dragging = true);
+  r.onpointerup = r.onblur = () => (t.dragging = false);
+  return t;
+}
+function groupBox(name, first) {
+  const fs = document.createElement("fieldset");
+  if (first) fs.className = "first";
+  fs.innerHTML = `<legend>${name}</legend>`;
+  return fs;
+}
+const COLS = ["var(--c1)", "var(--c2)", "var(--c3)"];
+
+function buildV2() {
+  const { vl, cdesc, sdesc } = v2;
+  // the circles' columns, at the top
+  const cols = $("cols");
+  cols.innerHTML = "";
+  for (let c = 0; c < 3; c++) {
+    const col = document.createElement("div");
+    col.className = "col";
+    col.innerHTML = `<svg class="dial" viewBox="0 0 200 200" aria-label="Cercle ${c + 1}"><circle class="track" cx="100" cy="100" r="78"/>
+        <circle class="core" cx="100" cy="100" r="34"/><g data-steps></g><text x="100" y="112" text-anchor="middle">${c + 1}</text></svg>
+      <div class="cname" data-name></div>
+      <div class="acts">
+        <div class="arow"><button class="act" data-a="MUTE">MUTE</button><button class="act" data-a="TRIG">TRIGGER</button>
+          <button class="act" data-a="SELECT" title="Le choisir aussi sur la machine">CHOISIR</button></div>
+        <div class="arow"><span>Densité</span><button class="act" data-a="DENSM" aria-label="Densité moins">−</button>
+          <button class="act" data-a="DENSP" aria-label="Densité plus">+</button>
+          <span style="min-width:0;margin-left:12px">Décaler</span><button class="act" data-a="SHL" aria-label="Décaler d'un pas en arrière">◀</button>
+          <button class="act" data-a="SHR" aria-label="Décaler d'un pas en avant">▶</button></div>
+        <div class="arow"><span>Hasard</span><button class="act" data-a="DIE" title="Un nouveau tirage du dé, tout de suite">DÉ</button>
+          <button class="act" data-a="CLEAN" title="Le motif propre, sans le dé">PROPRE</button>
+          <button class="act" data-a="RANDOM" title="LEN et HITS au hasard, avec VELO, CHANCE et PITCH">RYTHME</button></div>
+        <div class="arow"><span>Séquences</span>${LANE_SHORT.map((n, ln) => `<button class="act" data-a="SHUF${ln}" title="${vl.lanes[ln]} au hasard">${n}</button>`).join("")}
+          <button class="act" data-a="LANES" title="Les six séquences au hasard">TOUTES</button></div>
+      </div>`;
+    col.querySelectorAll("[data-a]").forEach((b) => {
+      const a = b.dataset.a, id = a.startsWith("SHUF") ? ACT.SHUF0 + +a.slice(4) : ACT[a];
+      b.onclick = () => doAct(c, id);
+    });
+    cols.append(col);
+  }
+  // the tabs' columns and shared cards
+  for (const [tab, pl] of Object.entries(PLACE)) {
+    const panel = document.querySelector(`[data-panel="${tab}"]`);
+    const colsBox = tab === "sons" ? null : panel.querySelector("[data-cols]");
+    const shared = panel.querySelector("[data-shared]");
+    if (colsBox) colsBox.innerHTML = "";
+    if (shared) shared.innerHTML = "";
+    for (let c = 0; c < 3 && pl.cols.length; c++) {
+      let host;
+      if (tab === "sons") {
+        host = circ[c].el.querySelector("[data-v2]");
+        if (!host) {
+          host = document.createElement("div");
+          host.setAttribute("data-v2", "");
+          circ[c].el.insertBefore(host, circ[c].el.querySelector("[data-groups]"));
+        }
+        host.innerHTML = "";
+      } else {
+        host = document.createElement("section");
+        host.className = "strip";
+        host.style.setProperty("--c", COLS[c]);
+        host.innerHTML = `<div class="eng" style="margin-bottom:6px">Cercle ${c + 1}</div>`;
+        colsBox.append(host);
+      }
+      pl.cols.forEach((g, gi) => {
+        const fs = groupBox(vl.groups[g], gi === 0 && tab !== "sons");
+        cdesc.forEach((d, i) => {
+          if (d.grp !== g || d.name === "MUTE") return;
+          const t = varRow(d, `v${c}_${i}`, (v) => queueVar(c, i, v));
+          vctl[c][i] = t;
+          fs.append(t.row);
+        });
+        host.append(fs);
+      });
+      if (tab === "rythmes") host.append(laneEditor(c));
+    }
+    for (const g of pl.shared) {
+      const card = document.createElement("div");
+      card.className = "card";
+      const fs = groupBox(vl.groups[g], true);
+      let n = 0;
+      sdesc.forEach((d, i) => {
+        if (d.grp !== g) return;
+        const t = varRow(d, `vs_${i}`, (v) => queueVar(SHARED, i, v));
+        vctl[SHARED][i] = t;
+        fs.append(t.row);
+        n++;
+      });
+      if (n) { card.append(fs); shared.append(card); }
+    }
+  }
+}
+
+/* a setting's value: kept, shown; a circle's rhythm shows TURING's or EUCLID's knobs */
+function setVar(c, i, v, fromDevice) {
+  const vals = c === SHARED ? v2.sval : v2.cval[c];
+  vals[i] = v;
+  const t = vctl[c][i];
+  if (t) {
+    t.set(v);
+    if (fromDevice) { t.row.classList.add("flash"); setTimeout(() => t.row.classList.remove("flash"), 400); }
+  }
+  if (c !== SHARED) {
+    const d = v2.cdesc[i];
+    if (d.name === "TYPE" && d.grp === GR.RYT) {
+      const tur = v === 1;
+      v2.cdesc.forEach((e, j) => {
+        if (e.grp !== GR.RYT || !vctl[c][j]) return;
+        const turOnly = e.name.startsWith("TURING"), euOnly = ["HITS", "ROT", "PROB"].includes(e.name);
+        vctl[c][j].row.hidden = (turOnly && !tur) || (euOnly && tur);
+      });
+    }
+    if (d.name === "MUTE") $("cols").children[c]?.querySelector('[data-a="MUTE"]')?.classList.toggle("on", v === 1);
+    if (d.name === "LEN") drawLane(c);
+  }
+}
+function pushVar(m) { if (v2 && m.circ <= SHARED) setVar(m.circ, m.i, m.value, true); }
+function pushLane(m) { if (v2 && lane[m.circ]) { lane[m.circ].values[m.lane] = m.values; if (!lane[m.circ].drag) drawLane(m.circ); } }
+
+/* the page's writes, as the sounds': the latest of each, one at a time */
+const vpending = new Map();
+let vflushing = false;
+function queueVar(c, i, v) { vpending.set(`v${c}:${i}`, () => ask(req.vset(c, i, v)).then((r) => { if (r.value !== v) setVar(c, i, r.value); else (c === SHARED ? v2.sval : v2.cval[c])[i] = v; })); vflush(); }
+function queueLane(c, ln, k, v) { vpending.set(`l${c}:${ln}:${k}`, () => ask(req.lset(c, ln, k, v)).then((r) => { lane[c].values[ln][k] = r.value; })); vflush(); }
+async function vflush() {
+  if (vflushing) return;
+  vflushing = true;
+  while (vpending.size && port) {
+    const [key, fn] = vpending.entries().next().value;
+    vpending.delete(key);
+    try { await fn(); } catch { soft(); break; }
+    await new Promise((ok) => setTimeout(ok, 25));
+  }
+  vflushing = false;
+}
+async function doAct(c, a) {
+  try {
+    const r = await ask(req.act(c, a));
+    if (!r.ok) say("La machine n'a pas fait cette action.", true);
+  } catch { soft(); }
+}
+
+/* ---------- the lanes editor: a circle's lane at its 16 steps, drawn and dragged ---------- */
+function laneEditor(c) {
+  const L = lane[c], box = document.createElement("div");
+  box.className = "lanes";
+  box.innerHTML = `<div class="ltabs" role="group" aria-label="Séquence du cercle ${c + 1}">${LANE_SHORT.map((n, ln) => `<button class="act" data-ln="${ln}">${n}</button>`).join("")}</div>
+    <svg class="lbars" viewBox="0 0 320 120" preserveAspectRatio="none" aria-label="Valeurs par pas"></svg>
+    <div class="lfoot"><button class="act" data-do="shuf">Au hasard</button><button class="act" data-do="flat">À plat</button><output></output></div>`;
+  box.querySelectorAll("[data-ln]").forEach((b) => (b.onclick = () => { L.sel = +b.dataset.ln; drawLane(c); }));
+  box.querySelector('[data-do="shuf"]').onclick = () => doAct(c, ACT.SHUF0 + L.sel);
+  box.querySelector('[data-do="flat"]').onclick = () => doAct(c, ACT.FLAT0 + L.sel);
+  const svg = box.querySelector("svg");
+  const at = (e) => {
+    const r = svg.getBoundingClientRect(), [lo, hi] = LANE_LIM[L.sel];
+    const k = Math.max(0, Math.min(15, Math.floor(((e.clientX - r.left) / r.width) * 16)));
+    const y = 1 - Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
+    return [k, Math.round(lo + y * (hi - lo))];
+  };
+  const put = (e) => {
+    const [k, v] = at(e);
+    if (L.values[L.sel][k] === v) return;
+    L.values[L.sel][k] = v;
+    queueLane(c, L.sel, k, v);
+    drawLane(c, k);
+  };
+  svg.onpointerdown = (e) => { L.drag = true; svg.setPointerCapture(e.pointerId); put(e); };
+  svg.onpointermove = (e) => { if (L.drag) put(e); };
+  svg.onpointerup = svg.onpointercancel = () => (L.drag = false);
+  L.el = box;
+  return box;
+}
+function laneText(ln, v) { return ln === 5 ? `x${v + 1}` : ln === 4 ? (v > 0 ? `+${v}` : String(v)) : String(v); }
+function drawLane(c, k0) {
+  const L = lane[c];
+  if (!L.el || !v2) return;
+  const LENi = v2.cdesc.findIndex((d) => d.name === "LEN"), len = v2.cval[c][LENi] ?? 16;
+  L.el.querySelectorAll("[data-ln]").forEach((b) => b.classList.toggle("on", +b.dataset.ln === L.sel));
+  const [lo, hi] = LANE_LIM[L.sel], vals = L.values[L.sel] || [], bip = lo < 0;
+  const y0 = bip ? 60 : 120, sc = bip ? 60 / hi : 120 / (hi - lo || 1);
+  let g = "";
+  for (let k = 0; k < 16; k++) {
+    const v = vals[k] ?? lo, x = k * 20 + 2, h = bip ? Math.abs(v) * sc : (v - lo) * sc + (L.sel === 5 ? 6 : 0);
+    const y = bip ? (v >= 0 ? y0 - h : y0) : 120 - h;
+    g += `<rect class="bg" x="${x}" y="0" width="16" height="120" rx="2"/><rect class="bar${k >= len ? " off" : ""}" x="${x}" y="${y}" width="16" height="${Math.max(h, 2)}" rx="2"/>`;
+  }
+  if (bip) g += `<line class="mid" x1="0" x2="320" y1="60" y2="60"/>`;
+  L.el.querySelector("svg").innerHTML = g;
+  const o = L.el.querySelector("output");
+  o.textContent = k0 != null ? `pas ${k0 + 1} : ${laneText(L.sel, vals[k0])}` : v2.vl.lanes[L.sel];
+}
+
+/* ---------- the circles as they play (PLAY, pushed ~30 a second) ---------- */
+const lastHits = [-1, -1, -1];
+function drawPlay(m) {
+  const cols = $("cols").children;
+  m.circles.forEach((p, c) => {
+    const col = cols[c];
+    if (!col) return;
+    col.classList.toggle("sel", m.sel === c);
+    col.classList.toggle("muted", !!p.mute);
+    const len = Math.max(1, p.len), r = len > 12 ? 7 : 9;
+    let g = "";
+    for (let j = 0; j < len; j++) {
+      const a = (j / len) * 2 * Math.PI - Math.PI / 2, x = 100 + 78 * Math.cos(a), y = 100 + 78 * Math.sin(a);
+      const on = (p.pat >> j) & 1, now = m.playing && j === p.pos;
+      g += `<circle class="st${on ? " on" : ""}${now ? " now" : ""}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${now ? r + 3 : r}"/>`;
+    }
+    col.querySelector("[data-steps]").innerHTML = g;
+    const core = col.querySelector(".core");
+    if (lastHits[c] >= 0 && p.hits !== lastHits[c] && !p.mute) {
+      const dial = col.querySelector(".dial");
+      core.classList.add("hit"); dial.classList.add("hit");
+      clearTimeout(core._t);
+      core._t = setTimeout(() => { core.classList.remove("hit"); dial.classList.remove("hit"); }, 120);
+    }
+    lastHits[c] = p.hits;
+    const st = circ[c].state, nm = st ? `${info.engines[st.eng] ?? ""} ${info.sounds[st.sound]?.name ?? ""}` : "";
+    col.querySelector("[data-name]").textContent = nm + (p.die ? "  (dé)" : "");
+  });
+}
+
+/* ---------- the tabs ---------- */
+function selectTab(t) {
+  currentTab = t;
+  document.querySelectorAll(".tab").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === t)));
+  document.querySelectorAll("[data-panel]").forEach((p) => (p.hidden = p.dataset.panel !== t));
+}
+document.querySelectorAll(".tab").forEach((b) => (b.onclick = () => selectTab(b.dataset.tab)));
+$("aChaos").onclick = () => doAct(0, ACT.CHAOS);
+$("aTotal").onclick = () => doAct(0, ACT.TOTAL);
 
 // questions inside the page (the browser's own prompt / confirm pause the whole page: no PING, the link drops)
 function dialogAsk(text, { input = null, ok = "OK", cancel = "Annuler" } = {}) {
@@ -483,7 +866,7 @@ $("bOpen").onclick = () => $("file").click();
 $("file").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) openPatch(f); };
 $("bStore").onclick = store;
 $("bLoad").onclick = load;
-window.__alter = { circ, get info() { return info; } };   // (for the tests)
+window.__alter = { circ, get info() { return info; }, get v2() { return v2; } };   // (for the tests)
 if (new URLSearchParams(location.search).has("demo")) connectDemo();   // (editor/?demo: straight to the simulator)
 </script>
 </body>
