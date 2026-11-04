@@ -78,7 +78,7 @@
   losange/anneau/point, étoile, triangle en 3 pièces ; points des pas = vélocité), thèmes NIGHT/DAY (bouton, localStorage), polices
   `web/alter/fonts/` (copiées par pages.yml), **tout en anglais** (page + noms LK_GRP/LK_V), ALGORITHM = ligne TYPE dans ENVELOPE.
   (Pistes brutalistes rejetées : canvas https://claude.ai/artifact/UKDYy7GAuyAv2KxmceStfV.)
-  MODULATION (04/11) : sous-onglets LFO 1/2/3 et SLOT 1..4 (◆ = utilisé) ; COURBE de chaque LFO dessinée par la page
+  MODULATION (04/11) : sous-onglets LFO 1/2/3 et SLOT 1..4 (◆ = utilisé), LFO GLOBAL en bas sur toute la largeur ; COURBE de chaque LFO dessinée par la page
   (forme d'après WAVE/DEPTH, point qui court à TEMPO×RATE, PAS calé sur la phase du synthé, S&H = tirage fixe ; ~30 img/s
   seulement onglet ouvert + PLAY ; rien de plus par USB : `modColumn`, `lfoCurve`, `curveLoop`).
   Plus tard : enveloppes des modes PERC/STAB dans la page, patch fichier = scène entière ?, assistant d'installation façon baudgirl.

@@ -179,13 +179,19 @@ input[type=range]:hover::-webkit-slider-thumb { border-color: var(--c); }
 .lfoot output { margin-left: auto; font: 13px var(--mono); color: var(--dim); }
 .v2off { padding: 18px 0; color: var(--dim); }
 .subt { margin: 4px 0 10px; }
+.shared.wide { grid-template-columns: 1fr; padding: 0 0 16px; }
+.shared.wide fieldset { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px 24px; }
+.shared.wide .curve { grid-column: 1 / -1; }
+.shared.wide .curve svg { height: 80px; }
+@media (max-width: 900px) { .shared.wide fieldset { grid-template-columns: 1fr; } }
 .subt .act.used:not(.on) { border-color: var(--c); }
 .subt .act.used:not(.on)::after { content: " ◆"; font-size: 8px; vertical-align: 2px; color: var(--c); }
 .curve { margin: 2px 0 8px; border: 1px solid var(--dark); background: color-mix(in srgb, var(--bg) 85%, var(--dark)); }
 .curve svg { display: block; width: 100%; height: 64px; }
 .curve .mid { stroke: var(--dark); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .curve .wave { fill: none; stroke: var(--c); stroke-width: 1.6; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
-.curve .dot { fill: var(--ink); }
+.curve { position: relative; }
+.curve .dot { position: absolute; left: 0; top: 50%; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%; background: var(--ink); pointer-events: none; }
 .curve.off .wave { stroke: var(--grey); stroke-dasharray: 3 3; }
 .curve.off .dot { display: none; }
 
@@ -256,7 +262,7 @@ dialog input { width: 100%; background: var(--bg); border: 1px solid var(--rim);
 </nav>
 <section class="panel" data-panel="sons" role="tabpanel" hidden><main class="strips" id="strips"></main></section>
 <section class="panel" data-panel="rythmes" role="tabpanel" hidden><div class="shared" data-shared></div><div class="strips" data-cols></div></section>
-<section class="panel" data-panel="modulation" role="tabpanel" hidden><div class="shared" data-shared></div><div class="strips" data-cols></div></section>
+<section class="panel" data-panel="modulation" role="tabpanel" hidden><div class="strips" data-cols></div><div class="shared wide" data-shared></div></section>
 <section class="panel" data-panel="effets" role="tabpanel" hidden><div class="shared" data-shared></div></section>
 
 <dialog id="dlg">
@@ -843,7 +849,7 @@ function lfoCurve(c, g) {
   const box = document.createElement("div");
   box.className = "curve";
   box.innerHTML = `<svg viewBox="0 0 240 64" preserveAspectRatio="none" aria-hidden="true"><line class="mid" x1="0" x2="240" y1="32" y2="32"/>
-    <line class="mid" x1="120" x2="120" y1="4" y2="60"/><path class="wave"/><circle class="dot" r="3.5" cx="0" cy="32"/></svg>`;
+    <line class="mid" x1="120" x2="120" y1="4" y2="60"/><path class="wave"/></svg><i class="dot"></i>`;
   const cv = { c, g, box, path: box.querySelector(".wave"), dot: box.querySelector(".dot"), per: 0, l: null };
   curves.push(cv);
   return box;
@@ -921,8 +927,8 @@ function curveLoop(t) {
   for (const cv of curves) {
     if (!cv.l || cv.box.offsetParent === null) continue;
     const per = six * RATE_6TH[cv.l.rate % 11], x = playing ? (t / per) % 2 : 0;
-    cv.dot.setAttribute("cx", (x * 120).toFixed(1));
-    cv.dot.setAttribute("cy", (32 - waveAt(cv.l.wave, x) * (cv.l.depth / 64) * 28).toFixed(1));
+    cv.dot.style.left = `${((x / 2) * 100).toFixed(2)}%`;
+    cv.dot.style.top = `${(((32 - waveAt(cv.l.wave, x) * (cv.l.depth / 64) * 28) / 64) * 100).toFixed(2)}%`;
   }
 }
 requestAnimationFrame(curveLoop);
