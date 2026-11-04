@@ -103,7 +103,11 @@ const dip = () => {
 };
 {
   W(7, 2, 0); solo(1);                                           // circle 2 alone (HOUSE-like stab tails), its sound
-  W(0, 1, 7); W(3, 1, 3);                                        // (circle 2: GONG as a DRONE: a held sound)
+  W(0, 1, 7); W(3, 1, 0); W(15, 1, 16 | 16 << 8);               // (circle 2: GONG FREE on every step, held full: a steady
+  for (const [id, v] of [[1, 0], [2, 127], [3, 127], [4, 60]]) {  //  sound; DRONE retired 04/11, FREE notes stop in 4 steps)
+    const b = [0xf0, 0x7d, 0x41, 0x4c, 4, 1, id, (v + 8192) & 127, ((v + 8192) >> 7) & 127, 0xf7];
+    new Uint8Array(mem.buffer, ex.web_link_in_buf(), b.length).set(b); ex.web_link_in(b.length); ex.web_link_out_clear();
+  }
   render(BEAT * 4);
   const off = dip();
   W(8, 5, 0); W(8, 6, 90); W(8, 4, 127); render(BEAT * 2);       // SRC 1/4, SHAPE, DUCK 127

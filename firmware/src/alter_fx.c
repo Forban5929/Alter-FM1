@@ -54,16 +54,16 @@ static const afx_dly_t AFX_DLY[] = {
     {"16TH DOT", 11, 75, 90, 90},
     {"SPACE", 6, 105, 30, 95},
 };
-/* REVERB: TYPE (0 ROOM 1 SPRING 2 HALL), SIZE, DAMP */
+/* REVERB: TYPE (0 SHORT 1 GATED 2 HALL 3 CLOUD: fx.c RV_*), SIZE, DAMP (8 presets: the page's PRESETS) */
 static const afx_rev_t AFX_REV[] = {
     {"HALL", 2, 90, 60},                 /* (Felucca's power-on) */
-    {"ROOM", 0, 30, 40},
-    {"BIG ROOM", 0, 90, 60},
-    {"METAL", 0, 127, 0},
-    {"SPRING", 1, 60, 30},
-    {"DARK SPRING", 1, 90, 100},
     {"BRIGHT HALL", 2, 100, 10},
-    {"CAVE", 2, 127, 90},
+    {"CLOUD", 3, 80, 50},
+    {"ENDLESS", 3, 120, 70},             /* (SIZE 120: ~40 s, almost a freeze) */
+    {"SHORT", 0, 60, 40},
+    {"BOX", 0, 20, 90},
+    {"GATED", 1, 30, 40},                /* (SIZE: the gate open 160 ms) */
+    {"LONG GATE", 1, 90, 70},
 };
 /* MASTER: LOW MID HIGH COMP DUCK SRC SHAPE CLIP */
 static const afx_mst_t AFX_MST[] = {

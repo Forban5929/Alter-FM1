@@ -320,6 +320,39 @@ int main(void)
         }
         check("SHIFT -1 then +1 on every LEN 1..32: LEN-1, then 0 again", ok);
     }
+    {   /* the die's ratchet (Romain 04/11): none as a rule, ONE step at most, x3 almost never; and LEN 16 at most */
+        uint32_t i, k, with = 0, x3 = 0, worst = 0;
+        for (i = 0; i < 2000u; i++) {
+            as_seq_t w;
+            as_cfg_t c;
+            uint32_t n = 0;
+            as_init(&w, 100u + i);
+            c = w.c[0].cfg;
+            c.dose = 127;
+            w.c[0].cfg = w.c[0].next = c;
+            w.c[0].seed = 0x1234567u * (i + 1u);
+            as_draw(&w, 0);
+            for (k = 0; k < AS_MAXLEN; k++)
+                if (w.c[0].rat[k]) {
+                    n++;
+                    x3 += w.c[0].rat[k] >= 2u;
+                }
+            with += n != 0;
+            worst = n > worst ? n : worst;
+        }
+        printf("  ratchet at DOSE 127 in 2000 draws: %u with one (%u x3), at most %u per circle\n", with, x3, worst);
+        check("die: at most ONE ratcheted step per circle, in 10..40 % of the draws, x3 under 1 in 10 of them",
+              worst <= 1u && with > 200u && with < 800u && x3 * 10u < with);
+    }
+    {
+        as_seq_t w;
+        as_cfg_t c;
+        as_init(&w, 3);
+        c = w.c[0].cfg;
+        c.len = 32;
+        as_set(&w, 0, c);
+        check("LEN 32 asked: 16 kept (as_clean)", w.c[0].next.len == 16);
+    }
     printf(fails ? "%d FAILED\n" : "all ok\n", fails);
     return fails != 0;
 }

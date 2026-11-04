@@ -15,7 +15,7 @@
 /* (its state, afp: alter_fx.c, so alter_ui_input sees it) */
 enum { AFP_DIST, AFP_DLY, AFP_REV, AFP_MST, AFP_FLT, AFP_N };
 static const char *const AFP_TAB[AFP_N] = {"DIST", "DELAY", "REVERB", "MASTER", "FILTER"};
-static const char *const AFP_RTYPE[3] = {"ROOM", "SPRING", "HALL"};
+static const char *const AFP_RTYPE[4] = {"SHORT", "GATED", "HALL", "CLOUD"};
 /* the delay's times, short to long (params.c N_DTIME's ids) */
 static const uint8_t AFP_DT[] = {3, 5, 2, 11, 4, 1, 10, 0, 12, 6, 7};
 #define AFP_NDT sizeof AFP_DT
@@ -122,7 +122,7 @@ static void afp_turn(uint32_t i, int32_t s)
         return;
     case AFP_REV:
         if (i == 0u)
-            song.g[G_RTYPE] = (int16_t)clamp(song.g[G_RTYPE] + (s > 0 ? 1 : -1), 0, 2);
+            song.g[G_RTYPE] = (int16_t)clamp(song.g[G_RTYPE] + (s > 0 ? 1 : -1), 0, 3);
         else if (i == 1u)
             afp_g(G_RSIZE, s, 0, 127);
         else if (i == 2u)
@@ -394,7 +394,7 @@ static void afp_kv(uint32_t k, const char **name, char *txt, int32_t *fill)
     case 6: v = song.g[G_DCOLOR]; break;
     case 7: v = t->p[P_DLY]; break;
     case 8: {
-        const char *s = AFP_RTYPE[clamp(song.g[G_RTYPE], 0, 2)];
+        const char *s = AFP_RTYPE[clamp(song.g[G_RTYPE], 0, 3)];
         uint32_t n = 0;
         while (s[n])
             txt[n] = s[n], n++;

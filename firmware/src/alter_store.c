@@ -174,7 +174,7 @@ static void alt_rhy_put(uint32_t c, const alt_rhy_t *r)
     as_cfg_t *cf = &au.cfg[c];
     as_circ_t *sc = &alt_seq.c[c];
     uint32_t k;
-    cf->len = r->len ? r->len : 16u;
+    cf->len = r->len ? (r->len > AS_PLAYLEN ? AS_PLAYLEN : r->len) : 16u;   /* (16 steps at most: a longer store too) */
     cf->hits = r->hits, cf->rot = r->rot, cf->prob = r->prob, cf->frot = r->frot;
     cf->type = (uint8_t)(r->type % AS_NTYPE), cf->tlock = r->tlock, cf->tdens = r->tdens, cf->trange = r->trange;
     for (k = 0; k < AS_MAXLEN; k++)
@@ -310,7 +310,7 @@ static void alt_scene_put(const alt_scene_rec_t *s, const alt_rhy_t *rhy)
         for (k = 0; k < ALT_NSLOT; k++)
             alt_applied[c][k] = 0;
         fm1_irq_on();
-        alt_emode[c] = (uint8_t)(o->mode % AM_N);
+        alt_emode[c] = am_ok(o->mode);          /* (DRONE: retired, FREE) */
         alt_seq.c[c].locks = o->locks;
         au.cfg[c].dose = o->dose;
         au.cfg[c].root = o->root;
@@ -366,7 +366,7 @@ static void alt_load_scene(uint32_t n)
         trk[c].p[P_LEVEL] = (int16_t)clamp(trk[c].p[P_LEVEL] + sc->c[c].gain, 1, 127);
         if (sc->c[c].dly)
             trk[c].p[P_DLY] = sc->c[c].dly;
-        alt_emode[c] = sc->c[c].mode;
+        alt_emode[c] = am_ok(sc->c[c].mode);
         cf->root = sc->c[c].root;
         cf->chord = sc->c[c].chord;
         cf->mute = 0;

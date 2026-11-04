@@ -254,14 +254,16 @@ tap(10); bar();
   }
   K(1 << 7); render(FS * 0.7); K(0); render(1200);
 }
-// ALGORITHM: circle 1's envelope mode (FREE PERC STAB DRONE): DRONE rings far longer than PERC
+// ALGORITHM: circle 1's envelope mode (FREE PERC STAB; DRONE retired 04/11): PERC rings less than FREE; turned on,
+// it stops at STAB
 {
   const energy = (b) => b.audio.reduce((p, x) => p + Math.abs(x), 0);
   enc(1, 1); bar(); const perc = energy(bar());
-  enc(1, 2); bar(); const drone = energy(bar());
-  enc(1, -3); bar(); const free = energy(bar());
-  check(`ALGORITHM: PERC ${perc.toFixed(0)} < FREE ${free.toFixed(0)}... DRONE ${drone.toFixed(0)} the most sound`,
-        drone > 2 * perc && drone > free);
+  enc(1, 1); bar(); const stab = energy(bar());
+  enc(1, 4); bar(); const past = energy(bar());
+  enc(1, -6); bar(); const free = energy(bar());
+  check(`ALGORITHM: PERC ${perc.toFixed(0)} / STAB ${stab.toFixed(0)} / FREE ${free.toFixed(0)}; past STAB: STAB still (${past.toFixed(0)})`,
+        Math.abs(past - stab) < 0.2 * stab && Math.abs(stab - perc) > 0.05 * perc);
   check("modes keep the rhythm (FREE again: 8 hits)", same(bar().steps, euclid(16, 8, 0)));
 }
 // the envelope modes' own knobs (ENV page by the circle's mode): PERC HOLD, STAB LENGTH; an LFO on LENGTH
@@ -286,14 +288,23 @@ tap(10); bar();
   check(`LFO 1 SQR -> LENGTH (PERC): one half of the bar rings longer (${e1.toFixed(0)} / ${e2.toFixed(0)})`,
         Math.max(e1, e2) > 1.5 * Math.min(e1, e2));
   enc(5, -63); enc(6, -10); enc(3, -3); enc(4, -2); B(3);
-  enc(1, 2);                                                    // DRONE: the same note is tied, never struck again
-  bar(); bar();
-  const dr = [...bar().audio, ...bar().audio], fr = [];
-  for (let k = 0; k + 2205 <= dr.length; k += 2205) fr.push(peak(dr.slice(k, k + 2205)));
-  const jump = Math.max(...fr.slice(1).map((x, i) => x / Math.max(fr[i], 1e-3)));
-  check(`DRONE: each hit a soft new layer, no hard attack (largest jump between 50 ms frames x${jump.toFixed(2)})`, jump < 1.5);
-  enc(1, -3);                                                   // FREE again
-  bar();
+  enc(1, -1);                                                   // FREE: a note never lasts more than 4 steps
+  {
+    const lk = (b) => { new Uint8Array(mem.buffer, ex.web_link_in_buf(), b.length).set(b); ex.web_link_in(b.length);
+      const o = Array.from(new Uint8Array(mem.buffer, ex.web_link_out(), ex.web_link_out_n())); ex.web_link_out_clear(); return o; };
+    const P_ATK = 1, P_DEC = 2, P_SUS = 3, P_REL = 4, v14 = (v) => [(v + 8192) & 127, ((v + 8192) >> 7) & 127];
+    const set = (id, v) => lk([0xf0, 0x7d, 0x41, 0x4c, 4, 0, id, ...v14(v), 0xf7]);
+    const snd = lk([0xf0, 0x7d, 0x41, 0x4c, 2, 0, 0xf7])[7];          // (STATE: circle 1's sound, to put back)
+    set(P_ATK, 0); set(P_DEC, 127); set(P_SUS, 127); set(P_REL, 127);   // a sound that would ring 10 s
+    ex.web_alter(15, 0, 16 | 1 << 8);                                   // one hit per bar
+    bar(); bar();
+    const a = bar().audio, head = energy(a.slice(0, 3 * STEP)) / 3, tail = energy(a.slice(5 * STEP)) / 11;
+    check(`FREE: a held sound stops within 4 steps (steps 1-3 ${head.toFixed(1)} / steps 6-16 ${tail.toFixed(2)})`, head > 0 && tail < head * 0.02);
+    ex.web_alter(15, 0, 32 | 32 << 8); bar(); bar();                     // LEN 32 asked: 16 at most (Romain 04/11)
+    check(`LEN 32 asked: the circle plays 16 steps (pattern ${(ex.web_alter_pat(0) >>> 0).toString(16)})`, (ex.web_alter_pat(0) >>> 0) === 0xffff);
+    ex.web_alter(15, 0, 16 | 8 << 8); ex.web_alter(0, 0, snd);          // (8 hits, circle 1's own sound again)
+    bar();
+  }
   check("modes and LFO off: 8 hits as before", same(bar().steps, euclid(16, 8, 0)));
 }
 // LFO held 0.5 s: the LFO page. Tabs LFO 1 2 3 (the chosen circle's three), GLOBAL (each K1 WAVE K2 RATE K3 DEPTH

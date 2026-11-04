@@ -245,7 +245,7 @@ static const char *const ALT_RHY_NAME[AS_NTYPE][4] = {
 static void alt_edit_circle(uint32_t i, int32_t s)
 {
     as_cfg_t *c = &au.cfg[au.sel];
-    uint32_t t = c->type % AS_NTYPE, mx = t == AS_T_EUCLID ? AS_MAXLEN : 16u;
+    uint32_t t = c->type % AS_NTYPE, mx = AS_PLAYLEN;   /* (16 steps at most: Romain 04/11) */
     if (i == 0) {
         c->len = (uint8_t)clamp((int32_t)c->len + s, 1, (int32_t)mx);
         if (c->hits > c->len)
@@ -559,6 +559,16 @@ static void alt_lane_flat(uint32_t ln)
 /* two steps held + KNOB 2: the lane shown drawn anew on its 16 steps, hits or not, single values (no RANGE), over its
  * whole height but VELO and CHANCE kept audible (30 % and up) */
 static uint32_t alt_cr(uint32_t n);              /* (below: CHAOS's draws) */
+/* circle c's RATCH lane drawn at random (Romain 04/11): no ratchet as a rule; with pct % chance ONE step only, x2
+ * mostly, x3 almost never (1 in 16), never x4 */
+static void alt_rat_draw(as_circ_t *sc, uint32_t pct)
+{
+    uint32_t k, len = sc->cfg.len ? sc->cfg.len : 16u;
+    for (k = 0; k < AS_NLANE; k++)
+        sc->srat[k] = 0;
+    if (alt_cr(100u) < pct)
+        sc->srat[alt_cr(len < AS_NLANE ? len : AS_NLANE)] = (uint8_t)(alt_cr(16u) ? 1u : 2u);
+}
 static uint32_t alt_crng;
 static void alt_lane_shuffle(void)
 {
@@ -584,6 +594,8 @@ static void alt_lane_shuffle(void)
         else
             sc->srat[k] = (uint8_t)v;
     }
+    if (ln == LN_RATCH)                          /* (RATCH: one step only, as every draw) */
+        alt_rat_draw(sc, 100u);
     sc->rmask[ln] = 0;
     au.step_turned = 1;
     alt_say("SHUFFLE");
@@ -870,7 +882,7 @@ static void alt_chaos(void)
         alt_gate_left[c] = 0;
         fm1_irq_on();
         alt_preset_cnt[c]++;
-        ei = 5u + alt_cr(28u);                   /* the rhythm: LEN 5..32, anything in it, at once */
+        ei = 5u + alt_cr(12u);                   /* the rhythm: LEN 5..16, anything in it, at once */
         cf->len = (uint8_t)ei;
         cf->hits = (uint8_t)(1u + alt_cr(ei));
         cf->rot = (uint8_t)alt_cr(ei);
@@ -896,8 +908,8 @@ static void alt_chaos(void)
                 sc->sdly[k] = (pick & 4u) && alt_cr(2u) ? (uint8_t)alt_cr(52u) : 0u;   /* (0..51: 40 %) */
                 sc->srev[k] = (pick & 8u) && alt_cr(2u) ? (uint8_t)alt_cr(52u) : 0u;
                 sc->spitch[k] = (int8_t)((pick & 16u) && alt_cr(2u) ? (int32_t)alt_cr(15u) - 7 : 0);
-                sc->srat[k] = (uint8_t)((pick & 32u) && !alt_cr(4u) ? 1u + alt_cr(2u) : 0u);   /* (RATCH: x2 x3, rarely) */
             }
+            alt_rat_draw(sc, pick & 32u ? 50u : 0u);   /* (RATCH: one step at most, a fifth of the circles) */
         }
         fm1_irq_off();
         alt_fx_budget(c);                        /* (le budget d'effets du hasard) */
@@ -1074,7 +1086,7 @@ static void alt_total_chaos(void)
     song.g[G_DFDBK] = (int16_t)alt_cr(101u);            /* howl: 0..100 of 120) */
     song.g[G_DCOLOR] = (int16_t)alt_cr(128u);
     song.g[G_DMIX] = (int16_t)(40u + alt_cr(88u));
-    song.g[G_RTYPE] = (int16_t)alt_cr(3u);
+    song.g[G_RTYPE] = (int16_t)alt_cr(4u);   /* SHORT GATED HALL CLOUD */
     song.g[G_RSIZE] = (int16_t)alt_cr(128u);
     song.g[G_RDAMP] = (int16_t)alt_cr(128u);
     afx_edit |= 1u << AFX_S_DLY | 1u << AFX_S_REV;
@@ -1121,11 +1133,11 @@ static void alt_total_chaos(void)
         alt_gate_left[c] = 0;
         fm1_irq_on();
         afx_edit |= (uint8_t)(1u << c);
-        alt_emode[c] = (uint8_t)alt_cr(AM_N);    /* FREE PERC STAB DRONE, and its settings */
+        alt_emode[c] = (uint8_t)alt_cr(AM_NSEL); /* FREE PERC STAB, and its settings */
         for (k = 0; k < AE_N; k++)
             alt_envp[c][k] = (uint8_t)alt_cr(128u);
         cf->type = (uint8_t)alt_cr(AS_NTYPE);    /* the rhythm: EUCLID or TURING, anything in it, at once */
-        n = cf->type == AS_T_EUCLID ? 1u + alt_cr(32u) : 1u + alt_cr(16u);
+        n = 1u + alt_cr(AS_PLAYLEN);
         cf->len = (uint8_t)n;
         cf->hits = (uint8_t)(1u + alt_cr(n));
         cf->rot = (uint8_t)alt_cr(n);
@@ -1145,8 +1157,8 @@ static void alt_total_chaos(void)
             sc->sdly[k] = (uint8_t)alt_cr(128u);
             sc->srev[k] = (uint8_t)alt_cr(128u);
             sc->spitch[k] = (int8_t)((int32_t)alt_cr(15u) - 7);
-            sc->srat[k] = (uint8_t)alt_cr(4u);
         }
+        alt_rat_draw(sc, 30u);                   /* (RATCH: one step at most, rarely) */
         fm1_irq_off();
         alt_fx_budget(c);                        /* (le budget d'effets du hasard) */
         fm1_irq_on();
@@ -1380,7 +1392,7 @@ static int alter_ui_input(uint32_t pressed)
     if ((s = panel_enc(EN_SELECT)) != 0 && !au.lockc)
         alt_select((uint32_t)((int32_t)au.sel + s + 3 * 16));
     if ((s = panel_enc(EN_ALGO)) != 0 && !au.lockc) {   /* the chosen circle's envelope mode */
-        alt_emode[au.sel] = (uint8_t)clamp((int32_t)alt_emode[au.sel] + (s > 0 ? 1 : -1), 0, AM_N - 1);
+        alt_emode[au.sel] = (uint8_t)clamp((int32_t)alt_emode[au.sel] + (s > 0 ? 1 : -1), 0, (int32_t)AM_NSEL - 1);
         alt_say(ALT_MODE_NAME[alt_emode[au.sel]]);
     }
     if ((s = panel_enc(EN_PRESET)) != 0 && !au.lockc)
@@ -2275,7 +2287,7 @@ static void alt_env_scene(void)
                k >= 0 ? (int32_t)alt_envp[c][k] : 0;
     }
     alt_menu_head("ENV", "XIII");
-    alt_tabs(23, ALT_MODE_NAME, AM_N, m, col);
+    alt_tabs(23, ALT_MODE_NAME, AM_NSEL, m, col);
     switch (m) {                                 /* segment widths (px) and the sustain level (0..H) */
     case AM_PERC:  a = 2 + v[0] * 20 / 127; h = v[1] * 60 / 127; d = 8 + v[2] * 120 / 127; sus = 0; r = 0; break;
     case AM_STAB:  a = 2; d = 8 + v[0] * 60 / 127; h = 30; sus = v[1] * H / 127; r = 6 + v[0] * 50 / 127; filt = v[2]; break;
@@ -2934,9 +2946,9 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
     case 0: alt_load_sound(a % AS_NCIRC, b); break;
     case 1: alt_load_scene(a); break;
     case 2: au.cfg[a % AS_NCIRC].mute = (uint8_t)(b != 0); alt_post_circle(a % AS_NCIRC); break;
-    case 3: alt_emode[a % AS_NCIRC] = (uint8_t)(b % AM_N); break;
+    case 3: alt_emode[a % AS_NCIRC] = am_ok(b); break;
     case 4: song.g[G_BPM] = (int16_t)clamp((int32_t)a, 40, 240); break;
-    case 5: alt_emode[a % AS_NCIRC] = (uint8_t)(ALT_PRE[au.pre[a % AS_NCIRC]].mode % AM_N); break;
+    case 5: alt_emode[a % AS_NCIRC] = am_ok(ALT_PRE[au.pre[a % AS_NCIRC]].mode); break;
     case 6: pat_load(&trk[a % NPART], b); break;   /* (a test: Felucca's own phrase b on part a) */
     case 7:                                      /* the FX page's preset b of slot a (0..2 a circle's DIST, 3 DELAY, 4 REVERB, 5 MASTER) */
         if (a < AS_NCIRC) afp_dist_apply(a, b); else if (a == AFX_S_DLY) afp_dly_apply(b);
@@ -2954,6 +2966,17 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
         fm1_irq_off();
         trk[a % AS_NCIRC].p[P_E0 + ((b >> 8) & 7u)] = (int8_t)(b & 255u);
         fm1_irq_on();
+        break;
+    case 16:                                     /* (a test: the reverb: TYPE a >> 8, SIZE a & 255, DAMP b) */
+        song.g[G_RTYPE] = (int16_t)(a >> 8);
+        song.g[G_RSIZE] = (int16_t)clamp((int32_t)(a & 255u), 0, 127);
+        song.g[G_RDAMP] = (int16_t)clamp((int32_t)b, 0, 127);
+        break;
+    case 15:                                     /* (a test: circle a's rhythm: LEN b & 255, HITS b >> 8, ROT 0) */
+        au.cfg[a % AS_NCIRC].len = (uint8_t)(b & 255u);
+        au.cfg[a % AS_NCIRC].hits = (uint8_t)(b >> 8);
+        au.cfg[a % AS_NCIRC].rot = 0;
+        alt_post_circle(a % AS_NCIRC);
         break;
     default: break;
     }

@@ -38,9 +38,23 @@ static uint8_t alt_fxr[AS_NCIRC][AS_MAXLEN];
 enum { AM_FREE, AM_PERC, AM_STAB, AM_DRONE, AM_N };
 static const char *const ALT_MODE_NAME[AM_N] = {"FREE", "PERC", "STAB", "DRONE"};
 _Static_assert(AM_PERC == 1 && AM_STAB == 2 && AM_DRONE == 3, "alter_lfo.c alt_env_mod reads the modes as 1 2 3");
+/* DRONE retired (Romain 04/11: short circles, many triggers, rolls: it does not fit; a firmware of its own one day).
+ * Its number stays (stored scenes); nothing selects it: a scene or a sound made for it plays FREE (am_ok) */
+#define AM_NSEL 3u                                /* the modes one can choose: FREE PERC STAB */
+static uint8_t am_ok(uint32_t m) { return (uint8_t)(m < AM_NSEL ? m : AM_FREE); }
+/* FREE (Romain 04/11): a note never longer than 4 steps (twice a STAB) nor than its circle less one step (it never
+ * goes round): its hold within it, then past it a fast fade (alt_gl_tick). Samples left, 0 = none */
+#define AM_FREE_STEPS 4u
+#define AM_FREE_FADE 34                           /* REL for the fade (~12 ms: P_REL 0..127 = 1 ms .. 10 s) */
+static int32_t alt_free_left[AS_NCIRC];
 #define ALT_FLAM_SAMPLES 1100u                   /* ~25 ms */
 
 static as_seq_t alt_seq;
+static uint32_t alt_free_steps(uint32_t c)        /* the steps a FREE note may last on circle c */
+{
+    uint32_t len = alt_seq.c[c].cfg.len, l = len > 1u ? len - 1u : 1u;
+    return l < AM_FREE_STEPS ? l : AM_FREE_STEPS;
+}
 static uint32_t alt_pos;                         /* samples into the sixteenth */
 static uint8_t alt_run, alt_ready;               /* transport was running; alt_seq set up */
 static uint8_t alt_note[AS_NCIRC][3];            /* each part's sounding notes: the hit's and its chord's (0 = none) */
@@ -159,6 +173,7 @@ static void alt_on(uint32_t c, uint32_t note, uint32_t vel, int glide, const uin
     int16_t g = t->p[P_GLIDE], vm = t->p[P_VOICE];
     uint32_t k, n = 1;
     alt_off(c);
+    alt_free_left[c] = alt_emode[c] == AM_FREE ? (int32_t)(alt_free_steps(c) * div_samples(2)) : 0;
     if (ch && (ch[0] || ch[1]))
         t->p[P_VOICE] = V_POLY;                  /* (a mono preset's LEGATO would play one note) */
     t->p[P_GLIDE] = (int16_t)(glide && !(ch && ch[0]) ? (g ? g : 40) : 0);
@@ -392,6 +407,14 @@ static void alt_gl_tick(uint32_t n, uint32_t p)
             alt_hold_smp[c] = 0;
             alt_off(c);
         }
+        if (alt_free_left[c] > 0 && (alt_free_left[c] -= (int32_t)n) <= 0) {   /* FREE's 4 steps over: a fast fade */
+            alt_free_left[c] = 0;
+            if (alt_emode[c] == AM_FREE) {
+                alt_offset(c, P_REL, AM_FREE_FADE - (trk[c].p[P_REL] - alt_applied[c][alt_slot(P_REL)]));
+                alt_off(c);
+                alt_release(c, (1u << NVOICE) - 1u);
+            }
+        }
     }
 }
 
@@ -549,6 +572,10 @@ static void alter_step(void)
                 gate = 255u;                     /* (its HOLD lets it go, alt_tick) */
             else if (m == AM_STAB)
                 gate = gate > 2u ? 2u : gate;
+            else if (m == AM_FREE) {             /* (FREE: held a step less than its 4, the release in the last) */
+                uint32_t l = alt_free_steps(c);
+                gate = gate > l - 1u ? (l > 1u ? l - 1u : 1u) : gate;
+            }
             else if (m == AM_DRONE)
                 gate = 255u;                     /* DRONE: until the next hit */
             if (m == AM_DRONE)

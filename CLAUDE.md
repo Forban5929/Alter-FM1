@@ -156,8 +156,14 @@ Collision, Euclidean Circles v2, Sting 2. Drums externes : Analog Rytm (sync MID
 - Knobs : le chiffre n'apparaît que si KNOB n a tourné < 0,4 s avant (panel.c panel_knob_ms) : charger une scène, un son
   ou un dé ne fait plus clignoter de chiffres.
 - LED clavier : utilisables **faibles au repos, fortes si engagées** (mute, fill tenu, flash du dé) ; sans fonction = noires.
-- **ALGORITHM = mode d'enveloppe du cercle choisi** (31/10) : FREE (ADSR du son) · PERC · STAB (coups ≤ 2 pas) · DRONE
-  (attaque lente, note tenue jusqu'au coup suivant). L'ADSR du son l'affine d'1/4, le dé d'1/3. Affiché à côté du moteur.
+- **ALGORITHM = mode d'enveloppe du cercle choisi** (31/10) : FREE (ADSR du son) · PERC · STAB (coups ≤ 2 pas). L'ADSR du
+  son l'affine d'1/4, le dé d'1/3. Affiché à côté du moteur.
+  **04/11 (Romain)** : **DRONE retiré** (cercles courts, triggers, rolls : ne colle pas ; « un autre firmware un jour ») :
+  numéro 3 gardé pour les scènes, `am_ok()` le joue en FREE, `AM_NSEL` 3 (code DRONE resté, inatteignable) ·
+  **FREE ≤ 4 pas** (2× STAB) et ≤ LEN−1 : tenue ≤ 3 pas, puis fondu rapide (`alt_free_left`, REL 34) · **cercles ≤ 16 pas**
+  (`AS_PLAYLEN`, as_clean ; tableaux à 32 gardés ; scène AMBIENT : PADS 32/24 → 16, FREE) · **RATCHET au hasard** : 0 la
+  norme, UN pas max par cercle, ×3 1 fois sur 16 (`alt_rat_draw` : CHAOS 20 %, CHAOS TOTAL 30 %, SHUFFLE RATCH 100 % ;
+  dé : `as_draw`, ≤ 25 % à DOSE 127). Tests : alter_seq_test (2000 tirages), emu « FREE 4 pas », « LEN 32 → 16 ».
 - **3 MUTE ensemble (01/11)** = cercle choisi : LEN 4..16 + HITS 1..LEN tout de suite, et VELO, CHANCE, PITCH tirés
   (valeurs fixes comme SHUFFLE) ;
   les mutes déclenchés par le combo sont annulés (alter_ui.c alt_lanes_random, au.mute_tog/mute_combo).
@@ -267,6 +273,12 @@ La vue DEEP (3c) doit d'abord offrir en ALTER : GLIDE, canal/horloge MIDI, 2e c�
   Retours connus : TECHNO « parfait » (ne pas toucher) ; NOISE METAL un peu doux dans le mélange.
 - [ ] **3c** : vue DEEP (EDIT) + écran SYSTEM ALTER, puis **retirer l'interface et le séquenceur Felucca** (phase 2 du
   nettoyage). Reste aussi : sauver les mouvements REC dans la scène (objets 5..), touches blanches libres, DESTROY assignable, verrous du dé, DOSE, sauver les PLAGES (objets 5..).
+- [x] **RÉVERBS (04/11, choix de Romain)** : TYPE 0 **SHORT** (ex-ROOM) · 1 **GATED** (ex-SPRING : lignes HALL à decay
+  long + porte ouverte par le send, SIZE = 60..500 ms ouverte) · 2 **HALL** (inchangée) · 3 **CLOUD** (2× les lignes,
+  4 diffuseurs, dérive lente ±14, SIZE 127 ≈ 1 min). UN seul réseau (fx.c rev_hall + table `RV[]`), ROOM/SPRING de
+  Felucca supprimés. Pool +10,6 Ko (rev_comb 9766, rev_ap 1518). Mesuré PC : CPU ≈ HALL, 60 s à send 127 stable.
+  8 presets FX (HALL, BRIGHT HALL, CLOUD, ENDLESS, SHORT, BOX, GATED, LONG GATE). Outil test : web_alter op 16 (TYPE/SIZE/DAMP).
+  **À écouter par Romain + CPU FM-1 avec CLOUD.**
 - [ ] Étape 4 : tranche de console PAR PISTE, ordre fixe validé : son → disto/fold → EQ 3 bandes → compresseur → delay
   (echo, ping-pong stéréo à créer, dub) → reverb. Réutiliser alter_fx.c. Coût CPU à mesurer.
 

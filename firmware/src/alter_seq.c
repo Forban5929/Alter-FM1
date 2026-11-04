@@ -27,6 +27,8 @@
 
 #define AS_NCIRC 3
 #define AS_MAXLEN 32
+#define AS_PLAYLEN 16                     /* a circle plays 16 steps at most (Romain 04/11: readability; the arrays keep 32)
+                                          * a scene stored longer is brought back to 16 (as_clean) */
 #define AS_NTIMB 4
 enum { AS_GHOST, AS_NORMAL, AS_ACCENT };
 enum { AS_LK_PITCH = 1, AS_LK_VEL = 2, AS_LK_GLIDE = 4, AS_LK_FORCE = 8, AS_LK_TIMB = 16, AS_LK_RHYTHM = 32,
@@ -174,8 +176,8 @@ static as_cfg_t as_clean(as_cfg_t c)
 {
     if (c.len < 1)
         c.len = 1;
-    if (c.len > AS_MAXLEN)
-        c.len = AS_MAXLEN;
+    if (c.len > AS_PLAYLEN)
+        c.len = AS_PLAYLEN;
     if (c.hits > c.len)
         c.hits = c.len;
     c.rot %= c.len;
@@ -248,8 +250,6 @@ static void as_draw(as_seq_t *q, uint32_t i)
         c->dchance[k] = 127;
         if (!(lk & AS_LK_RHYTHM)) {
             if (as_coin(s, d * 2))
-                c->rat[k] = (uint8_t)(1u + as_rand(s) % 3u);
-            else if (as_coin(s, d * 2))
                 c->flam[k] = 1;
             if (as_coin(s, d * 2))
                 c->dchance[k] = (uint8_t)(25u + as_rand(s) % 70u);
@@ -261,6 +261,13 @@ static void as_draw(as_seq_t *q, uint32_t i)
                 c->gate[k] = (uint8_t)(2u + as_rand(s) % 3u);
             c->env[k] = (int8_t)as_uni(s, d * 50 / 127);
         }
+    }
+    /* a ratchet (Romain 04/11): none as a rule; at most ONE step of the circle, x2 mostly, x3 almost never (1 in 16);
+     * a chance rising with DOSE, a quarter at 127 */
+    if (!(lk & AS_LK_RHYTHM) && as_coin(s, d * 2)) {
+        k = as_rand(s) % (c->cfg.len ? c->cfg.len : 16u);
+        c->rat[k] = (uint8_t)(as_rand(s) % 16u ? 1u : 2u);
+        c->flam[k] = 0;
     }
 }
 
