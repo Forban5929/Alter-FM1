@@ -70,6 +70,7 @@ jobs:
           mkdir -p site/editor
           cp web/alter/editor.html site/editor/index.html
           cp web/alter/link.js site/editor/
+          cp -r web/alter/fonts site/editor/
           echo "$GITHUB_REF_NAME @ ${GITHUB_SHA::7}" > site/version.txt
       # La page d'installation FM-1 (/install/) : vrai firmware (compilateur JieLi). Si ça échoue, RIEN n'est publié (l'ancien site reste).
       - name: Firmware FM-1 + page d'installation

@@ -13,7 +13,7 @@
   https://forban5929.github.io/Alter-FM1/install/ (`tools/alter/make_install.py` = installateur Felucca `web/index_pkg.html`
   + fm1pkg.js + fm1ota.js, protocole USB intact, retour V15/secours → The Firmware Hub). Le cloud ne peut pas télécharger le
   compilateur JieLi : tout passe par GitHub. Suivre : `gh run list -R Forban5929/alter-fm1` / `gh run view ID --log`.
-- Mesuré (04/11, après page compagnon + réverbs) : app 378 Ko / 582 Ko (XIP), RAM 68,6 / 73,7 Ko, pool 318 / 369 Ko.
+- Mesuré (04/11, après page v2) : image 384 Ko, RAM 69,3 / 73,7 Ko (≈ 4 Ko libres), pool 318 / 369 Ko.
 - Corrigé pour la vraie puce : `alter_divdi.c` (__udivdi3/__divdi3/__umoddi3/__moddi3 : pas de bibliothèque du compilateur ;
   testé exact sur 5 M valeurs ; ~64 tours/appel) · `tools/size_fns.py` ignore les fichiers retirés · contrôle ROM de
   `tools/build.py` : `ROM_CONST_OK` autorise la limite −(1<<22) d'afl_block (comparaison, pas une adresse).
@@ -74,6 +74,10 @@
   CHOISIR, DENSITÉ −/+, DÉCALER, DÉ PROPRE RYTHME, hasard par couloir + TOUTES), CHAOS / CHAOS TOTAL ; onglets SONS | RYTHMES
   (+ éditeur de couloirs glissé, Au hasard / À plat) | MODULATION | EFFETS. Protocole : LINK.md « v2 » (`LK_V`, `lk_act`).
   Tests : alter_link_test 39/39, editor_browser_test 15/15. **Pas encore essayé sur la FM-1.**
+  **Look (04/11, Romain : « rester sur le style du synthé »)** : page = écran FM-1 (cartes de tarot alter_look.c, cadran PLAY : sigil,
+  losange/anneau/point, étoile, triangle en 3 pièces ; points des pas = vélocité), thèmes NIGHT/DAY (bouton, localStorage), polices
+  `web/alter/fonts/` (copiées par pages.yml), **tout en anglais** (page + noms LK_GRP/LK_V), ALGORITHM = ligne TYPE dans ENVELOPE.
+  (Pistes brutalistes rejetées : canvas https://claude.ai/artifact/UKDYy7GAuyAv2KxmceStfV.)
   Plus tard : enveloppes des modes PERC/STAB dans la page, patch fichier = scène entière ?, assistant d'installation façon baudgirl.
   (L'ancien éditeur Felucca, protocole « FL », est dans l'historique git, commit 8b8f548^ : web/EDITOR_PROTOCOL.md.)
 

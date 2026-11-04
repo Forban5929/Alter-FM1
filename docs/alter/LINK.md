@@ -31,7 +31,7 @@ Mode démo : `editor/?demo` fait tourner `../felucca.wasm` dans la page (exports
 | cmd | requête | réponse |
 | --- | --- | --- |
 | 11 VLIST | — | 15 noms de groupes, nb réglages par cercle (38), partagés (44), 6 noms de couloirs, nb d'actions (26) ; **active les poussées v2** |
-| 12 VDESC | portée (1 cercle, 0 partagé), i [, cercle] | portée, i, groupe, min, max, nom, mots d'une liste (MATRICE : ceux de la part) |
+| 12 VDESC | portée (1 cercle, 0 partagé), i [, cercle] | portée, i, groupe, min, max, nom, mots d'une liste (MATRIX : ceux de la part) |
 | 13 VALL | cercle (3 = partagés) | cercle, n, n valeurs (ordre de `LK_V`) |
 | 14 VSET | cercle (3), i, valeur | cercle, i, valeur gardée (rythme : au cycle suivant, comme les knobs) |
 | 15 LANE | cercle, couloir | cercle, couloir, 16 valeurs |
@@ -44,6 +44,9 @@ Actions (`LA_*`, = touches de la machine) : MUTE, DÉ (tirage), PROPRE, DENS −
 TOUTES les séquences, TOUT À PLAT, hasard d'un couloir (11..16), à plat d'un couloir (17..22), CHAOS, CHAOS TOTAL (retapé
 < 3 s = annulé), CHOISIR. Les actions « du cercle choisi » mettent `au.sel` le temps de l'appel puis le remettent.
 PLAY poussé ~30/s seulement s'il a changé ; puis ≤ 10 messages par passe de 20 ms. Page : 3 colonnes (cercle SVG + boutons),
-CHAOS / CHAOS TOTAL, onglets SONS (+ ALGORITHM) | RYTHMES (GAMME, TEMPO, rythme, éditeur de couloirs glissé) | MODULATION
-(LFO GLOBAL, LFO 1-3, MATRICE) | EFFETS (DELAY, REVERB, MASTER, FILTRE A/B, MORPH). Firmware sans v2 : VLIST sans réponse →
+CHAOS / CHAOS TOTAL, onglets SOUNDS (TYPE = ALGORITHM dans ENVELOPE) | RHYTHMS (SCALE, TEMPO, rythme, éditeur de couloirs glissé) | MODULATION
+(LFO GLOBAL, LFO 1-3, MATRIX) | EFFECTS (DELAY, REVERB, MASTER, FILTER A/B, MORPH). **Page en anglais** (04/11, Romain : « la langue des synth nerds ») ;
+noms des groupes et réglages du firmware aussi (LK_GRP, LK_V : RHYTHM SCALE ENVELOPE MATRIX FILTER A/B, FORCE ROT, CHORD, DICE DOSE, TYPE, SCALE).
+Look = l'écran de la FM-1 (cartes de tarot, thèmes NIGHT / DAY gardés dans le navigateur, polices dans `web/alter/fonts/`) ; points des pas
+= taille selon la vélocité (couloir VELO tourné par FORCE ROT, sans le dé). Firmware sans v2 : VLIST sans réponse →
 la page garde les sons et dit d'installer la dernière version. Patch fichier : toujours les 3 sons seulement.

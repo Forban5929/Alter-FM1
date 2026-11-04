@@ -143,8 +143,8 @@ static int32_t lk_set(uint32_t c, uint32_t id, int32_t v)
 enum { LV_CFG, LV_MODE, LV_LFO, LV_MTX, LV_SCALE, LV_GL, LV_G, LV_AMX, LV_AFL, LV_MORPH };
 enum { LF_TYPE, LF_LEN, LF_HITS, LF_ROT, LF_PROB, LF_FROT, LF_TLOCK, LF_TDENS, LF_TRANGE, LF_MUTE, LF_ROOT, LF_CHORD,
        LF_DOSE };
-static const char *const LK_GRP[] = {"RYTHME", "GAMME", "ENVELOPPE", "LFO 1", "LFO 2", "LFO 3", "MATRICE",
-                                     "LFO GLOBAL", "TEMPO", "DELAY", "REVERB", "MASTER", "FILTRE A", "FILTRE B",
+static const char *const LK_GRP[] = {"RHYTHM", "SCALE", "ENVELOPE", "LFO 1", "LFO 2", "LFO 3", "MATRIX",
+                                     "LFO GLOBAL", "TEMPO", "DELAY", "REVERB", "MASTER", "FILTER A", "FILTER B",
                                      "MORPH"};
 enum { GR_RYT, GR_GAM, GR_ENV, GR_L1, GR_L2, GR_L3, GR_MTX, GR_LGL, GR_TMP, GR_DLY, GR_REV, GR_MST, GR_FA, GR_FB, GR_MRP };
 static const char *const LK_OFFON[2] = {"OFF", "ON"};
@@ -180,18 +180,18 @@ static const lk_var_t LK_V[] = {
     LKV_C(LV_CFG, LF_HITS, GR_RYT, "HITS", 0, AS_PLAYLEN, 0),
     LKV_C(LV_CFG, LF_ROT, GR_RYT, "ROT", 0, AS_PLAYLEN - 1, 0),
     LKV_C(LV_CFG, LF_PROB, GR_RYT, "PROB", 0, 127, 0),
-    LKV_C(LV_CFG, LF_FROT, GR_RYT, "ROT FORCE", 0, AS_PLAYLEN - 1, 0),
+    LKV_C(LV_CFG, LF_FROT, GR_RYT, "FORCE ROT", 0, AS_PLAYLEN - 1, 0),
     LKV_C(LV_CFG, LF_TLOCK, GR_RYT, "TURING LOCK", 0, 127, 0),
     LKV_C(LV_CFG, LF_TDENS, GR_RYT, "TURING DENS", 0, 127, 0),
     LKV_C(LV_CFG, LF_TRANGE, GR_RYT, "TURING RANGE", 0, 14, 0),
     LKV_C(LV_CFG, LF_MUTE, GR_RYT, "MUTE", 0, 1, LK_OFFON),
     LKV_C(LV_CFG, LF_ROOT, GR_GAM, "NOTE", 12, 96, 0),
-    LKV_C(LV_CFG, LF_CHORD, GR_GAM, "ACCORD", 0, AS_NCHORD - 1, AS_CHORD_NAME),
-    LKV_C(LV_CFG, LF_DOSE, GR_GAM, "DOSE DU DE", 0, 127, 0),
-    LKV_C(LV_MODE, 0, GR_ENV, "ALGORITHM", 0, AM_NSEL - 1, ALT_MODE_NAME),
+    LKV_C(LV_CFG, LF_CHORD, GR_GAM, "CHORD", 0, AS_NCHORD - 1, AS_CHORD_NAME),
+    LKV_C(LV_CFG, LF_DOSE, GR_GAM, "DICE DOSE", 0, 127, 0),
+    LKV_C(LV_MODE, 0, GR_ENV, "TYPE", 0, AM_NSEL - 1, ALT_MODE_NAME),
     LKV_LFO(0, GR_L1), LKV_LFO(1, GR_L2), LKV_LFO(2, GR_L3),
     LKV_MTX(0), LKV_MTX(1), LKV_MTX(2), LKV_MTX(3),
-    LKV_G(LV_SCALE, 0, GR_GAM, "GAMME", 0, AS_NSCALE - 1, AS_SCALE_NAME),
+    LKV_G(LV_SCALE, 0, GR_GAM, "SCALE", 0, AS_NSCALE - 1, AS_SCALE_NAME),
     LKV_G(LV_GL, 0, GR_LGL, "WAVE", 0, GW_N - 1, GL_WAVE_NAME),
     LKV_G(LV_GL, 1, GR_LGL, "RATE", 0, GL_NRATE - 1, GL_RATE_NAME),
     LKV_G(LV_GL, 2, GR_LGL, "DEPTH", -64, 63, 0),

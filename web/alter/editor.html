@@ -1,198 +1,248 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en" data-theme="night">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ALTER compagnon</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<title>ALTER companion</title>
 <style>
-@font-face { font-family: "Dot"; src: url("../fonts/DotGothic16-subset.woff") format("woff"); font-display: swap; }
-:root {
-  /* the FM-1 screen's NIGHT palette (firmware/src/alter_ui.c ALT_BG ALT_INK ALT_GREY ALT_DARK ALT_COLS) */
-  --card: #0e0c10; --ink: #ebd9a8; --rest: #64563c; --faint: #1e1a16; --gold: #a8894e;
-  --c1: #c9504a; --c2: #4fa88c; --c3: #d4ae52;
-  --warn: #e0664a; --body: #16131a;
-  --prose: "Atkinson Hyperlegible", system-ui, sans-serif;
-  --dot: "Dot", ui-monospace, monospace;
+/* the FM-1 screen's look (firmware/src/alter_look.c, "A · ALCHIMIE"): every panel is a tarot card. Fonts as on the
+ * machine: TeX Gyre Pagella Bold (titles), Inter Tight (words), IBM Plex Mono (numbers). Colours: alter_ui.c ALT_* */
+@font-face { font-family: "Pagella"; src: url("fonts/pagella-bold.woff") format("woff"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Inter Tight"; src: url("fonts/intertight.woff") format("woff"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Plex Mono"; src: url("fonts/plexmono.woff") format("woff"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Plex Mono"; src: url("fonts/plexmono-bold.woff") format("woff"); font-weight: 700; font-display: swap; }
+:root, [data-theme="night"] {
+  /* NIGHT: crimson, verdigris, old gold on black and gold leaf */
+  --bg: #0e0c10; --body: #08070a; --ink: #ebd9a8; --dim: #9a845c; --grey: #64563c; --dark: #1e1a16;
+  --gold: #c9a24d; --frame: #c9a24d; --rim: #6f5a30; --rib: #4a1a1f; --ribtx: #ebd9a8; --ribedge: #c9a24d;
+  --c1: #c9504a; --c2: #4fa88c; --c3: #d4ae52; --warn: #e23c34; --ontx: #0e0c10;
+  --main-bg: #c9a24d; --main-tx: #0e0c10; --grain: .05; --goldtx: #c9a24d;
+  color-scheme: dark;
 }
+[data-theme="day"] {
+  /* DAY: coral, teal, sun on cream, indigo ink */
+  --bg: #f3e6c8; --body: #e6d5ae; --ink: #2e2b55; --dim: #6f604b; --grey: #ac9870; --dark: #e8d8b8;
+  --gold: #c8962e; --frame: #2e2b55; --rim: #c9b58a; --rib: #2e2b55; --ribtx: #f3e6c8; --ribedge: #2e2b55;
+  --c1: #e0664a; --c2: #2a9d8f; --c3: #d99a22; --warn: #c82828; --ontx: #2e2b55;
+  --main-bg: #2e2b55; --main-tx: #f3e6c8; --grain: .09; --goldtx: #7a5512;
+  color-scheme: light;
+}
+:root { --serif: "Pagella", "Palatino Linotype", Palatino, Georgia, serif; --sans: "Inter Tight", "Inter", system-ui, sans-serif;
+  --mono: "Plex Mono", ui-monospace, monospace; }
 * { box-sizing: border-box; }
 html { background: var(--body); }
-body { margin: 0; background: var(--body); color: var(--ink); font: 16px/1.5 var(--prose); }
-a { color: var(--ink); }
+body { margin: 0; min-height: 100vh; background: var(--body); color: var(--ink); font: 15px/1.5 var(--sans); position: relative; }
+body::before { content: ""; position: fixed; inset: 0; pointer-events: none; opacity: var(--grain); z-index: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .4 0 0 0 0 .25 0 0 0 1.4 -.3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"); }
+body > * { position: relative; z-index: 1; }
+a { color: var(--ink); text-decoration-color: var(--gold); }
 button, select, input { font: inherit; color: inherit; }
-:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
-.top { max-width: 1180px; margin: 0 auto; padding: 28px 16px 8px; display: grid; gap: 20px;
-  grid-template-columns: 1fr auto; align-items: end; }
-.brand { font-family: var(--dot); font-size: 44px; line-height: 1; letter-spacing: .04em; margin: 0; }
-.brand small { display: block; font-family: var(--prose); font-size: 17px; letter-spacing: 0; color: var(--gold); margin-top: 8px; }
+/* ---- the tarot card: double frame, fan corners, the ribbon with its title, the arcana's numeral ---- */
+.tc { position: relative; background: var(--bg); border: 1px solid var(--frame); padding: 36px 16px 18px;
+  box-shadow: inset 0 0 0 3px var(--bg), inset 0 0 0 4px var(--rim); --c: var(--gold); }
+.tc::before { content: ""; position: absolute; inset: 3px; pointer-events: none;
+  --fan: transparent 4.5px, var(--gold) 4.5px 5.6px, transparent 6px 7.6px, var(--rim) 7.6px 8.6px, transparent 9px;
+  background: radial-gradient(circle at 0 0, var(--fan)) top left / 14px 14px no-repeat,
+    radial-gradient(circle at 100% 0, var(--fan)) top right / 14px 14px no-repeat,
+    radial-gradient(circle at 0 100%, var(--fan)) bottom left / 14px 14px no-repeat,
+    radial-gradient(circle at 100% 100%, var(--fan)) bottom right / 14px 14px no-repeat; }
+.rib { position: absolute; top: 3px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 70px);
+  background: var(--ribedge); padding: 1px 0; clip-path: polygon(0 0, 100% 0, calc(100% - 7px) 50%, 100% 100%, 0 100%, 7px 50%); }
+.rib > span { display: block; background: var(--rib); color: var(--ribtx); font: 700 16px/22px var(--serif); letter-spacing: .05em;
+  padding: 0 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase;
+  clip-path: polygon(1px 0, calc(100% - 1px) 0, calc(100% - 7.5px) 50%, calc(100% - 1px) 100%, 1px 100%, 7.5px 50%); }
+.num { position: absolute; top: 8px; left: 12px; font: 12px/1 var(--sans); color: var(--goldtx); letter-spacing: .04em; }
+.tag { position: absolute; top: 8px; right: 12px; font: 12px/1 var(--sans); color: var(--dim); display: flex; gap: 6px; align-items: center; }
+.tag b { color: var(--c); font-weight: 400; }
+
+/* ---- the header, the bar ---- */
+.top { max-width: 1180px; margin: 0 auto; padding: 28px 16px 8px; display: grid; gap: 18px 24px;
+  grid-template-columns: 1fr auto; align-items: center; }
+.brand { margin: 0; display: flex; align-items: center; gap: 18px; }
+.brand .rib { position: static; transform: none; max-width: none; padding: 1.5px 0; clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 50%, 100% 100%, 0 100%, 12px 50%); }
+.brand .rib > span { font-size: 34px; line-height: 50px; padding: 0 40px; letter-spacing: .12em;
+  clip-path: polygon(1.5px 0, calc(100% - 1.5px) 0, calc(100% - 12.5px) 50%, calc(100% - 1.5px) 100%, 1.5px 100%, 12.5px 50%); }
+.brand small { font: 15px/1.3 var(--sans); color: var(--dim); max-width: 22ch; }
 .link { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
-.state { display: inline-flex; align-items: center; gap: 8px; color: var(--gold); }
-.state i { width: 10px; height: 10px; border-radius: 50%; background: var(--rest); }
-.state[data-on="midi"] i { background: var(--c2); }
-.state[data-on="demo"] i { background: var(--c3); }
-.btn { background: var(--faint); border: 1px solid var(--rest); border-radius: 6px; padding: 8px 14px; cursor: pointer; }
-.btn:hover { border-color: var(--ink); }
-.btn.main { background: var(--ink); color: var(--card); border-color: var(--ink); font-weight: 700; }
+.state { display: inline-flex; align-items: center; gap: 8px; color: var(--dim); }
+.state i { width: 9px; height: 9px; transform: rotate(45deg); border: 1px solid var(--gold); }
+.state[data-on="midi"] i { background: var(--c2); border-color: var(--c2); }
+.state[data-on="demo"] i { background: var(--c3); border-color: var(--c3); }
+.btn { background: transparent; border: 1px solid var(--rim); padding: 8px 14px; cursor: pointer; letter-spacing: .02em; }
+.btn:hover { border-color: var(--gold); }
+.btn.main { background: var(--main-bg); color: var(--main-tx); border-color: var(--main-bg); font-weight: 600; }
 .btn:disabled { opacity: .4; cursor: default; }
+.theme { min-width: 44px; min-height: 40px; display: inline-flex; align-items: center; gap: 8px; }
+.theme svg { width: 18px; height: 18px; }
 
-.bar { max-width: 1180px; margin: 0 auto; padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: center;
-  border-top: 1px solid var(--faint); border-bottom: 1px solid var(--faint); }
+.bar { max-width: 1180px; margin: 12px auto 0; padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 12px 32px; align-items: center;
+  border-top: 1px solid var(--rim); border-bottom: 1px solid var(--rim); }
 .bar .grp { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.bar .grp > span { color: var(--gold); }
-select { background: var(--faint); border: 1px solid var(--rest); border-radius: 6px; padding: 7px 10px; }
+.bar .grp > span { color: var(--goldtx); font-family: var(--serif); font-weight: 700; letter-spacing: .04em; }
+select { background: var(--bg); border: 1px solid var(--rim); padding: 7px 10px; border-radius: 0; }
+select:hover { border-color: var(--gold); }
 
-.msg { max-width: 1180px; margin: 0 auto; padding: 10px 16px 0; min-height: 34px; color: var(--gold); }
+.msg { max-width: 1180px; margin: 0 auto; padding: 10px 16px 0; min-height: 34px; color: var(--dim); }
 .msg.bad { color: var(--warn); }
 
-.intro { max-width: 1180px; margin: 0 auto; padding: 40px 16px; }
-.intro p { max-width: 62ch; }
-.intro ol { max-width: 62ch; padding-left: 1.2em; }
+.intro { max-width: 760px; margin: 24px auto; }
+.intro p, .intro ol { max-width: 62ch; }
+.intro ol { padding-left: 1.2em; }
+.intro li::marker { color: var(--gold); font-family: var(--serif); }
 
-.strips { max-width: 1180px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-@media (max-width: 900px) { .strips { grid-template-columns: 1fr; } .top { grid-template-columns: 1fr; } .link { justify-content: flex-start; } }
-.strip { background: var(--card); border: 1px solid var(--faint); border-radius: 14px; padding: 18px 16px 20px; --c: var(--c1); }
-.strip:nth-child(2) { --c: var(--c2); } .strip:nth-child(3) { --c: var(--c3); }
-.head { display: grid; grid-template-columns: 72px 1fr; gap: 14px; align-items: center; margin-bottom: 14px; }
-.ring { width: 72px; height: 72px; }
-.ring circle { fill: none; stroke: var(--c); }
-.ring text { fill: var(--c); font-family: var(--dot); font-size: 26px; }
-.eng { font-family: var(--dot); font-size: 24px; color: var(--c); line-height: 1.1; }
-.mode { font-family: var(--dot); font-size: 14px; color: var(--rest); }
-.sound { width: 100%; margin-bottom: 6px; }
-fieldset { border: 0; border-top: 1px solid var(--faint); margin: 14px 0 0; padding: 10px 0 0; }
-legend { color: var(--gold); padding: 0 6px 0 0; font-size: 15px; }
-.p { display: grid; grid-template-columns: 58px 1fr 76px; gap: 10px; align-items: center; min-height: 32px; }
-.p label { font-family: var(--dot); font-size: 14px; color: var(--ink); overflow: hidden; white-space: nowrap; }
-.p output { font-family: var(--dot); font-size: 14px; text-align: right; color: var(--ink); white-space: nowrap; overflow: hidden; }
-.p select { width: 100%; padding: 4px 8px; font-family: var(--dot); font-size: 14px; }
-.p.enum { grid-template-columns: 58px 1fr; }
-input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; background: transparent; height: 26px; margin: 0; }
-input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px;
-  background: linear-gradient(to right, var(--c) var(--f, 0%), var(--faint) var(--f, 0%)); }
-input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--faint); }
-input[type=range]::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--c); }
-input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: -5px; border-radius: 50%; background: var(--ink); border: 0; }
-input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--ink); border: 0; }
-.p.flash output { color: var(--c); }
-.foot { max-width: 1180px; margin: 0 auto; padding: 20px 16px 48px; color: var(--rest); font-size: 14px; }
-.foot p { max-width: 80ch; margin: 4px 0; }
-dialog { background: var(--card); color: var(--ink); border: 1px solid var(--rest); border-radius: 12px; padding: 20px;
-  width: min(420px, calc(100vw - 32px)); }
-dialog::backdrop { background: rgba(14, 12, 16, .7); }
-dialog p { margin: 0 0 14px; }
-dialog input { width: 100%; background: var(--faint); border: 1px solid var(--rest); border-radius: 6px; padding: 8px 10px; margin-bottom: 14px; }
-.dlgBtns { display: flex; gap: 10px; justify-content: flex-end; }
-/* v2: the circles as they play, their actions; the tabs; the lanes */
+/* ---- the three circles as they play ---- */
 .live { max-width: 1180px; margin: 0 auto; padding: 16px 16px 0; }
 .cols { display: grid; gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.col { background: var(--card); border: 1px solid var(--faint); border-radius: 14px; padding: 14px 14px 16px; --c: var(--c1); }
-.col:nth-child(2) { --c: var(--c2); } .col:nth-child(3) { --c: var(--c3); }
+.col:nth-child(1), .strip:nth-child(1) { --c: var(--c1); }
+.col:nth-child(2), .strip:nth-child(2) { --c: var(--c2); }
+.col:nth-child(3), .strip:nth-child(3) { --c: var(--c3); }
 .col.sel { border-color: var(--c); }
-.dial { display: block; width: min(100%, 260px); margin: 0 auto; aspect-ratio: 1; }
-.dial .track { fill: none; stroke: var(--faint); stroke-width: 2; }
-.dial .st { fill: var(--card); stroke: var(--rest); stroke-width: 2; }
-.dial .st.on { fill: var(--c); stroke: var(--c); }
-.dial .st.now { stroke: var(--ink); stroke-width: 3; }
-.dial .core { fill: var(--faint); }
-.dial .core.hit { fill: var(--c); }
-.dial text { fill: var(--c); font-family: var(--dot); font-size: 34px; }
-.col.muted .dial { opacity: .35; }
-.cname { text-align: center; font-family: var(--dot); font-size: 15px; color: var(--c); margin: 4px 0 10px; min-height: 22px; }
-.acts { display: grid; gap: 8px; }
+.col.sel .rib { background: var(--c); }
+.dial { display: block; width: min(100%, 280px); margin: 0 auto; aspect-ratio: 1; }
+.dial .ring { fill: none; stroke: var(--gold); stroke-width: 1.4; }
+.col.sel .dial .ring { stroke: var(--c); stroke-width: 2.2; }
+.dial .ring2 { fill: none; stroke: var(--rim); stroke-width: 1; stroke-dasharray: 1.5 4; }
+.dial .spoke { stroke: var(--dark); stroke-width: 1; }
+.dial .sig { fill: none; stroke: var(--c); stroke-width: 1.3; stroke-linejoin: round; opacity: .85; }
+.dial .mk { fill: var(--c); stroke: none; }
+.dial .mk.ring { fill: var(--bg); stroke: var(--c); stroke-width: 2.4; }
+.dial .rest { fill: var(--grey); }
+.dial .star { fill: var(--ink); }
+.dial .needle { stroke: var(--gold); stroke-width: 1.4; }
+.dial .tri { fill: none; stroke: var(--gold); stroke-width: 1; stroke-linejoin: round; }
+.dial .piece { fill: var(--c); opacity: .35; transition: opacity .25s, transform .25s; transform-box: fill-box; transform-origin: center; }
+.dial.hit .piece { opacity: 1; transition: none; }
+.col.muted { --c: var(--grey); }
+.col.muted .dial .sig { opacity: .4; }
+.acts { display: grid; gap: 8px; margin-top: 8px; }
 .arow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.arow > span { color: var(--gold); font-size: 14px; min-width: 84px; }
-.act { background: var(--faint); border: 1px solid var(--rest); border-radius: 6px; padding: 5px 10px; cursor: pointer;
-  font-family: var(--dot); font-size: 14px; line-height: 1.2; min-height: 32px; }
+.arow > span { color: var(--dim); font-size: 13px; min-width: 78px; }
+.act { background: transparent; border: 1px solid var(--rim); padding: 4px 10px; cursor: pointer;
+  font: 13px/1.2 var(--sans); letter-spacing: .04em; min-height: 32px; text-transform: uppercase; }
 .act:hover { border-color: var(--c); }
-.act:active { background: var(--c); color: var(--card); }
-.act.on { background: var(--c); color: var(--card); border-color: var(--c); }
-.globals { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 14px 2px 0; }
-.globals .act { --c: var(--warn); min-height: 40px; padding: 8px 16px; }
-.globals small { color: var(--rest); }
-.tabs { max-width: 1180px; margin: 24px auto 0; padding: 0 16px; display: flex; gap: 4px; border-bottom: 1px solid var(--faint);
-  overflow-x: auto; }
-.tab { background: none; border: 0; border-bottom: 3px solid transparent; padding: 10px 16px; cursor: pointer; color: var(--gold);
-  font-size: 17px; white-space: nowrap; }
-.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+.act:active { background: var(--c); color: var(--ontx); }
+.act.on { background: var(--c); color: var(--ontx); border-color: var(--c); }
+.globals { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 16px 2px 0; }
+.globals .act { --c: var(--warn); min-height: 42px; padding: 8px 20px; font: 700 15px/1 var(--serif); letter-spacing: .1em; border-color: var(--gold); }
+.globals small { color: var(--dim); max-width: 70ch; }
+
+/* ---- the tabs (engraved: the one shown in ink, underlined; the others dim) ---- */
+.tabs { max-width: 1180px; margin: 26px auto 0; padding: 0 16px; display: flex; gap: 4px; border-bottom: 1px solid var(--rim); overflow-x: auto; }
+.tab { background: none; border: 0; border-bottom: 2px solid transparent; padding: 10px 16px; cursor: pointer; color: var(--dim);
+  font: 700 17px/1.2 var(--serif); letter-spacing: .06em; white-space: nowrap; text-transform: uppercase; }
+.tab i { font: 12px var(--sans); font-style: normal; color: var(--goldtx); margin-right: 8px; letter-spacing: 0; }
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--gold); }
 .panel { max-width: 1180px; margin: 0 auto; padding: 0 16px; }
-.panel > .strips { padding: 16px 0; }
-.shared { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); padding: 16px 0 0; }
-.card { background: var(--card); border: 1px solid var(--faint); border-radius: 14px; padding: 6px 16px 14px; --c: var(--gold); }
-.card fieldset:first-child, .strip fieldset.first { border-top: 0; }
-.lanes { margin-top: 14px; border-top: 1px solid var(--faint); padding-top: 10px; }
-.ltabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
-.ltabs .act { font-size: 13px; padding: 3px 8px; min-height: 28px; }
-.lbars { display: block; width: 100%; height: 120px; touch-action: none; cursor: crosshair; }
-.lbars .bg { fill: var(--faint); }
-.lbars .bar { fill: var(--c); }
-.lbars .bar.off { fill: var(--rest); opacity: .45; }
-.lbars .mid { stroke: var(--rest); stroke-width: 1; }
-.lfoot { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
-.lfoot output { margin-left: auto; font-family: var(--dot); font-size: 14px; color: var(--gold); }
-.v2off { padding: 18px 0; color: var(--gold); }
+
+/* ---- the strips of settings ---- */
+.strips { max-width: 1180px; margin: 0 auto; padding: 16px 0; display: grid; gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.sound { width: 100%; margin: 2px 0 4px; }
+fieldset { border: 0; border-top: 1px solid var(--dark); margin: 14px 0 0; padding: 10px 0 0; }
+fieldset.first { border-top: 0; margin-top: 0; }
+legend { color: var(--goldtx); padding: 0 8px 0 0; font: 700 14px var(--serif); letter-spacing: .08em; text-transform: uppercase; }
+legend::before { content: "◆ "; font-size: 9px; vertical-align: 2px; color: var(--c); }
+.p { display: grid; grid-template-columns: 58px 1fr 76px; gap: 10px; align-items: center; min-height: 32px; }
+.p label { font-size: 13px; color: var(--ink); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; letter-spacing: .03em; }
+.p output { font: 13px var(--mono); text-align: right; color: var(--dim); white-space: nowrap; overflow: hidden; }
+.p select { width: 100%; padding: 4px 8px; font: 13px var(--mono); }
+.p.enum { grid-template-columns: 58px 1fr; }
 .p.w { grid-template-columns: 112px 1fr 64px; }
 .p.w.enum { grid-template-columns: 112px 1fr; }
-.card .p.w { grid-template-columns: 78px 1fr 46px; }
+.card .p.w { grid-template-columns: 78px 1fr 50px; }
 .card .p.w.enum { grid-template-columns: 78px 1fr; }
-.shared { align-items: start; }
-.dial.hit text { fill: var(--card); }
-@media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
+.p.flash output { color: var(--c); }
+input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; background: transparent; height: 26px; margin: 0; }
+input[type=range]::-webkit-slider-runnable-track { height: 3px;
+  background: linear-gradient(to right, var(--c) var(--f, 0%), var(--dark) var(--f, 0%)); }
+input[type=range]::-moz-range-track { height: 3px; background: var(--dark); }
+input[type=range]::-moz-range-progress { height: 3px; background: var(--c); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 15px; height: 15px; margin-top: -6px; border-radius: 50%;
+  background: var(--bg); border: 1.5px solid var(--gold); box-shadow: inset -4px 0 0 var(--ink); }
+input[type=range]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--bg); border: 1.5px solid var(--gold);
+  box-shadow: inset -4px 0 0 var(--ink); }
+input[type=range]:hover::-webkit-slider-thumb { border-color: var(--c); }
+.shared { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); padding: 16px 0 0; align-items: start; }
+
+/* ---- the lanes ---- */
+.lanes { margin-top: 14px; border-top: 1px solid var(--dark); padding-top: 10px; }
+.ltabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.ltabs .act { font-size: 12px; padding: 3px 8px; min-height: 28px; }
+.lbars { display: block; width: 100%; height: 120px; touch-action: none; cursor: crosshair; }
+.lbars .bg { fill: var(--dark); }
+.lbars .bar { fill: var(--c); }
+.lbars .bar.off { fill: var(--grey); opacity: .5; }
+.lbars .mid { stroke: var(--grey); stroke-width: 1; }
+.lfoot { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
+.lfoot output { margin-left: auto; font: 13px var(--mono); color: var(--dim); }
+.v2off { padding: 18px 0; color: var(--dim); }
+
+.foot { max-width: 1180px; margin: 24px auto 0; padding: 20px 16px 48px; color: var(--dim); font-size: 13px; border-top: 1px solid var(--rim); }
+.foot p { max-width: 90ch; margin: 4px 0; }
+dialog { background: var(--bg); color: var(--ink); border: 1px solid var(--frame); padding: 22px; box-shadow: inset 0 0 0 3px var(--bg), inset 0 0 0 4px var(--rim);
+  width: min(420px, calc(100vw - 32px)); }
+dialog::backdrop { background: rgba(8, 7, 10, .7); }
+dialog p { margin: 0 0 14px; }
+dialog input { width: 100%; background: var(--bg); border: 1px solid var(--rim); padding: 8px 10px; margin-bottom: 14px; }
+.dlgBtns { display: flex; gap: 10px; justify-content: flex-end; }
+@media (max-width: 900px) { .strips, .cols { grid-template-columns: 1fr; } .top { grid-template-columns: 1fr; } .link { justify-content: flex-start; } }
 [hidden] { display: none !important; }
 @media (prefers-reduced-motion: no-preference) { .p output { transition: color .4s; } }
 </style>
 </head>
 <body>
 <header class="top">
-  <h1 class="brand">ALTER<small>Les réglages des trois sons de ta FM-1, en grand</small></h1>
+  <h1 class="brand"><span class="rib"><span>ALTER</span></span><small>Companion for the M-VAVE FM-1</small></h1>
   <div class="link">
-    <span class="state" id="state" data-on=""><i></i><span id="stateTxt">Pas connecté</span></span>
-    <button class="btn main" id="bMidi">Connecter la FM-1</button>
-    <button class="btn" id="bDemo">Essayer sans machine</button>
+    <span class="state" id="state" data-on=""><i></i><span id="stateTxt">Not connected</span></span>
+    <button class="btn main" id="bMidi">Connect the FM-1</button>
+    <button class="btn" id="bDemo">Try without a synth</button>
+    <button class="btn theme" id="bTheme" aria-label="Switch to the DAY theme"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3a9 9 0 1 0 6 15.5A8 8 0 0 1 15 3z" fill="currentColor"/></svg><span>NIGHT</span></button>
   </div>
 </header>
 
 <section class="bar" id="bar" hidden>
-  <div class="grp"><span>Patch sur l'ordinateur</span>
-    <button class="btn" id="bOpen">Ouvrir…</button>
-    <button class="btn" id="bSave">Enregistrer</button>
+  <div class="grp"><span>Patch file</span>
+    <button class="btn" id="bOpen">Open…</button>
+    <button class="btn" id="bSave">Save</button>
     <input type="file" id="file" accept=".json,application/json" hidden>
   </div>
-  <div class="grp"><span>Scène dans la FM-1</span>
-    <select id="slot" aria-label="Place USER"></select>
-    <button class="btn" id="bStore">Ranger ici</button>
-    <button class="btn" id="bLoad">Charger</button>
+  <div class="grp"><span>Scene in the FM-1</span>
+    <select id="slot" aria-label="USER slot"></select>
+    <button class="btn" id="bStore">Store here</button>
+    <button class="btn" id="bLoad">Load</button>
   </div>
 </section>
 <p class="msg" id="msg" role="status"></p>
 
-<section class="intro" id="intro">
-  <p>Branche ta FM-1 en USB, allume-la sur ALTER, puis clique sur « Connecter la FM-1 ». Chrome ou Edge demandent l'autorisation
-    d'échanger des messages MIDI avec la machine : accepte.</p>
+<section class="intro tc" id="intro">
+  <div class="rib"><span>The Link</span></div><span class="num">0</span>
+  <p>Plug your FM-1 in over USB, switch it on with ALTER, then click “Connect the FM-1”. Chrome or Edge will ask to let
+    the page exchange MIDI messages with the synth: allow it.</p>
   <ol>
-    <li>Ce que tu bouges ici change le son tout de suite sur la machine, et ce que tu tournes sur la machine bouge ici.</li>
-    <li>« Enregistrer » garde les trois sons dans un fichier sur ton ordinateur, à partager avec qui tu veux.</li>
-    <li>« Ranger ici » garde toute la scène en cours (sons, rythmes, effets) dans une place USER de la machine, comme SAVE tenu.</li>
+    <li>What you move here changes the sound on the synth at once, and what you turn on the synth moves here.</li>
+    <li>“Save” keeps the three sounds in a file on your computer, to share with anyone.</li>
+    <li>“Store here” keeps the whole scene (sounds, rhythms, effects) in a USER slot of the synth, like holding SAVE.</li>
   </ol>
-  <p>Pas de machine sous la main ? « Essayer sans machine » fait tourner ALTER dans la page, sans le son.</p>
+  <p>No synth at hand? “Try without a synth” runs ALTER inside the page, without sound.</p>
 </section>
 
-<section class="live" id="live" hidden aria-label="Les trois cercles">
+<section class="live" id="live" hidden aria-label="The three circles">
   <div class="cols" id="cols"></div>
   <div class="globals">
     <button class="act" id="aChaos">CHAOS</button>
     <button class="act" id="aTotal">CHAOS TOTAL</button>
-    <small>CHAOS : un nouveau tirage sur les trois cercles. CHAOS TOTAL : tout au hasard ; le retaper dans les 3 secondes l'annule.</small>
+    <small>CHAOS: a new draw on the three circles. CHAOS TOTAL: everything at random; pressed again within 3 seconds, it is undone.</small>
   </div>
 </section>
 
 <nav class="tabs" id="tabs" role="tablist" hidden>
-  <button class="tab" role="tab" data-tab="sons" aria-selected="true">Sons</button>
-  <button class="tab" role="tab" data-tab="rythmes" aria-selected="false">Rythmes</button>
-  <button class="tab" role="tab" data-tab="modulation" aria-selected="false">Modulation</button>
-  <button class="tab" role="tab" data-tab="effets" aria-selected="false">Effets</button>
+  <button class="tab" role="tab" data-tab="sons" aria-selected="true"><i>I</i>Sounds</button>
+  <button class="tab" role="tab" data-tab="rythmes" aria-selected="false"><i>X</i>Rhythms</button>
+  <button class="tab" role="tab" data-tab="modulation" aria-selected="false"><i>XVIII</i>Modulation</button>
+  <button class="tab" role="tab" data-tab="effets" aria-selected="false"><i>XVI</i>Effects</button>
 </nav>
 <section class="panel" data-panel="sons" role="tabpanel" hidden><main class="strips" id="strips"></main></section>
 <section class="panel" data-panel="rythmes" role="tabpanel" hidden><div class="shared" data-shared></div><div class="strips" data-cols></div></section>
@@ -202,11 +252,12 @@ dialog input { width: 100%; background: var(--faint); border: 1px solid var(--re
 <dialog id="dlg">
   <p id="dlgText"></p>
   <input id="dlgInput" type="text" maxlength="40" aria-labelledby="dlgText">
-  <div class="dlgBtns"><button class="btn" id="dlgNo">Annuler</button><button class="btn main" id="dlgOk">OK</button></div>
+  <div class="dlgBtns"><button class="btn" id="dlgNo">Cancel</button><button class="btn main" id="dlgOk">OK</button></div>
 </dialog>
 
 <footer class="foot">
-  <p>ALTER est un firmware libre (GPL-3.0) construit sur Felucca. Code : <a href="https://github.com/Forban5929/Alter-FM1" target="_blank" rel="noopener">github.com/Forban5929/Alter-FM1</a>.</p>
+  <p>ALTER is free firmware (GPL-3.0) built on Felucca. Code: <a href="https://github.com/Forban5929/Alter-FM1" target="_blank" rel="noopener">github.com/Forban5929/Alter-FM1</a>.
+    Fonts: TeX Gyre Pagella (GUST Font License), Inter Tight and IBM Plex Mono (SIL Open Font License).</p>
   <p id="ver"></p>
 </footer>
 
@@ -215,7 +266,8 @@ import { req, parse, splitFrames, CMD, F_ENUM, show, PATCH_KIND, ACT, SHARED } f
 
 const $ = (id) => document.getElementById(id);
 const MODES = ["FREE", "PERC", "STAB", "DRONE"];
-const GROUPS = [["Le moteur", 0, 8], ["Enveloppe", 8, 12], ["Effets", 12, 19], ["Sortie", 19, 22]];
+const GROUPS = [["Engine", 0, 8], ["Envelope", 8, 12], ["Effects", 12, 19], ["Output", 19, 22]];
+const ROMAN = ["I", "II", "III"];
 let port = null, info = null, slots = [];
 const circ = [0, 1, 2].map(() => ({ state: null, desc: [], ctl: [], dragging: -1 }));
 
@@ -238,7 +290,7 @@ function makePort(sendBytes, close) {
     },
     wait(cmd, ms, match) {
       return new Promise((ok, no) => {
-        const w = { cmd, match, ok, t: setTimeout(() => { waiters.splice(waiters.indexOf(w), 1); no(new Error("pas de réponse")); }, ms) };
+        const w = { cmd, match, ok, t: setTimeout(() => { waiters.splice(waiters.indexOf(w), 1); no(new Error("no reply")); }, ms) };
         waiters.push(w);
       });
     },
@@ -261,7 +313,7 @@ const sameAsk = (b) => {
   return null;
 };
 function ask(bytes, ms = 1500, tries = 2) {
-  const once = () => { if (!port) throw new Error("pas connecté"); const w = port.wait(replyCmd(bytes[4]), ms, sameAsk(bytes)); port.send(bytes); return w; };
+  const once = () => { if (!port) throw new Error("not connected"); const w = port.wait(replyCmd(bytes[4]), ms, sameAsk(bytes)); port.send(bytes); return w; };
   const p = chain.then(async () => {
     for (let k = 1; ; k++) {
       try { return await once(); } catch (e) { if (k >= tries || !port) throw e; }
@@ -272,19 +324,19 @@ function ask(bytes, ms = 1500, tries = 2) {
 }
 
 async function connectMidi() {
-  if (!navigator.requestMIDIAccess) return say("Ce navigateur ne parle pas MIDI. Ouvre la page dans Chrome ou Edge sur ordinateur.", true);
+  if (!navigator.requestMIDIAccess) return say("This browser does not speak MIDI. Open the page in Chrome or Edge on a computer.", true);
   let acc;
   try { acc = await navigator.requestMIDIAccess({ sysex: true }); }
-  catch { return say("L'accès MIDI a été refusé. Recharge la page et accepte la demande du navigateur.", true); }
+  catch { return say("MIDI access was refused. Reload the page and allow the browser's request.", true); }
   const pick = (m) => [...m.values()].find((p) => /alter|fm-?1|felucca/i.test(p.name));
   const out = pick(acc.outputs), inp = pick(acc.inputs);
-  if (!out || !inp) return say("FM-1 introuvable. Vérifie le câble USB et que la machine est allumée sur ALTER, puis réessaie.", true);
+  if (!out || !inp) return say("FM-1 not found. Check the USB cable and that the synth is on with ALTER, then try again.", true);
   inp.onmidimessage = (e) => splitFrames(e.data).forEach((f) => port && port.onFrame(f));
-  await start(makePort((b) => out.send(b), () => { inp.onmidimessage = null; }), "midi", `Connecté à ${out.name}`);
+  await start(makePort((b) => out.send(b), () => { inp.onmidimessage = null; }), "midi", `Connected to ${out.name}`);
 }
 
 async function connectDemo() {
-  say("Démarrage d'ALTER dans la page…");
+  say("Starting ALTER in the page…");
   let ex, mem;
   try {
     const { instance } = await WebAssembly.instantiateStreaming(fetch("../felucca.wasm"), {});
@@ -292,7 +344,7 @@ async function connectDemo() {
     ex._initialize(); ex.web_nor_erase(); ex.web_boot();
     for (let k = 0; k < 44100 * 3; k += 128) ex.web_render(128);   // (3 s: ALTER loads its first scene, as a running FM-1 has)
     ex.web_buttons(1 << 10); for (let k = 0; k < 2048; k += 128) ex.web_render(128); ex.web_buttons(0);   // (PLAY: it turns)
-  } catch { return say("Le simulateur n'a pas pu démarrer sur cette page.", true); }
+  } catch { return say("The simulator could not start on this page.", true); }
   const drain = () => {
     const n = ex.web_link_out_n();
     if (!n) return;
@@ -302,7 +354,7 @@ async function connectDemo() {
   };
   const tick = setInterval(() => { for (let k = 0; k < 882; k += 128) ex.web_render(Math.min(128, 882 - k)); ex.web_link_sync(); drain(); }, 20);
   const send = (b) => { new Uint8Array(mem.buffer, ex.web_link_in_buf(), b.length).set(b); ex.web_link_in(b.length); setTimeout(drain, 0); };
-  await start(makePort(send, () => clearInterval(tick)), "demo", "Simulateur (sans machine, sans son)");
+  await start(makePort(send, () => clearInterval(tick)), "demo", "Simulator (no synth, no sound)");
 }
 
 let pinger = 0, descs = [], heard = 0;
@@ -313,7 +365,7 @@ async function start(p, kind, label) {
     info = await ask(req.info());
   } catch {
     port = null;
-    return say("La machine répond pas. Son firmware ALTER est peut-être trop ancien : installe la dernière version depuis la page d'installation.", true);
+    return say("The synth does not answer. Its ALTER firmware may be too old: install the latest version from the install page.", true);
   }
   $("state").dataset.on = kind; $("stateTxt").textContent = label;
   $("ver").textContent = info.version;
@@ -327,7 +379,7 @@ async function start(p, kind, label) {
     for (let c = 0; c < 3; c++) await refresh(c);
   } catch {
     port.close(); port = null;
-    return say("La machine a cessé de répondre pendant la lecture des réglages. Débranche et rebranche l'USB, puis réessaie.", true);
+    return say("The synth stopped answering while its settings were read. Unplug and replug the USB, then try again.", true);
   }
   await listSlots();
   try { await startV2(); } catch { v2 = null; }      // (an older firmware: no v2, the sounds only)
@@ -340,12 +392,12 @@ async function start(p, kind, label) {
   }, 1000);
   $("intro").hidden = true; $("bar").hidden = false; $("tabs").hidden = false;
   selectTab(currentTab);
-  say(kind === "demo" ? "Le simulateur tourne : bouge un réglage pour voir." : "C'est branché. Tourne un knob sur la machine : il bouge ici aussi.");
+  say(kind === "demo" ? "The simulator runs: move a setting to see." : "Connected. Turn a knob on the synth: it moves here too.");
 }
 function lost() {
   if (!port) return;
-  say("La liaison avec la machine est coupée. Vérifie le câble, puis clique sur « Connecter la FM-1 ».", true);
-  $("state").dataset.on = ""; $("stateTxt").textContent = "Pas connecté";
+  say("The link with the synth is lost. Check the cable, then click “Connect the FM-1”.", true);
+  $("state").dataset.on = ""; $("stateTxt").textContent = "Not connected";
   port.close(); port = null; clearInterval(pinger);
 }
 
@@ -355,12 +407,9 @@ function build() {
   root.innerHTML = "";
   for (let c = 0; c < 3; c++) {
     const s = document.createElement("section");
-    s.className = "strip";
-    s.innerHTML = `<div class="head"><svg class="ring" viewBox="0 0 72 72" aria-hidden="true">
-        <circle cx="36" cy="36" r="31" stroke-width="3"/><circle cx="36" cy="36" r="24" stroke-width="1" stroke-dasharray="2 4"/>
-        <text x="36" y="45" text-anchor="middle">${c + 1}</text></svg>
-      <div><div class="eng" data-eng></div><div class="mode" data-mode></div></div></div>
-      <select class="sound" data-sound aria-label="Son du cercle ${c + 1}"></select>
+    s.className = "strip tc";
+    s.innerHTML = `<div class="rib"><span data-eng></span></div><span class="num">${ROMAN[c]}</span><span class="tag" data-mode></span>
+      <select class="sound" data-sound aria-label="Sound of circle ${c + 1}"></select>
       <div data-groups></div>`;
     const sel = s.querySelector("[data-sound]");
     info.engines.forEach((e, ei) => {
@@ -400,7 +449,14 @@ function drawControls(c) {
   box.innerHTML = ""; C.ctl = [];
   for (const [name, a, b] of GROUPS) {
     const fs = document.createElement("fieldset");
+    if (a === 0) fs.className = "first";
     fs.innerHTML = `<legend>${name}</legend>`;
+    if (name === "Envelope") {                       // (its TYPE = ALGORITHM on the synth, v2: buildV2 puts it here)
+      const th = document.createElement("div");
+      th.setAttribute("data-type", "");
+      (C.typeRows || []).forEach((r) => th.append(r));
+      fs.append(th);
+    }
     for (let k = a; k < b; k++) {
       const d = C.desc[k], row = document.createElement("div"), uid = `p${c}_${k}`;
       if (d.fmt === F_ENUM) {
@@ -454,7 +510,7 @@ async function flush() {
 }
 
 async function chooseSound(c, n) {
-  try { await ask(req.sound(c, n)); await refresh(c); say(`Cercle ${c + 1} : ${info.sounds[n].name}`); }
+  try { await ask(req.sound(c, n)); await refresh(c); say(`Circle ${c + 1}: ${info.sounds[n].name}`); }
   catch { soft(); }
 }
 
@@ -466,7 +522,7 @@ function pushChanged(m) {
   setCtl(m.circ, k, m.value, true);
 }
 function pushReload(m) { if (circ[m.circ]) refresh(m.circ).catch(soft); }
-function soft() { if (port) say("Une réponse de la machine s'est perdue. Si une colonne n'est plus à jour, change de son puis reviens.", true); }
+function soft() { if (port) say("A reply from the synth got lost. If a column is out of date, change its sound and come back.", true); }
 
 /* ---------- patch files ---------- */
 function patchNow() {
@@ -480,19 +536,19 @@ function patchNow() {
   };
 }
 async function savePatch() {
-  const name = await dialogAsk("Nom du patch", { input: "mon-patch", ok: "Enregistrer" });
+  const name = await dialogAsk("Patch name", { input: "my-patch", ok: "Save" });
   if (name === null) return;
   const safe = (name.trim() || "patch").replace(/[^\w\- ]+/g, "_");
   const url = URL.createObjectURL(new Blob([JSON.stringify(patchNow(), null, 1)], { type: "application/json" }));
   const a = Object.assign(document.createElement("a"), { href: url, download: `${safe}.alter.json` });
   a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-  say(`Patch enregistré : ${safe}.alter.json (dans tes Téléchargements).`);
+  say(`Patch saved: ${safe}.alter.json (in your Downloads).`);
 }
 async function openPatch(file) {
   let p;
-  try { p = JSON.parse(await file.text()); } catch { return say("Ce fichier n'est pas un patch ALTER lisible.", true); }
-  if (p.kind !== PATCH_KIND || !Array.isArray(p.circles)) return say("Ce fichier n'est pas un patch ALTER.", true);
-  say("Envoi du patch à la machine…");
+  try { p = JSON.parse(await file.text()); } catch { return say("This file is not a readable ALTER patch.", true); }
+  if (p.kind !== PATCH_KIND || !Array.isArray(p.circles)) return say("This file is not an ALTER patch.", true);
+  say("Sending the patch to the synth…");
   try {
     for (let c = 0; c < 3 && c < p.circles.length; c++) {
       const pc = p.circles[c], ei = info.engines.indexOf(pc.engine);
@@ -504,7 +560,7 @@ async function openPatch(file) {
         if (info.ids.includes(+id)) await ask(req.set(c, +id, v));
       await refresh(c);
     }
-    say(`Patch « ${file.name} » chargé sur les trois cercles. Pour le garder dans la machine : « Ranger ici ».`);
+    say(`Patch “${file.name}” loaded on the three circles. To keep it in the synth: “Store here”.`);
   } catch { soft(); }
 }
 
@@ -514,30 +570,30 @@ async function listSlots() {
   slots = r.used;
   const s = $("slot"), keep = s.value;
   s.innerHTML = "";
-  slots.forEach((u, i) => s.append(new Option(`USER ${i + 1}${u ? " (occupée)" : " (vide)"}`, i)));
+  slots.forEach((u, i) => s.append(new Option(`USER ${i + 1}${u ? " (used)" : " (empty)"}`, i)));
   if (keep) s.value = keep;
 }
 async function store() {
   const i = +$("slot").value;
-  if (slots[i] && !(await dialogAsk(`La place USER ${i + 1} contient déjà une scène. La remplacer par celle qui joue ?`, { ok: "Remplacer" }))) return;
-  say(`Rangement dans USER ${i + 1}…`);
+  if (slots[i] && !(await dialogAsk(`USER ${i + 1} already holds a scene. Replace it with the one playing?`, { ok: "Replace" }))) return;
+  say(`Storing in USER ${i + 1}…`);
   try {
     const r = await ask(req.sceneSave(i), 5000);
-    if (r.rc === 1) say(`Scène rangée dans USER ${i + 1}. Elle se recharge aussi depuis SAVE sur la machine.`);
-    else say(r.rc === 2 ? "La mémoire de la machine n'a pas accepté l'écriture. Rien n'a été rangé." : "Cette place est protégée.", true);
+    if (r.rc === 1) say(`Scene stored in USER ${i + 1}. It also loads from SAVE on the synth.`);
+    else say(r.rc === 2 ? "The synth's memory refused the write. Nothing was stored." : "This slot is protected.", true);
     await listSlots();
   } catch { soft(); }
 }
 async function load() {
   const i = +$("slot").value;
-  if (!slots[i]) return say(`USER ${i + 1} est vide : rien à charger.`, true);
-  if (!(await dialogAsk(`Charger USER ${i + 1} ? La scène qui joue sera remplacée : range-la avant si tu veux la garder.`, { ok: "Charger" }))) return;
+  if (!slots[i]) return say(`USER ${i + 1} is empty: nothing to load.`, true);
+  if (!(await dialogAsk(`Load USER ${i + 1}? The scene playing will be replaced: store it first if you want to keep it.`, { ok: "Load" }))) return;
   try {
     const r = await ask(req.sceneLoad(i), 3000);
-    if (r.rc !== 1) return say(`USER ${i + 1} n'a pas pu être chargée.`, true);
+    if (r.rc !== 1) return say(`USER ${i + 1} could not be loaded.`, true);
     for (let c = 0; c < 3; c++) await refresh(c);
     if (v2) await readV2();
-    say(`USER ${i + 1} chargée.`);
+    say(`USER ${i + 1} loaded.`);
   } catch { soft(); }
 }
 
@@ -565,7 +621,7 @@ const showV = (d, v) => (d.names.length ? d.names[v - d.min] ?? String(v)
 async function startV2() {
   const vl = await ask(req.vlist());
   v2 = { vl, cdesc: [], sdesc: [], cval: [[], [], []], sval: [] };
-  say("Lecture des rythmes, LFO et effets…");
+  say("Reading the rhythms, LFOs and effects…");
   for (let i = 0; i < vl.nc; i++) v2.cdesc.push(await ask(req.vdesc(1, i, 0)));
   for (let i = 0; i < vl.ns; i++) v2.sdesc.push(await ask(req.vdesc(0, i)));
   buildV2();
@@ -582,7 +638,7 @@ function showV2() {
   $("live").hidden = !v2;
   for (const t of ["rythmes", "modulation", "effets"]) {
     const p = document.querySelector(`[data-panel="${t}"]`);
-    if (!v2) p.innerHTML = `<p class="v2off">Ce firmware ne connaît que les sons. Installe la dernière version d'ALTER pour régler ici les rythmes, les LFO et les effets.</p>`;
+    if (!v2) p.innerHTML = `<p class="v2off">This firmware only knows the sounds. Install the latest ALTER to set the rhythms, LFOs and effects here.</p>`;
   }
 }
 
@@ -610,8 +666,18 @@ function varRow(d, uid, onSet) {
 function groupBox(name, first) {
   const fs = document.createElement("fieldset");
   if (first) fs.className = "first";
-  fs.innerHTML = `<legend>${name}</legend>`;
+  if (name) fs.innerHTML = `<legend>${name}</legend>`;
   return fs;
+}
+/* the dial: as the FM-1's PLAY screen (alter_ui.c): gold rings, its piece of the centre's triangle */
+const TRI = [[120, 98], [139.05, 131], [100.95, 131]];
+const PIECE = [[0, 2], [0, 1], [1, 2]];             // circle 1 the left piece, 2 the right, 3 the bottom
+function dialCenter(c) {
+  const p = (q) => q.map((v) => v.join(",")).join(" ");
+  const [a, b] = PIECE[c];
+  return `<polygon class="piece" points="${p([[120, 120], TRI[a], TRI[b]])}"/><polygon class="tri" points="${p(TRI)}"/>
+    <line class="tri" x1="120" y1="120" x2="${TRI[0][0]}" y2="${TRI[0][1]}"/><line class="tri" x1="120" y1="120" x2="${TRI[1][0]}" y2="${TRI[1][1]}"/>
+    <line class="tri" x1="120" y1="120" x2="${TRI[2][0]}" y2="${TRI[2][1]}"/>`;
 }
 const COLS = ["var(--c1)", "var(--c2)", "var(--c3)"];
 
@@ -622,22 +688,22 @@ function buildV2() {
   cols.innerHTML = "";
   for (let c = 0; c < 3; c++) {
     const col = document.createElement("div");
-    col.className = "col";
-    col.innerHTML = `<svg class="dial" viewBox="0 0 200 200" aria-label="Cercle ${c + 1}"><circle class="track" cx="100" cy="100" r="78"/>
-        <circle class="core" cx="100" cy="100" r="34"/><g data-steps></g><text x="100" y="112" text-anchor="middle">${c + 1}</text></svg>
-      <div class="cname" data-name></div>
+    col.className = "col tc";
+    col.innerHTML = `<div class="rib"><span data-name>&nbsp;</span></div><span class="num">${ROMAN[c]}</span><span class="tag" data-tag></span>
+      <svg class="dial" viewBox="0 0 240 240" role="img" aria-label="Circle ${c + 1}"><circle class="ring" cx="120" cy="120" r="100"/>
+        <circle class="ring2" cx="120" cy="120" r="76"/><g data-steps></g>${dialCenter(c)}</svg>
       <div class="acts">
         <div class="arow"><button class="act" data-a="MUTE">MUTE</button><button class="act" data-a="TRIG">TRIGGER</button>
-          <button class="act" data-a="SELECT" title="Le choisir aussi sur la machine">CHOISIR</button></div>
-        <div class="arow"><span>Densité</span><button class="act" data-a="DENSM" aria-label="Densité moins">−</button>
-          <button class="act" data-a="DENSP" aria-label="Densité plus">+</button>
-          <span style="min-width:0;margin-left:12px">Décaler</span><button class="act" data-a="SHL" aria-label="Décaler d'un pas en arrière">◀</button>
-          <button class="act" data-a="SHR" aria-label="Décaler d'un pas en avant">▶</button></div>
-        <div class="arow"><span>Hasard</span><button class="act" data-a="DIE" title="Un nouveau tirage du dé, tout de suite">DÉ</button>
-          <button class="act" data-a="CLEAN" title="Le motif propre, sans le dé">PROPRE</button>
-          <button class="act" data-a="RANDOM" title="LEN et HITS au hasard, avec VELO, CHANCE et PITCH">RYTHME</button></div>
-        <div class="arow"><span>Séquences</span>${LANE_SHORT.map((n, ln) => `<button class="act" data-a="SHUF${ln}" title="${vl.lanes[ln]} au hasard">${n}</button>`).join("")}
-          <button class="act" data-a="LANES" title="Les six séquences au hasard">TOUTES</button></div>
+          <button class="act" data-a="SELECT" title="Choose it on the synth too">SELECT</button></div>
+        <div class="arow"><span>Density</span><button class="act" data-a="DENSM" aria-label="Density down">−</button>
+          <button class="act" data-a="DENSP" aria-label="Density up">+</button>
+          <span style="min-width:0;margin-left:12px">Shift</span><button class="act" data-a="SHL" aria-label="Shift one step back">←</button>
+          <button class="act" data-a="SHR" aria-label="Shift one step forward">→</button></div>
+        <div class="arow"><span>Random</span><button class="act" data-a="DIE" title="A new draw of the dice, at once">DICE</button>
+          <button class="act" data-a="CLEAN" title="The clean pattern, without the dice">CLEAN</button>
+          <button class="act" data-a="RANDOM" title="LEN and HITS at random, with VELO, CHANCE and PITCH">RHYTHM</button></div>
+        <div class="arow"><span>Lanes</span>${LANE_SHORT.map((n, ln) => `<button class="act" data-a="SHUF${ln}" title="${vl.lanes[ln]} at random">${n}</button>`).join("")}
+          <button class="act" data-a="LANES" title="The six lanes at random">ALL</button></div>
       </div>`;
     col.querySelectorAll("[data-a]").forEach((b) => {
       const a = b.dataset.a, id = a.startsWith("SHUF") ? ACT.SHUF0 + +a.slice(4) : ACT[a];
@@ -652,25 +718,29 @@ function buildV2() {
     const shared = panel.querySelector("[data-shared]");
     if (colsBox) colsBox.innerHTML = "";
     if (shared) shared.innerHTML = "";
-    for (let c = 0; c < 3 && pl.cols.length; c++) {
-      let host;
-      if (tab === "sons") {
-        host = circ[c].el.querySelector("[data-v2]");
-        if (!host) {
-          host = document.createElement("div");
-          host.setAttribute("data-v2", "");
-          circ[c].el.insertBefore(host, circ[c].el.querySelector("[data-groups]"));
-        }
-        host.innerHTML = "";
-      } else {
-        host = document.createElement("section");
-        host.className = "strip";
-        host.style.setProperty("--c", COLS[c]);
-        host.innerHTML = `<div class="eng" style="margin-bottom:6px">Cercle ${c + 1}</div>`;
-        colsBox.append(host);
+    if (tab === "sons") {                             // (the envelope's TYPE: in each strip's Envelope group)
+      for (let c = 0; c < 3; c++) {
+        const C = circ[c], th = C.el.querySelector("[data-type]");
+        C.typeRows = [];
+        if (th) th.innerHTML = "";
+        cdesc.forEach((d, i) => {
+          if (!pl.cols.includes(d.grp)) return;
+          const t = varRow(d, `v${c}_${i}`, (v) => queueVar(c, i, v));
+          t.row.classList.remove("w");
+          vctl[c][i] = t;
+          C.typeRows.push(t.row);
+          if (th) th.append(t.row);
+        });
       }
+    }
+    for (let c = 0; c < 3 && pl.cols.length && tab !== "sons"; c++) {
+      const host = document.createElement("section");
+      host.className = "strip tc";
+      host.style.setProperty("--c", COLS[c]);
+      host.innerHTML = `<div class="rib"><span>Circle ${ROMAN[c]}</span></div><span class="num">${ROMAN[c]}</span>`;
+      colsBox.append(host);
       pl.cols.forEach((g, gi) => {
-        const fs = groupBox(vl.groups[g], gi === 0 && tab !== "sons");
+        const fs = groupBox(vl.groups[g], gi === 0);
         cdesc.forEach((d, i) => {
           if (d.grp !== g || d.name === "MUTE") return;
           const t = varRow(d, `v${c}_${i}`, (v) => queueVar(c, i, v));
@@ -683,8 +753,9 @@ function buildV2() {
     }
     for (const g of pl.shared) {
       const card = document.createElement("div");
-      card.className = "card";
-      const fs = groupBox(vl.groups[g], true);
+      card.className = "card tc";
+      card.innerHTML = `<div class="rib"><span>${vl.groups[g]}</span></div>`;
+      const fs = groupBox("", true);
       let n = 0;
       sdesc.forEach((d, i) => {
         if (d.grp !== g) return;
@@ -717,6 +788,7 @@ function setVar(c, i, v, fromDevice) {
         vctl[c][j].row.hidden = (turOnly && !tur) || (euOnly && tur);
       });
     }
+    if (d.grp === GR.ENV) { const m = circ[c].el?.querySelector("[data-mode]"); if (m) m.textContent = d.names[v - d.min] ?? ""; }
     if (d.name === "MUTE") $("cols").children[c]?.querySelector('[data-a="MUTE"]')?.classList.toggle("on", v === 1);
     if (d.name === "LEN") drawLane(c);
   }
@@ -743,7 +815,7 @@ async function vflush() {
 async function doAct(c, a) {
   try {
     const r = await ask(req.act(c, a));
-    if (!r.ok) say("La machine n'a pas fait cette action.", true);
+    if (!r.ok) say("The synth did not do this action.", true);
   } catch { soft(); }
 }
 
@@ -751,9 +823,9 @@ async function doAct(c, a) {
 function laneEditor(c) {
   const L = lane[c], box = document.createElement("div");
   box.className = "lanes";
-  box.innerHTML = `<div class="ltabs" role="group" aria-label="Séquence du cercle ${c + 1}">${LANE_SHORT.map((n, ln) => `<button class="act" data-ln="${ln}">${n}</button>`).join("")}</div>
-    <svg class="lbars" viewBox="0 0 320 120" preserveAspectRatio="none" aria-label="Valeurs par pas"></svg>
-    <div class="lfoot"><button class="act" data-do="shuf">Au hasard</button><button class="act" data-do="flat">À plat</button><output></output></div>`;
+  box.innerHTML = `<div class="ltabs" role="group" aria-label="Lane of circle ${c + 1}">${LANE_SHORT.map((n, ln) => `<button class="act" data-ln="${ln}">${n}</button>`).join("")}</div>
+    <svg class="lbars" viewBox="0 0 320 120" preserveAspectRatio="none" aria-label="Values per step"></svg>
+    <div class="lfoot"><button class="act" data-do="shuf">Random</button><button class="act" data-do="flat">Flat</button><output></output></div>`;
   box.querySelectorAll("[data-ln]").forEach((b) => (b.onclick = () => { L.sel = +b.dataset.ln; drawLane(c); }));
   box.querySelector('[data-do="shuf"]').onclick = () => doAct(c, ACT.SHUF0 + L.sel);
   box.querySelector('[data-do="flat"]').onclick = () => doAct(c, ACT.FLAT0 + L.sel);
@@ -789,16 +861,25 @@ function drawLane(c, k0) {
   for (let k = 0; k < 16; k++) {
     const v = vals[k] ?? lo, x = k * 20 + 2, h = bip ? Math.abs(v) * sc : (v - lo) * sc + (L.sel === 5 ? 6 : 0);
     const y = bip ? (v >= 0 ? y0 - h : y0) : 120 - h;
-    g += `<rect class="bg" x="${x}" y="0" width="16" height="120" rx="2"/><rect class="bar${k >= len ? " off" : ""}" x="${x}" y="${y}" width="16" height="${Math.max(h, 2)}" rx="2"/>`;
+    g += `<rect class="bg" x="${x}" y="0" width="16" height="120"/><rect class="bar${k >= len ? " off" : ""}" x="${x}" y="${y}" width="16" height="${Math.max(h, 2)}"/>`;
   }
   if (bip) g += `<line class="mid" x1="0" x2="320" y1="60" y2="60"/>`;
   L.el.querySelector("svg").innerHTML = g;
   const o = L.el.querySelector("output");
-  o.textContent = k0 != null ? `pas ${k0 + 1} : ${laneText(L.sel, vals[k0])}` : v2.vl.lanes[L.sel];
+  o.textContent = k0 != null ? `step ${k0 + 1}: ${laneText(L.sel, vals[k0])}` : v2.vl.lanes[L.sel];
 }
 
 /* ---------- the circles as they play (PLAY, pushed ~30 a second) ---------- */
 const lastHits = [-1, -1, -1];
+const star = (x, y, a) => { const b = a * 0.26, f = (v) => v.toFixed(1);
+  return `M${f(x)} ${f(y - a)}L${f(x + b)} ${f(y - b)}L${f(x + a)} ${f(y)}L${f(x + b)} ${f(y + b)}L${f(x)} ${f(y + a)}L${f(x - b)} ${f(y + b)}L${f(x - a)} ${f(y)}L${f(x - b)} ${f(y - b)}Z`; };
+const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+// the velocity step j plays with: its VELO lane, turned by FORCE ROT (alter_seq.c as_vel; the dice's ghosts / accents aside)
+function velAt(c, j, len) {
+  if (!v2) return 100;
+  const fi = v2.cdesc.findIndex((d) => d.name === "FORCE ROT"), fr = fi >= 0 ? (v2.cval[c][fi] | 0) : 0;
+  return lane[c].values[0][((j + len - (fr % len)) % len) % 16] ?? 100;
+}
 function drawPlay(m) {
   const cols = $("cols").children;
   m.circles.forEach((p, c) => {
@@ -806,24 +887,42 @@ function drawPlay(m) {
     if (!col) return;
     col.classList.toggle("sel", m.sel === c);
     col.classList.toggle("muted", !!p.mute);
-    const len = Math.max(1, p.len), r = len > 12 ? 7 : 9;
-    let g = "";
+    const len = Math.max(1, p.len), f = (v) => v.toFixed(1), hits = [];
+    let spokes = "", marks = "", top = "";
     for (let j = 0; j < len; j++) {
-      const a = (j / len) * 2 * Math.PI - Math.PI / 2, x = 100 + 78 * Math.cos(a), y = 100 + 78 * Math.sin(a);
+      const a = (j / len) * 2 * Math.PI - Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a), x = 120 + 100 * ca, y = 120 + 100 * sa;
       const on = (p.pat >> j) & 1, now = m.playing && j === p.pos;
-      g += `<circle class="st${on ? " on" : ""}${now ? " now" : ""}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${now ? r + 3 : r}"/>`;
+      spokes += `<line class="spoke" x1="${f(120 + 34 * ca)}" y1="${f(120 + 34 * sa)}" x2="${f(x)}" y2="${f(y)}"/>`;
+      if (on) {
+        hits.push([x, y]);
+        const s = 2.6 + (6.4 * velAt(c, j, len)) / 127;            // (the louder, the bigger)
+        marks += c === 0 ? `<polygon class="mk" points="${f(x)},${f(y - s * 1.35)} ${f(x + s)},${f(y)} ${f(x)},${f(y + s * 1.35)} ${f(x - s)},${f(y)}"/>`
+          : `<circle class="mk${c === 1 ? " ring" : ""}" cx="${f(x)}" cy="${f(y)}" r="${f(c === 1 ? s * 0.85 : s * 0.9)}"/>`;
+      } else marks += `<circle class="rest" cx="${f(x)}" cy="${f(y)}" r="1.6"/>`;
+      if (now) {
+        top += `<path class="star" d="${star(x, y, 11)}"/>`;
+        if (m.sel === c) top = `<line class="needle" x1="120" y1="120" x2="${f(120 + 86 * ca)}" y2="${f(120 + 86 * sa)}"/>` + top;
+      }
     }
-    col.querySelector("[data-steps]").innerHTML = g;
-    const core = col.querySelector(".core");
+    // the sigil: the hits joined (a star {n/2} from five hits on, as on the synth)
+    let sig = "";
+    if (hits.length >= 2) {
+      const n = hits.length, k = n >= 5 && gcd(n, 2) === 1 ? 2 : 1, pts = [];
+      for (let i = 0; i < n; i++) pts.push(hits[(i * k) % n].map(f).join(","));
+      sig = `<polygon class="sig" points="${pts.join(" ")}"/>`;
+    }
+    col.querySelector("[data-steps]").innerHTML = spokes + sig + marks + top;
+    const dial = col.querySelector(".dial");
     if (lastHits[c] >= 0 && p.hits !== lastHits[c] && !p.mute) {
-      const dial = col.querySelector(".dial");
-      core.classList.add("hit"); dial.classList.add("hit");
-      clearTimeout(core._t);
-      core._t = setTimeout(() => { core.classList.remove("hit"); dial.classList.remove("hit"); }, 120);
+      dial.classList.add("hit");
+      clearTimeout(dial._t);
+      dial._t = setTimeout(() => dial.classList.remove("hit"), 110);
     }
     lastHits[c] = p.hits;
-    const st = circ[c].state, nm = st ? `${info.engines[st.eng] ?? ""} ${info.sounds[st.sound]?.name ?? ""}` : "";
-    col.querySelector("[data-name]").textContent = nm + (p.die ? "  (dé)" : "");
+    const st = circ[c].state;
+    col.querySelector("[data-name]").textContent = st ? info.sounds[st.sound]?.name ?? "" : "";
+    const mode = circ[c].el?.querySelector("[data-mode]")?.textContent ?? "";
+    col.querySelector("[data-tag]").innerHTML = `${p.die ? "<b>▸</b>" : ""}${st ? info.engines[st.eng] ?? "" : ""} ${mode}`;
   });
 }
 
@@ -838,7 +937,7 @@ $("aChaos").onclick = () => doAct(0, ACT.CHAOS);
 $("aTotal").onclick = () => doAct(0, ACT.TOTAL);
 
 // questions inside the page (the browser's own prompt / confirm pause the whole page: no PING, the link drops)
-function dialogAsk(text, { input = null, ok = "OK", cancel = "Annuler" } = {}) {
+function dialogAsk(text, { input = null, ok = "OK", cancel = "Cancel" } = {}) {
   return new Promise((done) => {
     const d = $("dlg");
     $("dlgText").textContent = text;
@@ -858,6 +957,22 @@ function dialogAsk(text, { input = null, ok = "OK", cancel = "Annuler" } = {}) {
 }
 
 function say(t, bad) { const m = $("msg"); m.textContent = t; m.classList.toggle("bad", !!bad); }
+
+/* the two themes, as on the synth (EDIT held: SETTINGS > THEME): NIGHT and DAY, kept in this browser */
+const MOON = '<path d="M15 3a9 9 0 1 0 6 15.5A8 8 0 0 1 15 3z" fill="currentColor"/>';
+const SUN = '<circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="1.6"/>';
+function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  const b = $("bTheme");
+  b.querySelector("span").textContent = t === "day" ? "DAY" : "NIGHT";
+  b.querySelector("svg").innerHTML = t === "day" ? SUN : MOON;
+  b.setAttribute("aria-label", t === "day" ? "Switch to the NIGHT theme" : "Switch to the DAY theme");
+  try { localStorage.setItem("alter.theme", t); } catch {}
+}
+let theme0 = "night";
+try { theme0 = localStorage.getItem("alter.theme") === "day" ? "day" : "night"; } catch {}
+setTheme(theme0);
+$("bTheme").onclick = () => setTheme(document.documentElement.dataset.theme === "day" ? "night" : "day");
 
 $("bMidi").onclick = connectMidi;
 $("bDemo").onclick = connectDemo;

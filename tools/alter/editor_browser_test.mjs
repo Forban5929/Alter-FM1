@@ -44,7 +44,7 @@ await sleep(1500);
 await until(`!!window.__dl`, 5000);
 const dl = (await ev(`window.__dlName`)) === "essai.alter.json";
 check(`fichier essai.alter.json téléchargé`, dl);
-check(`toujours connecté après 5 s de fenêtre ouverte (${await msg()})`, !(await msg()).includes("coupée") && (await ev(`document.getElementById("state").dataset.on`)) === "demo");
+check(`toujours connecté après 5 s de fenêtre ouverte (${await msg()})`, !(await msg()).includes("lost") && (await ev(`document.getElementById("state").dataset.on`)) === "demo");
 // change, then open the patch back: the value returns
 await ev(`(() => { const r = document.getElementById("p0_0"); r.value = 5; r.dispatchEvent(new Event("input")); })()`);
 await sleep(800);
@@ -52,12 +52,12 @@ const file = await ev(`window.__dl`);
 await ev(`(async () => { const f = new File([${JSON.stringify(file)}], "essai.alter.json", { type: "application/json" });
   const dt = new DataTransfer(); dt.items.add(f); const i = document.getElementById("file"); i.files = dt.files; i.dispatchEvent(new Event("change")); })()`);
 check("patch rouvert : le réglage revient à 99", await until(`document.getElementById("p0_0").value === "99"`, 10000));
-check(`message après ouverture : ${await msg()}`, (await msg()).includes("chargé"));
+check(`message après ouverture : ${await msg()}`, (await msg()).includes("loaded"));
 // store into USER 2 then load it back
 await ev(`document.getElementById("slot").value = "1"`);
 await ev(`document.getElementById("bStore").click()`);
 await sleep(4000);
-check(`ranger dans USER 2 : ${await msg()}`, (await msg()).includes("rangée"));
+check(`ranger dans USER 2 : ${await msg()}`, (await msg()).includes("stored"));
 await ev(`(() => { const r = document.getElementById("p0_0"); r.value = 12; r.dispatchEvent(new Event("input")); })()`);
 await sleep(800);
 await ev(`document.getElementById("slot").value = "1"; document.getElementById("bLoad").click()`);
@@ -66,8 +66,8 @@ check("fenêtre « Charger USER 2 ? » ouverte", await ev(`document.getElementBy
 await sleep(4000);
 await ev(`document.getElementById("dlgOk").click()`);
 check("USER 2 chargée : le réglage revient à 99", await until(`document.getElementById("p0_0").value === "99"`, 10000));
-await until(`document.getElementById("msg").textContent.includes("chargée")`, 8000);
-check(`message : ${await msg()}`, (await msg()).includes("chargée"));
+await until(`document.getElementById("msg").textContent.includes("loaded")`, 8000);
+check(`message : ${await msg()}`, (await msg()).includes("loaded"));
 // v2 (04/11): the circles drawn, a circle's action, a rhythm setting, a lane, the tabs
 check("v2 : les 3 cercles dessinés (pas autour de chaque cercle)", await until(`[...document.querySelectorAll("#cols [data-steps]")].every((g) => g.children.length >= 4)`, 8000));
 const hitsIx = await ev(`window.__alter.v2.cdesc.findIndex((d) => d.name === "HITS")`);
