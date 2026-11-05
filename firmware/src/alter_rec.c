@@ -35,6 +35,9 @@ static uint32_t ar_clr_seen[AS_NCIRC];
 static struct { uint8_t id[AR_NID], n; ar_ev_t ev[AR_MAX]; } ar_pend[AS_NCIRC];
 static volatile uint32_t ar_pend_cnt[AS_NCIRC];
 static uint32_t ar_pend_seen[AS_NCIRC];
+/* circle c's moves packed (AR_PACK bytes: the six parameters, the count, then each move in 2 bytes: its parameter's
+ * place (3 bits) | its step (5 bits), its value as a signed byte): alter_store.c ar_export / ar_import, SONG's slots */
+#define AR_PACK (AR_NID + 1u + AR_MAX * 2u)
 
 /* what REC writes: the part's sound, its envelope, its effects (not routings, the matrix, the mix) */
 static int ar_param(uint32_t p)
@@ -52,6 +55,26 @@ static void ar_clear(uint32_t c)
         ar_left[c][i] = 0;
         ar_live[c][i] = 0;
     }
+}
+
+/* the audio side: circle c's moves from a pack at once (SONG, alter_song.c: a slot that starts on this step) */
+static void ar_unpack(uint32_t c, const uint8_t *b)
+{
+    uint32_t i, n = 0;
+    ar_clear(c);
+    ar_init = 1;
+    for (i = 0; i < AR_NID; i++)
+        ar_id[c][i] = b[i] < P_COUNT ? b[i] : AR_NONE;
+    for (i = 0; i < b[AR_NID] && i < AR_MAX; i++) {
+        uint32_t sl = b[AR_NID + 1u + 2u * i] >> 5;
+        if (sl >= AR_NID || ar_id[c][sl] == AR_NONE)
+            continue;
+        ar_ev[c][n].id = ar_id[c][sl];
+        ar_ev[c][n].step = (uint8_t)(b[AR_NID + 1u + 2u * i] & 31u);
+        ar_ev[c][n].v = (int8_t)b[AR_NID + 2u + 2u * i];
+        n++;
+    }
+    ar_n[c] = (uint8_t)n;
 }
 
 static int ar_enum(uint32_t c, uint32_t p)

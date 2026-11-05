@@ -271,6 +271,7 @@ static void alt_move(uint32_t c, uint32_t p, int32_t d)
 }
 
 #include "alter_rec.c"                          /* REC: the knob moves on the steps (after alt_move) */
+#include "alter_song.c"                         /* SONG: the slots A B C and their chain (05/11) */
 
 static uint32_t alt_roll_period(uint32_t h, uint32_t p);
 
@@ -530,6 +531,7 @@ static void alter_step(void)
 {
     as_event_t ev[AS_NCIRC];
     uint32_t c, j, h = alt_hold, kk[AS_NCIRC];
+    sg_bar();                                    /* SONG: at a bar line, a slot (alter_song.c) */
     for (c = 0; c < AS_NCIRC; c++)               /* the LFOs on PROB */
         alt_seq.pmod[c] = (int16_t)alt_prob_of(c);
     for (c = 0; c < AS_NCIRC; c++)               /* (the step each circle plays: REC) */
@@ -664,6 +666,7 @@ static void alter_tick_(uint32_t n)
         alt_gl_tick(0, p);
         for (c = 0; c < AS_NCIRC; c++)
             alt_seq.c[c].pos = 0;
+        sg_restart = sg_on;                      /* (SONG: the chain from its first link) */
         alter_step();
         return;
     }

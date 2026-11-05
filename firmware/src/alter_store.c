@@ -431,9 +431,7 @@ static void alt_new_scene(void)
     }
 }
 
-/* the UI's side (alter_store.c): circle c's moves packed in b (AR_PACK bytes: the six parameters, the count, then each
- * move in 2 bytes: its parameter's place (3 bits) | its step (5 bits), its value as a signed byte), and back */
-#define AR_PACK (AR_NID + 1u + AR_MAX * 2u)
+/* the UI's side (alter_store.c): circle c's moves packed in b (alter_rec.c AR_PACK), and back */
 static void ar_export(uint32_t c, uint8_t *b)
 {
     uint32_t i, j, n = 0;

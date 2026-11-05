@@ -47,7 +47,7 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
 ## Les commandes (état au 05/11)
 - Clavier : F G A = MUTE 1 2 3 · C D E = DÉ 1 2 3 · G A = SHIFT −/+ · B = LOCK (TURING) · noires F# G# A# = CERCLE 1 2 3
   (les 3 = CHAOS TOTAL, re-tapé < 3 s = annulé) · C# D# = DENSITÉ −/+ · F# G# A# hautes = DUB DELAY, DUB REVERB, DESTROY
-  (tenus) · C# D# hautes = ROLL 1/16, **ROLL 1/8** (ex-1/32) · F# haute = TRIGGER. C..G hautes blanches : libres.
+  (tenus) · C# D# hautes = ROLL 1/16, **ROLL 1/8** (ex-1/32) · F# haute = TRIGGER. **C D E hautes = SONG A B C** ; F G hautes blanches : libres.
 - **Dés (04/11)** : DÉ = pattern seul (HITS, ROT, flams, 1 ratchet) · **OCT− + DÉ** = vélo + chance seules · **OCT+ + DÉ** =
   hauteur + jets delay/reverb · DÉ tenu 0,6 s = propre · OCT− + OCT+ + DÉ = verrous · DÉ 1+2+3 = CHAOS (tout).
   Le timbre/glide/longueur par coup ne sont plus tirés que par CHAOS / CHAOS TOTAL.
@@ -69,6 +69,13 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
 - Page FX DELAY : TIME (1/16 1/8 1/8D 1/4 seulement) FEEDBK **TAPE** SEND. Presets : ECHO, DUB, DUB LONG (1/4 au lieu de
   1/4D), PING-PONG, GHOST, TAPE (SLAP, SPACE, TRIPLET, 16TH DOT retirés). MODE/TAPE dans G_DRLVL/G_DRREV (inertes chez
   Felucca) et octets 28-29 de l'enregistrement FX des scènes.
+- **SONG (05/11, `alter_song.c` côté audio + `alt_sg_*` dans alter_ui.c)** : C D E hautes tapées = ce slot joue à la
+  mesure suivante (la chaîne s'arrête) · OCT+ + C D E = sauver ce qui joue dans le slot · OCT− tenu + C D E dans l'ordre =
+  nouvelle chaîne (4 mesures par maillon), OCT− lâché = elle boucle · ARP tapé = chaîne ON/OFF (repart du maillon 1) ·
+  ARP tenu = page SONG (SELECT maillon, KNOB 1 slot, 2 mesures 1/2/4/8, 3 nb de maillons, max 16). Slot = rythmes seuls
+  (as_circ_t entier : pas, couloirs, PLAGES, tirage du dé, pas ajoutés, fills REC, mouvements REC, mutes ; PAS les sons ni
+  root/chord/dose). Changement à la barre (alt_gstep % 16), chaque cercle repart du pas 1. Flash : objets 10-12 (slots) + 13
+  (chaîne) à 0xA0000 (ex-samples Felucca, inutilisés). Indépendant des scènes. Chaîne OFF à l'allumage. Test : `web_alter_song`.
 - **KICK** : knob 4 = RUMBLE (réverb sombre distordue, ducker par le kick, suit le niveau du kick ; 70 par défaut ; sauvé dans
   la scène, octet `rsv`). Seuls les sons avec `rumble` ≠ 0 dans ALT_PRE l'ont.
 
@@ -89,10 +96,7 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
 - [x] 05/11 : PLATE, CORDE, RING + 4 sons chacun (GONG TOLE SCRAPE CRACKED · WIRE SITAR BOW BROKEN · RADIO RING BELL LASER
   SIREN, niveaux ≈ −31 dBFS sauf BROKEN −36) ; SYSTEM RANDOM : 7 moteurs (défilent), nouveaux ON (alt_sys[7]). CPU navigateur ≈ ALTER/RESO.
   **Réglés aux mesures, pas écoutés** : Romain juge.
-- [ ] **ÉTAPE SUIVANTE (notes de Romain 05/11) : MODE SONG** sur les touches blanches hautes libres, « comme le mode song de
-  l'Analog Rytm » : la séquence actuelle mise en A, une autre sauvée en B, une autre en C ; 3 touches (avec un raccourci OCT− /
-  OCT+) pour jouer A B C et les CHAÎNER dans l'ordre voulu (A C, C A B…), la chaîne bouclée. À clarifier avant de coder :
-  « séquence » = rythmes seuls ou tout le son ? longueur d'un maillon (1 cycle, N mesures) ? changement au bout du cycle ?
-  combien de maillons ? sauvé dans la scène ?
+- [x] 05/11 : **MODE SONG** (voir plus haut). Testé dans l'émulateur (8 tests), **pas sur la FM-1**. Test RUMBLE rendu
+  insensible à la phase (il échouait selon le moment où il démarrait).
 - [ ] MIDI LEARN ALTER (BCR32).
 - [ ] Étape 4 : tranche de console par piste (disto → EQ → comp → delay → reverb).

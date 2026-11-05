@@ -36,7 +36,7 @@
  * solid ring, the others dotted; a draw on: a small triangle at the circle's left, its colour; the chosen
  * circle's sound at the top, its knobs (or its rhythm, SEQ held) at the bottom. Drawn only when something changed. */
 
-enum { AK_NONE, AK_MUTE, AK_DIE, AK_SHIFT, AK_DENS, AK_FILL, AK_TLOCK, AK_SEL, AK_TRIG };
+enum { AK_NONE, AK_MUTE, AK_DIE, AK_SHIFT, AK_DENS, AK_FILL, AK_TLOCK, AK_SEL, AK_TRIG, AK_SONG };
 typedef struct {
     uint8_t kind, arg;
     const char *name;
@@ -46,6 +46,7 @@ static const alt_key_t ALT_KEY[27] = {    /* k: semitones above F3 (whites 0 2 4
     [7] = {AK_DIE, 0, "DICE 1"}, [9] = {AK_DIE, 1, "DICE 2"}, [11] = {AK_DIE, 2, "DICE 3"},
     [14] = {AK_SHIFT, 0, "SHIFT -1"}, [16] = {AK_SHIFT, 1, "SHIFT +1"},   /* (TURING: PREV, NEXT) */
     [18] = {AK_TLOCK, 0, "LOCK"},                                           /* (TURING only: frozen / free) */
+    [19] = {AK_SONG, 0, "SONG A"}, [21] = {AK_SONG, 1, "SONG B"}, [23] = {AK_SONG, 2, "SONG C"},   /* (05/11: alt_sg_key) */
     /* the blacks (Romain, 01/11): which circle | its rhythm | the held fills */
     [1] = {AK_SEL, 0, "CIRCLE 1"}, [3] = {AK_SEL, 1, "CIRCLE 2"}, [5] = {AK_SEL, 2, "CIRCLE 3"},
     [8] = {AK_DENS, 0, "DENSITY -"}, [10] = {AK_DENS, 1, "DENSITY +"},
@@ -131,7 +132,7 @@ static const char *alt_qp_name(uint32_t q)
 static uint32_t alt_ours(void)
 {
     static const uint8_t OURS[] = {B_SEQ, B_ENV, B_FX, B_LFO, B_EDIT, B_SCL, B_GLO, B_HOME, B_SAVE, B_PLAY, B_OCTDN,
-                                   B_OCTUP, B_REC, B_ARP};   /* (REC: alter_rec.c; ARP: nothing yet, and not Felucca's) */
+                                   B_OCTUP, B_REC, B_ARP};   /* (REC: alter_rec.c; ARP: SONG, alt_sg_arp) */
     uint32_t i, m = 0;
     for (i = 0; i < sizeof OURS; i++)
         m |= 1u << panel.btn[OURS[i]];
@@ -238,6 +239,241 @@ static void alt_preset_step(uint32_t c, int32_t s)
 }
 
 #include "alter_store.c"
+
+/* ---- SONG (Romain 05/11; the audio side: alter_song.c) ---------------------------------------------------------------
+ *   C D E high (white)     tapped: that slot plays from the next bar (the chain stops); empty: nothing
+ *   OCT+ + C D E           what plays now stored in that slot (and on the flash)
+ *   OCT- held + C D E ..   a new chain, the keys in their order (each link 4 bars); OCT- let go: the chain plays
+ *   ARP tapped             the chain on (from its first link, at the next bar) / off (the slot playing goes on)
+ *   ARP held 0.5 s         the SONG page: SELECT a link, KNOB 1 its slot, KNOB 2 its bars (1 2 4 8), KNOB 3 the links
+ * On the flash in objects 10..13 (storage.c OBJ_ALTSONG0: the slots, then the chain), not in the scenes. At power-on the
+ * chain is off. */
+#define QP_SONG 16u                               /* (ARP held: the SONG page) */
+static void alt_menu_set(uint32_t q);
+#define ALT_OBJ_SONG 10u                          /* (storage.c OBJ_ALTSONG0) */
+#define SG_MAGIC_C 0x43544C41u                    /* "ALTC": the chain */
+#define SG_DEF_BARS 2u                            /* (a new link: 4 bars) */
+static struct {
+    uint8_t wr, bn, buf[SG_MAXL];                 /* OCT- held: a chain being written */
+    uint8_t chain[SG_MAXL], n;                    /* the chain (the UI's copy) */
+    uint8_t q;                                    /* the slot asked for (+ 1), until it plays */
+    uint8_t row, top, dirty;                      /* the SONG page: its link, its first row shown; the chain to store */
+    uint32_t done, arp_t0;                        /* sg_done_cnt seen; ARP's press (fm1_ms | 1), 0 = up */
+    uint8_t arp_held;                             /* ARP's hold has opened the page */
+    char msg[48];
+} asg;
+static struct { uint32_t magic; uint8_t n, rsv[3]; uint8_t chain[SG_MAXL]; } asg_rec;
+_Static_assert(sizeof(sg_slot_t) <= ST_PAYLOAD_MAX_X, "a SONG slot fits an object");
+
+static void alt_sg_push(void)                    /* the chain to the audio side */
+{
+    uint32_t i;
+    fm1_irq_off();
+    for (i = 0; i < SG_MAXL; i++)
+        sg_chain[i] = asg.chain[i];
+    sg_n = asg.n;
+    if (!asg.n)
+        sg_on = 0;
+    fm1_irq_on();
+}
+static void alt_sg_chain_save(void)
+{
+    uint32_t i;
+    asg_rec.magic = SG_MAGIC_C;
+    asg_rec.n = asg.n;
+    for (i = 0; i < SG_MAXL; i++)
+        asg_rec.chain[i] = asg.chain[i];
+    (void)st_save(ALT_OBJ_SONG + SG_NSLOT, &asg_rec, sizeof asg_rec);
+    asg.dirty = 0;
+}
+static void alt_sg_boot(void)                    /* the slots and the chain from the flash (or none) */
+{
+    uint32_t s, i;
+    for (s = 0; s < SG_NSLOT; s++)
+        if (st_load(ALT_OBJ_SONG + s, &sg_slot[s], sizeof sg_slot[s]) != (int)sizeof sg_slot[s] ||
+            sg_slot[s].magic != SG_MAGIC || !sg_slot[s].used)
+            for (i = 0; i < sizeof sg_slot[s]; i++)
+                ((uint8_t *)&sg_slot[s])[i] = 0;
+    asg.n = 0;
+    if (st_load(ALT_OBJ_SONG + SG_NSLOT, &asg_rec, sizeof asg_rec) == (int)sizeof asg_rec && asg_rec.magic == SG_MAGIC_C) {
+        asg.n = (uint8_t)(asg_rec.n > SG_MAXL ? SG_MAXL : asg_rec.n);
+        for (i = 0; i < SG_MAXL; i++)
+            asg.chain[i] = (uint8_t)((asg_rec.chain[i] & 3u) % SG_NSLOT | (asg_rec.chain[i] & 12u));
+    }
+    asg.done = sg_done_cnt;
+    alt_sg_push();
+}
+static int alt_sg_store(uint32_t s)              /* what plays now into slot s; 0: the flash failed */
+{
+    static uint8_t rec[AS_NCIRC][AR_PACK];
+    static as_circ_t cc[AS_NCIRC];
+    sg_slot_t *S = &sg_slot[s % SG_NSLOT];
+    uint32_t c, k;
+    for (c = 0; c < AS_NCIRC; c++)
+        ar_export(c, rec[c]);                    /* (irq off on its own) */
+    fm1_irq_off();
+    for (c = 0; c < AS_NCIRC; c++)
+        cc[c] = alt_seq.c[c];
+    fm1_irq_on();
+    for (c = 0; c < AS_NCIRC; c++)
+        cc[c].cfg = cc[c].next = au.cfg[c];      /* (the settings as asked: the mutes too) */
+    fm1_irq_off();                               /* (the audio side may take this slot at a bar line: whole) */
+    S->magic = SG_MAGIC;
+    S->used = 1;
+    for (c = 0; c < AS_NCIRC; c++) {
+        S->c[c] = cc[c];
+        for (k = 0; k < AS_MAXLEN; k++)
+            S->fxr[c][k] = alt_fxr[c][k];
+        for (k = 0; k < AR_PACK; k++)
+            S->rec[c][k] = rec[c][k];
+    }
+    fm1_irq_on();
+    return st_save(ALT_OBJ_SONG + s, S, sizeof *S) == 0;
+}
+static void alt_sg_ask(uint32_t s)               /* slot s from the next bar (the chain stops) */
+{
+    fm1_irq_off();
+    sg_on = 0;
+    sg_ask = (uint8_t)(s + 1u);
+    sg_ask_cnt++;
+    fm1_irq_on();
+    asg.q = (uint8_t)(s + 1u);
+}
+static void alt_sg_on(int on)
+{
+    fm1_irq_off();
+    sg_on = (uint8_t)(on && asg.n);
+    if (sg_on)
+        sg_start_cnt++;
+    fm1_irq_on();
+}
+static const char *alt_sg_chain_text(const uint8_t *ch, uint32_t n, const char *head)   /* "CHAIN A C B" */
+{
+    uint32_t i, j = 0;
+    while (*head && j < sizeof asg.msg - 1u)
+        asg.msg[j++] = *head++;
+    for (i = 0; i < n && j + 2u < sizeof asg.msg; i++) {
+        asg.msg[j++] = ' ';
+        asg.msg[j++] = (char)('A' + (ch[i] & 3u));
+    }
+    asg.msg[j] = 0;
+    return asg.msg;
+}
+/* once a frame: a slot taken by the audio side (the UI's settings follow it); OCT- let go after writing a chain; the
+ * chain edited on the SONG page stored once the page is left */
+static void alt_sg_sync(void)
+{
+    uint32_t c;
+    if (sg_done_cnt != asg.done) {
+        uint32_t s = sg_play ? sg_play - 1u : 0u;
+        asg.done = sg_done_cnt;
+        asg.q = 0;
+        for (c = 0; c < AS_NCIRC; c++) {
+            as_cfg_t n = sg_slot[s % SG_NSLOT].c[c].next;
+            n.dose = au.cfg[c].dose, n.root = au.cfg[c].root, n.chord = au.cfg[c].chord;
+            if (!n.len)
+                n.len = 16;
+            au.cfg[c] = n;
+        }
+    }
+    if (asg.wr && !((fm1_in.buttons >> panel.btn[B_OCTDN]) & 1u)) {   /* OCT- let go: the chain written plays */
+        uint32_t i;
+        asg.wr = 0;
+        if (asg.bn) {
+            for (i = 0; i < SG_MAXL; i++)
+                asg.chain[i] = i < asg.bn ? asg.buf[i] : 0u;
+            asg.n = asg.bn;
+            asg.row = 0;
+            asg.top = 0;
+            alt_sg_push();
+            alt_sg_on(1);
+            alt_sg_chain_save();
+            alt_say(alt_sg_chain_text(asg.chain, asg.n, "CHAIN"));
+        }
+    }
+    if (asg.dirty && au.mn != QP_SONG)
+        alt_sg_chain_save();
+}
+/* a slot's key went down (s: 0..2), OCT- / OCT+ held */
+static void alt_sg_key(uint32_t s, int dn, int up)
+{
+    static const char *const SAVED[SG_NSLOT] = {"A SAVED", "B SAVED", "C SAVED"};
+    static const char *const NAME[SG_NSLOT] = {"SONG A", "SONG B", "SONG C"};
+    if (dn && up)
+        return;
+    if (up) {
+        alt_say(alt_sg_store(s) ? SAVED[s] : "SAVE FAILED");
+        return;
+    }
+    if (!sg_slot[s].used) {
+        alt_say("EMPTY");
+        return;
+    }
+    if (dn) {                                    /* OCT- held: a link more */
+        if (!asg.wr)
+            asg.wr = 1, asg.bn = 0;
+        if (asg.bn < SG_MAXL)
+            asg.buf[asg.bn++] = (uint8_t)(s | SG_DEF_BARS << 2);
+        alt_say(alt_sg_chain_text(asg.buf, asg.bn, "CHAIN"));
+        return;
+    }
+    alt_sg_ask(s);
+    alt_say(NAME[s]);
+}
+/* ARP: tapped the chain on / off; held 0.5 s the SONG page (pressed: this frame's presses) */
+static void alt_sg_arp(uint32_t pressed, uint32_t hold_ms)
+{
+    uint32_t dn = (fm1_in.buttons >> panel.btn[B_ARP]) & 1u;
+    if ((pressed >> panel.btn[B_ARP]) & 1u) {
+        asg.arp_t0 = fm1_ms | 1u;
+        asg.arp_held = 0;
+    } else if (dn && asg.arp_t0 && !asg.arp_held && (int32_t)(fm1_ms - asg.arp_t0) >= (int32_t)hold_ms) {
+        asg.arp_held = 1;
+        au.qp = QP_NONE;
+        au.lockc = 0;
+        au.scene_open = 0;
+        alt_menu_set(QP_SONG);
+        asg.row = sg_link < asg.n ? sg_link : 0u;
+        alt_say("SONG");
+    } else if (!dn && asg.arp_t0) {
+        if (!asg.arp_held) {
+            if (!asg.n)
+                alt_say("NO CHAIN");
+            else {
+                alt_sg_on(!sg_on);
+                alt_say(sg_on ? "CHAIN ON" : "CHAIN OFF");
+            }
+        }
+        asg.arp_t0 = 0;
+    }
+}
+/* the SONG page: SELECT the link, KNOB 1 its slot, KNOB 2 its bars, KNOB 3 how many links */
+static void alt_sg_turn(uint32_t i, int32_t s)
+{
+    uint32_t r = asg.row;
+    if (i == 2u) {
+        int32_t n = clamp((int32_t)asg.n + (s > 0 ? 1 : -1), 0, (int32_t)SG_MAXL);
+        if (n > (int32_t)asg.n)                  /* (a link more: as the last one, or A) */
+            asg.chain[n - 1] = asg.n ? asg.chain[asg.n - 1u] : (uint8_t)(SG_DEF_BARS << 2);
+        asg.n = (uint8_t)n;
+        if (asg.row >= asg.n)
+            asg.row = (uint8_t)(asg.n ? asg.n - 1u : 0u);
+    } else if (r < asg.n && i < 2u) {
+        uint32_t sl = asg.chain[r] & 3u, b = (asg.chain[r] >> 2) & 3u;
+        if (i == 0u)
+            sl = (uint32_t)clamp((int32_t)sl + (s > 0 ? 1 : -1), 0, (int32_t)SG_NSLOT - 1);
+        else
+            b = (uint32_t)clamp((int32_t)b + (s > 0 ? 1 : -1), 0, 3);
+        asg.chain[r] = (uint8_t)(sl | b << 2);
+    } else
+        return;
+    asg.dirty = 1;
+    alt_sg_push();
+}
+static void alt_sg_select(int32_t s)
+{
+    asg.row = (uint8_t)clamp((int32_t)asg.row + s, 0, asg.n ? (int32_t)asg.n - 1 : 0);
+}
 
 /* SEQ held: knob i of the chosen circle, s detents */
 /* the rhythm's four knobs, by the circle's engine (alter_seq.c AS_T_*) */
@@ -1250,7 +1486,7 @@ static void alt_menu_set(uint32_t q)
     au.seq_open = (uint8_t)(q == QP_SEQ);
     afp.open = (uint8_t)(q == QP_FX);
     au.mat_open = (uint8_t)(q == QP_LFO);
-    au.mn = (uint8_t)(q == QP_ENV || q == QP_EDIT || q == QP_SCL || q == QP_GLO || q == QP_SYS ? q : 0u);
+    au.mn = (uint8_t)(q == QP_ENV || q == QP_EDIT || q == QP_SCL || q == QP_GLO || q == QP_SYS || q == QP_SONG ? q : 0u);
     au.qp = (uint8_t)(q == QP_ENV || q == QP_SCL ? q : QP_NONE);   /* (ENV, SCL: their quick page's knobs, drawn big) */
     au.step_down = 0;
     au.dd = 0;
@@ -1259,7 +1495,7 @@ static void alt_menu_set(uint32_t q)
 static const char *alt_menu_name(uint32_t q)
 {
     return q == QP_SEQ ? "SEQ" : q == QP_FX ? "FX" : q == QP_LFO ? "LFO" : q == QP_ENV ? "ENVELOPE" :
-           q == QP_EDIT ? "DEEP" : q == QP_SCL ? "SCALES" : q == QP_GLO ? "MIXER" : q == QP_SYS ? "SYSTEM" : "";
+           q == QP_EDIT ? "DEEP" : q == QP_SCL ? "SCALES" : q == QP_GLO ? "MIXER" : q == QP_SYS ? "SYSTEM" : q == QP_SONG ? "SONG" : "";
 }
 
 static void afp_input(uint32_t pressed);                     /* the FX page (alter_fxpage.c, with the screen below) */
@@ -1304,10 +1540,13 @@ static int alter_ui_input(uint32_t pressed)
         alt_sys_init();                          /* (SYSTEM's settings: CLOCK, MIDI IN, MASTER, the random's choices) */
         alt_select(song.sel < AS_NCIRC ? song.sel : 0u);
         alt_banks_load();                        /* the USER slots, from the flash */
+        alt_sg_boot();                           /* SONG's slots and chain, from the flash */
         alt_load_scene(0);                       /* power-on: the first scene */
     }
     if (song.rec)                                /* (no recording in ALTER: an armed REC would count in and click) */
         song.rec = 0;
+    alt_sg_sync();                               /* SONG: a slot taken, a chain written */
+    alt_sg_arp(pressed, ALT_MENU_HOLD_MS);       /* ARP: the chain on / off, the SONG page */
     if (song.sel != au.sel && song.sel < AS_NCIRC)   /* (chosen elsewhere: TRACKS, the editor) */
         au.sel = alt_sel = song.sel;
     if ((pressed >> panel.btn[B_PLAY]) & 1u)
@@ -1456,9 +1695,17 @@ static int alter_ui_input(uint32_t pressed)
         {
             if (au.mn == QP_GLO)
                 alt_mix_turn(i, s);              /* the MIXER's faders */
+            else if (au.mn == QP_SONG)
+                alt_sg_turn(i, s);               /* the SONG page's links */
             else
                 alt_turn(q, i, s);
         }
+    if (au.mn == QP_SONG) {                      /* (the SONG page: SELECT its link; ALGORITHM, PRESET nothing) */
+        if ((s = panel_enc(EN_SELECT)) != 0)
+            alt_sg_select(s);
+        (void)panel_enc(EN_ALGO);
+        (void)panel_enc(EN_PRESET);
+    }
     if ((s = panel_enc(EN_SELECT)) != 0 && !au.lockc)
         alt_select((uint32_t)((int32_t)au.sel + s + 3 * 16));
     if ((s = panel_enc(EN_ALGO)) != 0 && !au.lockc) {   /* the chosen circle's envelope mode */
@@ -1494,10 +1741,13 @@ static int alter_ui_input(uint32_t pressed)
         int tur = au.cfg[au.sel].type == AS_T_TURING;
         if ((down >> k) & 1u && a->kind && (a->kind != AK_TLOCK || tur)) {
             int combo = (a->kind == AK_MUTE && au.mute_combo) || (au.tc_combo && ((ALT_TC_KEYS >> k) & 1u));
-            if (!combo && a->kind != AK_MUTE && a->kind != AK_SHIFT && a->kind != AK_SEL)
+            if (!combo && a->kind != AK_MUTE && a->kind != AK_SHIFT && a->kind != AK_SEL && a->kind != AK_SONG)
                 alt_say(a->name);
             if (combo) {
                 ;                                /* (part of a combo: nothing else) */
+            } else if (a->kind == AK_SONG) {     /* SONG: a slot (alt_sg_key) */
+                alt_sg_key(i2, (int)((fm1_in.buttons >> panel.btn[B_OCTDN]) & 1u), (int)((fm1_in.buttons >> panel.btn[B_OCTUP]) & 1u));
+                au.tap_ms[k] = fm1_ms | 1u;
             } else if (a->kind == AK_MUTE) {
                 alt_say(a->name);
                 au.cfg[i2].mute ^= 1u;
@@ -1653,7 +1903,12 @@ static void alter_leds(uint8_t *nl, uint8_t *nd, uint8_t *nb, uint8_t *nm)
             lit = (int)((fm1_in.notes >> k) & 1u);
         else if (a->kind == AK_TLOCK)            /* (dark unless the chosen circle is TURING) */
             lit = au.cfg[au.sel].type == AS_T_TURING && alt_seq.c[au.sel].tfreeze;
-        faint = a->kind && !lit && (a->kind != AK_TLOCK || au.cfg[au.sel].type == AS_T_TURING);
+        else if (a->kind == AK_SONG)             /* SONG: the slot playing lit, the one asked for blinking, a full one
+                                                  * faint, an empty one dark */
+            lit = (sg_play == a->arg + 1u && sg_slot[a->arg].used) || (asg.q == a->arg + 1u && ((fm1_ms >> 7) & 1u)) ||
+                  (int)((fm1_in.notes >> k) & 1u);
+        faint = a->kind && !lit && (a->kind != AK_TLOCK || au.cfg[au.sel].type == AS_T_TURING) &&
+                (a->kind != AK_SONG || sg_slot[a->arg].used);
         led_clear(nl, 14u + k);
         led_clear(nd, 14u + k);
         led_clear(nb, 14u + k);
@@ -1665,6 +1920,10 @@ static void alter_leds(uint8_t *nl, uint8_t *nd, uint8_t *nb, uint8_t *nm)
     led_clear(nd, panel.btn[B_REC]);
     led_put(nl, panel.btn[B_REC], ar_on != 0);
     led_put(nd, panel.btn[B_REC], !ar_on && ar_n[au.sel % AS_NCIRC]);
+    led_clear(nl, panel.btn[B_ARP]);             /* ARP: lit while the chain plays, faint when there is one */
+    led_clear(nd, panel.btn[B_ARP]);
+    led_put(nl, panel.btn[B_ARP], sg_on != 0);
+    led_put(nd, panel.btn[B_ARP], !sg_on && asg.n);
 }
 
 /* ------------------------------------------------------------------ the screen --- */
@@ -2610,6 +2869,75 @@ static void alt_mix_scene(void)
     cv_text(8, 220, ALT_FS, "KNOB 4  MASTER", ALT_INK);
 }
 
+/* SONG (XX, Judgement; ARP held, Romain 05/11): the three slots (lit: playing; blinking: asked for; EMPTY), the chain as
+ * a list (SELECT a link: KNOB 1 its slot, KNOB 2 its bars, KNOB 3 the links), the link playing marked with its bar */
+static void alt_sg_scene(void)
+{
+    static const char *const BARS[4] = {"1 BAR", "2 BARS", "4 BARS", "8 BARS"};
+    uint32_t s, r;
+    uint16_t col = ALT_COL[au.sel % AS_NCIRC], hl = alt_gold_line(16);
+    char b[24];
+    alt_card("SONG", "XX");
+    for (s = 0; s < SG_NSLOT; s++) {             /* the slots */
+        int32_t x = 24 + (int32_t)s * 68, y = 40;
+        int used = sg_slot[s].used, on = used && sg_play == s + 1u, asked = asg.q == s + 1u;
+        uint16_t c = on ? ALT_COL[s] : used ? ALT_INK : ALT_GREY;
+        char nm[2] = {(char)('A' + s), 0};
+        if (on)
+            cv_rect(x, y, 56, 33, alt_mixc(ALT_BG, ALT_COL[s], 25));
+        cv_frame(x, y, 56, 33, asked && ((fm1_ms >> 7) & 1u) ? ALT_GOLD : c);
+        cv_text(x + 28 - text_w(ALT_FM, nm) / 2, y + 2, ALT_FM, nm, c);
+        cv_text(x + 28 - text_w(ALT_FS, used ? on ? "PLAYING" : asked ? "NEXT BAR" : "FULL" : "EMPTY") / 2, y + 17, ALT_FS,
+                used ? on ? "PLAYING" : asked ? "NEXT BAR" : "FULL" : "EMPTY", c);
+    }
+    if (!asg.n) {
+        cv_text(120 - text_w(ALT_FM, "NO CHAIN") / 2, 100, ALT_FM, "NO CHAIN", ALT_DIM);
+        cv_text(120 - text_w(ALT_FS, "OCT- HELD + C D E HIGH, IN ORDER") / 2, 124, ALT_FS, "OCT- HELD + C D E HIGH, IN ORDER", ALT_DIM);
+    } else {
+        cv_text(12, 78, ALT_FS, sg_on ? "CHAIN ON" : "CHAIN OFF", sg_on ? ALT_GOLD : ALT_DIM);
+        if (sg_on && sg_link < asg.n) {
+            uint32_t tot = sg_bars(asg.chain[sg_link] >> 2), at = tot - (sg_left ? sg_left : 1u) + 1u;
+            alt_scopy(b, "LINK ", sizeof b);
+            alt_num(b + 5, (int32_t)sg_link + 1, 0);
+            {
+                uint32_t j = 0;
+                while (b[j])
+                    j++;
+                b[j++] = ' ', b[j++] = ' ', b[j++] = 'B', b[j++] = 'A', b[j++] = 'R', b[j++] = ' ';
+                alt_num(b + j, (int32_t)at, 0);
+                while (b[j])
+                    j++;
+                b[j++] = '/';
+                alt_num(b + j, (int32_t)tot, 0);
+            }
+            cv_text_r(228, 78, ALT_FS, b, ALT_INK, ALT_BG);
+        }
+        if (asg.row < asg.top)
+            asg.top = asg.row;
+        if (asg.row >= asg.top + 5u)
+            asg.top = (uint8_t)(asg.row - 4u);
+        for (r = asg.top; r < asg.n && r < asg.top + 5u; r++) {
+            int32_t y = 96 + (int32_t)(r - asg.top) * 19;
+            uint32_t sl = asg.chain[r] & 3u;
+            int playing = sg_on && r == sg_link;
+            char nm[4] = {(char)('A' + sl), 0};
+            if (r == asg.row) {
+                cv_rect(8, y - 3, 224, 18, hl);
+                alt_diamond(15, y + 6, 3, 3, col);
+            }
+            alt_num(b, (int32_t)r + 1, 0);
+            cv_text_on(24, y, ALT_FM, b, playing ? ALT_GOLD : ALT_DIM, r == asg.row ? hl : ALT_BG);
+            cv_text_on(64, y, ALT_FM, nm, sg_slot[sl].used ? ALT_COL[sl] : ALT_GREY, r == asg.row ? hl : ALT_BG);
+            if (!sg_slot[sl].used)
+                cv_text_on(88, y + 2, ALT_FS, "EMPTY", ALT_GREY, r == asg.row ? hl : ALT_BG);
+            cv_text_r(226, y, ALT_FM, BARS[(asg.chain[r] >> 2) & 3u], playing ? ALT_GOLD : ALT_INK, r == asg.row ? hl : ALT_BG);
+        }
+    }
+    cv_rect(8, 196, 224, 1, alt_gold_line(30));
+    cv_text(8, 202, ALT_FS, "KNOB 1 SLOT  2 BARS  3 LINKS", ALT_INK);
+    cv_text(8, 216, ALT_FS, "ARP: CHAIN  OCT+ + C D E: SAVE", ALT_DIM);
+}
+
 /* SYSTEM (XXI, the World; HOME held 0.5 s, Romain 04/11, 05/11): four tabs (ALGORITHM), rows (SELECT), KNOB 1 changes
  * the row; the battery in the corner. Kept in the settings (alt_sys above, or Felucca's own record), from the next frame:
  *   SETUP   THEME (NIGHT / DAY: EDIT held's SETTINGS until 05/11), CLOCK (INT, USB, TRS: the Analog Rytm's clock
@@ -3111,6 +3439,10 @@ static void alt_scene(uint32_t q, uint32_t flash)
         alt_sys_scene();
         return;
     }
+    if (au.mn == QP_SONG) {
+        alt_sg_scene();
+        return;
+    }
     /* the card's engraving: rays from the centre (under everything, kept off the knobs) */
     for (i = 0; i < 48u; i++) {
         uint32_t tn = i * (0xFFFFFFFFu / 48u);
@@ -3320,7 +3652,14 @@ static void alter_draw(void)
               ;
     sig = sig * 31u + au.mn * 61u + au.set_row * 67u + (uint32_t)ALT_DAY * 71u + au.cfg[au.sel % AS_NCIRC].chord * 73u;
     sig = sig * 31u + alt_dial_live() * 83u;
-    sig = sig * 31u + (uint32_t)ar_on * 89u + (ar_n[au.sel % AS_NCIRC] != 0) * 97u;   /* (REC's mark) */     /* (a number shown while its knob turns, then gone) */
+    sig = sig * 31u + (uint32_t)ar_on * 89u + (ar_n[au.sel % AS_NCIRC] != 0) * 97u;
+    if (au.mn == QP_SONG) {                      /* (SONG: the slots, the chain, where it is) */
+        uint32_t k;
+        sig = sig * 31u + sg_play * 3u + sg_link * 5u + sg_left * 7u + sg_on * 11u + asg.q * 13u + asg.row * 17u + asg.n * 19u +
+              sg_slot[0].used * 23u + sg_slot[1].used * 29u + sg_slot[2].used * 31u + (uint32_t)song.playing * 37u;
+        for (k = 0; k < asg.n; k++)
+            sig = sig * 31u + asg.chain[k];
+    }   /* (REC's mark) */     /* (a number shown while its knob turns, then gone) */
     sig = sig * 31u + q * 19u + au.lockc * 23u + alt_seq.c[au.lockc ? au.lockc - 1u : 0u].locks * 29u;
     sig = sig * 31u + au.sel * 3u + flash * 5u + (uint32_t)song.playing * 7u + trk[au.sel].preset * 11u +
           (uint32_t)song.g[G_BPM] * 13u + (au.msg && fm1_ms - au.msg_ms < 1500u ? (uint32_t)(uintptr_t)au.msg + (fm1_ms - au.msg_ms < 900u) : 1u);

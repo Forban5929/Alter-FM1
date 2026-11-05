@@ -514,6 +514,9 @@ EXPORT uint32_t web_alter_rng(uint32_t c, uint32_t ln) { const as_circ_t *s = &a
     return s->rmask[ln] | (uint32_t)(uint8_t)s->rlo[ln][0] << 16 | (uint32_t)(uint8_t)s->rhi[ln][0] << 24; }
 EXPORT int32_t web_alter_knobp(uint32_t c, uint32_t k) { const track_t *t = &trk[c % 3u]; return t->p[ENGINES[eng_idx(t->eng_req)]->knob[k & 3u]]; }
 EXPORT uint32_t web_alter_pat(uint32_t c) { return alt_seq.c[c % 3u].pat; }   /* (tests: a circle's steps) */
+EXPORT uint32_t web_alter_song(uint32_t w)   /* (tests: SONG, alter_song.c: 0 the slot playing + 1, 1 the link, 2 the links,
+                                              * 3 the chain on, 4 the full slots' mask) */
+{ return w == 0 ? sg_play : w == 1 ? sg_link : w == 2 ? sg_n : w == 3 ? sg_on : (uint32_t)(sg_slot[0].used | sg_slot[1].used << 1 | sg_slot[2].used << 2); }
 EXPORT uint32_t web_alter_fxr(uint32_t c, uint32_t k) { return alt_fxr[c % 3u][k % AS_MAXLEN]; }   /* (tests: REC'd fills) */
 EXPORT int32_t web_alter_send(uint32_t c) { return trk[c % 3u].p[P_DLY]; }   /* (tests: the DELAY send now) */
 EXPORT uint32_t web_alter_hits(uint32_t c) { return alt_hits[c % 3u]; }   /* (tests: notes played) */

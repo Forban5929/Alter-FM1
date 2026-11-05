@@ -623,6 +623,63 @@ play();
   check(`after power-off: USER 05's moves (${e3.web_alter_rec(0)}) and RANGE (mask ${e3.web_alter_rng(0, 0) & 0xFFFF}) from the flash`,
         e3.web_alter_rec(0) === n0 && (e3.web_alter_rng(0, 0) & 0xFFFF) === 5);
 }
+// SONG (05/11): OCT+ + C D E high stores the rhythms in a slot, a tap plays it from the next bar, OCT- held + the keys
+// writes a chain (4 bars a link) that loops; ARP held: the SONG page (KNOB 2 a link's bars); the flash keeps it all
+{
+  const W = (op, a, b) => ex.web_alter(op, a, b), OCTDN = 12, OCTUP = 13, ARP = 8, KA = 19, KB = 21, KC = 23;
+  const bits = (m) => { let n = 0; for (; m; m >>>= 1) n += m & 1; return n; };
+  const P = () => bits(ex.web_alter_pat(0) >>> 0), S = (w) => ex.web_alter_song(w);
+  const withBtn = (b, f) => { ex.web_buttons(1 << b); render(1300); f(); ex.web_buttons(0); render(1300); };
+  ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
+  if (peak(render(FS, true)) < 0.002) play();
+  W(4, BPM, 0);
+  W(15, 0, 16 | 4 << 8); render(BAR);
+  withBtn(OCTUP, () => tap(KA));
+  W(15, 0, 16 | 7 << 8); render(BAR);
+  withBtn(OCTUP, () => tap(KB));
+  check(`SONG: OCT+ + C D E high stores slots A and B (mask ${S(4)}), circle 1 plays 7 (${P()})`, S(4) === 3 && P() === 7);
+  tap(KA); const early = P(); render(BAR + STEP);
+  check(`SONG: A tapped plays from the next bar (${early} -> ${P()} hits, slot ${S(0)})`, P() === 4 && S(0) === 1);
+  tap(KC); render(BAR + STEP);
+  check(`SONG: C (empty) tapped: nothing changes (slot ${S(0)}, ${P()} hits)`, S(0) === 1 && P() === 4);
+  ex.web_buttons(1 << OCTDN); render(1300); tap(KB); tap(KA); ex.web_buttons(0); render(1300);
+  check(`SONG: OCT- held + B A writes a chain of ${S(2)} links, on (${S(3)})`, S(2) === 2 && S(3) === 1);
+  const runs = (n) => {                                         // the slot playing, a quarter bar apart: its runs
+    const r = []; let ok = true;
+    for (let i = 0; i < n * 4; i++) {
+      const sl = S(0), p = P();
+      if ((sl === 1 && p !== 4) || (sl === 2 && p !== 7)) ok = false;
+      if (r.length && r[r.length - 1][0] === sl) r[r.length - 1][1]++; else r.push([sl, 1]);
+      render(BAR / 4);
+    }
+    return { r, ok };
+  };
+  let { r, ok } = runs(13);
+  check(`SONG: the chain B 4 A 4 loops (${r.map((x) => `${"-AB"[x[0]]}x${x[1] / 4}`).join(" ")}, patterns ${ok ? "right" : "WRONG"})`,
+        ok && r.length >= 4 && r[1][0] === 2 && r[1][1] === 16 && r[2][0] === 1 && r[2][1] === 16 && r[3][0] === 2);
+  ex.web_buttons(1 << ARP); render(FS * 0.7); ex.web_buttons(0); render(1300);   // ARP held: the SONG page
+  enc(0, -5); enc(4, -1);                                       // SELECT link 1 (B), KNOB 2: 4 -> 2 bars
+  render(4000);
+  const fb = new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240);
+  let ink = 0; for (let i = 96 * 240; i < 190 * 240; i++) ink += fb[i] !== fb[0];
+  ({ r, ok } = runs(13));
+  check(`SONG page: link 1 to 2 bars (${r.map((x) => `${"-AB"[x[0]]}x${x[1] / 4}`).join(" ")}; its list drawn: ${ink} px)`,
+        ok && ink > 500 && r.some((x, i) => i > 0 && i < r.length - 1 && x[0] === 2 && x[1] === 8) &&
+        r.some((x, i) => i > 0 && i < r.length - 1 && x[0] === 1 && x[1] === 16));
+  B(6);                                                         // HOME: the page left (the chain stored)
+  ex.web_buttons(1 << ARP); render(1300); ex.web_buttons(0); render(1300);   // ARP tapped: the chain off
+  const off = S(3); render(BAR * 2); const held = S(0);
+  ({ r } = runs(5));
+  check(`SONG: ARP tapped: the chain off (${off}), slot ${held} goes on alone (${r.map((x) => `${"-AB"[x[0]]}x${x[1] / 4}`).join(" ")})`,
+        off === 0 && r.length === 1 && r[0][0] === held);
+  const nor = new Uint8Array(mem.buffer, ex.web_nor(), ex.web_nor_size()).slice();   // after power-off: from the flash
+  const { instance: i4 } = await WebAssembly.instantiate(wasm, {}); const e4 = i4.exports;
+  e4._initialize(); e4.web_nor_erase(); new Uint8Array(e4.memory.buffer, e4.web_nor(), e4.web_nor_size()).set(nor);
+  e4.web_boot(); e4.web_alter(18, 1, 0);
+  for (let k = 0; k < FS * 2; k += 128) e4.web_render(128);
+  check(`after power-off: SONG keeps slots (mask ${e4.web_alter_song(4)}) and the chain (${e4.web_alter_song(2)} links, off: ${e4.web_alter_song(3)})`,
+        e4.web_alter_song(4) === 3 && e4.web_alter_song(2) === 2 && e4.web_alter_song(3) === 0);
+}
 if (wavPath) {                                                  // 4 bars from a fresh start, all three circles
   ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
   play();
@@ -717,7 +774,12 @@ if (wavPath) {                                                  // 4 bars from a
     render(FS * 4);
     const a = render(BEAT * 8, true); let pk = 0, first = 0;
     for (const x of a) pk = Math.max(pk, Math.abs(x));
-    for (let i = 0; i < a.length; i++) if (Math.abs(a[i]) > pk * 0.5) { first = i; break; }
+    {                                                           // (the beat's phase: where the hits' energy is, folded on the beat)
+      const fold = new Float64Array(BEAT); for (let i = 0; i < a.length; i++) fold[i % BEAT] += a[i] * a[i];
+      let best = -1, W10 = Math.floor(BEAT * 0.1), acc = 0;
+      for (let i = 0; i < W10; i++) acc += fold[i];
+      for (let ph = 0; ph < BEAT; ph++) { if (acc > best) { best = acc; first = ph; } acc += fold[(ph + W10) % BEAT] - fold[ph]; }
+    }
     let t = 0, h = 0, nt = 0, nh = 0;
     for (let i = first; i < a.length; i++) { const ph = (i - first) % BEAT; if (ph > BEAT * 0.3 && ph < BEAT * 0.9) { t += a[i] * a[i]; nt++; } else if (ph < BEAT * 0.1) { h += a[i] * a[i]; nh++; } }
     return 10 * Math.log10((t / nt) / (h / nh) + 1e-12);
