@@ -1421,6 +1421,9 @@ static void events_block(uint32_t n)
         uint32_t d1 = (pkt >> 16) & 0x7Fu, d2 = (pkt >> 24) & 0x7Fu;
         uint32_t source = midi_in_source[at] ? midi_in_source[at] : 1u, ms = midi_in_ms[at];
         mi_r++;
+        alt_midi_n[source % 3u]++;                    /* (ALTER's SYSTEM: what each jack brings) */
+        if (status == 0xF8u)
+            alt_midi_clk_ms[source % 3u] = ms ? ms : 1u;
         if (status >= 0xF8u) {
             if (clock_mode == source) {
                 if (status == 0xF8u)

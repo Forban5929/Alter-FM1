@@ -66,7 +66,8 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   à leur niveau, max +12 dB), barre dorée = réduction. **Pas dans REC**, gardé dans les scènes USER (`alt_ub.s.cs`, après
   `nm` ; objets plus courts = à plat), usine/NEW = à plat. Pas dans la page compagnon. Delay/reverb = envois vers les bus
   communs (pas de delay par cercle : RAM). Tests : op `web_alter` **20** (a = cercle | valeur<<8, b), peek **11**.
-  **HOME tenu = SYSTEM** (batterie en haut ; onglets SETUP : THEME, CLOCK INT/USB/TRS, MIDI IN · AUDIO : lignes Felucca
+  **HOME tenu = SYSTEM** (batterie en haut ; onglets SETUP : THEME, CLOCK INT/USB/TRS, MIDI IN, **TRS SEEN / USB SEEN**
+  (lecture seule : messages MIDI reçus par prise depuis l'allumage, « CLK » si des F8 arrivent ; `alt_midi_n`, compté dans seq.c) · AUDIO : lignes Felucca
   CLICK (OFF/ON), CLICK LEVEL, SPEAKER EQ, USB LEVEL, TUNE, 2ND CORE · RANDOM : les 7 moteurs et modes FREE PERC
   STAB permis au hasard (la liste défile) · ABOUT : document GPL de Felucca, défile). Gardé en flash : `alt_sys` = favorites.factory[13]
   ([3] CLOCK, [4] MIDI IN, [5] MASTER, [6] TUNE ; le reste dans les réglages Felucca).
@@ -148,6 +149,8 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   LEDs, niveleur plus rapide, **bug horloge externe corrigé**, PLATE −1,8 dB, CORDE MATR plafonné (×90/127) + BROKEN refait
   (−37,7 dBFS), RING RDIO ×70/127 + RADIO RDIO 13 + SIREN refait. Pas écoutés.
 - [x] 05/11 nuit : écran plus rapide (voir plus haut) ; WIRE caché ; WIND +13,5 dB, PAD +13,5, LARSEN −4, CRACKED −6.
+- [x] 05/11 : Romain « en TRS rien n'est détecté » → lignes TRS SEEN / USB SEEN dans SYSTEM pour voir si un octet arrive.
+  La prise TRS de la FM-1 est **type A** (matrixsynth, 10/2026). Firmware : entrée TRS compilée (FELUCCA_UART=1), testée émulateur.
 - [ ] **PROCHAINE SESSION** : réponses de Romain sur le TRS (CLOCK=TRS ? Ableton « Sync » ? adaptateur A/B ? notes OK ?),
   tests 20-27 de sa checklist (RING, sons refaits, page compagnon branchée, UPDATE), réécoute des changements, et la
   CONSOLE (jamais essayée sur la FM-1).

@@ -270,6 +270,9 @@ static void alt_move(uint32_t c, uint32_t p, int32_t d)
         t->p[p] = (int16_t)clamp(t->p[p] + d, lo, hi);
 }
 
+/* (Romain 05/11) the MIDI that came in, by source (1 USB, 2 TRS; seq.c events_block counts it), and when a clock F8
+ * last came: SYSTEM > SETUP's TRS SEEN / USB SEEN */
+static volatile uint32_t alt_midi_n[3], alt_midi_clk_ms[3];
 #include "alter_rec.c"                          /* REC: the knob moves on the steps (after alt_move) */
 #include "alter_song.c"                         /* SONG: the slots A B C and their chain (05/11) */
 

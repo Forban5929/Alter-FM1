@@ -3208,12 +3208,12 @@ static void alt_sg_scene(void)
  *   RANDOM  which engines (ALTER PHYS NOISE RESO) the random's sounds may come from, which modes (FREE PERC STAB)
  *           CHAOS TOTAL may give: ON / OFF each (at least one stays on)
  *   ABOUT   Felucca's ABOUT / CREDITS document (ui_menu.c menu_document: the GPL-3.0 notices), SELECT scrolls it */
-enum { SYS_THEME, SYS_CLOCK, SYS_MIDIIN, SYS_NMIDI };
+enum { SYS_THEME, SYS_CLOCK, SYS_MIDIIN, SYS_TRSSEEN, SYS_USBSEEN, SYS_NMIDI };   /* (SEEN: read only, 05/11) */
 static const char *alt_set_text(uint32_t r);    /* (THEME: below) */
 static void alt_set_turn(uint32_t r, int32_t s);
 enum { SYS_TMIDI, SYS_TAUD, SYS_TRAND, SYS_TABOUT, SYS_NT };
 static const char *const SYS_TAB[SYS_NT] = {"SETUP", "AUDIO", "RANDOM", "ABOUT"};
-static const char *const SYS_MROW[SYS_NMIDI] = {"THEME", "CLOCK", "MIDI IN"};
+static const char *const SYS_MROW[SYS_NMIDI] = {"THEME", "CLOCK", "MIDI IN", "TRS SEEN", "USB SEEN"};
 static const uint8_t SYS_AROW[] = {MI_CLICK, MI_CLKLVL, MI_LOWCUT, MI_USB, MI_TUNE,   /* (COUNT-IN left 05/11: only
                                                   * Felucca's REC counted in) */
 #if FELUCCA_CPU2
@@ -3258,6 +3258,19 @@ static const char *alt_sys_text(uint32_t r)
         return alt_set_text(0);
     if (r == SYS_CLOCK)
         return N_CLOCK[clamp(song.g[G_CLOCK], 0, (int32_t)NELEM(N_CLOCK) - 1)];
+    if (r == SYS_TRSSEEN || r == SYS_USBSEEN) {  /* (Romain 05/11: "the TRS sees no MIDI"): what came in through each
+                                                  * jack since power-on, its messages counted, "CLOCK" when F8s come */
+        uint32_t k = r == SYS_TRSSEEN ? 2u : 1u, n = alt_midi_n[k], j = 0;
+        if (!n)
+            return "NOTHING";
+        alt_num(tb, (int32_t)(n % 100000u), 0);
+        while (tb[j])
+            j++;
+        if (fm1_ms - alt_midi_clk_ms[k] < 500u && j < 6u)
+            tb[j++] = ' ', tb[j++] = 'C', tb[j++] = 'L', tb[j++] = 'K';
+        tb[j] = 0;
+        return tb;
+    }
     return N_ROUTE[clamp(song.g[G_ROUTE], 0, (int32_t)NELEM(N_ROUTE) - 1)];
 }
 static void alt_sys_turn(uint32_t r, int32_t s)
@@ -3279,6 +3292,8 @@ static void alt_sys_turn(uint32_t r, int32_t s)
     } else if (r == SYS_THEME) {
         alt_set_turn(0, s);
         return;                                  /* (it saves itself) */
+    } else if (r == SYS_TRSSEEN || r == SYS_USBSEEN) {
+        return;                                  /* (read only) */
     } else if (r == SYS_CLOCK) {
         song.g[G_CLOCK] = (int16_t)clamp(song.g[G_CLOCK] + d, 0, (int32_t)NELEM(N_CLOCK) - 1);
         alt_sys[3] = (uint8_t)(song.g[G_CLOCK] + 1);
@@ -3965,6 +3980,8 @@ static void alter_draw(void)
         uint32_t k;
         for (k = 0; k < SYS_NAUD; k++)
             sig = sig * 31u + menu_get(SYS_AROW[k]);
+        sig = sig * 31u + alt_midi_n[1] * 3u + alt_midi_n[2] * 5u + (fm1_ms - alt_midi_clk_ms[1] < 500u) * 7u +
+              (fm1_ms - alt_midi_clk_ms[2] < 500u) * 11u;   /* (TRS / USB SEEN) */
         sig = sig * 31u + (uint32_t)alt_sys_scroll * 3u;
     }
     if (au.mn == QP_SYS)

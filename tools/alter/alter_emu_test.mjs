@@ -506,7 +506,7 @@ play();
   H(6); ex.web_enc(3, -1); render(4000); T(6); render(FS * 1.5);
   const back = key(scr());
   check(`SYSTEM THEME: DAY lights the screen (brightness ${night.toFixed(0)} -> ${day.toFixed(0)}, circles ${dayc.toFixed(0)}), NIGHT as before`,
-        day > 60 && night < 20 && dayc > 60 && back === circles);
+        day > 60 && night < 25 && dayc > 60 && back === circles);   // (night ~20: the grain row measured, 05/11 tile)
 }
 {                                                               // the combos (Romain, 01/11)
   ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
