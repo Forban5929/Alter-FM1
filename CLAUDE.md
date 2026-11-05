@@ -45,12 +45,15 @@ gain MASTER + vumètre). Moteurs : ALTER 14, PHYS 9, NOISE 11, RESO 10 (NENGINES
 - **Dés (04/11)** : DÉ = pattern seul (HITS, ROT, flams, 1 ratchet) · **OCT− + DÉ** = vélo + chance seules · **OCT+ + DÉ** =
   hauteur + jets delay/reverb · DÉ tenu 0,6 s = propre · OCT− + OCT+ + DÉ = verrous · DÉ 1+2+3 = CHAOS (tout).
   Le timbre/glide/longueur par coup ne sont plus tirés que par CHAOS / CHAOS TOTAL.
-- **Vélo/chance au hasard** (dés, SHUFFLE, CHAOS, « Au hasard ») : vélo 100 % 70 %, 75 % 20 %, 50 % 10 % ; chance 100 % sauf
+- MUTE 1+2+3 = trois mutes (SHUFFLE retiré le 05/11 ; le tirage reste sur le bouton « Au hasard » de la page compagnon).
+- **Vélo/chance au hasard** (dés, CHAOS, « Au hasard », SHUFFLE du menu SEQ) : vélo 100 % 70 %, 75 % 20 %, 50 % 10 % ; chance 100 % sauf
   une part qui monte avec le nombre de coups (aucune si ≤ 2 coups, max 45 %) : 75/50/25 % (plancher 25 %). `as_vpct`, `as_cpct`.
 - Boutons de page : tap = page rapide, tenu 0,5 s = menu. Menus : SEQ, FX, LFO, ENV, SCL, EDIT (SETTINGS),
   **GLO = MIXER** (knob 1-3 = LEVEL des cercles, knob 4 = MASTER 100 = 0 dB, vumètre blanc/doré = limiteur/rouge = clip),
-  **HOME tenu = SYSTEM** (onglet MIDI : CLOCK INT/USB/TRS, MIDI IN, 2ND CORE ; onglet RANDOM : moteurs ALTER PHYS NOISE RESO
-  et modes FREE PERC STAB permis au hasard ; batterie en haut). Gardé en flash : `alt_sys` = favorites.factory[13].
+  **HOME tenu = SYSTEM** (batterie en haut ; onglets MIDI : CLOCK INT/USB/TRS, MIDI IN · AUDIO : lignes Felucca CLICK,
+  CLICK LEVEL, COUNT-IN, SPEAKER EQ, USB LEVEL, TUNE, 2ND CORE · RANDOM : moteurs ALTER PHYS NOISE RESO et modes FREE PERC
+  STAB permis au hasard · ABOUT : document GPL de Felucca, défile). Gardé en flash : `alt_sys` = favorites.factory[13]
+  ([3] CLOCK, [4] MIDI IN, [5] MASTER, [6] TUNE ; le reste dans les réglages Felucca).
 - OCT− + OCT+ + HOME = NEW SCENE · OCT− + OCT+ + bouton = vraie page Felucca · REC tapé/tenu 1 s/OCT−+OCT++REC.
 - Page FX DELAY : TIME (1/16 1/8 1/8D 1/4 seulement) FEEDBK **TAPE** SEND. Presets : ECHO, DUB, DUB LONG (1/4 au lieu de
   1/4D), PING-PONG, GHOST, TAPE (SLAP, SPACE, TRIPLET, 16TH DOT retirés). MODE/TAPE dans G_DRLVL/G_DRREV (inertes chez
@@ -63,10 +66,10 @@ gain MASTER + vumètre). Moteurs : ALTER 14, PHYS 9, NOISE 11, RESO 10 (NENGINES
 - [x] **v4 (04/11, retours jam v3)** : clics des dubs (envois qui glissent ~3 ms, TIME en fondu 46 ms), delays revus + TAPE,
   ROLL 1/8, MIXER, SYSTEM, dés séparés, vélo/chance, KICK gras + RUMBLE, BARS/BUZZ/HAT/ARCADE refaits (réglés aux
   mesures, **pas écoutés** : Romain juge). Tests : emu + fx + seq (3 nouveaux) + link OK. **À essayer sur la FM-1.**
-- Questions ouvertes posées à Romain (04/11) : supprimer « 3 MUTE = SHUFFLE » (doublon des dés) ? le « pop » à l'extinction
-  existe-t-il aussi avec le firmware officiel (sinon matériel : pas de code tant qu'on ne sait pas) ? BCR32 : TRS MIDI IN
+- [x] 05/11 : SHUFFLE (3 MUTE) retiré ; SYSTEM complet (AUDIO + ABOUT). Le « pop » à l'extinction existe aussi sur le firmware
+  officiel : matériel, on laisse. BCR32 : TRS MIDI IN
   type A (câble DIN → mini-jack type A) + carte CC fixe de Felucca (CC7 LEVEL, 10 PAN, 73/75/72 ATK/DEC/REL, 74/71 =
   timbre du moteur, 91 REV, 94 DLY, 5 GLIDE ; canaux 1-3 = cercles 1-3) ; un MIDI LEARN ALTER = à faire si besoin.
-- [ ] 3c : vue DEEP + retirer l'interface/séquenceur Felucca (garder d'abord en ALTER : GLIDE, canal/horloge MIDI ✓, 2e cœur ✓,
-  audio USB, volume, ABOUT). Sauver REC/PLAGES dans les scènes (objets flash 5..). Nouveaux moteurs (PLATE, CORDE, RING).
+- [ ] 3c : vue DEEP + retirer l'interface/séquenceur Felucca (déjà repris en ALTER : horloge/MIDI IN, 2e cœur, CLICK, SPEAKER
+  EQ, USB LEVEL, TUNE, ABOUT, volume ; reste GLIDE). Sauver REC/PLAGES dans les scènes (objets flash 5..). Nouveaux moteurs (PLATE, CORDE, RING).
 - [ ] Étape 4 : tranche de console par piste (disto → EQ → comp → delay → reverb).

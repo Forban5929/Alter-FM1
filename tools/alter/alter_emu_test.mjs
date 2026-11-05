@@ -514,10 +514,11 @@ play();
   };
   const p0 = shot(), l0 = seqMenu(), p1 = shot(), m1 = prism();
   chord([0, 2, 4]);
-  const p2 = shot(), m2 = prism(), l1 = seqMenu();
-  tap(0); const mm = prism(); render(FS); tap(0); render(FS * 2);   // (MUTE 1 alone: the measure sees a mute)
-  check(`MUTE 1+2+3: the chosen circle's rhythm and lanes drawn anew, no circle muted (colour ${m1} -> ${m2}, muted ${mm})`,
-        p2 !== p1 && Math.abs(m2 - m1) < (m1 - mm) / 2 && l1 !== l0);
+  const m2 = prism(), l1 = seqMenu();
+  chord([0, 2, 4]); render(FS * 2);                              // (the three unmuted again)
+  const m3 = prism(), l2 = seqMenu();
+  check(`MUTE 1+2+3 (05/11: no SHUFFLE): three mutes, then three unmutes; the lanes unchanged (colour ${m1} -> ${m2} -> ${m3})`,
+        l1 === l0 && l2 === l0 && m2 < m1 && Math.abs(m3 - m1) < (m1 - m2) / 2 + 4);
   chord([5, 1, 3]);
   const c1 = shot(FS / 2);
   chord([1, 3, 5]);                                           // (within 3 s of the first: the undo)

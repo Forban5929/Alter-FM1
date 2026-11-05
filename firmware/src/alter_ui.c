@@ -747,7 +747,7 @@ static int16_t alt_crange(const param_desc_t *d, int32_t div)   /* anywhere in d
 /* SYSTEM (HOME held, 04/11): what the random may draw, kept in the settings (alt_sys, a byte row no engine uses:
  * favorites.factory[13], engine 13 retired): [0] ALT_SYS_OK once set, [1] the engines it may draw (bit = ALT_ENGS index;
  * default ALTER PHYS NOISE, RESO off as Romain asked 03/11), [2] the envelope modes CHAOS TOTAL may draw (bit = AM_*:
- * FREE PERC STAB), [3] CLOCK + 1, [4] MIDI IN + 1, [5] the MIXER's MASTER + 1 */
+ * FREE PERC STAB), [3] CLOCK + 1, [4] MIDI IN + 1, [5] the MIXER's MASTER + 1, [6] TUNE's row value + 1 */
 #define alt_sys (favorites.factory[13])
 #define ALT_SYS_OK 0xA7u
 static void alt_sys_init(void)
@@ -766,6 +766,8 @@ static void alt_sys_init(void)
         song.g[G_ROUTE] = (int16_t)(alt_sys[4] - 1u);
     if (alt_sys[5])
         alt_mgain = (uint8_t)(alt_sys[5] - 1u);
+    if (alt_sys[6])                              /* TUNE (05/11) */
+        menu_put(MI_TUNE, (uint32_t)(alt_sys[6] - 1u) % TUNE_N);
 }
 static uint8_t alt_die_w[AS_NCIRC];               /* what each DICE key draws, from the OCT held at its press */
 static uint32_t alt_rand_pre(void)
@@ -965,7 +967,7 @@ static void alt_chaos(void)
     alt_say("CHAOS");
 }
 
-/* MUTE 1+2+3 (Romain, 01/11): the chosen circle's LEN (4..16) and HITS drawn, at once, and its VELO, CHANCE and
+/* « AU HASARD » (the companion page, alter_link.c LA_RANDOM; MUTE 1+2+3 until 05/11): the chosen circle's LEN (4..16) and HITS drawn, at once, and its VELO, CHANCE and
  * PITCH lanes drawn anew on their 16 steps, single
  * values (no RANGE), as the SEQ menu's SHUFFLE draws them (VELO and CHANCE kept audible: 30 % and up) */
 static void alt_lanes_random(void)
@@ -1481,18 +1483,8 @@ static int alter_ui_input(uint32_t pressed)
         au.keys = keys;
         return 1;
     }
-    /* the combos: MUTE 1+2+3 = the chosen circle's lanes drawn (the mutes they toggled put back); CIRCLE 1+2+3 = TOTAL
-     * CHAOS (the chosen circle put back) */
-    if ((keys & ALT_MUTE_KEYS) == ALT_MUTE_KEYS && (down & ALT_MUTE_KEYS) && !au.mute_combo) {
-        for (i = 0; i < AS_NCIRC; i++)
-            if ((au.mute_tog >> i) & 1u) {
-                au.cfg[i].mute ^= 1u;
-                alt_post_circle(i);
-            }
-        au.mute_tog = 0;
-        au.mute_combo = 1;
-        alt_lanes_random();
-    }
+    /* the combo: CIRCLE 1+2+3 = TOTAL CHAOS (the chosen circle put back). (MUTE 1+2+3 = SHUFFLE removed 05/11,
+     * Romain: a double of the dice; the three MUTE keys are three mutes. The companion's « Au hasard » keeps the draw) */
     if ((down & ALT_TC_KEYS) && !(au.keys & ALT_TC_KEYS))   /* the first CIRCLE key: where the selection was */
         au.sel_was = au.sel;
     if ((keys & ALT_TC_KEYS) == ALT_TC_KEYS && (down & ALT_TC_KEYS) && !au.tc_combo) {
@@ -2624,34 +2616,58 @@ static void alt_mix_scene(void)
     cv_text(8, 220, ALT_FS, "KNOB 4  MASTER", ALT_INK);
 }
 
-/* SYSTEM (XXI, the World; HOME held 0.5 s, Romain 04/11): two tabs (ALGORITHM), rows (SELECT), KNOB 1 changes the
- * row; the battery in the corner. Kept in the settings (alt_sys above), from the next frame:
+/* SYSTEM (XXI, the World; HOME held 0.5 s, Romain 04/11, 05/11): four tabs (ALGORITHM), rows (SELECT), KNOB 1 changes
+ * the row; the battery in the corner. Kept in the settings (alt_sys above, or Felucca's own record), from the next frame:
  *   MIDI    CLOCK (INT, USB, TRS: the Analog Rytm's clock through the TRS jack), MIDI IN (Felucca's G_ROUTE: CH1-4 =
- *           channels 1 2 3 play / move circles 1 2 3), 2ND CORE (Felucca's setting, from the next power-on)
+ *           channels 1 2 3 play / move circles 1 2 3)
+ *   AUDIO   Felucca's own rows (menu_items.c, as its MENU sets them): CLICK, CLICK LEVEL, COUNT-IN, SPEAKER EQ,
+ *           USB LEVEL, TUNE (a project value at Felucca's: kept here in alt_sys[6]), 2ND CORE (from the next power-on)
  *   RANDOM  which engines (ALTER PHYS NOISE RESO) the random's sounds may come from, which modes (FREE PERC STAB)
- *           CHAOS TOTAL may give: ON / OFF each (at least one stays on) */
-enum { SYS_CLOCK, SYS_MIDIIN, SYS_CPU2, SYS_NMIDI };
-enum { SYS_TMIDI, SYS_TRAND, SYS_NT };
-static const char *const SYS_TAB[SYS_NT] = {"MIDI", "RANDOM"};
-static const char *const SYS_MROW[SYS_NMIDI] = {"CLOCK", "MIDI IN", "2ND CORE"};
+ *           CHAOS TOTAL may give: ON / OFF each (at least one stays on)
+ *   ABOUT   Felucca's ABOUT / CREDITS document (ui_menu.c menu_document: the GPL-3.0 notices), SELECT scrolls it */
+enum { SYS_CLOCK, SYS_MIDIIN, SYS_NMIDI };
+enum { SYS_TMIDI, SYS_TAUD, SYS_TRAND, SYS_TABOUT, SYS_NT };
+static const char *const SYS_TAB[SYS_NT] = {"MIDI", "AUDIO", "RANDOM", "ABOUT"};
+static const char *const SYS_MROW[SYS_NMIDI] = {"CLOCK", "MIDI IN"};
+static const uint8_t SYS_AROW[] = {MI_CLICK, MI_CLKLVL, MI_COUNTIN, MI_LOWCUT, MI_USB, MI_TUNE,
+#if FELUCCA_CPU2
+                                   MI_CPU2,
+#endif
+};
+#define SYS_NAUD ((uint32_t)NELEM(SYS_AROW))
 static const char *const SYS_RROW[7] = {"ALTER", "PHYS", "NOISE", "RESO", "FREE", "PERC", "STAB"};
 static uint8_t alt_sys_tab;
-static uint32_t alt_sys_rows(void) { return alt_sys_tab == SYS_TMIDI ? SYS_NMIDI : 7u; }
+static int16_t alt_sys_scroll;                   /* (ABOUT: pixels scrolled) */
+static uint32_t alt_sys_rows(void)
+{
+    return alt_sys_tab == SYS_TMIDI ? SYS_NMIDI : alt_sys_tab == SYS_TAUD ? SYS_NAUD : alt_sys_tab == SYS_TRAND ? 7u : 0u;
+}
+static const char *alt_sys_name(uint32_t r)
+{
+    return alt_sys_tab == SYS_TMIDI ? SYS_MROW[r] : alt_sys_tab == SYS_TAUD ? MI_NAME[SYS_AROW[r]] : SYS_RROW[r];
+}
 static const char *alt_sys_text(uint32_t r)
 {
+    static char tb[12];
     if (alt_sys_tab == SYS_TRAND) {
         uint32_t m = r < 4u ? alt_sys[1] >> r : alt_sys[2] >> (r - 4u);
         return (m & 1u) ? "ON" : "OFF";
     }
+    if (alt_sys_tab == SYS_TAUD) {
+        uint32_t row = SYS_AROW[r];
+        const char *v = menu_vname(row, menu_get(row));
+        if (row == MI_TUNE) {                    /* (the cents: "+12 CT") */
+            uint32_t n = 0;
+            while (v[n] && n < 7u)
+                tb[n] = v[n], n++;
+            tb[n++] = ' ', tb[n++] = 'C', tb[n++] = 'T', tb[n] = 0;
+            return tb;
+        }
+        return v;
+    }
     if (r == SYS_CLOCK)
         return N_CLOCK[clamp(song.g[G_CLOCK], 0, (int32_t)NELEM(N_CLOCK) - 1)];
-    if (r == SYS_MIDIIN)
-        return N_ROUTE[clamp(song.g[G_ROUTE], 0, (int32_t)NELEM(N_ROUTE) - 1)];
-#if FELUCCA_CPU2
-    return menu_vname(MI_CPU2, menu_get(MI_CPU2));
-#else
-    return "-";
-#endif
+    return N_ROUTE[clamp(song.g[G_ROUTE], 0, (int32_t)NELEM(N_ROUTE) - 1)];
 }
 static void alt_sys_turn(uint32_t r, int32_t s)
 {
@@ -2661,32 +2677,48 @@ static void alt_sys_turn(uint32_t r, int32_t s)
         uint32_t bit = 1u << (r < 4u ? r : r - 4u), all = r < 4u ? 15u : 7u, v = d > 0 ? *b | bit : *b & ~bit;
         if (v & all)                             /* (one stays on) */
             *b = (uint8_t)v;
+    } else if (alt_sys_tab == SYS_TAUD) {
+        uint32_t row = SYS_AROW[r];
+        menu_put(row, menu_step(row, row == MI_TUNE ? s : d));   /* (TUNE: a cent a click, faster turned) */
+        if (row == MI_TUNE)
+            alt_sys[6] = (uint8_t)(menu_get(MI_TUNE) + 1u);
     } else if (r == SYS_CLOCK) {
         song.g[G_CLOCK] = (int16_t)clamp(song.g[G_CLOCK] + d, 0, (int32_t)NELEM(N_CLOCK) - 1);
         alt_sys[3] = (uint8_t)(song.g[G_CLOCK] + 1);
-    } else if (r == SYS_MIDIIN) {
+    } else {
         song.g[G_ROUTE] = (int16_t)clamp(song.g[G_ROUTE] + d, 0, (int32_t)NELEM(N_ROUTE) - 1);
         alt_sys[4] = (uint8_t)(song.g[G_ROUTE] + 1);
     }
-#if FELUCCA_CPU2
-    else if (r == SYS_CPU2)
-        menu_put(MI_CPU2, menu_step(MI_CPU2, d));
-#endif
     settings_save();
+}
+#define SYS_DOC_TOP 62                           /* (ABOUT: the document between the tabs and the line at 196) */
+static int32_t alt_sys_scroll_max(void)
+{
+    int32_t h = menu_document(0, 0) - (192 - SYS_DOC_TOP);
+    return h > 0 ? h : 0;
 }
 static void alt_sys_input(void)
 {
     int32_t s;
     uint32_t i;
     if ((s = panel_enc(EN_ALGO)) != 0) {
-        alt_sys_tab = (uint8_t)(s > 0 ? SYS_TRAND : SYS_TMIDI);
+        alt_sys_tab = (uint8_t)clamp((int32_t)alt_sys_tab + (s > 0 ? 1 : -1), 0, SYS_NT - 1);
         au.set_row = 0;
+        alt_sys_scroll = 0;
     }
-    if ((s = panel_enc(EN_SELECT)) != 0)
-        au.set_row = (uint8_t)clamp((int32_t)au.set_row + s, 0, (int32_t)alt_sys_rows() - 1);
+    if ((s = panel_enc(EN_SELECT)) != 0) {
+        if (alt_sys_tab == SYS_TABOUT)
+            alt_sys_scroll = (int16_t)clamp((int32_t)alt_sys_scroll + s * 18, 0, alt_sys_scroll_max());
+        else
+            au.set_row = (uint8_t)clamp((int32_t)au.set_row + s, 0, (int32_t)alt_sys_rows() - 1);
+    }
     for (i = 0; i < 4u; i++)
-        if ((s = panel_enc(EN_K1 + i)) != 0 && i == 0u)
-            alt_sys_turn(au.set_row, s);
+        if ((s = panel_enc(EN_K1 + i)) != 0 && i == 0u) {
+            if (alt_sys_tab == SYS_TABOUT)       /* (KNOB 1 scrolls ABOUT too) */
+                alt_sys_scroll = (int16_t)clamp((int32_t)alt_sys_scroll + s * 18, 0, alt_sys_scroll_max());
+            else
+                alt_sys_turn(au.set_row, s);
+        }
     (void)panel_enc(EN_PRESET);
     alt_hold = 0;
 }
@@ -2705,23 +2737,32 @@ static void alt_sys_scene(void)
 {
     uint32_t r, n = alt_sys_rows();
     uint16_t col = ALT_COL[au.sel % AS_NCIRC], hl = alt_gold_line(16);
+    static const char *const FOOT[SYS_NT][2] = {
+        {"CLOCK TRS = THE RYTM'S CLOCK", "MIDI IN: CHANNELS 1 2 3 = CIRCLES"},
+        {"2ND CORE: AFTER A RESTART", "SPEAKER EQ: THE FM-1'S SPEAKER"},
+        {"ENGINES: CHAOS, CHAOS TOTAL", "MODES: CHAOS TOTAL"},
+        {"SELECT / KNOB 1: SCROLL", "GPL-3.0: THE SOURCE IS FREE"},
+    };
+    if (alt_sys_tab == SYS_TABOUT) {             /* the document first, its top hidden under the card */
+        (void)menu_document(SYS_DOC_TOP - alt_sys_scroll, 1);
+        cv_rect(0, 0, 240, SYS_DOC_TOP, ALT_BG);  /* (no half lines: hidden above the top and under 192) */
+        cv_rect(0, 192, 240, 48, ALT_BG);
+    }
     alt_card("SYSTEM", "XXI");
     alt_sys_battery(200, 24);
     alt_tabs(40, SYS_TAB, SYS_NT, alt_sys_tab, ALT_GOLD);
     for (r = 0; r < n; r++) {
-        int32_t y = 62 + (int32_t)r * 19;
-        const char *nm = alt_sys_tab == SYS_TMIDI ? SYS_MROW[r] : SYS_RROW[r];
+        int32_t y = 60 + (int32_t)r * 19;
         if (r == au.set_row) {
             cv_rect(8, y - 3, 224, 18, hl);
             alt_diamond(15, y + 6, 3, 3, col);
         }
-        cv_text_on(24, y, ALT_FM, nm, ALT_INK, r == au.set_row ? hl : ALT_BG);
+        cv_text_on(24, y, ALT_FM, alt_sys_name(r), ALT_INK, r == au.set_row ? hl : ALT_BG);
         cv_text_r(226, y, ALT_FM, alt_sys_text(r), r == au.set_row ? col : ALT_DIM, r == au.set_row ? hl : ALT_BG);
     }
     cv_rect(8, 196, 224, 1, alt_gold_line(30));
-    cv_text(8, 202, ALT_FS, alt_sys_tab == SYS_TMIDI ? "TRS = THE RYTM'S CLOCK" : "ENGINES: CHAOS, CHAOS TOTAL",
-            ALT_DIM);
-    cv_text(8, 216, ALT_FS, alt_sys_tab == SYS_TMIDI ? "2ND CORE: AFTER A RESTART" : "MODES: CHAOS TOTAL", ALT_DIM);
+    cv_text(8, 202, ALT_FS, FOOT[alt_sys_tab % SYS_NT][0], ALT_DIM);
+    cv_text(8, 216, ALT_FS, FOOT[alt_sys_tab % SYS_NT][1], ALT_DIM);
 }
 
 /* SETTINGS (I, the Magician; EDIT held): rows, SELECT picks one, KNOB 1 or ALGORITHM changes it. THEME: NIGHT / DAY,
@@ -3164,6 +3205,13 @@ static void alter_draw(void)
             sig = sig * 31u + (uint32_t)trk[i].p[P_LEVEL] + alt_seq.c[i].cfg.mute * 128u;
     }
     if (au.mn == QP_SYS)                         /* (SYSTEM: its tab, values, the battery) */
+    {
+        uint32_t k;
+        for (k = 0; k < SYS_NAUD; k++)
+            sig = sig * 31u + menu_get(SYS_AROW[k]);
+        sig = sig * 31u + (uint32_t)alt_sys_scroll * 3u;
+    }
+    if (au.mn == QP_SYS)
         sig = sig * 31u + alt_sys_tab * 7u + alt_sys[1] * 11u + alt_sys[2] * 13u + (uint32_t)song.g[G_CLOCK] * 17u +
               (uint32_t)song.g[G_ROUTE] * 19u + (uint32_t)batt_shown() * 23u
 #if FELUCCA_CPU2
