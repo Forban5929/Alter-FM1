@@ -516,7 +516,7 @@ play();
   chord([0, 2, 4]);
   const m2 = prism(), l1 = seqMenu();
   chord([0, 2, 4]); render(FS * 2);                              // (the three unmuted again)
-  const m3 = prism(), l2 = seqMenu();
+  const m3 = prism(), l2 = seqMenu(), p2 = shot();
   check(`MUTE 1+2+3 (05/11: no SHUFFLE): three mutes, then three unmutes; the lanes unchanged (colour ${m1} -> ${m2} -> ${m3})`,
         l1 === l0 && l2 === l0 && m2 < m1 && Math.abs(m3 - m1) < (m1 - m2) / 2 + 4);
   chord([5, 1, 3]);
