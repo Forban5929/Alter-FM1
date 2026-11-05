@@ -233,14 +233,16 @@ tap(10); bar();
   const es = bar().steps;
   check(`ENV tapped again: closed (KNOB 2 = the sound's again, HITS unchanged) ${es.join(",")}`, same(es, euclid(16, 8, 0)));
   B(2); enc(4, 27); B(2);
-  // OCT- + OCT+ held + FX: Felucca's own FX page (the circles' screen goes), HOME comes back
+  // OCT- + OCT+ held + FX: Felucca's pages are gone (05/11): ALTER's own screen stays (its FX page at most), HOME back
   const px = () => { render(4000); return new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240)[13 * 240 + 14]; };
+  const scr2 = () => px();                                       // (the corner: ALTER's frame on each of its screens)
   const home = px();
   ex.web_buttons((1 << 12) | (1 << 13)); render(2000); ex.web_buttons((1 << 12) | (1 << 13) | 1); render(2000);
   ex.web_buttons((1 << 12) | (1 << 13)); render(2000); ex.web_buttons(0); render(FS / 2);
-  const felucca = px();
+  const felucca = ex.web_alter_hits ? scr2() : 0;
   B(6); render(FS / 2);
-  check(`OCT- + OCT+ + FX: Felucca's page (screen changed), HOME: the circles again`, felucca !== home && px() === home);
+  check(`OCT- + OCT+ + FX: no Felucca page (05/11): an ALTER screen (its card), HOME: the circles again`,
+        felucca === home && px() === home);
   // OCT- + OCT+ + DICE 1: circle 1's LOCKS; F3 = RHYTHM locked; HOME; a roll keeps the rhythm
   ex.web_buttons((1 << 12) | (1 << 13)); render(2000); tap(7); ex.web_buttons(0); render(2000);
   tap(0); B(6);

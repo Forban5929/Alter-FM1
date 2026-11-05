@@ -11,39 +11,6 @@ typedef struct {
     uint32_t user, filter;
 } favorites_t;
 static favorites_t favorites __attribute__((section(".pool")));
-static uint8_t *fav_bit(uint32_t engine, uint32_t preset, uint8_t *mask)   /* the byte and bit of a factory preset */
-{
-    if (engine < NENGINES && engine < FAV_ENGINES && preset < 256u) {
-        *mask = (uint8_t)(1u << (preset % 8u));
-        return &favorites.factory[engine][preset / 8u];
-    }
-    return 0;
-}
-static int favorite_has(uint32_t engine, uint32_t preset)
-{
-    uint8_t m, *b;
-    if (engine == NENGINES)
-        return preset < UP_SLOTS && ((favorites.user >> preset) & 1u);
-    b = fav_bit(engine, preset, &m);
-    return b && (*b & m);
-}
-static int favorite_set(uint32_t engine, uint32_t preset, int on)
-{
-    uint8_t m, *b;
-    if (engine == NENGINES) {
-        if (preset >= UP_SLOTS || favorite_has(engine, preset) == !!on)
-            return 0;
-        if (on) favorites.user |= 1u << preset;
-        else favorites.user &= ~(1u << preset);
-        return 1;
-    }
-    b = fav_bit(engine, preset, &m);
-    if (!b || !!(*b & m) == !!on)
-        return 0;
-    if (on) *b |= m;
-    else *b &= (uint8_t)~m;
-    return 1;
-}
 
 /* MENU > DISPLAY > COLOR's 11th value, CUSTOM (1.6, #244, Discussion #239): a palette of the user's, five RGB565 colours (BG
  * SURF TEXT THEME ACCENT, 16 bits little endian) in favorites.factory[15][0..9], flags in [12] (bit 0: one is stored, bit 1:
@@ -69,13 +36,3 @@ static void palette_apply(void)
     }
 }
 
-/* the five colours into the settings' bytes (stored; not yet the palette in use: palette_choose / palette_apply) */
-static void cpal_store(const uint16_t *c)
-{
-    uint32_t i;
-    for (i = 0; i < 5u; i++) {
-        ui_cpal[2u * i] = (uint8_t)c[i];
-        ui_cpal[2u * i + 1u] = (uint8_t)(c[i] >> 8);
-    }
-    ui_cpal_flags |= CPAL_STORED;
-}

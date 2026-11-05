@@ -46,14 +46,6 @@ static void panel_init(void)                     /* also after a flash load: ids
         panel = PANEL_DEFAULT;
 }
 
-static uint32_t panel_btn_of(uint32_t matrix_id)        /* label of a matrix button, NB if none */
-{
-    uint32_t b;
-    for (b = 0; b < NB; b++)
-        if (panel.btn[b] == matrix_id)
-            return b;
-    return NB;
-}
 
 /* steps of a role, + = clockwise */
 static uint8_t panel_moved;                     /* a knob turned since ui.c scr_input last looked (SCREEN OFF) */
@@ -87,7 +79,6 @@ static uint32_t hold_to_stored(uint32_t old, uint32_t i)
 {
     return i % 4u != HOLD_DEF ? HOLD_TAG | (i & 3u) : old > 1u ? 0u : old;
 }
-static int hold_stored_ok(uint32_t v) { return v <= 1u || (v & ~3u) == HOLD_TAG; }
 
 /* LEDS (menu): OFF, DIM LO, DIM HI, INV. DIM HI (the default), the idle buttons and keys glow dim (~1/30) and the
  * active ones are lit (#35); DIM LO the same, darker (~1/60, bsp/boards/fm1/fm1_input.h FM1_LED_DIM_LO_NS); OFF no glow,
@@ -104,16 +95,6 @@ static uint32_t leds_from_stored(uint32_t v) { return (v & ~3u) == LEDS_TAG && (
 static uint32_t leds_to_stored(uint32_t old, uint32_t m)
 {
     return m != LEDS_DIM && m < LEDS_COUNT ? LEDS_TAG | m : old > 1u ? 0u : old;
-}
-static int leds_stored_ok(uint32_t v) { return v <= 1u || ((v & ~3u) == LEDS_TAG && (v & 3u) < LEDS_COUNT); }
-/* the menu's next / previous mode (KNOB 1 stops at the ends, OCT+ (s 0) cycles) */
-static uint32_t leds_step(uint32_t m, int32_t s)
-{
-    uint32_t i = 0;
-    while (i + 1u < LEDS_COUNT && LEDS_MENU[i] != m)
-        i++;
-    i = s > 0 ? (i + 1u < LEDS_COUNT ? i + 1u : i) : s < 0 ? (i ? i - 1u : 0u) : (i + 1u) % LEDS_COUNT;
-    return LEDS_MENU[i];
 }
 
 static void palette_apply(void);               /* (ui.c: the palette in use, CUSTOM or a built-in one) */

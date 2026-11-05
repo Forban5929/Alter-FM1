@@ -16,10 +16,11 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
    - `node tools/alter/alter_emu_test.mjs build/emu/felucca.wasm build/emu/alter_play.wav` · `node tools/alter/alter_fx_test.mjs build/emu/felucca.wasm`
    - `cc -std=c99 -O2 -Wall -o build/alter/alter_seq_test tools/alter/alter_seq_test.c && build/alter/alter_seq_test`
    - `node tools/alter/alter_link_test.mjs build/emu/felucca.wasm` · `node web/emu/emu_test.mjs …` (**4 échecs VOULUS**)
+   - 2 cœurs (GitHub le lance) : `cc -std=gnu99 -O1 -w -fsanitize=thread -DFELUCCA_CPU2=1 -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -Ifirmware/bsp/chip -Ifirmware/bsp/boards/fm1 tests/dualcore_test.c -o build/host/dualcore_test -lpthread -lm`
    - Syntaxe FM-1 : `clang --target=wasm32 -fsyntax-only -std=gnu99 -w -Werror=implicit-function-declaration -Werror=undefined-internal -nostdlibinc -isystem tools/alter/wasm/include -isystem $(clang -print-resource-dir)/include -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Ifirmware/bsp/chip -Ifirmware/bsp/boards/fm1 firmware/src/felucca.c`
 3. Outils : `alter_render.mjs wasm DIR` (WAV + niveaux de tous les sons), `alter_shot.mjs wasm DIR "w:500 B:GLO+ w:700 B:GLO- s:nom"`
    (captures), `alter_knob_probe.mjs`. Ops de test `web_alter` : liste en tête de `alt_web_cmd` (alter_ui.c) ;
-   **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio).
+   **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE.
 4. Pousser sur `etape-3d` → GitHub Actions construit le vrai firmware + publie https://forban5929.github.io/Alter-FM1/ (version
    dans /version.txt). Le cloud ne télécharge pas les artifacts ni le compilateur JieLi : **rien n'est mesuré sur la FM-1 depuis le cloud.**
 
@@ -38,7 +39,7 @@ MASTER FILTER · `alter_lfo.c` · `alter_sounds.c` sons + scènes d'usine · `al
 réglages flash · `eng_alter.c` / `eng_reso.c` moteurs · `fx.c` (Felucca + nos ajouts : delay MODE/TAPE, glisse des envois,
 gain MASTER + vumètre). Moteurs : ALTER 14, PHYS 9, NOISE 11, RESO 10 (NENGINES 15 fixe).
 
-## Les commandes (état au 04/11 soir, v4)
+## Les commandes (état au 05/11)
 - Clavier : F G A = MUTE 1 2 3 · C D E = DÉ 1 2 3 · G A = SHIFT −/+ · B = LOCK (TURING) · noires F# G# A# = CERCLE 1 2 3
   (les 3 = CHAOS TOTAL, re-tapé < 3 s = annulé) · C# D# = DENSITÉ −/+ · F# G# A# hautes = DUB DELAY, DUB REVERB, DESTROY
   (tenus) · C# D# hautes = ROLL 1/16, **ROLL 1/8** (ex-1/32) · F# haute = TRIGGER. C..G hautes blanches : libres.
@@ -48,13 +49,18 @@ gain MASTER + vumètre). Moteurs : ALTER 14, PHYS 9, NOISE 11, RESO 10 (NENGINES
 - MUTE 1+2+3 = trois mutes (SHUFFLE retiré le 05/11 ; le tirage reste sur le bouton « Au hasard » de la page compagnon).
 - **Vélo/chance au hasard** (dés, CHAOS, « Au hasard », SHUFFLE du menu SEQ) : vélo 100 % 70 %, 75 % 20 %, 50 % 10 % ; chance 100 % sauf
   une part qui monte avec le nombre de coups (aucune si ≤ 2 coups, max 45 %) : 75/50/25 % (plancher 25 %). `as_vpct`, `as_cpct`.
-- Boutons de page : tap = page rapide, tenu 0,5 s = menu. Menus : SEQ, FX, LFO, ENV, SCL, EDIT (SETTINGS),
+- Boutons de page : tap = page rapide, tenu 0,5 s = menu. Menus : SEQ, FX, LFO, ENV, SCL,
+  **EDIT = DEEP** (liste de tous les réglages du son du cercle choisi : onglets SOUND / ENV / FX / MIX, SELECT = ligne,
+  KNOB 1 = valeur via la file alt_q donc REC l'enregistre, touches noires = cercle ; `alt_deep_*`),
   **GLO = MIXER** (knob 1-3 = LEVEL des cercles, knob 4 = MASTER 100 = 0 dB, vumètre blanc/doré = limiteur/rouge = clip),
-  **HOME tenu = SYSTEM** (batterie en haut ; onglets MIDI : CLOCK INT/USB/TRS, MIDI IN · AUDIO : lignes Felucca CLICK,
-  CLICK LEVEL, COUNT-IN, SPEAKER EQ, USB LEVEL, TUNE, 2ND CORE · RANDOM : moteurs ALTER PHYS NOISE RESO et modes FREE PERC
+  **HOME tenu = SYSTEM** (batterie en haut ; onglets SETUP : THEME, CLOCK INT/USB/TRS, MIDI IN · AUDIO : lignes Felucca
+  CLICK (OFF/ON), CLICK LEVEL, SPEAKER EQ, USB LEVEL, TUNE, 2ND CORE · RANDOM : moteurs ALTER PHYS NOISE RESO et modes FREE PERC
   STAB permis au hasard · ABOUT : document GPL de Felucca, défile). Gardé en flash : `alt_sys` = favorites.factory[13]
   ([3] CLOCK, [4] MIDI IN, [5] MASTER, [6] TUNE ; le reste dans les réglages Felucca).
-- OCT− + OCT+ + HOME = NEW SCENE · OCT− + OCT+ + bouton = vraie page Felucca · REC tapé/tenu 1 s/OCT−+OCT++REC.
+- OCT− + OCT+ + HOME = NEW SCENE · REC tapé/tenu 1 s/OCT−+OCT++REC. **OCT− + OCT+ tenus 5 s = mode UPDATE** (main.c,
+  à garder absolument) · OCT− + OCT+ tenus à l'allumage = calibration des boutons (main.c panel_setup).
+- Scènes USER : tout + **REC (mouvements) + PLAGES** (05/11) dans les objets flash 5 6 7 9 (5 scènes par objet, lus/écrits à la
+  demande via `alt_xb`, `alt_xsave`/`alt_xput` dans alter_store.c ; PLAGES sur 16 niveaux). Objet 8 = mêmes secteurs que 7 : NE PAS UTILISER.
 - Page FX DELAY : TIME (1/16 1/8 1/8D 1/4 seulement) FEEDBK **TAPE** SEND. Presets : ECHO, DUB, DUB LONG (1/4 au lieu de
   1/4D), PING-PONG, GHOST, TAPE (SLAP, SPACE, TRIPLET, 16TH DOT retirés). MODE/TAPE dans G_DRLVL/G_DRREV (inertes chez
   Felucca) et octets 28-29 de l'enregistrement FX des scènes.
@@ -70,6 +76,10 @@ gain MASTER + vumètre). Moteurs : ALTER 14, PHYS 9, NOISE 11, RESO 10 (NENGINES
   officiel : matériel, on laisse. BCR32 : TRS MIDI IN
   type A (câble DIN → mini-jack type A) + carte CC fixe de Felucca (CC7 LEVEL, 10 PAN, 73/75/72 ATK/DEC/REL, 74/71 =
   timbre du moteur, 91 REV, 94 DLY, 5 GLIDE ; canaux 1-3 = cercles 1-3) ; un MIDI LEARN ALTER = à faire si besoin.
-- [ ] 3c : vue DEEP + retirer l'interface/séquenceur Felucca (déjà repris en ALTER : horloge/MIDI IN, 2e cœur, CLICK, SPEAKER
-  EQ, USB LEVEL, TUNE, ABOUT, volume ; reste GLIDE). Sauver REC/PLAGES dans les scènes (objets flash 5..). Nouveaux moteurs (PLATE, CORDE, RING).
+- [x] 3c (05/11) : REC + PLAGES sauvés · vue DEEP · **interface Felucca retirée** (trappe OCT−+OCT++bouton supprimée, ui_input
+  ne fait plus qu'appeler ALTER, ui_draw_page = UBOOT ou ALTER ; −8 300 lignes de code mort, wasm 767 → 500 Ko). Gardé exprès :
+  seq.c (transport + horloge MIDI des cercles), menu_items.c (lignes de SYSTEM), ui_menu.c menu_document (ABOUT), main.c
+  (UPDATE, calibration), midi_*.c. MIDI LEARN de Felucca parti avec ses pages (un learn ALTER = à faire pour le BCR32).
+  Méthode : `/tmp`-script « prune » = compiler avec -Wunused-function et supprimer ce qui est signalé, en boucle, HORS sous-modules.
+- [ ] Nouveaux moteurs (PLATE, CORDE, RING) · MIDI LEARN ALTER · touches blanches hautes libres.
 - [ ] Étape 4 : tranche de console par piste (disto → EQ → comp → delay → reverb).

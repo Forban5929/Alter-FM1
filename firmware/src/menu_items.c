@@ -32,7 +32,6 @@ enum { MI_COLOR, MI_STYLE, MI_LARGE, MI_ANIM, MI_LEDS, MI_SCROFF, MI_SCOPE, MI_H
 #else
 #define MI_TEXT(row) 0
 #endif
-static int menu_valued(uint32_t row) { return row < MI_VALUES && row != MI_LCLEAR; }   /* (a row with a value) */
 #define MI_PROJECT(row) ((row) == MI_TUNE || ((row) >= MI_MIDIIN && (row) <= MI_TCH4))   /* the project's values (song.g,
                                                                                          * song.mch), not settings */
 #define MI_TCH(row) ((row) >= MI_TCH1 && (row) <= MI_TCH4)   /* 1.5.5 (#202): T1..T4 CHANNEL, MIDI IN TRACK's */
@@ -83,20 +82,6 @@ static const uint8_t MI_TAB[MI_COUNT] = {
 #define TUNE_MIN (-50)
 #define TUNE_N 101u
 typedef char mtab_fits_ui[sizeof ui.menu_row >= MTAB_COUNT ? 1 : -1];   /* (ui.c: the row last picked per tab) */
-static uint32_t mtab_first(uint32_t t)                 /* a tab's first row */
-{
-    uint32_t i = 0;
-    while (i < MI_COUNT && MI_TAB[i] != t)
-        i++;
-    return i;
-}
-static uint32_t mtab_rows(uint32_t t)                  /* .. and how many it has */
-{
-    uint32_t i, n = 0;
-    for (i = 0; i < MI_COUNT; i++)
-        n += MI_TAB[i] == t;
-    return n;
-}
 /* STYLE (ui_style, gfx.c ST_*): FLAT the filled cards; LINE black areas divided by 1 px rules (#50, #57: the 0.9 look)
  * (1.0.2: PIXEL retired, a saved PIXEL reads as LINE) */
 static const char *const STYLE_N[2] = {"FLAT", "LINE"};

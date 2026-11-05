@@ -500,7 +500,6 @@ static void arp_step(track_t *t, uint32_t n, uint32_t gate_n)
     arp_fire(t, period);
 }
 
-static void arp_tick(track_t *t, uint32_t n) { arp_step(t, n, n); }
 
 /* -------------------------------------------------------- note input --- */
 /* the length of step idx in samples: SWING (the track's + the global, at most 100) makes the even steps longer
@@ -1335,17 +1334,6 @@ static void click_tick(uint32_t adv)
     }
     if (beat && click_wanted())
         click_req = (uint8_t)beat;
-}
-/* the beat of the bar the click is on (0..3: 0 the accented first), -1 stopped: the count-in's, else the playing
- * transport's (clk_step, internal or external clock). It moves in the block a beat clicks in (the header's metronome,
- * ui_draw.c, swings on it; CLICK OFF it moves all the same) */
-static int32_t click_beat_now(void)
-{
-    if (cin_left)
-        return (int32_t)((uint32_t)(cin_total - cin_left) % 4u);
-    if (!song.playing)
-        return -1;
-    return clk_pos == CLK_START ? 0 : (int32_t)(clk_step >> 2);
 }
 
 /* everything that happens between two rendered blocks */

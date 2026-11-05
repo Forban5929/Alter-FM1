@@ -82,25 +82,8 @@ static void eng_mem_claim(const track_t *t)
  * stores and the protocol hold them); only this table orders them */
 static const uint8_t ENGINE_ORDER[NENG_SHOWN] = {ENGI_ALTER, ENGI_PHYS, ENGI_NOISE, ENGI_RESO};
 
-/* the engines one can pick (engine 1 only with FELUCCA_FM4), in ENGINE_ORDER: eng_ok(e), the n-th of them
- * eng_vis(n), e's place among them eng_rank(e), the next / previous one eng_step(e, dir) (wraps) */
-static int eng_ok(uint32_t e) { return e == ENGI_ALTER || e == ENGI_PHYS || e == ENGI_NOISE || e == ENGI_RESO; }
 static uint32_t eng_vis(uint32_t n) { return ENGINE_ORDER[n % NENG_SHOWN]; }
-static uint32_t eng_rank(uint32_t e)
-{
-    uint32_t n;
-    if (!eng_ok(e))
-        e = ENGI_ALTER;
-    for (n = 0; n < NENG_SHOWN && ENGINE_ORDER[n] != e; n++)
-        ;
-    return n < NENG_SHOWN ? n : 0u;
-}
-static uint32_t eng_step(uint32_t e, int32_t dir)
-{
-    return eng_vis((eng_rank(e % NENGINES) + (dir > 0 ? 1u : NENG_SHOWN - 1u)) % NENG_SHOWN);
-}
 
 /* the parts at power-on (engine, preset, PATTERNS[n - 1] in the sequencer, 0 = empty: all are): bass, pad, lead, drums */
 /* ALTER: circles 1-3 play parts 1-3 (alter_play.c): ALTER THUD, PHYS TOMS, NOISE METAL; part 4 stays silent */
 static const uint8_t TRK_DEF[NPART][3] = {{ENGI_ALTER, 0, 0}, {ENGI_PHYS, 6, 0}, {ENGI_NOISE, 3, 0}, {ENGI_NOISE, 3, 0}};
-static uint32_t trk_def_engine(uint32_t i) { return TRK_DEF[i % NPART][0]; }

@@ -242,19 +242,6 @@ static const param_desc_t *param_desc_of(uint32_t e, uint32_t id)
 
 /* a stored value as the parameter takes it: inside d's range */
 static int32_t param_fit(const param_desc_t *d, int32_t v) { return clamp(v, d->min, d->max); }
-static int32_t enum_orig(const param_desc_t *d, int32_t v) { (void)d; return v; }
-static int enum_skip(const param_desc_t *d, int32_t v) { (void)d; (void)v; return 0; }
-/* a knob moved an F_ENUM from `from` to v: past any value it skips in that direction; with none left to the end, the
- * last one it does not skip on the way from `from` (else `from`) */
-static int32_t enum_step(const param_desc_t *d, int32_t from, int32_t v)
-{
-    int32_t dir = v > from ? 1 : -1, w = v;
-    while (w != from && enum_skip(d, w))
-        w = w + dir > d->max || w + dir < d->min ? from : w + dir;
-    while (w == from && v != from && enum_skip(d, v))
-        v -= dir;
-    return w == from ? v : w;
-}
 
 /* #48: the note divisions in the order of their length, longest first (triplets between their neighbours), on the
  * knobs and the gauges; the stored values (N_DIV, N_SLDIV indices: projects, presets, the editor protocol) stay.
@@ -263,142 +250,9 @@ static const uint8_t DIV_ORDER[10] = {9, 8, 7, 6, 0, 1, 4, 2, 5, 3};   /* 4BAR 2
 static const uint8_t SLDIV_ORDER[6] = {0, 3, 1, 4, 2, 5};              /* 1/8 8T 1/16 16T 1/32 32T */
 static const uint8_t DTIME_ORDER[13] = {9, 8, 7, 6, 12, 0, 10, 1, 11, 4, 2, 5, 3};   /* 4BAR 2BAR 1/1 1/2 1/4D 1/4 1/8D
                                                                                       * 1/8 1/16D 8T 1/16 16T 1/32 */
-static const uint8_t *enum_order(const param_desc_t *d)
-{
-    return d->names == N_DIV ? DIV_ORDER : d->names == N_SLDIV ? SLDIV_ORDER : d->names == N_DTIME ? DTIME_ORDER : 0;
-}
-static int32_t enum_rank(const param_desc_t *d, int32_t v)   /* v's place in the shown order (+ min): the gauges */
-{
-    const uint8_t *o = enum_order(d);
-    int32_t r;
-    for (r = 0; o && r < d->max - d->min; r++)
-        if (o[r] == v - d->min)
-            break;
-    return o ? r + d->min : v;
-}
-/* a knob turned `steps` (signed) from v: clamped, over the shown order, past aliases (enum_step) */
-static int32_t param_turn(const param_desc_t *d, int32_t v, int32_t steps)
-{
-    const uint8_t *o = enum_order(d);
-    if (o)
-        return o[clamp(enum_rank(d, v) - d->min + steps, 0, d->max - d->min)] + d->min;
-    if (d->names == ESYNC_NAMES) {                    /* ENV SYNC: a note value a step (the first value showing it) */
-        int32_t k = clamp((int32_t)esync_idx(v) + steps, 0, ESYNC_N - 1);
-        return (k * 128 + ESYNC_N - 1) / ESYNC_N;
-    }
-    return enum_step(d, v, clamp(v + steps, d->min, d->max));
-}
 
 static uint8_t fmt_named;        /* the last param_format was a name (F_ENUM, even "4"): ui_draw.c's digits do not roll it */
 
-/* value string (<= 5 chars) and unit for a parameter value */
-static void param_format(const param_desc_t *d, int32_t v, char *val, const char **unit)
-{
-    *unit = "";
-    fmt_named = d->fmt == F_ENUM;
-    switch (d->fmt) {
-    case F_PCT:                                     /* a 0..100 range (SWG) is its value, others a share of 127 */
-        fmt_int(val, d->max == 100 ? v : (v * 100 + 63) / 127);
-        *unit = "%";
-        break;
-    case F_BIPCT:                                   /* -64..63 as -100..+100 % (1.5.5, #199: each side over its own
-                                                     * range; up to 1.5.1 / 64 both ways, the top read +98) */
-        fmt_int(val, v * 100 / 64);
-        if (v > 0) {
-            char t[8];
-            fmt_int(t, v * 100 / 63);
-            val[0] = '+';
-            str_cpy(val + 1, t, 6);
-        }
-        *unit = "%";
-        break;
-    case F_TIME: {
-        uint32_t ms10 = TIME_MS_X10[v & 127];
-        if (ms10 < 100u) {
-            fmt_fix(val, (int32_t)ms10, 1);
-            *unit = "ms";
-        } else if (ms10 < 10000u) {
-            fmt_int(val, (int32_t)((ms10 + 5u) / 10u));
-            *unit = "ms";
-        } else {
-            fmt_fix(val, (int32_t)(ms10 / 100u), 2);
-            if (ms10 >= 100000u)
-                fmt_fix(val, (int32_t)(ms10 / 1000u), 1);
-            *unit = "s";
-        }
-        break;
-    }
-    case F_LFOHZ: {
-        uint32_t h = LFO_HZ_X100[v & 127];
-        if (h < 1000u)
-            fmt_fix(val, (int32_t)h, 2);
-        else
-            fmt_fix(val, (int32_t)(h / 10u), 1);
-        *unit = "Hz";
-        break;
-    }
-    case F_CUTOFF: {
-        uint32_t h = CUTOFF_HZ[v & 127];
-        if (h < 1000u) {
-            fmt_int(val, (int32_t)h);
-            *unit = "Hz";
-        } else {
-            fmt_fix(val, (int32_t)(h / 100u), 1);
-            *unit = "kHz";
-        }
-        break;
-    }
-    case F_DB:
-        if (v <= 0) {
-            str_cpy(val, "OFF", 6);
-        } else {
-            fmt_fix(val, LEVEL_DB_X10[v], 1);
-            *unit = "dB";
-        }
-        break;
-    case F_SEMI:
-        fmt_int(val, v);
-        if (v > 0) {
-            char t[8];
-            fmt_int(t, v);
-            val[0] = '+';
-            str_cpy(val + 1, t, 6);
-        }
-        *unit = "st";
-        break;
-    case F_ENUM:
-        str_cpy(val, d->names[v < d->min ? d->min : v > d->max ? d->max : v], 6);
-        if (d->unit)
-            *unit = d->unit;
-        break;
-    case F_BPM:
-        fmt_int(val, v);
-        *unit = "BPM";
-        break;
-    case F_NOTE:
-        str_cpy(val, N_NOTE[v % 12], 6);
-        break;
-    case F_ONOFF:
-        str_cpy(val, N_ONOFF[v ? 1 : 0], 6);
-        break;
-    case F_STEPS:
-        fmt_int(val, v);
-        *unit = "STEP";
-        break;
-    default:
-        if (d->names) {                               /* F_INT with a 0-terminated name list: the range */
-            uint32_t k = 0;                           /* split evenly over the names (engine desc hooks) */
-            while (d->names[k])
-                k++;
-            str_cpy(val, d->names[(uint32_t)(clamp(v, d->min, d->max) - d->min) * k / (uint32_t)(d->max - d->min + 1)], 6);
-        } else {
-            fmt_int(val, v);
-        }
-        if (d->unit)
-            *unit = d->unit;
-        break;
-    }
-}
 
 /* ------------------------------------------------------------ pages --- */
 enum { FAM_HOME, FAM_ENV, FAM_LFO, FAM_FX, FAM_SCL, FAM_EDIT, FAM_GLO, FAM_SAVE, FAM_ARP, FAM_SEQ, FAM_TRK,
@@ -473,23 +327,3 @@ static const page_t PAGES[] = {
 #define NPAGES (sizeof(PAGES) / sizeof(PAGES[0]))
 static uint8_t mod_ui_slot;      /* the MOD page: the matrix slot (0..3) KNOB 2..4 edit */
 
-static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **valp)
-{
-    uint32_t id = pg->id[slot];
-    if (id == 0xFFu) {
-        *valp = 0;
-        return 0;
-    }
-    if (pg->scope == SC_STEP || pg->scope == SC_TRK) {
-        *valp = 0;
-        return 0;
-    }
-    if (pg->scope == SC_GLOBAL) {
-        *valp = &song.g[id];
-        return &GP[id];
-    }
-    if (pg->graph == GR_MOD)                          /* SRC DST AMT of the slot shown */
-        id += 3u * mod_ui_slot;
-    *valp = &TSEL->p[id];
-    return track_desc(TSEL, id);
-}

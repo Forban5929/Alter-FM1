@@ -180,7 +180,6 @@ static uint32_t palette_from_stored(uint32_t v)
     return v < 20u ? UI_PALETTE_MIGRATE[v] : UI_GREY_INDEX;
 }
 static uint32_t palette_to_stored(uint32_t i) { return UI_PAL_TAG + i % NPALETTES; }
-static int palette_stored_ok(uint32_t v) { return v < 20u || (v >= UI_PAL_TAG && v - UI_PAL_TAG < NPALETTES); }
 
 static inline uint16_t swap16(uint32_t c) { return (uint16_t)(((c >> 8) & 0xFFu) | ((c & 0xFFu) << 8)); }
 
@@ -209,13 +208,6 @@ static void cv_blit(uint32_t x, uint32_t y)
     lcd_blit(x, y, cv_w, cv_h, cv_px);
 }
 
-/* canvas rows r0 .. cv_h-1 only, to screen row y + r0 */
-static void cv_blit_from(uint32_t x, uint32_t y, uint32_t r0)
-{
-    GFX_HOOK_BLIT(x, y, r0);
-    if (r0 < cv_h)
-        lcd_blit(x, y + r0, cv_w, cv_h - r0, cv_px + r0 * cv_w);
-}
 
 static inline void cv_pset(int32_t x, int32_t y, uint16_t c)
 {
@@ -242,12 +234,6 @@ static void cv_rect(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)
             cv_px[(uint32_t)y * cv_w + (uint32_t)i] = sc;
 }
 
-/* a divider (LINE): a 1 px T_RULE line on the canvas, a cell edge for the host lint */
-static void cv_rule(int32_t x, int32_t y, int32_t w, int32_t h)
-{
-    GFX_HOOK_CELL(x, y + cv_oy, x + w, y + h + cv_oy);
-    cv_rect(x, y, w, h, T_RULE);
-}
 
 /* a 1 px outline */
 static void cv_frame(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)
@@ -279,13 +265,6 @@ static void cv_line(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint16_t c)
     }
 }
 
-/* a line `thick` px tall (the scope's trace: 2) */
-static void cv_line_t(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint16_t c, int32_t thick)
-{
-    int32_t t;
-    for (t = 0; t < thick; t++)
-        cv_line(x0, y0 + t, x1, y1 + t, c);
-}
 
 /* coverage (0..16) of corner pixel (i, j) of a radius-r corner, (0, 0) the outermost: 4 x 4 samples */
 static uint32_t rr_cov(int32_t r, int32_t i, int32_t j)
@@ -671,15 +650,6 @@ static int text_fit(char *d, uint32_t n, const char *s, const aafont_t *f, int32
         k--;
     }
 }
-/* text in maxw px, ellipsised when it is longer: a label or a value should always fit (the host
- * layout lint reports a cut one), free text (cv_free_text: a preset name, a message) may be cut */
-static int32_t cv_text_fit(int32_t x, int32_t y, const aafont_t *f, const char *s, uint16_t fg, uint16_t bg,
-                           int32_t maxw)
-{
-    char b[48];
-    int cut = text_fit(b, sizeof b, s, f, maxw);
-    return cv_text_flags(x, y, f, b, fg, bg, cut ? 1u : 0u);
-}
 static int32_t cv_free_text(int32_t x, int32_t y, const aafont_t *f, const char *s, uint16_t fg, uint16_t bg,
                             int32_t maxw)
 {
@@ -744,7 +714,6 @@ static int32_t cv_keycap(int32_t x, int32_t y, uint32_t id, uint16_t fill, uint1
 /* a key hint: the keycap, then what it does (S, TEXT); unavailable: a DIM keycap and a DIM word. The word sits on
  * the keycap's centre line (S caps 9 rows, the keycap's 7). act may be 0 (the keycap alone); returns the end x */
 #define KH_GAP 4                                  /* keycap -> its word */
-static int32_t kh_w(uint32_t id, const char *act) { return kc_w(id) + (act && act[0] ? KH_GAP + text_w(&AF_S, act) : 0); }
 /* .. its ink: the keycap to the word's last inked column (centring a hint by what is seen) */
 static int32_t kh_ink(uint32_t id, const char *act)
 {
@@ -767,25 +736,6 @@ static int32_t cv_key_hint(int32_t x, int32_t y, uint32_t id, const char *act, i
  * the row is too wide the action words go first, from the last hint back (the keycaps never shrink).
  * on: a bit per hint (1 = available) */
 typedef struct { uint8_t key; const char *act; } khint_t;
-static void cv_key_row(int32_t x0, int32_t x1, int32_t y, const khint_t *h, uint32_t n, uint32_t on, uint16_t under)
-{
-    uint32_t i, words = n;                         /* hints 0 .. words-1 keep their word */
-    int32_t w, gap, x = x0;
-    for (;;) {
-        w = 0;
-        for (i = 0; i < n; i++)
-            w += kh_w(h[i].key, i < words ? h[i].act : 0);
-        if (w + 6 * (int32_t)(n - 1u) <= x1 - x0 || !words)
-            break;
-        words--;
-    }
-    gap = n > 1u ? (x1 - x0 - w) / (int32_t)(n - 1u) : 0;
-    for (i = 0; i < n; i++) {
-        if (n > 1u && i + 1u == n)
-            x = x1 - kh_w(h[i].key, i < words ? h[i].act : 0);   /* the last one flush right */
-        x = cv_key_hint(x, y, h[i].key, i < words ? h[i].act : 0, (on >> i) & 1u, under) + gap;
-    }
-}
 
 /* "[OCT+]..." -> the keycap's id and the length of the bracket, else -1 (a bracketed word that is no keycap is text) */
 static int32_t kc_tag(const char *s, uint32_t *len)

@@ -1279,25 +1279,8 @@ static int alter_ui_input(uint32_t pressed)
         au.keys = keys;
         return 1;
     }
-    if (octs && alter_view() && !au.handed)      /* OCT- + OCT+ + a page button: Felucca's own page */
-        for (q = 1; q <= QP_N; q++)              /* (QP_N: SAVE, Felucca's save pages) */
-            if ((pressed >> panel.btn[q < QP_N ? ALT_QP_BTN[q] : B_SAVE]) & 1u) {
-                au.handed = 1;
-                au.handed_ms = fm1_ms;
-                au.qp = QP_NONE;
-                au.qp_was = 0;
-                au.scene_open = 0;
-                alt_menu_set(0);
-                au.mhold = 0;
-                alt_hold = 0;
-                au.keys = keys;
-                return 0;
-            }
-    if ((pressed | fm1_in.buttons) & ~ours) {    /* a Felucca button (a page, HOME, SAVE ..): Felucca's until every */
-        au.handed = 1;                           /* one has been up 0.4 s (those that act on release, a tap told */
-        au.handed_ms = fm1_ms;                   /* from a hold) */
-    } else if (au.handed && fm1_ms - au.handed_ms > 400u)
-        au.handed = 0;
+    /* (OCT- + OCT+ + a page button opened Felucca's own pages until 05/11: gone, with them; Romain. OCT- + OCT+ held
+     * 5 s is still the update mode: main.c, before any of this) */
     if (!alter_view() || !alt_ready || au.handed) {
         alt_kb_own = (uint8_t)(alter_view() && alt_ready);   /* (the keys stay silent on the view) */
         alt_hold = 0;
@@ -2624,7 +2607,7 @@ static void alt_mix_scene(void)
  * the row; the battery in the corner. Kept in the settings (alt_sys above, or Felucca's own record), from the next frame:
  *   SETUP   THEME (NIGHT / DAY: EDIT held's SETTINGS until 05/11), CLOCK (INT, USB, TRS: the Analog Rytm's clock
  *           through the TRS jack), MIDI IN (Felucca's G_ROUTE: CH1-4 = channels 1 2 3 play / move circles 1 2 3)
- *   AUDIO   Felucca's own rows (menu_items.c, as its MENU sets them): CLICK, CLICK LEVEL, COUNT-IN, SPEAKER EQ,
+ *   AUDIO   Felucca's own rows (menu_items.c, as its MENU sets them): CLICK (OFF / ON: its REC is Felucca's), CLICK LEVEL, SPEAKER EQ,
  *           USB LEVEL, TUNE (a project value at Felucca's: kept here in alt_sys[6]), 2ND CORE (from the next power-on)
  *   RANDOM  which engines (ALTER PHYS NOISE RESO) the random's sounds may come from, which modes (FREE PERC STAB)
  *           CHAOS TOTAL may give: ON / OFF each (at least one stays on)
@@ -2635,7 +2618,8 @@ static void alt_set_turn(uint32_t r, int32_t s);
 enum { SYS_TMIDI, SYS_TAUD, SYS_TRAND, SYS_TABOUT, SYS_NT };
 static const char *const SYS_TAB[SYS_NT] = {"SETUP", "AUDIO", "RANDOM", "ABOUT"};
 static const char *const SYS_MROW[SYS_NMIDI] = {"THEME", "CLOCK", "MIDI IN"};
-static const uint8_t SYS_AROW[] = {MI_CLICK, MI_CLKLVL, MI_COUNTIN, MI_LOWCUT, MI_USB, MI_TUNE,
+static const uint8_t SYS_AROW[] = {MI_CLICK, MI_CLKLVL, MI_LOWCUT, MI_USB, MI_TUNE,   /* (COUNT-IN left 05/11: only
+                                                  * Felucca's REC counted in) */
 #if FELUCCA_CPU2
                                    MI_CPU2,
 #endif
@@ -2687,7 +2671,10 @@ static void alt_sys_turn(uint32_t r, int32_t s)
             *b = (uint8_t)v;
     } else if (alt_sys_tab == SYS_TAUD) {
         uint32_t row = SYS_AROW[r];
-        menu_put(row, menu_step(row, row == MI_TUNE ? s : d));   /* (TUNE: a cent a click, faster turned) */
+        if (row == MI_CLICK)                     /* (OFF / ON: its REC mode clicks only with Felucca's REC) */
+            menu_put(row, d > 0 ? 2u : 0u);
+        else
+            menu_put(row, menu_step(row, row == MI_TUNE ? s : d));   /* (TUNE: a cent a click, faster turned) */
         if (row == MI_TUNE)
             alt_sys[6] = (uint8_t)(menu_get(MI_TUNE) + 1u);
     } else if (r == SYS_THEME) {
