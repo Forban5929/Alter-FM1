@@ -702,35 +702,36 @@ async function openPatch(file) {
 }
 
 /* ---------- USER scenes in the FM-1 ---------- */
+const slotName = (i) => `${"AB"[i >> 4] ?? "?"}${String((i % 16) + 1).padStart(2, "0")}`;   // (bank A B of 16, as on the synth)
 async function listSlots() {
   const r = await ask(req.sceneList());
   slots = r.used;
   const s = $("slot"), keep = s.value;
   s.innerHTML = "";
-  slots.forEach((u, i) => s.append(new Option(`USER ${i + 1}${u ? " (used)" : " (empty)"}`, i)));
+  slots.forEach((u, i) => s.append(new Option(`USER ${slotName(i)}${u ? " (used)" : " (empty)"}`, i)));
   if (keep) s.value = keep;
 }
 async function store() {
   const i = +$("slot").value;
-  if (slots[i] && !(await dialogAsk(`USER ${i + 1} already holds a scene. Replace it with the one playing?`, { ok: "Replace" }))) return;
-  say(`Storing in USER ${i + 1}…`);
+  if (slots[i] && !(await dialogAsk(`USER ${slotName(i)} already holds a scene. Replace it with the one playing?`, { ok: "Replace" }))) return;
+  say(`Storing in USER ${slotName(i)}…`);
   try {
     const r = await ask(req.sceneSave(i), 5000);
-    if (r.rc === 1) say(`Scene stored in USER ${i + 1}. It also loads from SAVE on the synth.`);
+    if (r.rc === 1) say(`Scene stored in USER ${slotName(i)}. It also loads from SAVE on the synth.`);
     else say(r.rc === 2 ? "The synth's memory refused the write. Nothing was stored." : "This slot is protected.", true);
     await listSlots();
   } catch { soft(); }
 }
 async function load() {
   const i = +$("slot").value;
-  if (!slots[i]) return say(`USER ${i + 1} is empty: nothing to load.`, true);
-  if (!(await dialogAsk(`Load USER ${i + 1}? The scene playing will be replaced: store it first if you want to keep it.`, { ok: "Load" }))) return;
+  if (!slots[i]) return say(`USER ${slotName(i)} is empty: nothing to load.`, true);
+  if (!(await dialogAsk(`Load USER ${slotName(i)}? The scene playing will be replaced: store it first if you want to keep it.`, { ok: "Load" }))) return;
   try {
     const r = await ask(req.sceneLoad(i), 3000);
-    if (r.rc !== 1) return say(`USER ${i + 1} could not be loaded.`, true);
+    if (r.rc !== 1) return say(`USER ${slotName(i)} could not be loaded.`, true);
     for (let c = 0; c < 3; c++) await refresh(c);
     if (v2) await readV2();
-    say(`USER ${i + 1} loaded.`);
+    say(`USER ${slotName(i)} loaded.`);
   } catch { soft(); }
 }
 

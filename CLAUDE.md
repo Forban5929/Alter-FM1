@@ -64,8 +64,13 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   ([3] CLOCK, [4] MIDI IN, [5] MASTER, [6] TUNE ; le reste dans les réglages Felucca).
 - OCT− + OCT+ + HOME = NEW SCENE · REC tapé/tenu 1 s/OCT−+OCT++REC. **OCT− + OCT+ tenus 5 s = mode UPDATE** (main.c,
   à garder absolument) · OCT− + OCT+ tenus à l'allumage = calibration des boutons (main.c panel_setup).
-- Scènes USER : tout + **REC (mouvements) + PLAGES** (05/11) dans les objets flash 5 6 7 9 (5 scènes par objet, lus/écrits à la
-  demande via `alt_xb`, `alt_xsave`/`alt_xput` dans alter_store.c ; PLAGES sur 16 niveaux). Objet 8 = mêmes secteurs que 7 : NE PAS UTILISER.
+- **USER : 32 scènes + 32 patterns (05/11)**, page SAVE à 4 onglets (ALGORITHM) : SCENES A, SCENES B, PATT. A, PATT. B
+  (A = NEW + 4 usine + A01-A16 ; B = B01-B16). Une scène = un enregistrement `alt_us_t` (tout : son, rythmes, FX, filtre,
+  pas ajoutés, fills, REC, PLAGES) lu en flash au chargement : objets 14-29 (2 scènes/objet), patterns 30-31 (16/objet),
+  0xA8000-0xCBFFF. En RAM : seulement les drapeaux `alt_used_s/p`. Anciennes banques (objets 1-7, 9 ; 16 places) = lues
+  UNE fois au 1er démarrage et copiées en banque A (`alt_us_migrate`, marqueur = objet 30), puis plus touchées. Objet 8 = mêmes
+  secteurs que 7 : NE PAS UTILISER. Mémoire (build CI 05/11, avant ce changement) : code 309/568 Ko, RAM 67,4/72 Ko,
+  pool 326/360 Ko ; ce changement a déplacé ≈ 11 Ko des banques de la RAM vers le pool.
 - Page FX DELAY : TIME (1/16 1/8 1/8D 1/4 seulement) FEEDBK **TAPE** SEND. Presets : ECHO, DUB, DUB LONG (1/4 au lieu de
   1/4D), PING-PONG, GHOST, TAPE (SLAP, SPACE, TRIPLET, 16TH DOT retirés). MODE/TAPE dans G_DRLVL/G_DRREV (inertes chez
   Felucca) et octets 28-29 de l'enregistrement FX des scènes.
@@ -98,5 +103,7 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   **Réglés aux mesures, pas écoutés** : Romain juge.
 - [x] 05/11 : **MODE SONG** (voir plus haut). Testé dans l'émulateur (8 tests), **pas sur la FM-1**. Test RUMBLE rendu
   insensible à la phase (il échouait selon le moment où il démarrait).
+- [x] 05/11 : **32 + 32 USER** (voir plus haut). Migration testée avec l'ancien firmware dans l'émulateur (A01 + PLAGES,
+  A16, pattern A03 retrouvés) ; banque B testée après extinction. **Pas sur la FM-1** : 1er démarrage = migration.
 - [ ] MIDI LEARN ALTER (BCR32).
 - [ ] Étape 4 : tranche de console par piste (disto → EQ → comp → delay → reverb).

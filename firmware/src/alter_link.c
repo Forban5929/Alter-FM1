@@ -606,7 +606,7 @@ static void lk_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         lk_b(rc < 0 ? 2u : (uint32_t)rc);
         if (a[0] == 0u)
             for (k = 0; k < ALT_NUSER; k++)
-                lk_b(alt_bank_s.s[k].used ? 1u : 0u);
+                lk_b(alt_used_s[k] ? 1u : 0u);
         lk_send();
         if (a[0] == 2u && rc > 0)
             for (c = 0; c < AS_NCIRC; c++)

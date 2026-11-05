@@ -5,13 +5,17 @@
  * mode, locks and rhythm (LEN HITS ROT PROB FROT, DOSE, ROOT, CHORD, each step's force and chance), its LFO's
  * three LFOs (WAVE RATE DEPTH DEST) and its four matrix slots; and the scale, tempo, swing and the GLOBAL LFO (alter_lfo.c). A PATTERN is the rhythm only (per circle LEN HITS ROT PROB FROT, force and chance per step):
  * loading one leaves the sounds, notes and everything else as they are.
- * The USER slots live in RAM (alt_bank_s, alt_bank_p) and on the flash, in Felucca's project objects 3 and 4
+ * 05/11 (Romain): 32 USER scenes and 32 USER patterns, two banks A B of 16 (the SAVE page's tabs), each scene in one
+ * record on the flash, read when loaded (alt_us_t, objects 14..29, two a object; the patterns 16 a object, 30 31: see
+ * "the USER slots on the flash" below). The old banks below (16 slots) are only read once, to move them into bank A.
+ * (Before:) The USER slots live in RAM (alt_bank_s, alt_bank_p) and on the flash, in Felucca's project objects 3 and 4
  * (storage.c OBJ_PROJECT0 + 2 / + 3; an own magic tells ours from a Felucca project saved there); the USER scenes'
  * rhythms in object 2 (OBJ_PROJECT0 + 1: alt_bank_r). A USER scene's
  * envelope modes' settings (alter_lfo.c AE_*) are kept with the patterns, in object 4 (alt_bank_p.env). Packed small: a
  * step's force in 2 bits, its chance in 4 (16 levels). */
 
-#define ALT_NUSER 16
+#define ALT_NUSER 32                             /* (05/11: banks A B of 16) */
+#define ALT_NOLD 16                              /* the old banks' slots (moved into bank A once) */
 #define ALT_NFACT 4
 #define ALT_NLIST (1 + ALT_NFACT + ALT_NUSER)   /* NEW, the factory ones, the USER slots */
 #define ALT_OBJ_SCENES 3u                        /* storage.c OBJ_PROJECT0 + 2 (OBJ_PROJECT0 = 1) */
@@ -59,17 +63,17 @@ typedef struct {
     alt_rhy_t c[AS_NCIRC];
 } alt_pat_rec_t;
 
-static struct { uint32_t magic; alt_scene_rec_t s[ALT_NUSER]; } alt_bank_s;
+static struct { uint32_t magic; alt_scene_rec_t s[ALT_NOLD]; } alt_bank_s __attribute__((section(".pool")));
 #define ALT_FXREC 32u                            /* a USER scene's effects (alt_fx_get) */
 static struct {
     uint32_t magic;
-    alt_rhy_t r[ALT_NUSER][AS_NCIRC];            /* the USER scenes' rhythms (object 2) .. */
-    uint8_t fxok[ALT_NUSER];                     /* .. and their effects (the FX page; 0: stored before it) .. */
-    uint8_t fx[ALT_NUSER][ALT_FXREC];
-    uint8_t rat[ALT_NUSER][AS_NCIRC][AS_NLANE / 4];   /* .. and their RATCH lanes, 2 bits a step (0: stored before it) */
-} alt_bank_r;
-#define ALT_BANK_R_OLD (4u + sizeof(alt_rhy_t) * ALT_NUSER * AS_NCIRC)   /* (before the effects: still read) */
-#define ALT_BANK_R_FX (ALT_BANK_R_OLD + ALT_NUSER * (1u + ALT_FXREC))     /* (before the RATCH lane: still read) */
+    alt_rhy_t r[ALT_NOLD][AS_NCIRC];            /* the USER scenes' rhythms (object 2) .. */
+    uint8_t fxok[ALT_NOLD];                     /* .. and their effects (the FX page; 0: stored before it) .. */
+    uint8_t fx[ALT_NOLD][ALT_FXREC];
+    uint8_t rat[ALT_NOLD][AS_NCIRC][AS_NLANE / 4];   /* .. and their RATCH lanes, 2 bits a step (0: stored before it) */
+} alt_bank_r __attribute__((section(".pool")));
+#define ALT_BANK_R_OLD (4u + sizeof(alt_rhy_t) * ALT_NOLD * AS_NCIRC)   /* (before the effects: still read) */
+#define ALT_BANK_R_FX (ALT_BANK_R_OLD + ALT_NOLD * (1u + ALT_FXREC))     /* (before the RATCH lane: still read) */
 _Static_assert(sizeof ALT_USER_AMBIENT == sizeof(alt_scene_rec_t) + sizeof(alt_rhy_t) * AS_NCIRC + 2u + ALT_FXREC +
                AS_NCIRC * AE_N, "a USER scene kept as a factory one matches the records (else: re-extract it)");
 static void afp_dly_apply(uint32_t i);           /* (alter_fxpage.c) */
@@ -124,11 +128,11 @@ static void alt_fx_put(const uint8_t *b)
 }
 static struct {
     uint32_t magic;
-    alt_pat_rec_t p[ALT_NUSER];
-    uint8_t envok[ALT_NUSER];                    /* (the USER scenes' envelope modes' settings live here, object 4: the */
-    uint8_t env[ALT_NUSER][AS_NCIRC][AE_N];      /* scenes' own object is full; 0: a scene stored before them) */
-    uint8_t prat[ALT_NUSER][AS_NCIRC][AS_NLANE / 4];   /* the USER patterns' RATCH lanes, 2 bits a step */
-} alt_bank_p;
+    alt_pat_rec_t p[ALT_NOLD];
+    uint8_t envok[ALT_NOLD];                    /* (the USER scenes' envelope modes' settings live here, object 4: the */
+    uint8_t env[ALT_NOLD][AS_NCIRC][AE_N];      /* scenes' own object is full; 0: a scene stored before them) */
+    uint8_t prat[ALT_NOLD][AS_NCIRC][AS_NLANE / 4];   /* the USER patterns' RATCH lanes, 2 bits a step */
+} alt_bank_p __attribute__((section(".pool")));
 #define ALT_BANK_P_OLD (sizeof alt_bank_p - sizeof alt_bank_p.prat)   /* (before the RATCH lane: still read) */
 /* the USER scenes' MASTER FILTER (alter_filter.c), object 1 (OBJ_PROJECT0, free since Felucca's projects left):
  * kept only when one was on at SAVE (used = 0: the scene loads with the filter off); and each circle's steps added by
@@ -137,14 +141,14 @@ static struct {
 #define ALT_MAGIC_F 0x464C5441u                  /* "ATLF" */
 static struct {
     uint32_t magic;
-    uint8_t used[ALT_NUSER];
-    uint8_t r[ALT_NUSER][AFL_REC];
-    uint32_t add[ALT_NUSER][AS_NCIRC];
-    uint8_t fx[ALT_NUSER][AS_NCIRC][AS_MAXLEN];  /* the fills REC'd per step (alter_play.c alt_fxr) */
-} alt_bank_f;
-#define ALT_BANK_F_OLD (4u + ALT_NUSER * (1u + AFL_REC))   /* (before the added steps: still read) */
-#define ALT_BANK_F_ADD (ALT_BANK_F_OLD + ALT_NUSER * AS_NCIRC * 4u)   /* (before the REC'd fills: still read) */
-_Static_assert(sizeof alt_bank_f == ALT_BANK_F_ADD + ALT_NUSER * AS_NCIRC * AS_MAXLEN, "(no padding)");
+    uint8_t used[ALT_NOLD];
+    uint8_t r[ALT_NOLD][AFL_REC];
+    uint32_t add[ALT_NOLD][AS_NCIRC];
+    uint8_t fx[ALT_NOLD][AS_NCIRC][AS_MAXLEN];  /* the fills REC'd per step (alter_play.c alt_fxr) */
+} alt_bank_f __attribute__((section(".pool")));
+#define ALT_BANK_F_OLD (4u + ALT_NOLD * (1u + AFL_REC))   /* (before the added steps: still read) */
+#define ALT_BANK_F_ADD (ALT_BANK_F_OLD + ALT_NOLD * AS_NCIRC * 4u)   /* (before the REC'd fills: still read) */
+_Static_assert(sizeof alt_bank_f == ALT_BANK_F_ADD + ALT_NOLD * AS_NCIRC * AS_MAXLEN, "(no padding)");
 _Static_assert(sizeof alt_bank_s <= 3840u && sizeof alt_bank_p <= 3840u && sizeof alt_bank_r <= 3840u &&
                sizeof alt_bank_f <= 3840u,
                "ALTER's banks fit a storage object");
@@ -490,7 +494,7 @@ typedef struct {
 } alt_xrec_t;
 static struct { uint32_t magic; alt_xrec_t x[ALT_XPER]; } alt_xb __attribute__((section(".pool")));
 _Static_assert(sizeof alt_xb <= ST_PAYLOAD_MAX_X, "five scenes' REC + RANGEs fit an object");
-_Static_assert(ALT_NUSER <= ALT_XPER * sizeof ALT_XOBJ, "every USER scene has a place");
+_Static_assert(ALT_NOLD <= ALT_XPER * sizeof ALT_XOBJ, "every old USER scene has a place");
 static const int8_t ALT_XLO[AS_NLR] = {1, 0, 0, 0, -7, 0}, ALT_XHI[AS_NLR] = {127, 127, 127, 127, 7, 3};   /* (alter_ui.c alt_lane_lim) */
 static uint32_t alt_xq(uint32_t ln, int32_t v)   /* a lane value to 4 bits, and back */
 {
@@ -516,12 +520,9 @@ static int alt_xload(uint32_t u)                 /* scene u's object into alt_xb
     }
     return 0;
 }
-static int alt_xsave(uint32_t u)                 /* what plays now into scene u's place; 0 = the flash failed */
+static void alt_xfill(alt_xrec_t *x)             /* what plays now: the REC moves and RANGEs */
 {
-    alt_xrec_t *x;
     uint32_t c, ln, k;
-    (void)alt_xload(u);
-    x = &alt_xb.x[u % ALT_XPER];
     x->used = 1;
     for (c = 0; c < AS_NCIRC; c++) {
         const as_circ_t *sc = &alt_seq.c[c];
@@ -532,12 +533,12 @@ static int alt_xsave(uint32_t u)                 /* what plays now into scene u'
         }
         ar_export(c, x->rec[c]);
     }
-    return st_save(ALT_XOBJ[u / ALT_XPER], &alt_xb, sizeof alt_xb) == 0;
 }
-static void alt_xput(uint32_t u)                 /* scene u's REC and RANGEs, after its rhythms (alt_rhy_put) */
+static void alt_xapply(const alt_xrec_t *x)      /* a scene's REC and RANGEs (0: none), after its rhythms (alt_rhy_put) */
 {
     uint32_t c, ln, k;
-    const alt_xrec_t *x = alt_xload(u) && alt_xb.x[u % ALT_XPER].used ? &alt_xb.x[u % ALT_XPER] : 0;
+    if (x && !x->used)
+        x = 0;
     for (c = 0; c < AS_NCIRC; c++) {
         as_circ_t *sc = &alt_seq.c[c];
         if (x)
@@ -553,7 +554,7 @@ static void alt_xput(uint32_t u)                 /* scene u's REC and RANGEs, af
 }
 
 /* ---- the banks on the flash ---------------------------------------------------------------------------------- */
-static void alt_banks_load(void)
+static void alt_old_load(void)                  /* the old banks (16 slots), to move them into bank A */
 {
     if (st_load(ALT_OBJ_SCENES, &alt_bank_s, sizeof alt_bank_s) != (int)sizeof alt_bank_s || alt_bank_s.magic != ALT_MAGIC_S) {
         uint32_t i;
@@ -575,7 +576,7 @@ static void alt_banks_load(void)
         for (i = 0; i < sizeof alt_bank_r; i++)
             ((uint8_t *)&alt_bank_r)[i] = 0;
         alt_bank_r.magic = ALT_MAGIC_R;
-        for (i = 0; i < ALT_NUSER; i++)
+        for (i = 0; i < ALT_NOLD; i++)
             alt_bank_s.s[i].used = 0;
     }
     {
@@ -610,7 +611,184 @@ static void alt_banks_load(void)
     }
 }
 
-/* ---- the list: row i of tab t (0 SCENES, 1 PATTERNS) --------------------------------------------------------- */
+/* ---- the USER slots on the flash (05/11, Romain: 32 + 32) ---------------------------------------------------------
+ * A scene is one record (alt_us_t: everything a scene keeps), two a object, objects 14..29 (storage.c OBJ_ALTUSER0:
+ * Felucca's old user sample slots, 0xA8000..); a pattern 16 a object, 30 31. Read when loaded, read-modified-written
+ * when stored; only the used flags stay in RAM. At the first start with them (object 30 never written), the old
+ * banks' 16 scenes and 16 patterns are moved into bank A (the old objects are left as they were). */
+#define ALT_OBJ_US0 14u
+#define ALT_OBJ_UP0 30u
+#define ALT_US_PER 2u
+#define ALT_UP_PER 16u
+#define ALT_MAGIC_US 0x55544C41u                 /* "ALTU" */
+#define ALT_MAGIC_UP 0x51544C41u                 /* "ALTQ" */
+typedef struct {
+    uint8_t used, fxok, envok, fused;            /* fused: a MASTER FILTER was on */
+    alt_scene_rec_t s;
+    alt_rhy_t r[AS_NCIRC];
+    uint8_t fx[ALT_FXREC];
+    uint8_t rat[AS_NCIRC][AS_NLANE / 4];
+    uint8_t env[AS_NCIRC][AE_N];
+    uint8_t fr[AFL_REC];
+    uint32_t add[AS_NCIRC];
+    uint8_t fxr[AS_NCIRC][AS_MAXLEN];
+    alt_xrec_t x;
+} alt_us_t;
+typedef struct {
+    alt_pat_rec_t p;
+    uint8_t prat[AS_NCIRC][AS_NLANE / 4];
+} alt_up_t;
+static union {
+    struct { uint32_t magic; alt_us_t r[ALT_US_PER]; } s;
+    struct { uint32_t magic; alt_up_t r[ALT_UP_PER]; } p;
+} alt_ub __attribute__((section(".pool")));
+_Static_assert(sizeof alt_ub.s <= ST_PAYLOAD_MAX_X && sizeof alt_ub.p <= ST_PAYLOAD_MAX_X, "USER objects fit");
+_Static_assert(ALT_OBJ_US0 + ALT_NUSER / ALT_US_PER == ALT_OBJ_UP0 && ALT_NUSER / ALT_UP_PER == 2u, "the objects' map");
+static uint8_t alt_used_s[ALT_NUSER], alt_used_p[ALT_NUSER];
+
+static void alt_ub_clear(uint32_t magic)
+{
+    uint32_t i;
+    for (i = 0; i < sizeof alt_ub; i++)
+        ((uint8_t *)&alt_ub)[i] = 0;
+    alt_ub.s.magic = magic;
+}
+static int alt_ub_load_s(uint32_t u)             /* scene u's object into alt_ub; 1: it holds ours */
+{
+    if (st_load(ALT_OBJ_US0 + u / ALT_US_PER, &alt_ub.s, sizeof alt_ub.s) == (int)sizeof alt_ub.s &&
+        alt_ub.s.magic == ALT_MAGIC_US)
+        return 1;
+    alt_ub_clear(ALT_MAGIC_US);
+    return 0;
+}
+static int alt_ub_load_p(uint32_t u)
+{
+    if (st_load(ALT_OBJ_UP0 + u / ALT_UP_PER, &alt_ub.p, sizeof alt_ub.p) == (int)sizeof alt_ub.p &&
+        alt_ub.p.magic == ALT_MAGIC_UP)
+        return 1;
+    alt_ub_clear(ALT_MAGIC_UP);
+    return 0;
+}
+
+/* what plays now into f */
+static void alt_us_get(alt_us_t *f)
+{
+    uint32_t c, k;
+    alt_scene_get(&f->s, f->r);
+    f->used = 1;
+    f->envok = 1;
+    f->fxok = 1;
+    alt_fx_get(f->fx);
+    f->fused = (uint8_t)afl_active();            /* the MASTER FILTER: kept when one is on */
+    if (f->fused)
+        afl_get(f->fr);
+    for (c = 0; c < AS_NCIRC; c++) {
+        f->add[c] = alt_seq.c[c].add;
+        for (k = 0; k < AS_MAXLEN; k++)
+            f->fxr[c][k] = alt_fxr[c][k];
+        alt_rat_get(c, f->rat[c]);
+        for (k = 0; k < AE_N; k++)
+            f->env[c][k] = alt_envp[c][k];
+    }
+    alt_xfill(&f->x);
+}
+/* f on the circles (as a USER scene loads) */
+static void alt_us_put(const alt_us_t *f)
+{
+    uint32_t c, k;
+    alt_scene_put(&f->s, f->r);
+    for (c = 0; c < AS_NCIRC; c++)               /* its envelope modes' settings (or the defaults: stored before them) */
+        for (k = 0; k < AE_N; k++)
+            alt_envp[c][k] = f->envok ? f->env[c][k] : AE_DEF[k];
+    if (f->fxok)                                 /* its effects (stored before them: as they are) */
+        alt_fx_put(f->fx);
+    for (c = 0; c < AS_NCIRC; c++)               /* its RATCH lanes */
+        alt_rat_put(c, f->rat[c]);
+    if (f->fused)                                /* its MASTER FILTER, or none */
+        afl_put(f->fr);
+    else
+        afl_off();
+    for (c = 0; c < AS_NCIRC; c++) {             /* its added steps, its REC'd fills */
+        alt_add_set(c, f->add[c]);
+        alt_fxr_put(c, f->fxr[c]);
+    }
+    alt_xapply(&f->x);                           /* its REC moves and RANGEs */
+}
+
+/* the old banks' scene u (0..15) as a record (alt_old_load done; alt_xb: read here) */
+static void alt_us_from_old(uint32_t u, alt_us_t *f)
+{
+    uint32_t c, k;
+    for (k = 0; k < sizeof *f; k++)
+        ((uint8_t *)f)[k] = 0;
+    if (!alt_bank_s.s[u].used)
+        return;
+    f->used = 1;
+    f->s = alt_bank_s.s[u];
+    for (c = 0; c < AS_NCIRC; c++) {
+        f->r[c] = alt_bank_r.r[u][c];
+        for (k = 0; k < AS_NLANE / 4u; k++)
+            f->rat[c][k] = alt_bank_r.rat[u][c][k];
+        for (k = 0; k < AE_N; k++)
+            f->env[c][k] = alt_bank_p.env[u][c][k];
+        f->add[c] = alt_bank_f.add[u][c];
+        for (k = 0; k < AS_MAXLEN; k++)
+            f->fxr[c][k] = alt_bank_f.fx[u][c][k];
+    }
+    f->fxok = alt_bank_r.fxok[u];
+    for (k = 0; k < ALT_FXREC; k++)
+        f->fx[k] = alt_bank_r.fx[u][k];
+    f->envok = alt_bank_p.envok[u];
+    f->fused = alt_bank_f.used[u];
+    for (k = 0; k < AFL_REC; k++)
+        f->fr[k] = alt_bank_f.r[u][k];
+    if (alt_xload(u))
+        f->x = alt_xb.x[u % ALT_XPER];
+}
+/* the first start with 32 + 32: the old banks into bank A (object 30 written last: done) */
+static void alt_us_migrate(void)
+{
+    uint32_t o, j, u, any;
+    alt_old_load();
+    for (o = 0; o < ALT_NOLD / ALT_US_PER; o++) {
+        alt_ub_clear(ALT_MAGIC_US);
+        for (j = any = 0; j < ALT_US_PER; j++) {
+            u = o * ALT_US_PER + j;
+            alt_us_from_old(u, &alt_ub.s.r[j]);
+            any |= alt_ub.s.r[j].used;
+        }
+        if (any)
+            (void)st_save(ALT_OBJ_US0 + o, &alt_ub.s, sizeof alt_ub.s);
+    }
+    alt_ub_clear(ALT_MAGIC_UP);
+    for (u = 0; u < ALT_NOLD && u < ALT_UP_PER; u++) {
+        uint32_t c, k;
+        alt_ub.p.r[u].p = alt_bank_p.p[u];
+        for (c = 0; c < AS_NCIRC; c++)
+            for (k = 0; k < AS_NLANE / 4u; k++)
+                alt_ub.p.r[u].prat[c][k] = alt_bank_p.prat[u][c][k];
+    }
+    (void)st_save(ALT_OBJ_UP0, &alt_ub.p, sizeof alt_ub.p);
+}
+/* the UI's start: the USER slots' used flags (moving the old banks first, once) */
+static void alt_banks_load(void)
+{
+    uint32_t u;
+    if (st_load(ALT_OBJ_UP0, &alt_ub.p, sizeof alt_ub.p) != (int)sizeof alt_ub.p || alt_ub.p.magic != ALT_MAGIC_UP)
+        alt_us_migrate();
+    for (u = 0; u < ALT_NUSER; u += ALT_US_PER) {
+        uint32_t j, ok = (uint32_t)alt_ub_load_s(u);
+        for (j = 0; j < ALT_US_PER; j++)
+            alt_used_s[u + j] = (uint8_t)(ok && alt_ub.s.r[j].used);
+    }
+    for (u = 0; u < ALT_NUSER; u += ALT_UP_PER) {
+        uint32_t j, ok = (uint32_t)alt_ub_load_p(u);
+        for (j = 0; j < ALT_UP_PER; j++)
+            alt_used_p[u + j] = (uint8_t)(ok && alt_ub.p.r[j].p.used);
+    }
+}
+
+/* ---- the list: row i of tab t (0 SCENES, 1 PATTERNS): NEW, the factory ones, then USER A01..A16 B01..B16 -------- */
 static const char *alt_row_name(uint32_t t, uint32_t i, char *buf)
 {
     static const char *const NEW[2] = {"NEW SCENE", "NEW PATTERN"};
@@ -619,12 +797,13 @@ static const char *alt_row_name(uint32_t t, uint32_t i, char *buf)
     if (i <= ALT_NFACT)
         return t ? ALT_FPAT[i - 1u].name : ALT_SCENE[i - 1u].name;
     {
-        uint32_t u = i - 1u - ALT_NFACT, used = t ? alt_bank_p.p[u].used : alt_bank_s.s[u].used, n = 0;
+        uint32_t u = (i - 1u - ALT_NFACT) % ALT_NUSER, used = t ? alt_used_p[u] : alt_used_s[u], n = 0;
         const char *w = used ? "USER " : "EMPTY ";
         while (*w)
             buf[n++] = *w++;
-        buf[n++] = (char)('0' + (u + 1u) / 10u);
-        buf[n++] = (char)('0' + (u + 1u) % 10u);
+        buf[n++] = (char)('A' + u / 16u);
+        buf[n++] = (char)('0' + (u % 16u + 1u) / 10u);
+        buf[n++] = (char)('0' + (u % 16u + 1u) % 10u);
         buf[n] = 0;
         return buf;
     }
@@ -632,45 +811,32 @@ static const char *alt_row_name(uint32_t t, uint32_t i, char *buf)
 
 static const char *alt_row_about(uint32_t t, uint32_t i)
 {
+    uint32_t u;
     if (i == 0)
         return t ? "NO HITS ON THE THREE CIRCLES" : "A BLANK START. LOAD ONLY";
     if (i <= ALT_NFACT)
         return t ? ALT_FPAT[i - 1u].about : ALT_SCENE[i - 1u].about;
-    return (t ? alt_bank_p.p[i - 1u - ALT_NFACT].used : alt_bank_s.s[i - 1u - ALT_NFACT].used) ? "YOURS" : "HOLD SAVE: STORE HERE";
+    u = (i - 1u - ALT_NFACT) % ALT_NUSER;
+    return (t ? alt_used_p[u] : alt_used_s[u]) ? "YOURS" : "HOLD SAVE: STORE HERE";
 }
 
 /* SAVE tapped: load row i of tab t; 0 = nothing there */
 static int alt_row_load(uint32_t t, uint32_t i)
 {
-    uint32_t c;
+    uint32_t c, u = i > ALT_NFACT ? (i - 1u - ALT_NFACT) % ALT_NUSER : 0u;
     if (t == 0) {
         if (i == 0)
             alt_new_scene();
         else if (i <= ALT_NFACT)
             alt_load_scene(i - 1u);
-        else if (alt_bank_s.s[i - 1u - ALT_NFACT].used) {
-            uint32_t u = i - 1u - ALT_NFACT, k;
-            alt_scene_put(&alt_bank_s.s[u], alt_bank_r.r[u]);
-            for (c = 0; c < AS_NCIRC; c++)       /* its envelope modes' settings (or the defaults: stored before them) */
-                for (k = 0; k < AE_N; k++)
-                    alt_envp[c][k] = alt_bank_p.envok[u] ? alt_bank_p.env[u][c][k] : AE_DEF[k];
-            if (alt_bank_r.fxok[u])              /* its effects (stored before them: as they are) */
-                alt_fx_put(alt_bank_r.fx[u]);
-            for (c = 0; c < AS_NCIRC; c++)       /* its RATCH lanes */
-                alt_rat_put(c, alt_bank_r.rat[u][c]);
-            if (alt_bank_f.used[u])              /* its MASTER FILTER, or none */
-                afl_put(alt_bank_f.r[u]);
-            else
-                afl_off();
-            for (c = 0; c < AS_NCIRC; c++) {     /* its added steps, its REC'd fills */
-                alt_add_set(c, alt_bank_f.add[u][c]);
-                alt_fxr_put(c, alt_bank_f.fx[u][c]);
-            }
-            alt_xput(u);                         /* its REC moves and RANGEs (05/11) */
-        } else
+        else if (alt_ub_load_s(u) && alt_ub.s.r[u % ALT_US_PER].used)
+            alt_us_put(&alt_ub.s.r[u % ALT_US_PER]);
+        else
             return 0;
         return 1;
     }
+    if (i > ALT_NFACT && !(alt_ub_load_p(u) && alt_ub.p.r[u % ALT_UP_PER].p.used))
+        return 0;
     for (c = 0; c < AS_NCIRC; c++) {
         alt_rhy_t r;
         if (i == 0)
@@ -678,15 +844,13 @@ static int alt_row_load(uint32_t t, uint32_t i)
         else if (i <= ALT_NFACT)
             alt_rhy_plain(&r, ALT_FPAT[i - 1u].c[c][0], ALT_FPAT[i - 1u].c[c][1], ALT_FPAT[i - 1u].c[c][2],
                           ALT_FPAT[i - 1u].c[c][3]);
-        else if (alt_bank_p.p[i - 1u - ALT_NFACT].used)
-            r = alt_bank_p.p[i - 1u - ALT_NFACT].c[c];
         else
-            return 0;
+            r = alt_ub.p.r[u % ALT_UP_PER].p.c[c];
         alt_add_set(c, 0);
         alt_fxr_put(c, 0);                       /* (a pattern: the added steps and the REC'd fills go) */
         alt_rhy_put(c, &r);
         if (i > ALT_NFACT)
-            alt_rat_put(c, alt_bank_p.prat[i - 1u - ALT_NFACT][c]);
+            alt_rat_put(c, alt_ub.p.r[u % ALT_UP_PER].prat[c]);
     }
     return 1;
 }
@@ -697,9 +861,8 @@ static int alt_row_save(uint32_t t, uint32_t i)
     uint32_t u, c;
     if (i <= ALT_NFACT)
         return 0;
-    u = i - 1u - ALT_NFACT;
+    u = (i - 1u - ALT_NFACT) % ALT_NUSER;
     if (t == 0) {
-        uint32_t k;
         for (c = 0; c < AS_NCIRC; c++)           /* a circle's alignment gain folded into its LEVEL (a scene keeps */
             if (ac_tg[c] != AC_UNITY) {          /* LEVEL only): it reloads as loud as it plays */
                 int32_t want = (int32_t)(((int64_t)LEVEL_Q12[trk[c].p[P_LEVEL] & 127] * ac_tg[c]) >> 15), best = 1, j;
@@ -712,34 +875,21 @@ static int alt_row_save(uint32_t t, uint32_t i)
                 fm1_irq_on();
                 alt_cal_to(c, AC_UNITY);
             }
-        alt_scene_get(&alt_bank_s.s[u], alt_bank_r.r[u]);
-        alt_bank_p.envok[u] = 1;
-        alt_bank_r.fxok[u] = 1;
-        alt_fx_get(alt_bank_r.fx[u]);
-        alt_bank_f.used[u] = (uint8_t)afl_active();   /* the MASTER FILTER: kept when one is on */
-        for (c = 0; c < AS_NCIRC; c++) {
-            uint32_t k;
-            alt_bank_f.add[u][c] = alt_seq.c[c].add;
-            for (k = 0; k < AS_MAXLEN; k++)
-                alt_bank_f.fx[u][c][k] = alt_fxr[c][k];
-        }
-        if (alt_bank_f.used[u])
-            afl_get(alt_bank_f.r[u]);
-        for (c = 0; c < AS_NCIRC; c++)
-            alt_rat_get(c, alt_bank_r.rat[u][c]);
-        for (c = 0; c < AS_NCIRC; c++)
-            for (k = 0; k < AE_N; k++)
-                alt_bank_p.env[u][c][k] = alt_envp[c][k];
-        return alt_xsave(u) &&                   /* (first: it reads the moves before anything is put back) */
-               st_save(ALT_OBJ_SCENES, &alt_bank_s, sizeof alt_bank_s) == 0 &&
-               st_save(ALT_OBJ_SRHY, &alt_bank_r, sizeof alt_bank_r) == 0 &&
-               st_save(ALT_OBJ_PATS, &alt_bank_p, sizeof alt_bank_p) == 0 &&
-               st_save(ALT_OBJ_FILT, &alt_bank_f, sizeof alt_bank_f) == 0 ? 1 : -1;
+        (void)alt_ub_load_s(u);                  /* (its neighbour in the object kept) */
+        alt_us_get(&alt_ub.s.r[u % ALT_US_PER]);
+        if (st_save(ALT_OBJ_US0 + u / ALT_US_PER, &alt_ub.s, sizeof alt_ub.s) != 0)
+            return -1;
+        alt_used_s[u] = 1;
+        return 1;
     }
-    alt_bank_p.p[u].used = 1;
+    (void)alt_ub_load_p(u);
+    alt_ub.p.r[u % ALT_UP_PER].p.used = 1;
     for (c = 0; c < AS_NCIRC; c++) {
-        alt_rhy_get(c, &alt_bank_p.p[u].c[c]);
-        alt_rat_get(c, alt_bank_p.prat[u][c]);
+        alt_rhy_get(c, &alt_ub.p.r[u % ALT_UP_PER].p.c[c]);
+        alt_rat_get(c, alt_ub.p.r[u % ALT_UP_PER].prat[c]);
     }
-    return st_save(ALT_OBJ_PATS, &alt_bank_p, sizeof alt_bank_p) == 0 ? 1 : -1;
+    if (st_save(ALT_OBJ_UP0 + u / ALT_UP_PER, &alt_ub.p, sizeof alt_ub.p) != 0)
+        return -1;
+    alt_used_p[u] = 1;
+    return 1;
 }

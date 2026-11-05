@@ -26,7 +26,7 @@ const one = (bytes) => send(bytes)[0];
 const info = one(req.info());
 check(`INFO: ${info?.version}, ${info?.ncirc} cercles, moteurs ${info?.engines?.join(" ")}`,
   info && info.ncirc === 3 && info.engines.length === 7);   // (PLATE CORDE RING: 05/11)
-check(`INFO: ${info.sounds.length} sons, ${info.nuser} places USER, ${info.ids.length} réglages`, info.sounds.length >= 23 && info.nuser === 16 && info.ids.length === 22);
+check(`INFO: ${info.sounds.length} sons, ${info.nuser} places USER, ${info.ids.length} réglages`, info.sounds.length >= 23 && info.nuser === 32 && info.ids.length === 22);
 
 const st = [0, 1, 2].map((c) => one(req.state(c)));
 check(`STATE des 3 cercles : moteurs ${st.map((s) => info.engines[s.eng]).join(" ")}`, st.every((s, c) => s && s.circ === c && s.values.length === 22));
@@ -68,7 +68,7 @@ const ld = one(req.sceneLoad(3));
 const after = one(req.state(1));
 check("SCENE : recharger la place 4 remet le son du cercle 2", ld?.rc === 1 && after.values.join() === before && after.eng === 0);
 const ls = one(req.sceneList());
-check(`SCENE : liste des places USER (${ls?.used?.filter(Boolean).length} occupée)`, ls?.used?.length === 16 && ls.used[3] === 1);
+check(`SCENE : liste des places USER (${ls?.used?.filter(Boolean).length} occupée)`, ls?.used?.length === 32 && ls.used[3] === 1);
 check("SCENE : une place vide se charge pas (rc 0)", one(req.sceneLoad(9))?.rc === 0);
 
 // every engine's descriptions, asked by engine (the page reads them once): sane for all 22 settings

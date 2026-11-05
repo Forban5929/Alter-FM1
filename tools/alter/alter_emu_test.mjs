@@ -420,7 +420,7 @@ const holdSave = () => { ex.web_buttons(1 << 7); render(FS * 1.2); ex.web_button
 }
 // PATTERNS tab (ALGORITHM): BROKEN = circle 1 5/16, the sound unchanged
 {
-  B(7); enc(1, 1); row(3); B(7);
+  B(7); enc(1, 2); row(3); B(7);                                // (PATTERNS A: two tabs on, 05/11)
   ex.web_alter(4, BPM, 0);
   bar();
   const ps = bar().steps;
@@ -622,6 +622,33 @@ play();
   B3(7); enc3(1, -3); enc3(0, -25); enc3(0, 9); B3(7); for (let k = 0; k < FS; k += 128) e3.web_render(128);
   check(`after power-off: USER 05's moves (${e3.web_alter_rec(0)}) and RANGE (mask ${e3.web_alter_rng(0, 0) & 0xFFFF}) from the flash`,
         e3.web_alter_rec(0) === n0 && (e3.web_alter_rng(0, 0) & 0xFFFF) === 5);
+}
+// 32 + 32 USER slots (05/11): bank B (the SAVE page's 2nd and 4th tabs) keeps a scene and a pattern, after power-off too
+{
+  const W = (op, a, b) => ex.web_alter(op, a, b);
+  const bits = (m) => { let n = 0; for (m >>>= 0; m; m >>>= 1) n += m & 1; return n; };
+  const store = () => { ex.web_buttons(1 << 7); render(FS * 1.2); ex.web_buttons(0); render(2000); B(6); };
+  ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
+  W(15, 0, 16 | 5 << 8); render(FS);
+  B(7); enc(1, -3); enc(1, 1); enc(0, -25); enc(0, 4); store();             // SCENES B, B05
+  W(15, 0, 16 | 10 << 8); render(FS);
+  B(7); enc(1, 3); enc(0, -25); enc(0, 1); store();                          // PATTERNS B, B02
+  W(15, 0, 16 | 2 << 8); render(FS);
+  const nor = new Uint8Array(mem.buffer, ex.web_nor(), ex.web_nor_size()).slice();
+  const { instance: i5 } = await WebAssembly.instantiate(wasm, {}); const e5 = i5.exports;
+  e5._initialize(); e5.web_nor_erase(); new Uint8Array(e5.memory.buffer, e5.web_nor(), e5.web_nor_size()).set(nor);
+  e5.web_boot(); e5.web_alter(18, 1, 0);
+  const r5 = (n) => { for (let k = 0; k < n; k += 128) e5.web_render(Math.min(128, n - k)); };
+  const B5 = (b) => { e5.web_buttons(1 << b); r5(2000); e5.web_buttons(0); r5(2000); };
+  const enc5 = (role, n) => { for (let i = 0; i < Math.abs(n); i++) { e5.web_enc(role, Math.sign(n)); r5(1300); } };
+  r5(FS * 2);
+  B5(7); enc5(1, -3); enc5(1, 1); enc5(0, -25); enc5(0, 4); B5(7); r5(FS);
+  const sc = bits(e5.web_alter_pat(0));
+  B5(7); enc5(1, 2); enc5(0, -25); enc5(0, 1); B5(7); r5(FS);
+  const pt = bits(e5.web_alter_pat(0));
+  B5(7); enc5(1, -1); enc5(0, -25); enc5(0, 8); B5(7); r5(FS);               // PATTERNS A, A04: empty
+  check(`USER bank B after power-off: scene B05 (${sc} hits, 5 stored), pattern B02 (${pt}, 10), A04 empty (${bits(e5.web_alter_pat(0))})`,
+        sc === 5 && pt === 10 && bits(e5.web_alter_pat(0)) === 10);
 }
 // SONG (05/11): OCT+ + C D E high stores the rhythms in a slot, a tap plays it from the next bar, OCT- held + the keys
 // writes a chain (4 bars a link) that loops; ARP held: the SONG page (KNOB 2 a link's bars); the flash keeps it all

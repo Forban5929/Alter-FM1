@@ -96,7 +96,7 @@ static struct {
     uint8_t mn, mhold;           /* the ENV / EDIT / SCL menu open (QP_*, 0: none); the page buttons whose hold opened
                                  * their menu (bit QP_*: its release keeps it) */
     uint8_t set_row;             /* SETTINGS (EDIT held): the row */
-    uint8_t scene_open, tab, row[2], save_done;   /* the SAVE page open; its tab (0 SCENES 1 PATTERNS), each tab's row;
+    uint8_t scene_open, tab, row[4], save_done;   /* the SAVE page open; its tab (0 SCENES 1 PATTERNS), each tab's row;
                                                  * a long hold has stored (its release loads nothing) */
     uint32_t save_t0;            /* SAVE's press on the page (fm1_ms), 0 = up */
     uint8_t pre[AS_NCIRC];       /* each circle's sound (ALT_PRE) */
@@ -239,6 +239,12 @@ static void alt_preset_step(uint32_t c, int32_t s)
 }
 
 #include "alter_store.c"
+
+/* the SAVE page's four tabs (05/11): SCENES A, SCENES B, PATTERNS A, PATTERNS B. A: NEW, the factory ones, USER A01..A16;
+ * B: USER B01..B16. A tab's row r as a row of alt_row_* */
+#define ALT_ROWS_A (1u + ALT_NFACT + 16u)
+static uint32_t alt_tab_n(uint32_t tab) { return tab & 1u ? 16u : ALT_ROWS_A; }
+static uint32_t alt_tab_row(uint32_t tab, uint32_t r) { return tab & 1u ? ALT_ROWS_A + r : r; }
 
 /* ---- SONG (Romain 05/11; the audio side: alter_song.c) ---------------------------------------------------------------
  *   C D E high (white)     tapped: that slot plays from the next bar (the chain stops); empty: nothing
@@ -1606,7 +1612,7 @@ static int alter_ui_input(uint32_t pressed)
         au.lockc = 0;
         alt_menu_set(0);
     } else if (au.scene_open) {                  /* on it: a tap loads, held 1 s stores */
-        uint32_t dn = (fm1_in.buttons >> panel.btn[B_SAVE]) & 1u, t = au.tab, r = au.row[t];
+        uint32_t dn = (fm1_in.buttons >> panel.btn[B_SAVE]) & 1u, t = au.tab >> 1, r = alt_tab_row(au.tab, au.row[au.tab]);
         if (((pressed >> panel.btn[B_SAVE]) & 1u)) {
             au.save_t0 = fm1_ms | 1u;
             au.save_done = 0;
@@ -1628,9 +1634,9 @@ static int alter_ui_input(uint32_t pressed)
     }
     if (au.scene_open) {                         /* the SAVE page: SELECT picks the row, ALGORITHM the tab */
         if ((s = panel_enc(EN_SELECT)) != 0)
-            au.row[au.tab] = (uint8_t)clamp((int32_t)au.row[au.tab] + s, 0, ALT_NLIST - 1);
+            au.row[au.tab] = (uint8_t)clamp((int32_t)au.row[au.tab] + s, 0, (int32_t)alt_tab_n(au.tab) - 1);
         if ((s = panel_enc(EN_ALGO)) != 0)
-            au.tab = (uint8_t)(s > 0 ? 1 : 0);
+            au.tab = (uint8_t)clamp((int32_t)au.tab + (s > 0 ? 1 : -1), 0, 3);   /* (SCENES A B, PATTERNS A B) */
         for (i = 0; i < 4u; i++)
             (void)panel_enc(EN_K1 + i);
         (void)panel_enc(EN_PRESET);
@@ -2229,21 +2235,21 @@ static void alt_locks_scene(void)
 
 static void alt_scenes_scene(void)
 {
-    static const char *const TAB[2] = {"SCENES", "PATTERNS"};
-    uint32_t t = au.tab, r = au.row[t], i, top;
+    static const char *const TAB[4] = {"SCENES A", "SCENES B", "PATT. A", "PATT. B"};
+    uint32_t t = au.tab >> 1, r = au.row[au.tab], i, top, n = alt_tab_n(au.tab);
     char nb[12];
     alt_card("SAVE", "XX");
-    alt_tabs(23, TAB, 2, t, ALT_COL[0]);
+    alt_tabs(23, TAB, 4, au.tab, ALT_COL[0]);
     if (au.msg && fm1_ms - au.msg_ms < 1500u)   /* SAVED, PROTECTED, EMPTY .. */
         cv_text(8, 214, ALT_FS, au.msg, ALT_COL[1]);
     else
         cv_text(8, 214, ALT_FS, "SELECT  SAVE: LOAD  HOLD: STORE", ALT_DIM);
     top = r < 2u ? 0u : r - 2u;                  /* five rows, the chosen one second or third */
-    if (top > ALT_NLIST - 5u)
-        top = ALT_NLIST - 5u;
+    if (top > n - 5u)
+        top = n - 5u;
     for (i = 0; i < 5u; i++) {
-        uint32_t row = top + i;
-        int32_t y = 48 + (int32_t)i * 30, on = row == r, user = row > ALT_NFACT;
+        uint32_t row = alt_tab_row(au.tab, top + i);
+        int32_t y = 48 + (int32_t)i * 30, on = top + i == r, user = row > ALT_NFACT;
         const char *nm = alt_row_name(t, row, nb);
         uint16_t rb = on ? alt_gold_line(16) : ALT_BG;
         if (on) {
@@ -3698,17 +3704,19 @@ static uint8_t alt_dump[ALT_DUMP_N];
 static uint32_t alt_dump_user(uint32_t u)
 {
     uint32_t n = 0, k;
+    const alt_us_t *f = &alt_ub.s.r[(u % ALT_NUSER) % ALT_US_PER];
     u %= ALT_NUSER;
+    (void)alt_ub_load_s(u);
     for (k = 0; k < sizeof(alt_scene_rec_t); k++)
-        alt_dump[n++] = ((const uint8_t *)&alt_bank_s.s[u])[k];
+        alt_dump[n++] = ((const uint8_t *)&f->s)[k];
     for (k = 0; k < sizeof(alt_rhy_t) * AS_NCIRC; k++)
-        alt_dump[n++] = ((const uint8_t *)alt_bank_r.r[u])[k];
-    alt_dump[n++] = alt_bank_r.fxok[u];
+        alt_dump[n++] = ((const uint8_t *)f->r)[k];
+    alt_dump[n++] = f->fxok;
     for (k = 0; k < ALT_FXREC; k++)
-        alt_dump[n++] = alt_bank_r.fx[u][k];
-    alt_dump[n++] = alt_bank_p.envok[u];
+        alt_dump[n++] = f->fx[k];
+    alt_dump[n++] = f->envok;
     for (k = 0; k < AS_NCIRC * AE_N; k++)
-        alt_dump[n++] = ((const uint8_t *)alt_bank_p.env[u])[k];
+        alt_dump[n++] = ((const uint8_t *)f->env)[k];
     return n;
 }
 
