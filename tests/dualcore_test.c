@@ -72,6 +72,13 @@ static uint64_t render(const scen_t *sc, int dual, const char *mask)
             afl[0][AFL_MIX] = afl[1][AFL_MIX] = 100;   /* MASTER FILTER : sa source = le cercle 2 (afl_take, mix_part) */
             afl[0][AFL_SRC] = afl[1][AFL_SRC] = AFS_C2;
         }
+    if (sc->alt > 1)                                /* ALTER (étape 4) : la CONSOLE de chaque cercle (EQ + COMP) */
+        for (k = 0; k < AM_NC; k++) {
+            acs_v[k][ACS_LOW] = (uint8_t)(30 + 20 * k);
+            acs_v[k][ACS_MID] = (uint8_t)(100 - 10 * k);
+            acs_v[k][ACS_HIGH] = (uint8_t)(20 + 40 * k);
+            acs_v[k][ACS_COMP] = (uint8_t)(127 - 30 * k);
+        }
     for (f = 0; f < SECS * FS; f += CTL) {
         uint32_t ms = f / (FS / 1000u);
         for (k = 0; k < NPART; k++) {
@@ -149,6 +156,7 @@ int main(void)
     sc[n++] = (scen_t){"ALTER PHYS NOISE RESO", {ENGI_ALTER, ENGI_PHYS, ENGI_NOISE, ENGI_RESO}, {1, 4, 7, 2}, 0, 0};
     sc[n++] = (scen_t){"RESO ALTER NOISE PHYS + ALTER", {ENGI_RESO, ENGI_ALTER, ENGI_NOISE, ENGI_PHYS}, {3, 0, 2, 5}, 0, 1};
     sc[n++] = (scen_t){"PHYS morph + RESO ALTER NOISE", {ENGI_PHYS, ENGI_RESO, ENGI_ALTER, ENGI_NOISE}, {2, 1, 3, 5}, 1, 1};
+    sc[n++] = (scen_t){"PLATE CORDE RING ALTER + CONSOLE", {ENGI_PLATE, ENGI_CORDE, ENGI_RING, ENGI_ALTER}, {1, 2, 3, 0}, 0, 2};
     for (i = 0; i < n; i++) {
         uint64_t ref;
         uint32_t m, bad = 0, quiet = 0, taken = 0, took = 0;

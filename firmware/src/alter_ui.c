@@ -1565,6 +1565,7 @@ static const char *alt_menu_name(uint32_t q)
 static void afp_input(uint32_t pressed);                     /* the FX page (alter_fxpage.c, with the screen below) */
 static void alt_deep_input(void);                /* DEEP (with the screens below) */
 static void alt_mix_turn(uint32_t i, int32_t s);  /* the MIXER */
+static void alt_mx_nav(void);                    /* the MIXER's tabs (the CONSOLE) */
 static void alt_sys_input(void);                  /* SYSTEM (HOME held) */
 static int alter_ui_input(uint32_t pressed)
 {
@@ -1796,6 +1797,8 @@ static int alter_ui_input(uint32_t pressed)
     q = alt_page();
     if (afp.open)                                /* the FX page: its encoders (the keys play on: mutes, dice, fills) */
         afp_input(pressed);
+    if (au.mn == QP_GLO && !au.lockc)
+        alt_mx_nav();                            /* the MIXER's tabs and rows (the CONSOLE) */
     for (i = 0; i < 4u; i++)
         if ((s = panel_enc(EN_K1 + i)) != 0 && !au.lockc)
         {
@@ -2918,8 +2921,47 @@ static void alt_scl_scene(void)
  * over); its peak held 1 s. The keys play on */
 static int32_t alt_mix_pk, alt_mix_hold;
 static uint32_t alt_mix_ms;
+/* the CONSOLE (étape 4, Romain 05/11): the MIXER's tabs MIX, I, II, III (ALGORITHM); a circle's tab is its strip, two
+ * rows of four (SELECT the row, KNOB 1-4 its values): DRIVE LOW MID HIGH / COMP DELAY REVERB LEVEL. DRIVE (P_DIST),
+ * the sends and LEVEL go through the queue (REC, the scene: as before); LOW MID HIGH COMP are alter_console.c's acs_v
+ * (the scene keeps them, not REC). A circle's tab follows the chosen circle (the black keys) */
+static uint8_t alt_mx_tab, alt_mx_row, alt_mx_sel;
+static const char *const ALT_MX_TAB[4] = {"MIX", "I", "II", "III"};
+static const char *const ALT_MX_NM[2][4] = {{"DRIVE", "LOW", "MID", "HIGH"}, {"COMP", "DELAY", "REVERB", "LEVEL"}};
+static const uint8_t ALT_MX_P[2][4] = {{P_DIST, 255, 255, 255}, {255, P_DLY, P_REV, P_LEVEL}};   /* (255: acs_v) */
+static int32_t alt_mx_val(uint32_t c, uint32_t r, uint32_t i)   /* a strip's value 0..127 */
+{
+    uint32_t p = ALT_MX_P[r & 1u][i & 3u];
+    if (p != 255u)
+        return clamp(trk[c % AS_NCIRC].p[p], 0, 127);
+    return acs_v[c % AS_NCIRC][r ? ACS_COMP : i - 1u];
+}
+static void alt_mx_nav(void)                     /* ALGORITHM: the tab; SELECT: the row (MIX: the chosen circle) */
+{
+    int32_t s;
+    if (alt_mx_tab && alt_mx_sel != au.sel)      /* (a black key chose another circle: its strip) */
+        alt_mx_tab = (uint8_t)(au.sel % AS_NCIRC + 1u);
+    if ((s = panel_enc(EN_ALGO)) != 0) {
+        alt_mx_tab = (uint8_t)clamp((int32_t)alt_mx_tab + (s > 0 ? 1 : -1), 0, 3);
+        if (alt_mx_tab && au.sel != alt_mx_tab - 1u)
+            alt_select(alt_mx_tab - 1u);
+    }
+    alt_mx_sel = au.sel;
+    if (alt_mx_tab && (s = panel_enc(EN_SELECT)) != 0)
+        alt_mx_row = (uint8_t)(s > 0 ? 1u : 0u);
+}
 static void alt_mix_turn(uint32_t i, int32_t s)
 {
+    if (alt_mx_tab) {                            /* a strip */
+        uint32_t c = (alt_mx_tab - 1u) % AS_NCIRC, p = ALT_MX_P[alt_mx_row & 1u][i & 3u];
+        if (p != 255u)
+            alt_qpush(c, p, s * 2);
+        else {
+            uint32_t k = alt_mx_row ? ACS_COMP : i - 1u;
+            acs_v[c][k] = (uint8_t)clamp((int32_t)acs_v[c][k] + s * 2, 0, 127);
+        }
+        return;
+    }
     if (i < AS_NCIRC)
         alt_qpush(i, P_LEVEL, s * 2);
     else
@@ -2951,12 +2993,80 @@ static int32_t alt_mix_y(int32_t a, int32_t top, int32_t h)   /* a level (32767 
     db = clamp(db / 2, -40, 6);
     return top + h - (db + 40) * h / 46;
 }
+static int32_t alt_db_q12(int32_t g)            /* a gain, Q12, in whole dB (-40 .. +12) */
+{
+    int32_t db = 0, x = g > 0 ? g : 1;
+    while (x < 4096 && db > -80)                 /* (in 1/2 dB, as alt_mix_y) */
+        x += x / 16 + 1, db--;
+    while (x > 4096 * 109 / 100 && db < 24)
+        x -= x / 17, db++;
+    return db / 2;
+}
+static void alt_mx_strip(uint32_t c)             /* circle c's CONSOLE strip */
+{
+    uint32_t r, i;
+    uint16_t col = ALT_COL[c], hl = alt_gold_line(16);
+    char b[12];
+    cv_text_r(232, 24, ALT_FS, ALT_PRE[au.pre[c] % ALT_NPRE].name, col, ALT_BG);   /* (whose sound) */
+    for (r = 0; r < 2u; r++) {
+        int32_t y = 66 + (int32_t)r * 64, on = r == alt_mx_row;
+        uint16_t bg = on ? hl : ALT_BG;
+        if (on) {
+            cv_rect(4, y - 4, 232, 58, hl);
+            alt_diamond(8, y + 24, 3, 3, col);
+        }
+        for (i = 0; i < 4u; i++) {
+            int32_t x = 16 + (int32_t)i * 56, v = alt_mx_val(c, r, i), bx = x, bw = 48;
+            int eq = r == 0 && i > 0;
+            const char *nm = ALT_MX_NM[r][i];
+            if (eq)
+                alt_num(b, v ? alt_db_q12(acs_gain(v)) : 0, 0);
+            else if (r == 1 && i == 3u) {
+                int32_t d = LEVEL_DB_X10[v];
+                alt_num(b, (d + (d < 0 ? -5 : 5)) / 10, 0);
+            } else
+                alt_num(b, v, 0);
+            if (eq && v == 0)
+                alt_scopy(b, "KILL", sizeof b);
+            else if (eq && v > 64) {             /* (+ before a boost) */
+                char t[12];
+                alt_scopy(t, b, sizeof t);
+                b[0] = '+';
+                alt_scopy(b + 1, t, sizeof b - 1u);
+            } else if (v == 0 && (i == 0 || (r == 1 && i < 3u)))
+                alt_scopy(b, "OFF", sizeof b);
+            else if (r == 1 && i == 3u && v == 0)
+                alt_scopy(b, "OFF", sizeof b);
+            cv_text_on(x, y, ALT_FS, nm, on ? ALT_INK : ALT_DIM, bg);
+            cv_text_on(x, y + 14, ALT_FM, b, on ? col : ALT_DIM, bg);
+            cv_rect(bx, y + 38, bw, 2, alt_gold_line(30));
+            if (eq) {                            /* (from the middle: 0 dB) */
+                int32_t m = bx + bw / 2, f = (v - 64) * (bw / 2) / 63;
+                cv_rect(f < 0 ? m + f : m, y + 37, f < 0 ? -f : f + 1, 4, on ? col : ALT_DIM);
+                cv_rect(m, y + 35, 1, 8, ALT_INK);
+            } else
+                cv_rect(bx, y + 37, v * bw / 127, 4, on ? col : ALT_DIM);
+            if (r == 1 && i == 0 && v) {         /* COMP: its reduction now (gold), down to -12 dB */
+                int32_t red = -alt_db_q12(acs_gr[c]);
+                cv_rect(bx, y + 45, clamp(red, 0, 12) * bw / 12, 3, ALT_GOLD);
+            }
+        }
+    }
+    cv_rect(8, 196, 224, 1, alt_gold_line(30));
+    cv_text(8, 202, ALT_FS, "SELECT: ROW   KNOB 1-4: CHANGE", ALT_DIM);
+    cv_text(8, 216, ALT_FS, "ALGORITHM: TAB   BLACK KEYS: CIRCLE", ALT_DIM);
+}
 static void alt_mix_scene(void)
 {
     uint32_t c;
-    int32_t top = 56, h = 120, y0 = top + h, x, y, yl = alt_mix_y(LIM_T, top, h), y0db = alt_mix_y(32767, top, h);
+    int32_t top = 78, h = 96, y0 = top + h, x, y, yl = alt_mix_y(LIM_T, top, h), y0db = alt_mix_y(32767, top, h);
     char b[12];
     alt_card("MIXER", "XIV");
+    alt_tabs(40, ALT_MX_TAB, 4, alt_mx_tab, alt_mx_tab ? ALT_COL[(alt_mx_tab - 1u) % AS_NCIRC] : ALT_GOLD);
+    if (alt_mx_tab) {
+        alt_mx_strip((alt_mx_tab - 1u) % AS_NCIRC);
+        return;
+    }
     for (c = 0; c <= AS_NCIRC; c++) {            /* the faders: three circles, then the master */
         int32_t v = c < AS_NCIRC ? clamp(trk[c].p[P_LEVEL], 0, 127) : alt_mgain, fy;
         uint16_t col = c < AS_NCIRC ? ALT_COL[c] : ALT_GOLD;
@@ -3000,8 +3110,8 @@ static void alt_mix_scene(void)
             alt_mix_hold > 32767 ? RGB(220, 40, 40) : alt_mix_hold > LIM_T ? ALT_GOLD : ALT_DIM);
     }
     cv_rect(8, 196, 224, 1, alt_gold_line(30));
-    cv_text(8, 206, ALT_FS, "KNOB 1 2 3  CIRCLES (dB)", ALT_INK);
-    cv_text(8, 220, ALT_FS, "KNOB 4  MASTER", ALT_INK);
+    cv_text(8, 202, ALT_FS, "KNOB 1 2 3 CIRCLES (dB)  4 MASTER", ALT_INK);
+    cv_text(8, 216, ALT_FS, "ALGORITHM: I II III = CONSOLE", ALT_DIM);
 }
 
 /* SONG (XX, Judgement; ARP held, Romain 05/11): the three slots (lit: playing; blinking: asked for; EMPTY), the chain as
@@ -3811,6 +3921,13 @@ static void alter_draw(void)
         sig = sig * 31u + (uint32_t)alt_mix_pk / 600u * 7u + (uint32_t)alt_mix_hold / 600u * 11u + alt_mgain * 13u;
         for (i = 0; i < AS_NCIRC; i++)
             sig = sig * 31u + (uint32_t)trk[i].p[P_LEVEL] + alt_seq.c[i].cfg.mute * 128u;
+        sig = sig * 31u + alt_mx_tab * 3u + alt_mx_row * 5u;   /* (the CONSOLE: its tab, row, values, the COMP's meter) */
+        if (alt_mx_tab) {
+            uint32_t cc = (alt_mx_tab - 1u) % AS_NCIRC, k;
+            for (k = 0; k < 4u; k++)
+                sig = sig * 31u + (uint32_t)alt_mx_val(cc, 0, k) * 7u + (uint32_t)alt_mx_val(cc, 1, k) * 11u;
+            sig = sig * 31u + (uint32_t)(-alt_db_q12(acs_gr[cc]));
+        }
     }
     if (au.mn == QP_EDIT) {                      /* (DEEP: its tab, its list, the chosen circle's values) */
         uint32_t k, c = au.sel % AS_NCIRC;
@@ -3899,7 +4016,7 @@ static uint32_t alt_dump_user(uint32_t u)
 }
 
 /* (les tests, 03/11) : w 0 = moteur du cercle c, 1 = son accord, 2 = son budget d'effets (256 = un effet au plus fort),
- * 3..8 = ses six parts (DIST INSERT DELAY REVERB LFO MTX), 9 TYPE LEN DENS LOCK, 10 RANGE (05/11) */
+ * 3..8 = ses six parts (DIST INSERT DELAY REVERB LFO MTX), 9 TYPE LEN DENS LOCK, 10 RANGE (05/11), 11 CONSOLE */
 static int32_t alt_peek(uint32_t c, uint32_t w)
 {
     c %= AS_NCIRC;
@@ -3912,6 +4029,8 @@ static int32_t alt_peek(uint32_t c, uint32_t w)
         return (int32_t)(au.cfg[c].type | au.cfg[c].len << 8 | au.cfg[c].tdens << 16 | (uint32_t)au.cfg[c].tlock << 24);
     if (w == 10u)
         return au.cfg[c].trange;
+    if (w == 11u)                                /* (the CONSOLE: LOW MID HIGH COMP, a byte each) */
+        return (int32_t)(acs_v[c][0] | acs_v[c][1] << 8 | acs_v[c][2] << 16 | (uint32_t)acs_v[c][3] << 24);
     return w == 0 ? (int32_t)trk[c].eng_req : w == 1 ? (int32_t)au.cfg[c].chord : alt_fxb_total(c);
 }
 static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
@@ -3933,6 +4052,8 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
         else if (a == AFX_S_REV) afp_rev_apply(b); else afp_mst_apply(b);
         break;
     case 8: amx[a % AMX_N] = (uint8_t)b; break;  /* (a test: MASTER setting a) */
+    case 20: acs_v[(a & 3u) % AS_NCIRC][(a >> 8) % ACS_N] = (uint8_t)(b & 127u); break;   /* (a test: circle a & 3's
+                                                  * CONSOLE value a >> 8: 0 LOW 1 MID 2 HIGH 3 COMP) */
     case 9: alt_seq.c[a % AS_NCIRC].sdly[b % AS_NLANE] = 0; break;   /* (a test: a step's DELAY lane off) */
     case 10: alt_env_default(a % AS_NCIRC); break;   /* (a test: circle a's mode settings back to the defaults) */
     case 11: alt_cal(a % AS_NCIRC); break;       /* (a test: circle a aligns its level) */

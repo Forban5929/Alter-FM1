@@ -877,6 +877,7 @@ static __attribute__((noinline)) void mix_spread(track_t *t, int32_t *b, uint32_
     track_dist(t, b, n);
     if (t->p[P_ITYPE] | t->ins_run)
         track_insert(t, b, n);                          /* (the mono sum, as DIST) */
+    acs_part((uint32_t)(t - trk), b, n);                /* ALTER: the CONSOLE (alter_console.c; side: as DIST) */
     slicer_track_sd(t, b, d, n);
     if ((pf.mute >> (t - trk)) & 1u)
         perf_mute_sd((uint32_t)(t - trk), b, d, n);
@@ -945,6 +946,7 @@ static void mix_part(track_t *t, uint32_t n SM_DECL)
         track_dist(t, b, n);
         if (t->p[P_ITYPE] | t->ins_run)
             track_insert(t, b, n);                      /* the INSERT (1.5): off, nothing */
+        acs_part((uint32_t)(t - trk), b, n);            /* ALTER: the CONSOLE, EQ + COMP (alter_console.c) */
         if ((uint32_t)(t - trk) < AM_NC && (alt_rmb[t - trk] || rmb_busy((uint32_t)(t - trk))))
             rmb_part((uint32_t)(t - trk), b, n);        /* ALTER: the RUMBLE (alter_fx.c) */
         slicer_track(t, b, n);                          /* slicer.c: before the level, pan and sends */

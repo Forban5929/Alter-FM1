@@ -176,5 +176,48 @@ const dip = () => {
   check(`FILTER: a factory scene has none (${fac}), USER 02 brings it back (${back})`, fac === -1 && back >= 0);
   W(1, 0, 0); render(FS);
 }
+// CONSOLE (étape 4): each circle's strip. LOW 0 on circle 1 takes its lows, HIGH 0 on circle 3 its highs, COMP 127 on
+// circle 1 lowers its crest factor; back flat: as it was, sample for sample; kept by a USER scene, flat in a factory one
+{
+  const lp = (a, f) => { const k = 1 - Math.exp(-2 * Math.PI * f / FS); let y = 0; return a.map((x) => (y += (x - y) * k)); };
+  const hp = (a, f) => { const b = lp(a, f); return a.map((x, i) => x - b[i]); };
+  const lows = (a) => rms(lp(lp(lp(lp(a, 100), 100), 100), 100)), highs = (a) => rms(hp(hp(hp(hp(a, 6000), 6000), 6000), 6000));
+  const C = (c, k, v) => W(20, c | k << 8, v);
+  W(1, 0, 0); render(FS);
+  solo(0); render(FS);
+  const a = render(BEAT * 8, true);
+  C(0, 0, 0); render(FS); const lo = render(BEAT * 8, true); C(0, 0, 64);
+  check(`CONSOLE LOW KILL on circle 1: lows ${lows(a).toFixed(4)} -> ${lows(lo).toFixed(4)}`, lows(lo) < lows(a) * 0.4);
+  C(0, 3, 127); render(FS); const cp = render(BEAT * 8, true); C(0, 3, 0);
+  const ca = peak(a) / rms(a), cb = peak(cp) / rms(cp);
+  check(`CONSOLE COMP 127 on circle 1: crest factor ${ca.toFixed(2)} -> ${cb.toFixed(2)}, not louder than +10 dB (${(20 * Math.log10(rms(cp) / rms(a))).toFixed(1)} dB)`,
+        cb < ca * 0.9 && rms(cp) < rms(a) * 3.2);
+  solo(2); render(FS);
+  const h = render(BEAT * 8, true);
+  C(2, 2, 0); render(FS); const hk = render(BEAT * 8, true); C(2, 2, 64);
+  check(`CONSOLE HIGH KILL on circle 3: highs ${highs(h).toFixed(4)} -> ${highs(hk).toFixed(4)}`, highs(hk) < highs(h) * 0.4);
+  C(2, 1, 127); render(FS); const mb = render(BEAT * 8, true); C(2, 1, 64);
+  check(`CONSOLE MID +12 on circle 3: louder (${(20 * Math.log10(rms(mb) / rms(h))).toFixed(1)} dB)`, rms(mb) > rms(h) * 1.2);
+  solo(-1);
+  // flat again: circle 1 as loud as before it went through the console (its code skips a flat strip: bit for bit)
+  solo(0); render(FS * 2);
+  const back = render(BEAT * 8, true);
+  const dd = 20 * Math.log10(rms(back) / rms(a));
+  check(`CONSOLE flat again: circle 1 as before (${dd.toFixed(2)} dB)`, Math.abs(dd) < 1);
+  solo(-1);
+  // a USER scene keeps it; a factory scene loads flat
+  const row = (n) => { enc(0, -25); enc(0, n); };
+  C(0, 0, 10); C(1, 2, 100); C(2, 3, 90);
+  B(SAVEB); row(7); B(SAVEB, FS * 1.2); B(SAVEB); B(6);             // USER 03 stored
+  W(1, 0, 0); render(FS);
+  const fac = [0, 1, 2].map((c) => ex.web_alter_peek(c, 11) >>> 0);
+  B(SAVEB); row(7); B(SAVEB); render(FS);                         // USER 03 loaded
+  const got = [0, 1, 2].map((c) => ex.web_alter_peek(c, 11) >>> 0);
+  const flat = 64 | 64 << 8 | 64 << 16;
+  check(`CONSOLE: a factory scene flat (${fac.map((x) => x.toString(16))}), USER 03 brings it back (${got.map((x) => x.toString(16))})`,
+        fac.every((x) => x === flat) && got[0] === (10 | 64 << 8 | 64 << 16) && got[1] === (64 | 64 << 8 | 100 << 16) &&
+        got[2] === (flat | (90 << 24) >>> 0) >>> 0);
+  W(1, 0, 0); render(FS);
+}
 console.log(fails ? `fx: ${fails} FAIL` : "fx: all ok");
 process.exit(fails ? 1 : 0);

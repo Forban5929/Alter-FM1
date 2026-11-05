@@ -12,7 +12,7 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
 1. `add_repo Forban5929/alter-fm1` (push) · `git clone --depth 1` · `git fetch --depth 40 origin etape-3d:etape-3d` ·
    `git checkout etape-3d` · `git submodule update --init --depth 1`. **Travail sur `etape-3d`** (main = étape 2).
 2. Construire + tester :
-   - `sh tools/alter/wasm/build_emu.sh` (→ `build/emu/`, ~30 s)
+   - `sh tools/alter/wasm/build_emu.sh` (→ `build/emu/`, ~30 s ; `mkdir -p build/alter build/host` avant les cc)
    - `node tools/alter/alter_emu_test.mjs build/emu/felucca.wasm build/emu/alter_play.wav` · `node tools/alter/alter_fx_test.mjs build/emu/felucca.wasm`
    - `cc -std=c99 -O2 -Wall -o build/alter/alter_seq_test tools/alter/alter_seq_test.c && build/alter/alter_seq_test`
    - `node tools/alter/alter_link_test.mjs build/emu/felucca.wasm` · `node web/emu/emu_test.mjs …` (**4 échecs VOULUS**)
@@ -34,7 +34,8 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
 
 ## Carte du code ALTER (`firmware/src/alter_*`)
 `alter_seq.c` séquenceur pur (cercles, dés `as_draw_w`, couloirs) · `alter_play.c` côté audio (fills, modes, file UI→audio) ·
-`alter_ui.c` vue PLAY + menus · `alter_fxpage.c` page FX · `alter_fx.c` presets FX, MASTER, **RUMBLE** · `alter_filter.c`
+`alter_ui.c` vue PLAY + menus · `alter_fxpage.c` page FX · `alter_fx.c` presets FX, MASTER, **RUMBLE** · **`alter_console.c`
+CONSOLE** (EQ + COMP par cercle, appelée dans fx.c mix_part/mix_spread après DIST+INSERT) · `alter_filter.c`
 MASTER FILTER · `alter_lfo.c` · `alter_sounds.c` sons + scènes d'usine · `alter_store.c` SAVE/LOAD · `alter_persist.c`
 réglages flash · `eng_alter.c` / `eng_reso.c` moteurs · `fx.c` (Felucca + nos ajouts : delay MODE/TAPE, glisse des envois,
 gain MASTER + vumètre). Moteurs (numéro, index ALT_ENGS) : ALTER 14 (0), PHYS 9 (1), NOISE 11 (2), RESO 10 (3),
@@ -57,7 +58,14 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
 - Boutons de page : tap = page rapide, tenu 0,5 s = menu. Menus : SEQ, FX, LFO, ENV, SCL,
   **EDIT = DEEP** (liste de tous les réglages du son du cercle choisi : onglets SOUND / ENV / FX / MIX, SELECT = ligne,
   KNOB 1 = valeur via la file alt_q donc REC l'enregistre, touches noires = cercle ; `alt_deep_*`),
-  **GLO = MIXER** (knob 1-3 = LEVEL des cercles, knob 4 = MASTER 100 = 0 dB, vumètre blanc/doré = limiteur/rouge = clip),
+  **GLO = MIXER**, onglets (ALGORITHM) **MIX / I / II / III** : MIX = knob 1-3 LEVEL des cercles, knob 4 MASTER 100 = 0 dB,
+  vumètre blanc/doré = limiteur/rouge = clip · **I II III = CONSOLE du cercle** (étape 4, 05/11 ; suit les touches noires) :
+  2 rangées, SELECT = rangée, KNOB 1-4 : DRIVE (P_DIST) LOW MID HIGH / COMP DELAY REVERB LEVEL (P_DLY P_REV P_LEVEL via
+  alt_qpush → REC ok). LOW MID HIGH COMP = `acs_v[c][4]` (64 64 64 0 = à plat = code sauté, bit pour bit ; 0 = KILL, 32 = −12,
+  127 = +12 dB ; coupures 250 Hz / 2,5 kHz) ; COMP 1 knob : seuil −4..−22 dB, ratio 2..8, rattrapage auto (crêtes remises
+  à leur niveau, max +12 dB), barre dorée = réduction. **Pas dans REC**, gardé dans les scènes USER (`alt_ub.s.cs`, après
+  `nm` ; objets plus courts = à plat), usine/NEW = à plat. Pas dans la page compagnon. Delay/reverb = envois vers les bus
+  communs (pas de delay par cercle : RAM). Tests : op `web_alter` **20** (a = cercle | valeur<<8, b), peek **11**.
   **HOME tenu = SYSTEM** (batterie en haut ; onglets SETUP : THEME, CLOCK INT/USB/TRS, MIDI IN · AUDIO : lignes Felucca
   CLICK (OFF/ON), CLICK LEVEL, SPEAKER EQ, USB LEVEL, TUNE, 2ND CORE · RANDOM : les 7 moteurs et modes FREE PERC
   STAB permis au hasard (la liste défile) · ABOUT : document GPL de Felucca, défile). Gardé en flash : `alt_sys` = favorites.factory[13]
@@ -119,6 +127,8 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   `web/alter/guide.html` (`/editor/guide.html`, dessins dans le style du synthé, en anglais comme la page). Testé : link_test +
   navigateur (mode démo). **Garder le guide à jour** à chaque changement de commande.
 - [ ] **PROCHAINE SESSION** : d'abord le retour de Romain sur la FM-1 (tout le 05/11 est testé en émulateur seulement :
-  SONG, 32+32 + migration, NOMS, halo/contours, PLATE/CORDE/RING, page v3, guide). Puis au choix de Romain :
-- [ ] MIDI LEARN ALTER (BCR32).
-- [ ] Étape 4 : tranche de console par piste (disto → EQ → comp → delay → reverb).
+  SONG, 32+32 + migration, NOMS, halo/contours, PLATE/CORDE/RING, page v3, guide, CONSOLE). Puis au choix de Romain.
+- [x] **Étape 4 (05/11) : CONSOLE par cercle** (voir MIXER). Testé émulateur : 6 tests fx (LOW/HIGH KILL, MID +12, COMP
+  crest ↓ sans saut de volume, retour à plat, scène USER), 2 cœurs (scène « + CONSOLE »), syntaxe FM-1. CPU navigateur :
+  pas de différence mesurable. **Pas sur la FM-1, pas écouté** : Romain juge (surtout le COMP).
+- [ ] Idées : CONSOLE dans la page compagnon + LINK ; EQ/COMP dans REC ; MIDI LEARN ALTER (BCR32).

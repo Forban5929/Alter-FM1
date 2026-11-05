@@ -349,6 +349,7 @@ static void alt_load_scene(uint32_t n)
     uint32_t c;
     afl_off();                                   /* (the factory scenes: no MASTER FILTER, no added steps) */
     for (c = 0; c < AS_NCIRC; c++) {
+        acs_reset(c);                            /* (nor a CONSOLE: flat) */
         alt_add_set(c, 0);
         alt_fxr_put(c, 0);
     }
@@ -410,6 +411,7 @@ static void alt_new_scene(void)
     uint32_t c;
     afl_off();
     for (c = 0; c < AS_NCIRC; c++) {
+        acs_reset(c);                            /* (the CONSOLE flat) */
         alt_add_set(c, 0);
         alt_fxr_put(c, 0);
     }
@@ -639,8 +641,10 @@ typedef struct {
     uint8_t prat[AS_NCIRC][AS_NLANE / 4];
 } alt_up_t;
 static union {
-    struct { uint32_t magic; alt_us_t r[ALT_US_PER]; uint8_t nm[ALT_US_PER][4]; } s;   /* (nm: the NAMEs, 05/11; an
-                                                  * object stored before them ends before nm) */
+    struct { uint32_t magic; alt_us_t r[ALT_US_PER]; uint8_t nm[ALT_US_PER][4];
+             uint8_t cs[ALT_US_PER][1u + AS_NCIRC * ACS_N]; } s;   /* (nm: the NAMEs, 05/11; cs: the CONSOLE, [0] 1 =
+                                                  * stored, then LOW MID HIGH COMP a circle, étape 4; an object stored
+                                                  * before them ends before nm, or before cs) */
     struct { uint32_t magic; alt_up_t r[ALT_UP_PER]; } p;
 } alt_ub __attribute__((section(".pool")));
 _Static_assert(sizeof alt_ub.s <= ST_PAYLOAD_MAX_X && sizeof alt_ub.p <= ST_PAYLOAD_MAX_X, "USER objects fit");
@@ -661,12 +665,17 @@ static void alt_ub_clear(uint32_t magic)
 static int alt_ub_load_s(uint32_t u)             /* scene u's object into alt_ub; 1: it holds ours */
 {
     int n = st_load(ALT_OBJ_US0 + u / ALT_US_PER, &alt_ub.s, sizeof alt_ub.s);
-    if ((n == (int)sizeof alt_ub.s || n == (int)(sizeof(uint32_t) + sizeof(alt_us_t) * ALT_US_PER)) && alt_ub.s.magic == ALT_MAGIC_US) {
+    int n_cs = (int)(sizeof alt_ub.s - sizeof alt_ub.s.cs), n_nm = (int)(sizeof(uint32_t) + sizeof(alt_us_t) * ALT_US_PER);
+    if ((n == (int)sizeof alt_ub.s || n == n_cs || n == n_nm) && alt_ub.s.magic == ALT_MAGIC_US) {
         uint32_t j, k;
-        if (n != (int)sizeof alt_ub.s)           /* (stored before the NAMEs: none) */
+        if (n == n_nm)                           /* (stored before the NAMEs: none) */
             for (j = 0; j < ALT_US_PER; j++)
                 for (k = 0; k < 4u; k++)
                     alt_ub.s.nm[j][k] = 0;
+        if (n != (int)sizeof alt_ub.s)           /* (stored before the CONSOLE: flat) */
+            for (j = 0; j < ALT_US_PER; j++)
+                for (k = 0; k < sizeof alt_ub.s.cs[0]; k++)
+                    alt_ub.s.cs[j][k] = 0;
         return 1;
     }
     alt_ub_clear(ALT_MAGIC_US);
@@ -679,6 +688,23 @@ static int alt_ub_load_p(uint32_t u)
         return 1;
     alt_ub_clear(ALT_MAGIC_UP);
     return 0;
+}
+
+/* the CONSOLE's values (alter_console.c acs_v) into a scene's cs, and back (cs[0] 0: stored before it, flat) */
+static void alt_cs_get(uint8_t *b)
+{
+    uint32_t c, k;
+    b[0] = 1;
+    for (c = 0; c < AS_NCIRC; c++)
+        for (k = 0; k < ACS_N; k++)
+            b[1u + c * ACS_N + k] = acs_v[c][k];
+}
+static void alt_cs_put(const uint8_t *b)
+{
+    uint32_t c, k;
+    for (c = 0; c < AS_NCIRC; c++)
+        for (k = 0; k < ACS_N; k++)
+            acs_v[c][k] = b[0] ? (uint8_t)(b[1u + c * ACS_N + k] & 127u) : ACS_DEF[k];
 }
 
 /* what plays now into f */
@@ -854,9 +880,10 @@ static int alt_row_load(uint32_t t, uint32_t i)
             alt_new_scene();
         else if (i <= ALT_NFACT)
             alt_load_scene(i - 1u);
-        else if (alt_ub_load_s(u) && alt_ub.s.r[u % ALT_US_PER].used)
+        else if (alt_ub_load_s(u) && alt_ub.s.r[u % ALT_US_PER].used) {
             alt_us_put(&alt_ub.s.r[u % ALT_US_PER]);
-        else
+            alt_cs_put(alt_ub.s.cs[u % ALT_US_PER]);   /* its CONSOLE (or flat: stored before it) */
+        } else
             return 0;
         return 1;
     }
@@ -906,6 +933,7 @@ static int alt_row_save(uint32_t t, uint32_t i)
             for (c = 0; c < 3u; c++)
                 alt_ub.s.nm[u % ALT_US_PER][c] = (uint8_t)alt_nm_new[c];
         alt_ub.s.nm[u % ALT_US_PER][3] = 0;
+        alt_cs_get(alt_ub.s.cs[u % ALT_US_PER]);   /* its CONSOLE */
         if (st_save(ALT_OBJ_US0 + u / ALT_US_PER, &alt_ub.s, sizeof alt_ub.s) != 0)
             return -1;
         alt_used_s[u] = 1;

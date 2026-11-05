@@ -490,3 +490,4 @@ static void ac_measure(uint32_t c, const int32_t *b, int32_t lvl, uint32_t n)   
         }
     }
 }
+#include "alter_console.c"                              /* ALTER: each circle's CONSOLE strip (EQ, COMP) */
