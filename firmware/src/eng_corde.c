@@ -71,7 +71,7 @@ static void corde_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
     c = -(p[P_E1] * p[P_E1] * 24576 / 16129);
     apd = (int32_t)(((int64_t)(32768 - c) << 16) / (32768 + c));      /* (one allpass, Q16 samples) */
     /* the period, Q16, the bend on it (shorter at the hit: higher) */
-    len16 = m->inc > 0x10000u ? (uint32_t)((1ull << 48) / m->inc) : (uint32_t)(CD_LEN - 8) << 16;
+    len16 = m->inc > (1u << 16) ? (uint32_t)((1ull << 48) / m->inc) : (uint32_t)(CD_LEN - 8) << 16;
     while (len16 > (uint32_t)(CD_LEN - 8) << 16)
         len16 >>= 1;
     len16 -= (uint32_t)(((uint64_t)len16 * (uint32_t)S->bend) >> 13);
