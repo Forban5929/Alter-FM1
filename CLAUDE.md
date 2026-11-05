@@ -27,7 +27,7 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
 ## Règles techniques (vérifiées)
 - JieLi AC79 pi32v2 : **entiers seulement** (Q15/Q24), pas de float/malloc/math.h ; 44,1 kHz, blocs de 32.
 - Un seul fichier compilé `firmware/src/felucca.c` (inclut tout) ; navigateur : `web/emu/felucca_web.c` + `tests/hostsim.c`.
-- RAM ~4 Ko libres (gros tampons → `__attribute__((section(".pool")))`, ~40 Ko libres). Sous-modules `firmware/engines`, `firmware/bsp` : ne pas toucher.
+- RAM ~16 Ko libres (gros tampons → `__attribute__((section(".pool")))`, ~19 Ko libres ; CI exige 4 Ko RAM / 8 Ko pool). Sous-modules `firmware/engines`, `firmware/bsp` : ne pas toucher.
 - Mise à jour USB : garder l'identité `FM-1_900` et « FM-1 » dans le nom USB. GPL-3.0 : garder la page ABOUT.
 - 2e cœur : une partie ne touche que l'état de SON cercle (tout état par cercle, jamais partagé dans mix_part).
 - Page compagnon (`web/alter/`, protocole `docs/alter/LINK.md`) : **jamais prompt/alert/confirm**.
@@ -69,8 +69,8 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   pas ajoutés, fills, REC, PLAGES) lu en flash au chargement : objets 14-29 (2 scènes/objet), patterns 30-31 (16/objet),
   0xA8000-0xCBFFF. En RAM : seulement les drapeaux `alt_used_s/p`. Anciennes banques (objets 1-7, 9 ; 16 places) = lues
   UNE fois au 1er démarrage et copiées en banque A (`alt_us_migrate`, marqueur = objet 30), puis plus touchées. Objet 8 = mêmes
-  secteurs que 7 : NE PAS UTILISER. Mémoire (build CI 05/11, avant ce changement) : code 309/568 Ko, RAM 67,4/72 Ko,
-  pool 326/360 Ko ; ce changement a déplacé ≈ 11 Ko des banques de la RAM vers le pool.
+  secteurs que 7 : NE PAS UTILISER. Mémoire (build CI 05/11 après) : code 310/568 Ko, **RAM 56/72 Ko
+  (≈ 16 Ko libres)**, pool 340/360 Ko (≈ 19,5 Ko libres ; anciennes banques 11 Ko dedans, récupérables).
 - Page FX DELAY : TIME (1/16 1/8 1/8D 1/4 seulement) FEEDBK **TAPE** SEND. Presets : ECHO, DUB, DUB LONG (1/4 au lieu de
   1/4D), PING-PONG, GHOST, TAPE (SLAP, SPACE, TRIPLET, 16TH DOT retirés). MODE/TAPE dans G_DRLVL/G_DRREV (inertes chez
   Felucca) et octets 28-29 de l'enregistrement FX des scènes.
