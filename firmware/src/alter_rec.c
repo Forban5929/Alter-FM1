@@ -9,7 +9,9 @@
  *   playback      one value per step, the written steps joined by straight lines (a ramp a step long towards the next
  *                 step's value: no stairs); an ENUM (MODE, the INSERT's TYPE) jumps at its step.
  *   cleared       REC held 1 s (the chosen circle), OCT- + OCT+ + REC (all), a DIE tap, CHAOS, TOTAL CHAOS, a sound or a
- *                 scene loaded (alt_roll_cnt, alt_preset_cnt: alt_take). Not saved with the scenes (yet).
+ *                 scene loaded (alt_roll_cnt, alt_preset_cnt: alt_take). Saved with the USER scenes (05/11): the UI
+ *                 reads them (ar_export, irq off) and hands a scene's back (ar_import -> ar_pend, applied in ar_tick,
+ *                 after alt_take's clears of the same block).
  * The values are the base (without the die's offsets, alt_applied), so a draw still plays on top. */
 
 #define AR_MAX 64                                /* written steps per circle (all its parameters) */
@@ -29,6 +31,10 @@ static uint8_t ar_init;
 static volatile uint8_t ar_on;                   /* REC lit: the knobs are written */
 static volatile uint32_t ar_clr_cnt[AS_NCIRC];   /* REC held: circle c cleared */
 static uint32_t ar_clr_seen[AS_NCIRC];
+/* a scene's moves, handed from the UI (alter_store.c) to here: written, then ar_pend_cnt[c]++ */
+static struct { uint8_t id[AR_NID], n; ar_ev_t ev[AR_MAX]; } ar_pend[AS_NCIRC];
+static volatile uint32_t ar_pend_cnt[AS_NCIRC];
+static uint32_t ar_pend_seen[AS_NCIRC];
 
 /* what REC writes: the part's sound, its envelope, its effects (not routings, the matrix, the mix) */
 static int ar_param(uint32_t p)
@@ -200,6 +206,15 @@ static void ar_tick(uint32_t n)
             ar_clr_seen[c] = ar_clr_cnt[c];
             ar_clear(c);
         }
+        if (ar_pend_cnt[c] != ar_pend_seen[c]) {  /* a scene's moves: from silence, as they were stored */
+            ar_pend_seen[c] = ar_pend_cnt[c];
+            ar_clear(c);
+            for (i = 0; i < AR_NID; i++)
+                ar_id[c][i] = ar_pend[c].id[i];
+            ar_n[c] = ar_pend[c].n > AR_MAX ? AR_MAX : ar_pend[c].n;
+            for (i = 0; i < ar_n[c]; i++)
+                ar_ev[c][i] = ar_pend[c].ev[i];
+        }
         for (i = 0; i < AR_NID; i++) {
             if (ar_id[c][i] == AR_NONE || ar_left[c][i] <= 0)
                 continue;
@@ -211,3 +226,4 @@ static void ar_tick(uint32_t n)
         }
     }
 }
+

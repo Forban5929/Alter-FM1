@@ -20,6 +20,7 @@
 #define ALT_MAGIC_R 0x524C5441u                  /* "ATLR" */
 #define ALT_MAGIC_S 0x534C5441u                  /* "ATLS" */
 #define ALT_MAGIC_P 0x504C5441u                  /* "ATLP" */
+#define ST_PAYLOAD_MAX_X (4096u - 256u)          /* (storage.c ST_PAYLOAD_MAX, included later) */
 static int st_load(uint32_t obj, void *dst, uint32_t max);   /* (storage.c, included later) */
 static int st_save(uint32_t obj, const void *src, uint32_t len);
 
@@ -199,7 +200,7 @@ static void alt_rhy_put(uint32_t c, const alt_rhy_t *r)
         sc->srat[k] = 0;                         /* (the RATCH lane: its own bytes, alt_rat_put) */
     }
     for (k = 0; k < AS_NLR; k++)
-        sc->rmask[k] = 0;                        /* (the RANGEs are not stored yet: a load clears them) */
+        sc->rmask[k] = 0;                        /* (a USER scene's RANGEs come back after: alt_xput) */
     alt_post_now |= (uint8_t)(1u << c);
     alt_post_circle(c);
     alt_clear_cnt[c]++;
@@ -430,6 +431,129 @@ static void alt_new_scene(void)
     }
 }
 
+/* the UI's side (alter_store.c): circle c's moves packed in b (AR_PACK bytes: the six parameters, the count, then each
+ * move in 2 bytes: its parameter's place (3 bits) | its step (5 bits), its value as a signed byte), and back */
+#define AR_PACK (AR_NID + 1u + AR_MAX * 2u)
+static void ar_export(uint32_t c, uint8_t *b)
+{
+    uint32_t i, j, n = 0;
+    fm1_irq_off();
+    for (i = 0; i < AR_NID; i++)
+        b[i] = ar_init ? ar_id[c][i] : AR_NONE;
+    for (i = 0; ar_init && i < ar_n[c] && i < AR_MAX; i++) {
+        const ar_ev_t *e = &ar_ev[c][i];
+        for (j = 0; j < AR_NID && ar_id[c][j] != e->id; j++)
+            ;
+        if (j >= AR_NID || e->step >= AS_MAXLEN)
+            continue;
+        b[AR_NID + 1u + 2u * n] = (uint8_t)(j << 5 | e->step);
+        b[AR_NID + 2u + 2u * n] = (uint8_t)(int8_t)clamp(e->v, -128, 127);
+        n++;
+    }
+    fm1_irq_on();
+    b[AR_NID] = (uint8_t)n;
+    for (i = n; i < AR_MAX; i++)
+        b[AR_NID + 1u + 2u * i] = b[AR_NID + 2u + 2u * i] = 0;
+}
+static void ar_import(uint32_t c, const uint8_t *b)   /* b = 0: none (the moves cleared) */
+{
+    uint32_t i, n = 0;
+    fm1_irq_off();
+    for (i = 0; i < AR_NID; i++)
+        ar_pend[c].id[i] = b && b[i] < P_COUNT ? b[i] : AR_NONE;
+    for (i = 0; b && i < b[AR_NID] && i < AR_MAX; i++) {
+        uint32_t sl = b[AR_NID + 1u + 2u * i] >> 5;
+        if (sl >= AR_NID || ar_pend[c].id[sl] == AR_NONE)
+            continue;
+        ar_pend[c].ev[n].id = ar_pend[c].id[sl];
+        ar_pend[c].ev[n].step = (uint8_t)(b[AR_NID + 1u + 2u * i] & 31u);
+        ar_pend[c].ev[n].v = (int8_t)b[AR_NID + 2u + 2u * i];
+        n++;
+    }
+    ar_pend[c].n = (uint8_t)n;
+    ar_pend_cnt[c]++;
+    fm1_irq_on();
+}
+
+/* ---- a USER scene's REC moves and RANGEs (05/11, Romain) ----------------------------------------------------------
+ * Too big for the RAM banks: on the flash only, five scenes an object, in the objects Felucca's presets, FM6 bank and
+ * autosave left free (storage.c: 5 6 7 9; 8 shares 7's sectors, never used). Read / written one object at a time through
+ * one buffer (alt_xb): a save reads the object, puts its scene in, writes it back. Per circle: its REC moves (alter_rec.c
+ * ar_export, AR_PACK bytes) and its RANGEs: the mask of each of the six lanes and each step's bottom / top in 4 bits
+ * (the lanes' own 16 levels; PITCH and RATCH exactly). A scene stored before them: none (cleared) */
+#define ALT_XPER 5u
+#define ALT_MAGIC_X 0x584C5441u                  /* "ATLX" */
+static const uint8_t ALT_XOBJ[4] = {5u, 6u, 7u, 9u};
+typedef struct {
+    uint16_t rmask[AS_NCIRC][AS_NLR];
+    uint8_t used, rsv;
+    uint8_t rng[AS_NCIRC][AS_NLR][AS_NLANE];     /* bottom | top << 4 */
+    uint8_t rec[AS_NCIRC][AR_PACK];
+} alt_xrec_t;
+static struct { uint32_t magic; alt_xrec_t x[ALT_XPER]; } alt_xb __attribute__((section(".pool")));
+_Static_assert(sizeof alt_xb <= ST_PAYLOAD_MAX_X, "five scenes' REC + RANGEs fit an object");
+_Static_assert(ALT_NUSER <= ALT_XPER * sizeof ALT_XOBJ, "every USER scene has a place");
+static const int8_t ALT_XLO[AS_NLR] = {1, 0, 0, 0, -7, 0}, ALT_XHI[AS_NLR] = {127, 127, 127, 127, 7, 3};   /* (alter_ui.c alt_lane_lim) */
+static uint32_t alt_xq(uint32_t ln, int32_t v)   /* a lane value to 4 bits, and back */
+{
+    int32_t lo = ALT_XLO[ln], sp = ALT_XHI[ln] - lo;
+    v = clamp(v, lo, ALT_XHI[ln]) - lo;
+    return (uint32_t)(sp <= 15 ? v : (v * 15 + sp / 2) / sp);
+}
+static int32_t alt_xv(uint32_t ln, uint32_t q)
+{
+    int32_t lo = ALT_XLO[ln], sp = ALT_XHI[ln] - lo;
+    q &= 15u;
+    return clamp(lo + (sp <= 15 ? (int32_t)q : ((int32_t)q * sp + 7) / 15), lo, ALT_XHI[ln]);
+}
+static int alt_xload(uint32_t u)                 /* scene u's object into alt_xb; 1 = it holds ours */
+{
+    if (st_load(ALT_XOBJ[u / ALT_XPER], &alt_xb, sizeof alt_xb) == (int)sizeof alt_xb && alt_xb.magic == ALT_MAGIC_X)
+        return 1;
+    {
+        uint32_t i;
+        for (i = 0; i < sizeof alt_xb; i++)
+            ((uint8_t *)&alt_xb)[i] = 0;
+        alt_xb.magic = ALT_MAGIC_X;
+    }
+    return 0;
+}
+static int alt_xsave(uint32_t u)                 /* what plays now into scene u's place; 0 = the flash failed */
+{
+    alt_xrec_t *x;
+    uint32_t c, ln, k;
+    (void)alt_xload(u);
+    x = &alt_xb.x[u % ALT_XPER];
+    x->used = 1;
+    for (c = 0; c < AS_NCIRC; c++) {
+        const as_circ_t *sc = &alt_seq.c[c];
+        for (ln = 0; ln < AS_NLR; ln++) {
+            x->rmask[c][ln] = sc->rmask[ln];
+            for (k = 0; k < AS_NLANE; k++)
+                x->rng[c][ln][k] = (uint8_t)(alt_xq(ln, sc->rlo[ln][k]) | alt_xq(ln, sc->rhi[ln][k]) << 4);
+        }
+        ar_export(c, x->rec[c]);
+    }
+    return st_save(ALT_XOBJ[u / ALT_XPER], &alt_xb, sizeof alt_xb) == 0;
+}
+static void alt_xput(uint32_t u)                 /* scene u's REC and RANGEs, after its rhythms (alt_rhy_put) */
+{
+    uint32_t c, ln, k;
+    const alt_xrec_t *x = alt_xload(u) && alt_xb.x[u % ALT_XPER].used ? &alt_xb.x[u % ALT_XPER] : 0;
+    for (c = 0; c < AS_NCIRC; c++) {
+        as_circ_t *sc = &alt_seq.c[c];
+        if (x)
+            for (ln = 0; ln < AS_NLR; ln++) {
+                for (k = 0; k < AS_NLANE; k++) {
+                    sc->rlo[ln][k] = (int8_t)alt_xv(ln, x->rng[c][ln][k]);
+                    sc->rhi[ln][k] = (int8_t)alt_xv(ln, x->rng[c][ln][k] >> 4);
+                }
+                sc->rmask[ln] = x->rmask[c][ln];
+            }
+        ar_import(c, x ? x->rec[c] : 0);
+    }
+}
+
 /* ---- the banks on the flash ---------------------------------------------------------------------------------- */
 static void alt_banks_load(void)
 {
@@ -544,6 +668,7 @@ static int alt_row_load(uint32_t t, uint32_t i)
                 alt_add_set(c, alt_bank_f.add[u][c]);
                 alt_fxr_put(c, alt_bank_f.fx[u][c]);
             }
+            alt_xput(u);                         /* its REC moves and RANGEs (05/11) */
         } else
             return 0;
         return 1;
@@ -607,7 +732,8 @@ static int alt_row_save(uint32_t t, uint32_t i)
         for (c = 0; c < AS_NCIRC; c++)
             for (k = 0; k < AE_N; k++)
                 alt_bank_p.env[u][c][k] = alt_envp[c][k];
-        return st_save(ALT_OBJ_SCENES, &alt_bank_s, sizeof alt_bank_s) == 0 &&
+        return alt_xsave(u) &&                   /* (first: it reads the moves before anything is put back) */
+               st_save(ALT_OBJ_SCENES, &alt_bank_s, sizeof alt_bank_s) == 0 &&
                st_save(ALT_OBJ_SRHY, &alt_bank_r, sizeof alt_bank_r) == 0 &&
                st_save(ALT_OBJ_PATS, &alt_bank_p, sizeof alt_bank_p) == 0 &&
                st_save(ALT_OBJ_FILT, &alt_bank_f, sizeof alt_bank_f) == 0 ? 1 : -1;

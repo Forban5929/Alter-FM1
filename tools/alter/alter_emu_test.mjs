@@ -486,17 +486,24 @@ play();
   check("GLO: held = the MIXER (04/11), tapped = the circles", gh !== gq && gh !== circles && gout === circles);
   H(6); const sys = key(scr()); T(6); render(FS * 1.5); const sout = key(scr());
   check("HOME: held = SYSTEM (04/11), tapped = the circles", sys !== circles && sout === circles);
-  H(4);                                                          // SETTINGS: THEME to DAY
+  {                                                              // EDIT held = DEEP (05/11): KNOB 1 on its first row
+    const k0 = ex.web_alter_knobp(0, 0);                         //  (SOUND: E1, the engine's first knob here)
+    H(4); const dp = key(scr()); ex.web_enc(3, 3); render(8000); const k1 = ex.web_alter_knobp(0, 0);
+    ex.web_enc(3, -3); render(8000); T(4); render(FS * 1.5); const dout = key(scr());
+    check(`EDIT held = DEEP: KNOB 1 moves its row (${k0} -> ${k1}, back ${ex.web_alter_knobp(0, 0)}), tapped = the circles`,
+          dp !== circles && k1 > k0 && ex.web_alter_knobp(0, 0) === k0 && dout === circles);
+  }
+  H(6); ex.web_enc(1, -5); render(4000);                         // SYSTEM's SETUP: THEME to DAY (SETTINGS until 05/11)
   const avg = (a, y) => { const sw = (c) => ((c & 255) << 8) | (c >> 8); let t = 0; for (let x = 0; x < 200; x++) t += lum(sw(a[240 * y + x])); return t / 200; };
   const lum = (c) => ((c >> 11) & 31) + ((c >> 5) & 63) / 2 + (c & 31);
   const night = avg(scr(), 120);
   ex.web_enc(3, 1); render(4000);
   const day = avg(scr(), 120);
-  T(4); render(FS * 1.5);
+  T(6); render(FS * 1.5);
   const dayc = avg(scr(), 236);
-  H(4); ex.web_enc(3, -1); render(4000); T(4); render(FS * 1.5);
+  H(6); ex.web_enc(3, -1); render(4000); T(6); render(FS * 1.5);
   const back = key(scr());
-  check(`SETTINGS THEME: DAY lights the screen (brightness ${night.toFixed(0)} -> ${day.toFixed(0)}, circles ${dayc.toFixed(0)}), NIGHT as before`,
+  check(`SYSTEM THEME: DAY lights the screen (brightness ${night.toFixed(0)} -> ${day.toFixed(0)}, circles ${dayc.toFixed(0)}), NIGHT as before`,
         day > 60 && night < 20 && dayc > 60 && back === circles);
 }
 {                                                               // the combos (Romain, 01/11)
@@ -583,6 +590,36 @@ play();
   ex.web_buttons(1 << OD | 1 << OU); render(2000); ex.web_buttons(1 << OD | 1 << OU | 1 << REC); render(2000); ex.web_buttons(0); render(4000);
   check(`DICE 1 clears its circle's moves (${n3} -> ${n4}); OCT- + OCT+ + REC: all cleared (${n5} -> ${ex.web_alter_rec(0)})`,
         n3 > 0 && n4 === 0 && n5 > 0 && ex.web_alter_rec(0) === 0 && !((ex.web_lit_buttons() >> REC) & 1));
+}
+{                                                               // a USER scene keeps REC's moves and the RANGEs (05/11)
+  ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
+  ex.web_alter(1, 0, 0); render(FS / 2);
+  const REC = 11, W = (op, a, b) => ex.web_alter(op, a, b);
+  const Bt = (b, hold = 2000) => { ex.web_buttons(1 << b); render(hold); ex.web_buttons(0); render(2000); };
+  const urow = (n) => { enc(1, -3); enc(0, -25); enc(0, n); };   // (the SCENES tab, from the top)
+  Bt(6); if (!ex.web_playing()) play(); render(BAR);
+  if ((ex.web_lit_buttons() >> REC) & 1) Bt(REC);
+  Bt(REC); for (let i = 0; i < 6; i++) { ex.web_enc(3, i < 3 ? 6 : -6); render(STEP); } render(BAR); Bt(REC);
+  W(19, 0 << 8 | 0, (0x0005 | 30 << 16 | 110 << 24) >>> 0);    // VELO RANGE 30..110 on steps 1 and 3
+  const n0 = ex.web_alter_rec(0), r0 = ex.web_alter_rng(0, 0) >>> 0;
+  Bt(7); urow(9); Bt(7, FS * 1.2); Bt(6);                         // SAVE held on USER 05; HOME
+  W(1, 0, 0); render(FS);                                        // a factory scene: none
+  const n1 = ex.web_alter_rec(0), r1 = ex.web_alter_rng(0, 0) & 0xFFFF;
+  Bt(7); urow(9); Bt(7); render(FS);                              // USER 05 loaded
+  const n2 = ex.web_alter_rec(0), r2 = ex.web_alter_rng(0, 0) >>> 0;
+  const lo = (r2 >> 16) & 255, hi = r2 >>> 24;
+  check(`USER scene keeps REC's moves (${n0} -> ${n1} -> ${n2}) and the RANGEs (mask ${r0 & 0xFFFF} -> ${r1} -> ${r2 & 0xFFFF}, ${lo}..${hi}, 30..110 set)`,
+        n0 > 0 && n1 === 0 && n2 === n0 && r1 === 0 && (r2 & 0xFFFF) === 5 && Math.abs(lo - 30) <= 5 && Math.abs(hi - 110) <= 5);
+  const nor = new Uint8Array(mem.buffer, ex.web_nor(), ex.web_nor_size()).slice();   // after power-off: from the flash
+  const { instance: i3 } = await WebAssembly.instantiate(wasm, {}); const e3 = i3.exports;
+  e3._initialize(); e3.web_nor_erase(); new Uint8Array(e3.memory.buffer, e3.web_nor(), e3.web_nor_size()).set(nor);
+  e3.web_boot(); e3.web_alter(18, 1, 0);
+  for (let k = 0; k < FS * 2; k += 128) e3.web_render(128);
+  const B3 = (b, hold = 2000) => { e3.web_buttons(1 << b); for (let k = 0; k < hold; k += 128) e3.web_render(128); e3.web_buttons(0); for (let k = 0; k < 2000; k += 128) e3.web_render(128); };
+  const enc3 = (role, n) => { for (let i = 0; i < Math.abs(n); i++) { e3.web_enc(role, Math.sign(n)); for (let k = 0; k < 1300; k += 128) e3.web_render(128); } };
+  B3(7); enc3(1, -3); enc3(0, -25); enc3(0, 9); B3(7); for (let k = 0; k < FS; k += 128) e3.web_render(128);
+  check(`after power-off: USER 05's moves (${e3.web_alter_rec(0)}) and RANGE (mask ${e3.web_alter_rng(0, 0) & 0xFFFF}) from the flash`,
+        e3.web_alter_rec(0) === n0 && (e3.web_alter_rng(0, 0) & 0xFFFF) === 5);
 }
 if (wavPath) {                                                  // 4 bars from a fresh start, all three circles
   ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
