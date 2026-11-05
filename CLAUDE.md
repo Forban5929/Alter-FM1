@@ -151,6 +151,9 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
 - [x] 05/11 nuit : écran plus rapide (voir plus haut) ; WIRE caché ; WIND +13,5 dB, PAD +13,5, LARSEN −4, CRACKED −6.
 - [x] 05/11 : Romain « en TRS rien n'est détecté » → lignes TRS SEEN / USB SEEN dans SYSTEM pour voir si un octet arrive.
   La prise TRS de la FM-1 est **type A** (matrixsynth, 10/2026). Firmware : entrée TRS compilée (FELUCCA_UART=1), testée émulateur.
+  Retour Romain : TRS NOTHING avec du MIDI branché (USB NOTHING = normal : la page compagnon = SysEx du lien, pas compté).
+  Ajout : « RAW n » si des octets arrivent (um.bytes) sans message valide. Pistes : câble type B / Ableton Sync ; essayer
+  l'horloge par USB (CLOCK USB, Ableton → port FM-1).
 - [ ] **PROCHAINE SESSION** : réponses de Romain sur le TRS (CLOCK=TRS ? Ableton « Sync » ? adaptateur A/B ? notes OK ?),
   tests 20-27 de sa checklist (RING, sons refaits, page compagnon branchée, UPDATE), réécoute des changements, et la
   CONSOLE (jamais essayée sur la FM-1).

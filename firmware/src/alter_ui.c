@@ -3261,6 +3261,13 @@ static const char *alt_sys_text(uint32_t r)
     if (r == SYS_TRSSEEN || r == SYS_USBSEEN) {  /* (Romain 05/11: "the TRS sees no MIDI"): what came in through each
                                                   * jack since power-on, its messages counted, "CLOCK" when F8s come */
         uint32_t k = r == SYS_TRSSEEN ? 2u : 1u, n = alt_midi_n[k], j = 0;
+#if FELUCCA_UART
+        if (!n && k == 2u && um.bytes) {         /* (bytes on the wire but no message: a garbled signal, "RAW 12") */
+            tb[0] = 'R', tb[1] = 'A', tb[2] = 'W', tb[3] = ' ';
+            alt_num(tb + 4, (int32_t)(um.bytes % 100000u), 0);
+            return tb;
+        }
+#endif
         if (!n)
             return "NOTHING";
         alt_num(tb, (int32_t)(n % 100000u), 0);
@@ -3980,7 +3987,11 @@ static void alter_draw(void)
         uint32_t k;
         for (k = 0; k < SYS_NAUD; k++)
             sig = sig * 31u + menu_get(SYS_AROW[k]);
-        sig = sig * 31u + alt_midi_n[1] * 3u + alt_midi_n[2] * 5u + (fm1_ms - alt_midi_clk_ms[1] < 500u) * 7u +
+        sig = sig * 31u + alt_midi_n[1] * 3u + alt_midi_n[2] * 5u
+#if FELUCCA_UART
+              + um.bytes * 13u
+#endif
+               + (fm1_ms - alt_midi_clk_ms[1] < 500u) * 7u +
               (fm1_ms - alt_midi_clk_ms[2] < 500u) * 11u;   /* (TRS / USB SEEN) */
         sig = sig * 31u + (uint32_t)alt_sys_scroll * 3u;
     }
