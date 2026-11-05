@@ -121,7 +121,7 @@ const dip = () => {
   const row = (n) => { enc(0, -25); enc(0, n); };
   W(7, 5, 4); W(8, 4, 127); render(FS);                          // MASTER: PUMP 1/4, DUCK 127
   const ref = dip();
-  B(SAVEB); row(5); B(SAVEB, FS * 1.2); B(6);                    // USER 01: SAVE held 1.2 s; HOME
+  B(SAVEB); row(5); B(SAVEB, FS * 1.2); B(SAVEB); B(6);                   // USER 01: SAVE held 1.2 s; HOME
   W(7, 5, 0); render(FS);
   const flat = dip();
   B(SAVEB); row(5); B(SAVEB);                                    // USER 01 loaded
@@ -168,7 +168,7 @@ const dip = () => {
   solo(-1);
   W(13, 0, 2); F(22, 0); render(FS);                             // TAPE into A (B too: it was off)
   const row = (n) => { enc(0, -25); enc(0, n); };
-  B(SAVEB); row(6); B(SAVEB, FS * 1.2); B(6);                    // USER 02: SAVE held 1.2 s; HOME
+  B(SAVEB); row(6); B(SAVEB, FS * 1.2); B(SAVEB); B(6);                   // USER 02: SAVE held 1.2 s; HOME
   W(1, 0, 0); render(FS);
   const fac = ex.web_alter_flt(1);                               // a factory scene: none (-1)
   B(SAVEB); row(6); B(SAVEB); render(FS);                        // USER 02 loaded

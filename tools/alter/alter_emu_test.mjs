@@ -386,7 +386,7 @@ tap(4);
 // SAVE page: SELECT picks (NEW, TECHNO, HOUSE ..), a tap of SAVE loads: HOUSE = a kick on the four beats
 const B = (n) => { ex.web_buttons(1 << n); render(2000); ex.web_buttons(0); render(2000); };
 const row = (n) => { enc(0, -25); enc(0, n); };                // (the page keeps its last row: from the top)
-const holdSave = () => { ex.web_buttons(1 << 7); render(FS * 1.2); ex.web_buttons(0); render(2000); };
+const holdSave = () => { ex.web_buttons(1 << 7); render(FS * 1.2); ex.web_buttons(0); render(2000); B(7); };   // (held: the NAME page; tapped: stored, 05/11)
 {
   B(7); row(2); B(7);
   ex.web_alter(4, BPM, 0);                                      // (HOUSE is 124: the test counts at 120)
@@ -412,7 +412,7 @@ const holdSave = () => { ex.web_buttons(1 << 7); render(FS * 1.2); ex.web_button
   bar();
   const us = bar().steps;
   check(`USER 01 loaded: circle 1's 6 hits again ${us.join(",")}`, same(us, euclid(16, 6, 0)));
-  B(7); row(1); holdSave(); B(6);                               // TECHNO: protected
+  B(7); row(1); ex.web_buttons(1 << 7); render(FS * 1.2); ex.web_buttons(0); render(2000); B(6);   // TECHNO: protected (no NAME page)
   check("a factory scene cannot be overwritten (TECHNO still 4 hits on circle 1)", (() => {
     B(7); enc(1, -1); row(1); B(7); ex.web_alter(4, BPM, 0); ex.web_alter(2, 1, 1); ex.web_alter(2, 2, 1); bar();
     return same(bar().steps, euclid(16, 4, 0));
@@ -604,7 +604,7 @@ play();
   Bt(REC); for (let i = 0; i < 6; i++) { ex.web_enc(3, i < 3 ? 6 : -6); render(STEP); } render(BAR); Bt(REC);
   W(19, 0 << 8 | 0, (0x0005 | 30 << 16 | 110 << 24) >>> 0);    // VELO RANGE 30..110 on steps 1 and 3
   const n0 = ex.web_alter_rec(0), r0 = ex.web_alter_rng(0, 0) >>> 0;
-  Bt(7); urow(9); Bt(7, FS * 1.2); Bt(6);                         // SAVE held on USER 05; HOME
+  Bt(7); urow(9); Bt(7, FS * 1.2); Bt(7); Bt(6);                         // SAVE held on USER 05; HOME
   W(1, 0, 0); render(FS);                                        // a factory scene: none
   const n1 = ex.web_alter_rec(0), r1 = ex.web_alter_rng(0, 0) & 0xFFFF;
   Bt(7); urow(9); Bt(7); render(FS);                              // USER 05 loaded
@@ -627,7 +627,7 @@ play();
 {
   const W = (op, a, b) => ex.web_alter(op, a, b);
   const bits = (m) => { let n = 0; for (m >>>= 0; m; m >>>= 1) n += m & 1; return n; };
-  const store = () => { ex.web_buttons(1 << 7); render(FS * 1.2); ex.web_buttons(0); render(2000); B(6); };
+  const store = () => { ex.web_buttons(1 << 7); render(FS * 1.2); ex.web_buttons(0); render(2000); B(7); B(6); };
   ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
   W(15, 0, 16 | 5 << 8); render(FS);
   B(7); enc(1, -3); enc(1, 1); enc(0, -25); enc(0, 4); store();             // SCENES B, B05
@@ -649,6 +649,25 @@ play();
   B5(7); enc5(1, -1); enc5(0, -25); enc5(0, 8); B5(7); r5(FS);               // PATTERNS A, A04: empty
   check(`USER bank B after power-off: scene B05 (${sc} hits, 5 stored), pattern B02 (${pt}, 10), A04 empty (${bits(e5.web_alter_pat(0))})`,
         sc === 5 && pt === 10 && bits(e5.web_alter_pat(0)) === 10);
+}
+// NAME (05/11): SAVE held on a USER row opens the NAME page (from the first sound's letters), KNOB 1 2 3 the characters,
+// SAVE stores; the list says it; the flash keeps it; HOME leaves without storing
+{
+  const nm = (e, t, u) => { const v = e.web_alter_name(t, u); return String.fromCharCode(v & 255, (v >> 8) & 255, (v >> 16) & 255).replace(/\0/g, ""); };
+  ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
+  B(7); enc(1, -3); enc(0, -25); enc(0, 6);                      // SCENES A, A02
+  ex.web_buttons(1 << 7); render(FS * 1.2); ex.web_buttons(0); render(2000);   // held: NAME
+  enc(3, 1); enc(5, -1);                                         // KNOB 1 +1, KNOB 3 -1
+  const shown = nm(ex, 0, 1);
+  B(7); B(6);
+  const named = nm(ex, 0, 1);
+  B(7); enc(0, -25); enc(0, 7); ex.web_buttons(1 << 7); render(FS * 1.2); ex.web_buttons(0); render(2000); B(6);   // A03: HOME
+  const nor = new Uint8Array(mem.buffer, ex.web_nor(), ex.web_nor_size()).slice();
+  const { instance: i6 } = await WebAssembly.instantiate(wasm, {}); const e6 = i6.exports;
+  e6._initialize(); e6.web_nor_erase(); new Uint8Array(e6.memory.buffer, e6.web_nor(), e6.web_nor_size()).set(nor); e6.web_boot();
+  for (let k = 0; k < FS * 2; k += 128) e6.web_render(128);
+  check(`NAME: A02 stored as "${named}" (the scene's first sound, KNOB 1 +1, KNOB 3 -1; nothing before: "${shown}"), after power-off "${nm(e6, 0, 1)}", A03 left by HOME: empty (${ex.web_alter_name(0, 2)})`,
+        named.length === 3 && shown === "" && nm(e6, 0, 1) === named && ex.web_alter_name(0, 2) === 0);
 }
 // SONG (05/11): OCT+ + C D E high stores the rhythms in a slot, a tap plays it from the next bar, OCT- held + the keys
 // writes a chain (4 bars a link) that loops; ARP held: the SONG page (KNOB 2 a link's bars); the flash keeps it all
@@ -744,7 +763,7 @@ if (wavPath) {                                                  // 4 bars from a
   // a USER scene keeps the added step: saved in USER 03, a factory scene (none), USER 03 again (it is back)
   const Bt = (b, hold = 2000) => { ex.web_buttons(1 << b); render(hold); ex.web_buttons(0); render(2000); };
   const urow = (n) => { enc(1, -3); enc(0, -25); enc(0, n); };   // (the SCENES tab, from the top)
-  Bt(7); urow(7); Bt(7, FS * 1.2); Bt(6);                         // SAVE held 1.2 s on USER 03; HOME
+  Bt(7); urow(7); Bt(7, FS * 1.2); Bt(7); Bt(6);                         // SAVE held 1.2 s on USER 03; HOME
   W(1, 0, 0); render(FS);
   const fac = bits(ex.web_alter_pat(0) >>> 0);
   Bt(7); urow(7); Bt(7); render(FS);                              // USER 03 loaded
@@ -781,7 +800,7 @@ if (wavPath) {                                                  // 4 bars from a
         p1 >= Math.min(32, p0 + 2) && r32 === 0 && dly >= 2 && up > 0 && down > 0);
   const urow = (n) => { enc(1, -3); enc(0, -25); enc(0, n); };
   const kept = fx(15);
-  Bt(7); urow(8); Bt(7, FS * 1.2); Bt(6);                         // USER 04 saved
+  Bt(7); urow(8); Bt(7, FS * 1.2); Bt(7); Bt(6);                         // USER 04 saved
   W(1, 0, 0); render(FS);
   const fac = fx(15);
   Bt(7); urow(8); Bt(7); render(FS);                              // USER 04 loaded
@@ -815,6 +834,22 @@ if (wavPath) {                                                  // 4 bars from a
   check(`RUMBLE: the KICK's tail between hits ${off.toFixed(1)} dB (0) -> ${on.toFixed(1)} (70) -> ${max.toFixed(1)} (127), under the hit`,
         on > off + 3 && max > on + 3 && max < -3);
   W(18, 1, 0); W(1, 0, 0); render(FS);
+}
+// TURING drawn at random (Romain 05/11): LEN 5..16 nearer 16, DENS 40..60 %, LOCK 50..75 %, RANGE 1..4 (TOTAL CHAOS)
+{
+  ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
+  const got = [];
+  for (let n = 0; n < 30; n++) {
+    K((1 << 1) | (1 << 3) | (1 << 5)); render(1300); K(0); render(FS * 3.2);   // CIRCLE 1+2+3 (3 s apart: not undone)
+    for (let c = 0; c < 3; c++) {
+      const v = ex.web_alter_peek(c, 9) >>> 0;
+      if ((v & 255) === 1) got.push({ len: (v >> 8) & 255, dens: (v >> 16) & 255, lock: v >>> 24, range: ex.web_alter_peek(c, 10) });
+    }
+  }
+  const pct = (x) => Math.round(x * 100 / 127), ok = got.every((g) => g.len >= 5 && g.len <= 16 && pct(g.dens) >= 40 && pct(g.dens) <= 60 &&
+    pct(g.lock) >= 50 && pct(g.lock) <= 75 && g.range >= 1 && g.range <= 4);
+  const mean = got.reduce((a, g) => a + g.len, 0) / (got.length || 1);
+  check(`TURING drawn: ${got.length} of 90 circles, all in range: ${ok}, mean LEN ${mean.toFixed(1)} (> 10.5: nearer 16)`, got.length >= 15 && ok && mean > 10.5);
 }
 console.log(fails ? `alter: ${fails} FAIL` : "alter: all ok");
 process.exit(fails ? 1 : 0);

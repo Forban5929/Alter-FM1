@@ -65,7 +65,10 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
 - OCT− + OCT+ + HOME = NEW SCENE · REC tapé/tenu 1 s/OCT−+OCT++REC. **OCT− + OCT+ tenus 5 s = mode UPDATE** (main.c,
   à garder absolument) · OCT− + OCT+ tenus à l'allumage = calibration des boutons (main.c panel_setup).
 - **USER : 32 scènes + 32 patterns (05/11)**, page SAVE à 4 onglets (ALGORITHM) : SCENES A, SCENES B, PATT. A, PATT. B
-  (A = NEW + 4 usine + A01-A16 ; B = B01-B16). Une scène = un enregistrement `alt_us_t` (tout : son, rythmes, FX, filtre,
+  (A = NEW + 4 usine + A01-A16 ; B = B01-B16). **SAVE tenu sur une ligne USER = page NAME** (3 caractères A-Z 0-9 -
+  espace, KNOB 1 2 3 ; départ = nom existant, sinon 3 lettres du son du cercle 1 / HITS des 3 cercles ; SAVE = sauver,
+  HOME = annuler) ; liste « A05  KCK ». Noms : scènes `alt_ub.s.nm` (fin d'objet ; objets sans nm encore lus), patterns
+  `p.rsv[3]` ; RAM `alt_nm_s/p`. Une scène = un enregistrement `alt_us_t` (tout : son, rythmes, FX, filtre,
   pas ajoutés, fills, REC, PLAGES) lu en flash au chargement : objets 14-29 (2 scènes/objet), patterns 30-31 (16/objet),
   0xA8000-0xCBFFF. En RAM : seulement les drapeaux `alt_used_s/p`. Anciennes banques (objets 1-7, 9 ; 16 places) = lues
   UNE fois au 1er démarrage et copiées en banque A (`alt_us_migrate`, marqueur = objet 30), puis plus touchées. Objet 8 = mêmes
@@ -81,6 +84,9 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   (as_circ_t entier : pas, couloirs, PLAGES, tirage du dé, pas ajoutés, fills REC, mouvements REC, mutes ; PAS les sons ni
   root/chord/dose). Changement à la barre (alt_gstep % 16), chaque cercle repart du pas 1. Flash : objets 10-12 (slots) + 13
   (chaîne) à 0xA0000 (ex-samples Felucca, inutilisés). Indépendant des scènes. Chaîne OFF à l'allumage. Test : `web_alter_song`.
+- **TURING tiré au hasard** (CHAOS TOTAL, « Au hasard ») : `alt_tur_draw` = LEN 5-16 (max de 2 tirages : plus près de 16),
+  DENS 40-60 %, LOCK 50-75 %, RANGE 1-4.
+- Écran PLAY : cercle choisi = anneau épais + halo de sa couleur ; lignes des triggers et points avec un contour couleur du fond.
 - **KICK** : knob 4 = RUMBLE (réverb sombre distordue, ducker par le kick, suit le niveau du kick ; 70 par défaut ; sauvé dans
   la scène, octet `rsv`). Seuls les sons avec `rumble` ≠ 0 dans ALT_PRE l'ont.
 
@@ -105,5 +111,7 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   insensible à la phase (il échouait selon le moment où il démarrait).
 - [x] 05/11 : **32 + 32 USER** (voir plus haut). Migration testée avec l'ancien firmware dans l'émulateur (A01 + PLAGES,
   A16, pattern A03 retrouvés) ; banque B testée après extinction. **Pas sur la FM-1** : 1er démarrage = migration.
+- [x] 05/11 (jam) : TURING au hasard borné, sélection du cercle plus visible + contours, NOMS des USER. Testé émulateur
+  (+ compatibilité avec les scènes de la version 32+32 sans noms), **pas sur la FM-1**.
 - [ ] MIDI LEARN ALTER (BCR32).
 - [ ] Étape 4 : tranche de console par piste (disto → EQ → comp → delay → reverb).

@@ -635,16 +635,21 @@ typedef struct {
     alt_xrec_t x;
 } alt_us_t;
 typedef struct {
-    alt_pat_rec_t p;
+    alt_pat_rec_t p;                             /* (p.rsv: its NAME, 3 characters, 05/11) */
     uint8_t prat[AS_NCIRC][AS_NLANE / 4];
 } alt_up_t;
 static union {
-    struct { uint32_t magic; alt_us_t r[ALT_US_PER]; } s;
+    struct { uint32_t magic; alt_us_t r[ALT_US_PER]; uint8_t nm[ALT_US_PER][4]; } s;   /* (nm: the NAMEs, 05/11; an
+                                                  * object stored before them ends before nm) */
     struct { uint32_t magic; alt_up_t r[ALT_UP_PER]; } p;
 } alt_ub __attribute__((section(".pool")));
 _Static_assert(sizeof alt_ub.s <= ST_PAYLOAD_MAX_X && sizeof alt_ub.p <= ST_PAYLOAD_MAX_X, "USER objects fit");
 _Static_assert(ALT_OBJ_US0 + ALT_NUSER / ALT_US_PER == ALT_OBJ_UP0 && ALT_NUSER / ALT_UP_PER == 2u, "the objects' map");
 static uint8_t alt_used_s[ALT_NUSER], alt_used_p[ALT_NUSER];
+/* the NAMEs (Romain 05/11): 3 characters (space, A-Z, 0-9, -) a USER slot, 0 = none; kept in RAM for the list */
+static char alt_nm_s[ALT_NUSER][3], alt_nm_p[ALT_NUSER][3];
+static char alt_nm_new[3];                       /* the NAME the next store takes (alt_nm_set: the SAVE page's NAME) */
+static uint8_t alt_nm_set;
 
 static void alt_ub_clear(uint32_t magic)
 {
@@ -655,9 +660,15 @@ static void alt_ub_clear(uint32_t magic)
 }
 static int alt_ub_load_s(uint32_t u)             /* scene u's object into alt_ub; 1: it holds ours */
 {
-    if (st_load(ALT_OBJ_US0 + u / ALT_US_PER, &alt_ub.s, sizeof alt_ub.s) == (int)sizeof alt_ub.s &&
-        alt_ub.s.magic == ALT_MAGIC_US)
+    int n = st_load(ALT_OBJ_US0 + u / ALT_US_PER, &alt_ub.s, sizeof alt_ub.s);
+    if ((n == (int)sizeof alt_ub.s || n == (int)(sizeof(uint32_t) + sizeof(alt_us_t) * ALT_US_PER)) && alt_ub.s.magic == ALT_MAGIC_US) {
+        uint32_t j, k;
+        if (n != (int)sizeof alt_ub.s)           /* (stored before the NAMEs: none) */
+            for (j = 0; j < ALT_US_PER; j++)
+                for (k = 0; k < 4u; k++)
+                    alt_ub.s.nm[j][k] = 0;
         return 1;
+    }
     alt_ub_clear(ALT_MAGIC_US);
     return 0;
 }
@@ -778,13 +789,21 @@ static void alt_banks_load(void)
         alt_us_migrate();
     for (u = 0; u < ALT_NUSER; u += ALT_US_PER) {
         uint32_t j, ok = (uint32_t)alt_ub_load_s(u);
-        for (j = 0; j < ALT_US_PER; j++)
+        for (j = 0; j < ALT_US_PER; j++) {
+            uint32_t k;
             alt_used_s[u + j] = (uint8_t)(ok && alt_ub.s.r[j].used);
+            for (k = 0; k < 3u; k++)
+                alt_nm_s[u + j][k] = alt_used_s[u + j] ? (char)alt_ub.s.nm[j][k] : 0;
+        }
     }
     for (u = 0; u < ALT_NUSER; u += ALT_UP_PER) {
         uint32_t j, ok = (uint32_t)alt_ub_load_p(u);
-        for (j = 0; j < ALT_UP_PER; j++)
+        for (j = 0; j < ALT_UP_PER; j++) {
+            uint32_t k;
             alt_used_p[u + j] = (uint8_t)(ok && alt_ub.p.r[j].p.used);
+            for (k = 0; k < 3u; k++)
+                alt_nm_p[u + j][k] = alt_used_p[u + j] ? (char)alt_ub.p.r[j].p.rsv[k] : 0;
+        }
     }
 }
 
@@ -797,13 +816,19 @@ static const char *alt_row_name(uint32_t t, uint32_t i, char *buf)
     if (i <= ALT_NFACT)
         return t ? ALT_FPAT[i - 1u].name : ALT_SCENE[i - 1u].name;
     {
-        uint32_t u = (i - 1u - ALT_NFACT) % ALT_NUSER, used = t ? alt_used_p[u] : alt_used_s[u], n = 0;
-        const char *w = used ? "USER " : "EMPTY ";
+        uint32_t u = (i - 1u - ALT_NFACT) % ALT_NUSER, used = t ? alt_used_p[u] : alt_used_s[u], n = 0, k;
+        const char *nm = t ? alt_nm_p[u] : alt_nm_s[u];
+        const char *w = !used ? "EMPTY " : nm[0] ? "" : "USER ";
         while (*w)
             buf[n++] = *w++;
         buf[n++] = (char)('A' + u / 16u);
         buf[n++] = (char)('0' + (u % 16u + 1u) / 10u);
         buf[n++] = (char)('0' + (u % 16u + 1u) % 10u);
+        if (used && nm[0]) {                     /* "A05  KCK" */
+            buf[n++] = ' ', buf[n++] = ' ';
+            for (k = 0; k < 3u; k++)
+                buf[n++] = nm[k];
+        }
         buf[n] = 0;
         return buf;
     }
@@ -877,13 +902,22 @@ static int alt_row_save(uint32_t t, uint32_t i)
             }
         (void)alt_ub_load_s(u);                  /* (its neighbour in the object kept) */
         alt_us_get(&alt_ub.s.r[u % ALT_US_PER]);
+        if (alt_nm_set)                          /* its NAME (else the one it had) */
+            for (c = 0; c < 3u; c++)
+                alt_ub.s.nm[u % ALT_US_PER][c] = (uint8_t)alt_nm_new[c];
+        alt_ub.s.nm[u % ALT_US_PER][3] = 0;
         if (st_save(ALT_OBJ_US0 + u / ALT_US_PER, &alt_ub.s, sizeof alt_ub.s) != 0)
             return -1;
         alt_used_s[u] = 1;
+        for (c = 0; c < 3u; c++)
+            alt_nm_s[u][c] = (char)alt_ub.s.nm[u % ALT_US_PER][c];
         return 1;
     }
     (void)alt_ub_load_p(u);
     alt_ub.p.r[u % ALT_UP_PER].p.used = 1;
+    if (alt_nm_set)                              /* its NAME (else the one it had) */
+        for (c = 0; c < 3u; c++)
+            alt_ub.p.r[u % ALT_UP_PER].p.rsv[c] = (uint8_t)alt_nm_new[c];
     for (c = 0; c < AS_NCIRC; c++) {
         alt_rhy_get(c, &alt_ub.p.r[u % ALT_UP_PER].p.c[c]);
         alt_rat_get(c, alt_ub.p.r[u % ALT_UP_PER].prat[c]);
@@ -891,5 +925,7 @@ static int alt_row_save(uint32_t t, uint32_t i)
     if (st_save(ALT_OBJ_UP0 + u / ALT_UP_PER, &alt_ub.p, sizeof alt_ub.p) != 0)
         return -1;
     alt_used_p[u] = 1;
+    for (c = 0; c < 3u; c++)
+        alt_nm_p[u][c] = (char)alt_ub.p.r[u % ALT_UP_PER].p.rsv[c];
     return 1;
 }
