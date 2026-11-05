@@ -106,6 +106,11 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   Écart des 3 cercles dans les 2 premières s après CHAOS : 15,5 → 8,1 dB (moyenne, émulateur).
 - **Horloge externe** : seq.c convertit seq_n (unités MIDI_CLOCK_GRID) en échantillons pour ALTER (`midi_alt_grid`) — avant,
   les cercles tournaient à GRID/beat × le tempo. Test emu : `web_midi_rt`, `web_clock_mode`, `web_gstep`.
+- **Écran plus rapide (05/11, « laggy »)** : grain de papier précalculé (tuile 128×64 en .pool, ~5× moins cher) ; vue des
+  cercles : si seuls les pas joués / flashs bougent, seules les **lignes touchées** sont redessinées et envoyées (étoiles
+  ±11 px, alidade ; `alter_draw`), vérifié identique pixel à pixel à un redessin complet (émulateur). La page compagnon
+  reçoit PLAY ≤ 30/s depuis la boucle principale : un écran plus rapide l'aide aussi. FPS réel FM-1 **non mesuré**.
+- Sons cachés : `alt_pre_t.hide` (WIRE, = SITAR) hors PRESETS et hasard, gardé pour les scènes qui l'utilisent.
 - **KICK** : knob 4 = RUMBLE (réverb sombre distordue, ducker par le kick, suit le niveau du kick ; 70 par défaut ; sauvé dans
   la scène, octet `rsv`). Seuls les sons avec `rumble` ≠ 0 dans ALT_PRE l'ont.
 
@@ -142,6 +147,7 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
 - [x] 05/11 soir, retours tests FM-1 (1-19 OK sauf) : SONG modifs live gardées, page SONG 4 knobs, chaîne à droite,
   LEDs, niveleur plus rapide, **bug horloge externe corrigé**, PLATE −1,8 dB, CORDE MATR plafonné (×90/127) + BROKEN refait
   (−37,7 dBFS), RING RDIO ×70/127 + RADIO RDIO 13 + SIREN refait. Pas écoutés.
+- [x] 05/11 nuit : écran plus rapide (voir plus haut) ; WIRE caché ; WIND +13,5 dB, PAD +13,5, LARSEN −4, CRACKED −6.
 - [ ] **PROCHAINE SESSION** : réponses de Romain sur le TRS (CLOCK=TRS ? Ableton « Sync » ? adaptateur A/B ? notes OK ?),
   tests 20-27 de sa checklist (RING, sons refaits, page compagnon branchée, UPDATE), réécoute des changements, et la
   CONSOLE (jamais essayée sur la FM-1).

@@ -233,7 +233,9 @@ static void alt_load_sound(uint32_t c, uint32_t i)
 /* PRESETS: circle c's sound s on */
 static void alt_preset_step(uint32_t c, int32_t s)
 {
-    uint32_t i = (uint32_t)(((int32_t)au.pre[c] + s % (int32_t)ALT_NPRE + (int32_t)ALT_NPRE) % (int32_t)ALT_NPRE);
+    uint32_t i = (uint32_t)(((int32_t)au.pre[c] + s % (int32_t)ALT_NPRE + (int32_t)ALT_NPRE) % (int32_t)ALT_NPRE), n;
+    for (n = 0; ALT_PRE[i].hide && n < ALT_NPRE; n++)   /* (a hidden one: the next in the turn's way) */
+        i = (uint32_t)(((int32_t)i + (s < 0 ? -1 : 1) + (int32_t)ALT_NPRE) % (int32_t)ALT_NPRE);
     alt_load_sound(c, i);
     alt_say(ALT_PRE[i].name);
 }
@@ -1085,7 +1087,7 @@ static uint32_t alt_rand_pre(void)
     uint32_t pi = 0, n, ok = alt_sys[0] == ALT_SYS_OK && (alt_sys[1] & 127u) ? alt_sys[1] & 127u : 0x77u;
     for (n = 0; n < 200u; n++) {
         pi = alt_cr(ALT_NPRE);
-        if ((ok >> (ALT_PRE[pi].eng % ALT_NENG)) & 1u)
+        if (((ok >> (ALT_PRE[pi].eng % ALT_NENG)) & 1u) && !ALT_PRE[pi].hide)
             break;
     }
     return pi;
@@ -3868,26 +3870,43 @@ static void alt_scene(uint32_t q, uint32_t flash)
 
 /* the card's grain (DAY: paper over the cream; NIGHT: ink over the black), the same every frame (a hash of the pixel's place, not a random draw), in
  * three tones near ALT_BG; half h of the screen (rows h*120 ..), straight into the canvas just cleared */
-static void alt_paper(uint32_t h)
+/* (05/11, Romain: "laggy") the grain's shades precomputed once: a tile of 128 x 64 pixels, 2 bits each (the hash it
+ * was drawn with every frame, a third of a frame's cost), then only looked up; rows y0 .. y0 + n of the screen */
+#define ALT_GR_W 128u
+#define ALT_GR_H 64u
+static uint8_t alt_grain[ALT_GR_W * ALT_GR_H / 4u] __attribute__((section(".pool")));
+static uint8_t alt_grain_ok;
+static void alt_paper_rows(uint32_t y0, uint32_t n)
 {
     uint16_t t[4];
     uint32_t x, y, i = 0;
+    if (!alt_grain_ok) {
+        for (x = 0; x < sizeof alt_grain; x++)   /* (the pool is not cleared at power-on) */
+            alt_grain[x] = 0;
+        for (y = 0; y < ALT_GR_H; y++)
+            for (x = 0; x < ALT_GR_W; x++) {
+                uint32_t v = (x * 0x85EBCA77u) ^ (y * 0x9E3779B1u), k;
+                v ^= v >> 15;
+                v *= 0x2C1B3C6Du;
+                v ^= v >> 13;
+                v &= 15u;                        /* 3 in 16 a shade darker, 1 in 16 darker still, 2 in 16 lighter */
+                k = v < 3u ? 1u : v == 3u ? 2u : v < 6u ? 3u : 0u;
+                alt_grain[(y * ALT_GR_W + x) >> 2] |= (uint8_t)(k << ((x & 3u) * 2u));
+            }
+        alt_grain_ok = 1;
+    }
     t[0] = swap16(ALT_BG);
     t[1] = swap16(ALT_DAY ? RGB(234, 220, 188) : RGB(19, 16, 20));
     t[2] = swap16(ALT_DAY ? RGB(225, 209, 175) : RGB(9, 8, 10));
     t[3] = swap16(ALT_DAY ? RGB(249, 239, 213) : RGB(23, 20, 22));
-    for (y = 0; y < 120u; y++) {
-        uint32_t yy = (y + h * 120u) * 0x9E3779B1u;
-        for (x = 0; x < 240u; x++, i++) {
-            uint32_t v = (x * 0x85EBCA77u) ^ yy;
-            v ^= v >> 15;
-            v *= 0x2C1B3C6Du;
-            v ^= v >> 13;
-            v &= 15u;                            /* 3 in 16 a shade darker, 1 in 16 darker still, 2 in 16 lighter */
-            cv_px[i] = t[v < 3u ? 1 : v == 3u ? 2 : v < 6u ? 3 : 0];
-        }
+    for (y = 0; y < n; y++) {
+        const uint8_t *row = &alt_grain[((y0 + y) % ALT_GR_H) * (ALT_GR_W / 4u)];
+        for (x = 0; x < 240u; x++, i++)
+            cv_px[i] = t[(row[(x % ALT_GR_W) >> 2] >> ((x & 3u) * 2u)) & 3u];
     }
 }
+static void alt_paper(uint32_t h) { alt_paper_rows(h * 120u, 120u); }
+
 
 static void alter_draw(void)
 {
@@ -3901,8 +3920,8 @@ static void alter_draw(void)
             flash |= 1u << i;
         sig = sig * 7u + alt_glow(i);
     }
-    for (i = 0; i < AS_NCIRC; i++)               /* what the picture depends on */
-        sig = sig * 31u + alt_seq.c[i].pos + alt_seq.c[i].pat * 7u + (uint32_t)alt_seq.c[i].cfg.len * 131u +
+    for (i = 0; i < AS_NCIRC; i++)               /* what the picture depends on (the steps playing: apart, below) */
+        sig = sig * 31u + alt_seq.c[i].pat * 7u + (uint32_t)alt_seq.c[i].cfg.len * 131u +
               au.cfg[i].len + au.cfg[i].hits * 3u + au.cfg[i].rot * 5u + au.cfg[i].prob * 9u + au.cfg[i].mute * 11u +
               alt_seq.c[i].die * 13u + trk[i].eng_req * 17u;
     for (i = 0; i < 4u; i++) {
@@ -3968,13 +3987,71 @@ static void alter_draw(void)
             sig = sig * 31u + asg.chain[k];
     }   /* (REC's mark) */     /* (a number shown while its knob turns, then gone) */
     sig = sig * 31u + q * 19u + au.lockc * 23u + alt_seq.c[au.lockc ? au.lockc - 1u : 0u].locks * 29u;
-    sig = sig * 31u + au.sel * 3u + flash * 5u + (uint32_t)song.playing * 7u + trk[au.sel].preset * 11u +
+    sig = sig * 31u + au.sel * 3u + (uint32_t)song.playing * 7u + trk[au.sel].preset * 11u +
           (uint32_t)song.g[G_BPM] * 13u + (au.msg && fm1_ms - au.msg_ms < 1500u ? (uint32_t)(uintptr_t)au.msg + (fm1_ms - au.msg_ms < 900u) : 1u);
 #if ALTER_CPU_SHOW
     alt_cpu_poll();
     sig = sig * 31u + alt_cpu_avg * 101u + alt_cpu_pk * 103u + alt_cpu_cut * 107u + alt_cpu_c1 * 109u;   /* (version test : la charge CPU) */
 #endif
     ui.force = 1;                                /* (whatever comes after this view draws itself whole) */
+    {                                            /* the steps playing and the hits' flash: a page that shows them has
+                                                  * them in its sig; the circles' view redraws only the rows they move
+                                                  * on (Romain 05/11: "laggy": a whole frame each step) */
+        static uint8_t now_seen[AS_NCIRC], fl_seen;
+        uint8_t now[AS_NCIRC];
+        int circles = !au.lockc && !au.scene_open && !au.mat_open && !au.seq_open && !afp.open && !au.mn;
+        int32_t lo = 240, hi = -1;
+        for (i = 0; i < AS_NCIRC; i++) {
+            uint32_t len = alt_seq.c[i].cfg.len ? alt_seq.c[i].cfg.len : 1u;
+            now[i] = (uint8_t)((alt_seq.c[i].pos + len - 1u) % len);
+        }
+        if (!circles) {                          /* (another page: they are part of the picture) */
+            for (i = 0; i < AS_NCIRC; i++)
+                sig = sig * 31u + alt_seq.c[i].pos;
+            sig = sig * 31u + flash * 5u;
+        } else if (au.drawn && sig == au.sig) {
+            for (i = 0; i < AS_NCIRC; i++)       /* the rows the old and new marks of each circle that moved cover */
+                if (now[i] != now_seen[i] || ((flash ^ fl_seen) >> i & 1u)) {
+                    uint32_t len = alt_seq.c[i].cfg.len ? alt_seq.c[i].cfg.len : 1u, k;
+                    for (k = 0; k < 2u; k++) {
+                        int32_t x, y, rr = ALT_R[i];
+                        alt_at((uint32_t)(((uint64_t)(k ? now[i] : now_seen[i]) << 32) / len), rr, &x, &y);
+                        lo = y - 11 < lo ? y - 11 : lo;
+                        hi = y + 11 > hi ? y + 11 : hi;
+                        if (i == au.sel) {       /* (the alidade: from the centre out, 90 px) */
+                            alt_at((uint32_t)(((uint64_t)(k ? now[i] : now_seen[i]) << 32) / len), 90, &x, &y);
+                            lo = y - 2 < lo ? y - 2 : lo;
+                            hi = y + 2 > hi ? y + 2 : hi;
+                            lo = ALT_CY - 2 < lo ? ALT_CY - 2 : lo;
+                            hi = ALT_CY + 2 > hi ? ALT_CY + 2 : hi;
+                        }
+                    }
+                }
+            for (i = 0; i < AS_NCIRC; i++)
+                now_seen[i] = now[i];
+            fl_seen = (uint8_t)flash;
+            if (hi < 0)
+                return;                          /* nothing moved */
+            lo = lo < 0 ? 0 : lo & ~1;
+            hi = hi > 239 ? 240 : (hi + 2) & ~1;
+            alt_draw_gl_n = alt_gl_n;
+            alt_draw_lfo_p = alt_lfo_p;
+            while (lo < hi) {                    /* the band, in pieces the canvas holds */
+                uint32_t n = (uint32_t)(hi - lo) > 120u ? 120u : (uint32_t)(hi - lo);
+                cv_begin(240, n, ALT_BG);
+                alt_paper_rows((uint32_t)lo, n);
+                cv_oy = -lo;
+                alt_scene(q, flash);
+                cv_oy = 0;
+                cv_blit(0, (uint32_t)lo);
+                lo += (int32_t)n;
+            }
+            return;
+        }
+        for (i = 0; i < AS_NCIRC; i++)
+            now_seen[i] = now[i];
+        fl_seen = (uint8_t)flash;
+    }
     if (au.drawn && sig == au.sig)
         return;
     au.sig = sig;

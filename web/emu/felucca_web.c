@@ -404,6 +404,20 @@ EXPORT uint32_t web_midi(uint32_t status, uint32_t d1, uint32_t d2)
 
 /* (tests, 05/11) a realtime byte (F8 clock, FA start, FB continue, FC stop) as the TRS (src 2) or USB (1) gives it; and
  * the CLOCK setting (0 INT, 1 USB, 2 TRS); the global step ALTER's circles are on */
+/* (perf, 05/11) the PLAY view drawn n times: what 0 whole, 1 the grain alone, 2 the scene alone (no blit) */
+EXPORT void web_draw_bench(uint32_t n, uint32_t what)
+{
+    uint32_t k, i, q = alt_page();
+    for (k = 0; k < n; k++) {
+        if (what == 0u) { au.drawn = 0; alter_draw(); continue; }
+        if (what == 3u) { alter_draw(); continue; }   /* (as the loop: partial when it can) */
+        for (i = 0; i < 2u; i++) {
+            cv_begin(240, 120, ALT_BG);
+            if (what == 1u) alt_paper(i);
+            else { cv_oy = -(int32_t)i * 120; alt_scene(q, 0); cv_oy = 0; }
+        }
+    }
+}
 EXPORT uint32_t web_midi_rt(uint32_t b, uint32_t src) { return (uint32_t)midi_enqueue(0xFu | (b & 255u) << 8, src); }
 EXPORT void web_clock_mode(uint32_t m) { song.g[G_CLOCK] = (int16_t)(m % 3u); }
 EXPORT uint32_t web_gstep(void) { return alt_gstep; }
