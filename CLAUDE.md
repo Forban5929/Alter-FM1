@@ -59,8 +59,8 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   KNOB 1 = valeur via la file alt_q donc REC l'enregistre, touches noires = cercle ; `alt_deep_*`),
   **GLO = MIXER** (knob 1-3 = LEVEL des cercles, knob 4 = MASTER 100 = 0 dB, vumètre blanc/doré = limiteur/rouge = clip),
   **HOME tenu = SYSTEM** (batterie en haut ; onglets SETUP : THEME, CLOCK INT/USB/TRS, MIDI IN · AUDIO : lignes Felucca
-  CLICK (OFF/ON), CLICK LEVEL, SPEAKER EQ, USB LEVEL, TUNE, 2ND CORE · RANDOM : moteurs ALTER PHYS NOISE RESO et modes FREE PERC
-  STAB permis au hasard · ABOUT : document GPL de Felucca, défile). Gardé en flash : `alt_sys` = favorites.factory[13]
+  CLICK (OFF/ON), CLICK LEVEL, SPEAKER EQ, USB LEVEL, TUNE, 2ND CORE · RANDOM : les 7 moteurs et modes FREE PERC
+  STAB permis au hasard (la liste défile) · ABOUT : document GPL de Felucca, défile). Gardé en flash : `alt_sys` = favorites.factory[13]
   ([3] CLOCK, [4] MIDI IN, [5] MASTER, [6] TUNE ; le reste dans les réglages Felucca).
 - OCT− + OCT+ + HOME = NEW SCENE · REC tapé/tenu 1 s/OCT−+OCT++REC. **OCT− + OCT+ tenus 5 s = mode UPDATE** (main.c,
   à garder absolument) · OCT− + OCT+ tenus à l'allumage = calibration des boutons (main.c panel_setup).
@@ -94,5 +94,5 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   OCT+) pour jouer A B C et les CHAÎNER dans l'ordre voulu (A C, C A B…), la chaîne bouclée. À clarifier avant de coder :
   « séquence » = rythmes seuls ou tout le son ? longueur d'un maillon (1 cycle, N mesures) ? changement au bout du cycle ?
   combien de maillons ? sauvé dans la scène ?
-- [ ] MIDI LEARN ALTER (BCR32) · Étape 4 (tranche de console par piste).
+- [ ] MIDI LEARN ALTER (BCR32).
 - [ ] Étape 4 : tranche de console par piste (disto → EQ → comp → delay → reverb).
