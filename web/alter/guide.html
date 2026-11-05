@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ALTER controls guide</title>
+<style>
+/* The guide to ALTER's controls (Romain 05/11): every key and button of the FM-1 as ALTER uses them, drawn, in the
+ * synth's look (the companion page's: tarot cards, Pagella / Inter Tight / Plex Mono, NIGHT and DAY). Published next to
+ * the companion page (site/editor/guide.html: its fonts). Keep it in step with CLAUDE.md "Les commandes". */
+@font-face { font-family: "Pagella"; src: url("fonts/pagella-bold.woff") format("woff"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Inter Tight"; src: url("fonts/intertight.woff") format("woff"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Plex Mono"; src: url("fonts/plexmono.woff") format("woff"); font-weight: 400; font-display: swap; }
+:root, [data-theme="night"] {
+  --bg: #0e0c10; --body: #08070a; --ink: #ebd9a8; --dim: #9a845c; --grey: #64563c; --dark: #1e1a16;
+  --gold: #c9a24d; --frame: #c9a24d; --rim: #6f5a30; --rib: #4a1a1f; --ribtx: #ebd9a8; --ribedge: #c9a24d;
+  --c1: #c9504a; --c2: #4fa88c; --c3: #d4ae52; --vio: #9b7fd1; --warn: #e23c34; --ontx: #0e0c10; --goldtx: #c9a24d;
+  --part: #1a1714; --tray: #131016; --grain: .05; color-scheme: dark;
+}
+[data-theme="day"] {
+  --bg: #f3e6c8; --body: #e6d5ae; --ink: #2e2b55; --dim: #6f604b; --grey: #ac9870; --dark: #e8d8b8;
+  --gold: #c8962e; --frame: #2e2b55; --rim: #c9b58a; --rib: #2e2b55; --ribtx: #f3e6c8; --ribedge: #2e2b55;
+  --c1: #e0664a; --c2: #2a9d8f; --c3: #d99a22; --vio: #6b4fb0; --warn: #c82828; --ontx: #f3e6c8; --goldtx: #7a5512;
+  --part: #efe0bf; --tray: #e4d2aa; --grain: .09; color-scheme: light;
+}
+:root { --serif: "Pagella", "Palatino Linotype", Palatino, Georgia, serif; --sans: "Inter Tight", "Inter", system-ui, sans-serif;
+  --mono: "Plex Mono", ui-monospace, monospace; }
+* { box-sizing: border-box; }
+html { background: var(--body); }
+body { margin: 0; background: var(--body); color: var(--ink); font: 15px/1.55 var(--sans); }
+body::before { content: ""; position: fixed; inset: 0; pointer-events: none; opacity: var(--grain); z-index: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .4 0 0 0 0 .25 0 0 0 1.4 -.3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"); }
+body > * { position: relative; z-index: 1; }
+a { color: var(--ink); text-decoration-color: var(--gold); }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 20px 16px 60px; }
+header { display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: center; justify-content: space-between; padding-bottom: 14px; border-bottom: 1px solid var(--rim); }
+.brand { margin: 0; display: flex; align-items: center; gap: 16px; }
+.rib { background: var(--ribedge); padding: 1.5px 0; clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 50%, 100% 100%, 0 100%, 12px 50%); }
+.rib > span { display: block; background: var(--rib); color: var(--ribtx); font: 700 26px/40px var(--serif); letter-spacing: .12em; padding: 0 32px;
+  clip-path: polygon(1.5px 0, calc(100% - 1.5px) 0, calc(100% - 12.5px) 50%, calc(100% - 1.5px) 100%, 1.5px 100%, 12.5px 50%); }
+.brand small { font: 14px/1.3 var(--sans); color: var(--dim); }
+nav { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 14px; }
+.btn { background: transparent; border: 1px solid var(--rim); padding: 6px 12px; cursor: pointer; font: inherit; color: inherit; text-decoration: none; }
+.btn:hover { border-color: var(--gold); }
+
+/* the tarot card */
+.tc { position: relative; background: var(--bg); border: 1px solid var(--frame); padding: 40px 20px 20px; margin: 22px 0 0;
+  box-shadow: inset 0 0 0 3px var(--bg), inset 0 0 0 4px var(--rim); }
+.tc::before { content: ""; position: absolute; inset: 3px; pointer-events: none;
+  --fan: transparent 4.5px, var(--gold) 4.5px 5.6px, transparent 6px 7.6px, var(--rim) 7.6px 8.6px, transparent 9px;
+  background: radial-gradient(circle at 0 0, var(--fan)) top left / 14px 14px no-repeat,
+    radial-gradient(circle at 100% 0, var(--fan)) top right / 14px 14px no-repeat,
+    radial-gradient(circle at 0 100%, var(--fan)) bottom left / 14px 14px no-repeat,
+    radial-gradient(circle at 100% 100%, var(--fan)) bottom right / 14px 14px no-repeat; }
+.tc > .t { position: absolute; top: 3px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 70px);
+  background: var(--ribedge); padding: 1px 0; clip-path: polygon(0 0, 100% 0, calc(100% - 7px) 50%, 100% 100%, 0 100%, 7px 50%); }
+.tc > .t > span { display: block; background: var(--rib); color: var(--ribtx); font: 700 16px/22px var(--serif); letter-spacing: .06em;
+  padding: 0 24px; white-space: nowrap; text-transform: uppercase;
+  clip-path: polygon(1px 0, calc(100% - 1px) 0, calc(100% - 7.5px) 50%, calc(100% - 1px) 100%, 1px 100%, 7.5px 50%); }
+.tc > .num { position: absolute; top: 9px; left: 14px; font: 12px/1 var(--sans); color: var(--goldtx); }
+h2 { font: 700 15px var(--serif); letter-spacing: .08em; text-transform: uppercase; color: var(--goldtx); margin: 18px 0 8px; }
+h2::before { content: "◆ "; font-size: 9px; vertical-align: 2px; }
+p.lead { color: var(--dim); max-width: 80ch; margin: 0 0 10px; }
+svg { display: block; width: 100%; height: auto; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 12px 0 0; font-size: 13px; color: var(--dim); }
+.legend i { display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: -1px; border: 1px solid var(--rim); }
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.grid .tc { margin: 0; }
+.mv { display: grid; grid-template-columns: 320px 1fr; gap: 8px 14px; align-items: center; padding: 8px 0; border-top: 1px solid var(--dark); }
+.mv:first-of-type { border-top: 0; }
+.mv svg { width: 320px; }
+.mv b { font-weight: 600; }
+.mv small { display: block; color: var(--dim); font-size: 13px; }
+kbd { font: 12px var(--mono); border: 1px solid var(--rim); padding: 0 5px; background: var(--dark); letter-spacing: .04em; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+td, th { text-align: left; padding: 7px 10px 7px 0; border-top: 1px solid var(--dark); vertical-align: top; }
+th { font: 700 13px var(--serif); letter-spacing: .06em; color: var(--goldtx); text-transform: uppercase; }
+td:first-child { white-space: nowrap; }
+.warn { color: var(--warn); }
+.foot { margin-top: 28px; color: var(--dim); font-size: 13px; }
+/* the drawings */
+.pan .body { fill: var(--part); stroke: var(--rim); }
+.pan .tray { fill: var(--tray); }
+.pan .face { fill: var(--bg); stroke: var(--rim); stroke-width: 1.5; }
+.pan .lbl { font: 600 11px var(--sans); fill: var(--ink); letter-spacing: .04em; text-anchor: middle; }
+.pan .sub { font: 9.5px var(--sans); fill: var(--dim); text-anchor: middle; }
+.pan .tap { font: 600 10.5px var(--sans); text-anchor: middle; }
+.pan .key { stroke: var(--rim); stroke-width: 1; }
+.pan .kl { font: 700 10px var(--sans); text-anchor: middle; fill: var(--ink); }
+.pan .kn { font: 9px var(--mono); text-anchor: middle; fill: var(--dim); }
+.pan .scr { fill: #0b0b0c; stroke: var(--gold); }
+.pan .scrtx { font: 700 15px var(--serif); fill: var(--gold); text-anchor: middle; letter-spacing: .1em; }
+.pan .hl { fill: none; stroke: var(--gold); stroke-width: 2.5; }
+.pan .press { fill: var(--gold); opacity: .9; }
+.pan .hold { fill: none; stroke: var(--gold); stroke-width: 2; stroke-dasharray: 4 3; }
+@media (max-width: 640px) { .mv { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1 class="brand"><span class="rib"><span>ALTER</span></span><small>Controls guide<br>for the M-VAVE FM-1</small></h1>
+  <nav>
+    <a href="#panel">The panel</a><a href="#keys">The keys</a><a href="#dice">Dice</a><a href="#song">Song</a>
+    <a href="#save">Save &amp; names</a><a href="#menus">Menus</a><a href="#combos">Combos</a>
+    <a class="btn" href="./">Companion page</a>
+    <button class="btn" id="bTheme">DAY</button>
+  </nav>
+</header>
+
+<section class="tc" id="panel"><div class="t"><span>The panel</span></div><span class="num">0</span>
+  <p class="lead">The FM-1 as ALTER uses it. A page button <b>tapped</b> opens its quick page (the four knobs change with it);
+    <b>held 0.5 s</b> opens its menu. HOME tapped always brings you back to the three circles.</p>
+  <svg id="svgPanel" class="pan" viewBox="0 0 1000 624" role="img" aria-label="The FM-1's panel with ALTER's meaning on each control"></svg>
+</section>
+
+<section class="tc" id="keys"><div class="t"><span>The keys</span></div><span class="num">I</span>
+  <p class="lead">Two rows: the 11 upper keys (the "black" ones) and the 16 lower ones (the "white" ones). On the circles' view
+    (no menu open) they play ALTER, not notes.</p>
+  <svg id="svgKeys" class="pan" viewBox="0 0 1000 330" role="img" aria-label="The keys and what each does"></svg>
+  <div class="legend" id="legend"></div>
+</section>
+
+<section class="tc" id="dice"><div class="t"><span>The dice</span></div><span class="num">X</span>
+  <p class="lead">The three DICE keys (lower row, keys 5 6 7) each draw for their own circle. What a die draws depends on
+    what you hold with it.</p>
+  <div id="mvDice"></div>
+</section>
+
+<section class="tc" id="song"><div class="t"><span>Song</span></div><span class="num">XX</span>
+  <p class="lead">Three slots A B C keep the <b>rhythms</b> of the three circles (steps, lanes, ranges, the dice's draw, REC's
+    moves, the mutes). The sounds stay as they are. A slot always starts at the next bar, every circle from its step 1.</p>
+  <div id="mvSong"></div>
+  <h2>On the screen</h2>
+  <svg id="svgCorner" class="pan" style="max-width:640px" viewBox="0 0 520 150" role="img" aria-label="The A B C corner of the circles' view"></svg>
+</section>
+
+<section class="tc" id="save"><div class="t"><span>Save &amp; names</span></div><span class="num">XXI</span>
+  <p class="lead">SAVE opens the SAVE page: 4 tabs (ALGORITHM) — SCENES A, SCENES B, PATT. A, PATT. B — of 16 slots each.
+    A <b>scene</b> is everything (sounds, rhythms, effects, REC, ranges); a <b>pattern</b> the rhythms only.</p>
+  <div id="mvSave"></div>
+</section>
+
+<section class="tc" id="menus"><div class="t"><span>Pages &amp; menus</span></div><span class="num">XVII</span>
+  <table id="tblMenus"></table>
+</section>
+
+<section class="tc" id="combos"><div class="t"><span>Combos &amp; safety</span></div><span class="num">XI</span>
+  <table id="tblCombos"></table>
+</section>
+
+<p class="foot">ALTER is free firmware (GPL-3.0) built on Felucca ·
+  <a href="https://github.com/Forban5929/Alter-FM1" target="_blank" rel="noopener">github.com/Forban5929/Alter-FM1</a> ·
+  <a href="../install/">Install ALTER</a> · <a href="../">Web emulator</a></p>
+</div>
+
+<script>
+const NS = "http://www.w3.org/2000/svg";
+const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (parent) parent.appendChild(e); return e; };
+const tx = (parent, x, y, s, cls, fill) => { const t = el("text", { x, y, class: cls }, parent); if (fill) t.setAttribute("fill", fill); t.textContent = s; return t; };
+
+/* ---- the groups (colours) and the keys: k = semitones above the first key (alter_ui.c ALT_KEY) ---- */
+const G = {
+  mute: ["var(--c1)", "MUTE"], dice: ["var(--c2)", "DICE"], circ: ["var(--ink)", "CIRCLE (choose)"], move: ["var(--gold)", "SHIFT · DENSITY · LOCK"],
+  fill: ["var(--vio)", "Fills (held)"], song: ["var(--c3)", "SONG A B C"], free: ["var(--grey)", "free"],
+};
+const KEYS = {
+  0: ["MUTE", "1", "mute"], 2: ["MUTE", "2", "mute"], 4: ["MUTE", "3", "mute"], 6: ["", "", "free"],
+  7: ["DICE", "1", "dice"], 9: ["DICE", "2", "dice"], 11: ["DICE", "3", "dice"], 12: ["", "", "free"],
+  14: ["SHIFT", "−", "move"], 16: ["SHIFT", "+", "move"], 18: ["LOCK", "TURING", "move"],
+  19: ["SONG", "A", "song"], 21: ["SONG", "B", "song"], 23: ["SONG", "C", "song"], 24: ["", "", "free"], 26: ["", "", "free"],
+  1: ["CIRCLE", "1", "circ"], 3: ["CIRCLE", "2", "circ"], 5: ["CIRCLE", "3", "circ"], 8: ["DENS", "−", "move"], 10: ["DENS", "+", "move"],
+  13: ["DUB", "DELAY", "fill"], 15: ["DUB", "REVERB", "fill"], 17: ["DES-", "TROY", "fill"], 20: ["ROLL", "1/16", "fill"],
+  22: ["ROLL", "1/8", "fill"], 25: ["TRIG-", "GER", "fill"],
+};
+const WHITE = [0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26];
+const BLACK = [1, 3, 5, 8, 10, 13, 15, 17, 20, 22, 25];
+const BLACK_AFTER = [0, 1, 2, 4, 5, 7, 8, 9, 11, 12, 14];        // (the lower key each upper one follows: web/emu/index.html)
+const NOTE = ["F", "F♯", "G", "G♯", "A", "A♯", "B", "C", "C♯", "D", "D♯", "E"];
+
+/* the two rows of keys in a box [x0 y0 w h]; mark(k) -> "press" | "hold" | null for the gesture drawings; small: no words */
+function keybed(svg, [x0, y0, w, h], { mark = () => null, small = false, only = null } = {}) {
+  el("rect", { x: x0, y: y0, width: w, height: h, rx: small ? 8 : 18, class: "tray" }, svg);
+  const pitch = (w - 24) / 16, kw = pitch * (small ? 0.84 : 0.8), kh = h * 0.42;
+  const key = (cx, cy, k) => {
+    const d = KEYS[k] || ["", "", "free"], g = G[d[2]], m = mark(k), dimmed = only && !only.includes(k);
+    const r = el("rect", { x: cx - kw / 2, y: cy - kh / 2, width: kw, height: kh, rx: Math.min(kw / 2, 14), class: "key",
+      fill: m === "press" ? g[0] : "var(--bg)", stroke: m ? "var(--gold)" : d[2] === "free" ? "var(--rim)" : g[0], "stroke-width": m ? 3 : d[2] === "free" ? 1 : 2 }, svg);
+    if (dimmed) r.setAttribute("opacity", ".35");
+    if (m === "hold") el("rect", { x: cx - kw / 2 - 4, y: cy - kh / 2 - 4, width: kw + 8, height: kh + 8, rx: Math.min(kw / 2 + 4, 18), class: "hold" }, svg);
+    if (!small && d[0]) {
+      tx(svg, cx, cy - 2, d[0], "kl", m === "press" ? "var(--ontx)" : g[0]);
+      tx(svg, cx, cy + 11, d[1], "kl", m === "press" ? "var(--ontx)" : "var(--ink)");
+    }
+    if (!small) tx(svg, cx, cy + kh / 2 + 12, NOTE[k % 12], "kn");
+  };
+  WHITE.forEach((k, i) => key(x0 + 12 + (i + 0.5) * pitch, y0 + h * 0.75, k));
+  BLACK_AFTER.forEach((a, j) => key(x0 + 12 + (a + 1) * pitch, y0 + h * 0.25, BLACK[j]));
+}
+
+/* ---- the panel (web/emu/index.html LAYOUTS.wide) ---- */
+function panel() {
+  const s = document.getElementById("svgPanel");
+  el("rect", { x: 4, y: 4, width: 992, height: 616, rx: 40, class: "body" }, s);
+  for (const [x, y, w, h] of [[50, 250, 220, 50], [568, 160, 400, 140]]) el("rect", { x, y, width: w, height: h, rx: 14, class: "tray" }, s);
+  el("rect", { x: 292, y: 44, width: 256, height: 256, rx: 18, class: "scr" }, s);
+  tx(s, 420, 150, "THE SCREEN", "scrtx");
+  tx(s, 420, 172, "the three circles,", "sub"); tx(s, 420, 186, "the pages, the menus", "sub");
+  const knobs = [["MASTER", "volume", 105, 100, 24], ["SELECT", "the circle · a row", 215, 100, 24], ["PRESETS", "the circle's sound", 105, 205, 24],
+    ["ALGORITHM", "envelope mode · a tab", 215, 205, 24], ["KNOB 1", "", 610, 100, 22], ["KNOB 2", "", 714, 100, 22], ["KNOB 3", "", 818, 100, 22], ["KNOB 4", "", 922, 100, 22]];
+  for (const [n, sub, x, y, r] of knobs) {
+    el("circle", { cx: x, cy: y, r: r + 5, class: "tray" }, s);
+    el("circle", { cx: x, cy: y, r, class: "face" }, s);
+    tx(s, x, y - r - 12, n, "lbl");
+    if (sub) tx(s, x, y + r + 16, sub, "sub");
+  }
+  tx(s, 766, 146, "the quick page's four settings (the screen names them)", "sub");
+  const btn = (x, y, w, h, n, tap, held, ink) => {
+    el("rect", { x, y, width: w, height: h, rx: 8, class: "face" }, s);
+    tx(s, x + w / 2, y + 17, n, "lbl", ink);
+    if (tap) tx(s, x + w / 2, y + 31, tap, "sub");
+    if (held) tx(s, x + w / 2, y + 43, held, "tap", "var(--goldtx)");
+  };
+  btn(60, 258, 90, 34, "OCT−", "", "");
+  btn(170, 258, 90, 34, "OCT+", "", "");
+  tx(s, 160, 318, "with the dice, SONG, REC: see Combos", "sub");
+  const R1 = [["FX", "FX", "FX page"], ["SCL", "SCALE", "SCALES"], ["ENV", "ENV", "ENV"], ["LFO", "LFO 1", "LFO MTX"], ["EDIT", "ENGINE+", "DEEP"], ["GLO", "GLOBAL", "MIXER"]];
+  const R2 = [["HOME", "circles", "SYSTEM"], ["SAVE", "SAVE pg", "+ABC"], ["ARP", "chain", "SONG"], ["SEQ", "RHYTHM", "lanes"], ["PLAY", "play/stop", ""], ["REC", "overdub", "clear"]];
+  for (let i = 0; i < 6; i++) {
+    btn(582 + i * 63, 174, 54, 48, R1[i][0], R1[i][1], R1[i][2]);
+    btn(582 + i * 63, 236, 54, 48, R2[i][0], R2[i][1], R2[i][2], R2[i][0] === "REC" ? "var(--warn)" : undefined);
+  }
+  tx(s, 766, 314, "tapped (grey) · held 0.5 s (gold)", "sub");
+  keybed(s, [36, 332, 928, 256]);
+}
+
+/* a gesture: keys pressed / held, buttons held, words */
+function gesture(host, { keys = {}, btns = [], title, words, only }) {
+  const row = document.createElement("div");
+  row.className = "mv";
+  const nokeys = only && !only.length;            // (buttons only: no keys drawn)
+  const s = el("svg", { viewBox: nokeys ? "0 0 300 30" : "0 0 300 120", class: "pan", role: "img", "aria-label": title });
+  if (!nokeys) keybed(s, [0, 30, 300, 90], { mark: (k) => keys[k] || null, small: true, only });
+  btns.forEach(([n, how], i) => {
+    if (!n) return;
+    const x = 4 + i * 74;
+    el("rect", { x, y: 2, width: 68, height: 22, rx: 5, class: "face", ...(how ? { stroke: "var(--gold)", "stroke-width": 2.5 } : {}) }, s);
+    if (how === "hold") el("rect", { x: x - 3, y: -1, width: 74, height: 28, rx: 7, class: "hold" }, s);
+    tx(s, x + 34, 17, n + (how === "hold" ? " held" : ""), "lbl");
+  });
+  row.append(s);
+  const d = document.createElement("div");
+  d.innerHTML = `<b>${title}</b><small>${words}</small>`;
+  row.append(d);
+  host.append(row);
+}
+
+function dice() {
+  const h = document.getElementById("mvDice"), D = [7, 9, 11];
+  gesture(h, { keys: { 7: "press" }, only: D, title: "DICE tapped: a new pattern", words: "HITS, ROT, flams and a ratchet, drawn at once for that circle." });
+  gesture(h, { keys: { 7: "press" }, btns: [["OCT−", "hold"]], only: D, title: "OCT− + DICE: velocity and chance", words: "Only the VELO and CHANCE lanes: velocity 100 % mostly (70 %), chance lowered on some hits." });
+  gesture(h, { keys: { 7: "press" }, btns: [["", ""], ["OCT+", "hold"]], only: D, title: "OCT+ + DICE: pitch and throws", words: "The PITCH lane and the hits thrown into the delay and the reverb." });
+  gesture(h, { keys: { 7: "hold" }, only: D, title: "DICE held 0.6 s: clean", words: "The circle back to its plain pattern, the draw undone." });
+  gesture(h, { keys: { 7: "press" }, btns: [["OCT−", "hold"], ["OCT+", "hold"]], only: D, title: "OCT− + OCT+ + DICE: the locks", words: "The LOCKS page of that circle: what its dice leave alone (lower keys 1-7). HOME: back." });
+  gesture(h, { keys: { 7: "press", 9: "press", 11: "press" }, only: D, title: "DICE 1 + 2 + 3: CHAOS", words: "Everything drawn on the three circles at once (timbre, glide and length per hit too)." });
+  gesture(h, { keys: { 1: "press", 3: "press", 5: "press" }, only: [1, 3, 5], title: "CIRCLE 1 + 2 + 3: CHAOS TOTAL", words: "Sounds, engines, modes, rhythms (EUCLID or TURING), all at random. Again within 3 s: undone." });
+}
+
+function songMoves() {
+  const h = document.getElementById("mvSong"), S = [19, 21, 23];
+  gesture(h, { keys: { 19: "press" }, only: S, title: "A tapped: slot A plays", words: "From the next bar. If a chain was looping, it stops. An empty slot: nothing (EMPTY)." });
+  gesture(h, { keys: { 19: "press" }, btns: [["SAVE", "hold"]], only: S, title: "SAVE held + A: store in A", words: "The rhythms playing go into slot A (and stay after power-off). The SAVE page it opened closes." });
+  gesture(h, { keys: { 19: "hold", 23: "press", 21: "press" }, only: S, title: "A held + C, then B: a chain", words: "A › C › B, 4 bars each, looping from the next bar. Let A go: it goes on." });
+  gesture(h, { keys: {}, btns: [["", ""], ["", ""], ["ARP", "tap"]], only: S, title: "ARP tapped: chain on / off", words: "On: from its first link at the next bar. Off: the slot playing goes on alone." });
+  gesture(h, { keys: {}, btns: [["", ""], ["", ""], ["ARP", "hold"]], only: S, title: "ARP held: the SONG page", words: "SELECT a link · KNOB 1 its slot · KNOB 2 its bars (1 2 4 8) · KNOB 3 how many links (16 at most)." });
+  // the corner of the circles' view
+  const s = document.getElementById("svgCorner");
+  el("rect", { x: 0, y: 0, width: 240, height: 150, rx: 10, class: "scr" }, s);
+  const box = (x, y, l, kind, col) => {
+    if (kind === "on") el("rect", { x, y, width: 26, height: 28, fill: col }, s);
+    else if (kind === "full") el("rect", { x, y, width: 26, height: 28, fill: "none", stroke: col, "stroke-width": 2 }, s);
+    tx(s, x + 13, y + 20, l, "kl", kind === "on" ? "#0e0c10" : kind === "empty" ? "#64563c" : col).setAttribute("style", "font-size:15px");
+  };
+  box(16, 24, "A", "on", "#c9504a"); box(46, 24, "B", "empty", "#64563c"); box(76, 24, "C", "full", "#d4ae52");
+  tx(s, 16, 76, "A > C", "kn").setAttribute("style", "font-size:15px;text-anchor:start;fill:#ebd9a8");
+  tx(s, 150, 120, "(top left of the screen)", "sub");
+  const leg = [["filled", "the slot playing"], ["framed", "a stored slot"], ["grey", "an empty slot"], ["blinking", "starts at the next bar"], ["A > C", "the chain looping (the link playing in colour)"]];
+  leg.forEach(([a, b], i) => { tx(s, 262, 26 + i * 24, a, "lbl").setAttribute("style", "text-anchor:start"); tx(s, 340, 26 + i * 24, b, "sub").setAttribute("style", "text-anchor:start"); });
+}
+
+function saveMoves() {
+  const h = document.getElementById("mvSave");
+  const row = (title, words, btns) => gesture(h, { keys: {}, btns, only: [], title, words });
+  row("SAVE: the SAVE page", "SELECT a row, ALGORITHM a tab (SCENES A, SCENES B, PATT. A, PATT. B). Tab A: NEW, the 4 factory ones (locked), A01..A16; tab B: B01..B16.", [["SAVE", "tap"]]);
+  row("SAVE tapped on a row: load it", "A scene: everything comes back. A pattern: only the rhythms; the sounds stay.", [["SAVE", "tap"]]);
+  row("SAVE held 1 s on a USER row: NAME", "The NAME page: KNOB 1 2 3 = the 3 characters (A-Z, 0-9, -, a space). SAVE stores; HOME cancels. The list then reads « A05  KCK ».", [["SAVE", "hold"]]);
+  row("NEW SCENE", "OCT− + OCT+ + HOME: a blank start (the three engines' first sounds, no hits).", [["OCT−", "hold"], ["OCT+", "hold"], ["HOME", "tap"]]);
+}
+
+function tables() {
+  const M = [
+    ["Button", "Tapped: quick page (KNOB 1 2 3 4)", "Held 0.5 s: menu"],
+    ["(none)", "the circle's engine: its four main settings", ""],
+    ["SEQ", "RHYTHM: LEN HITS ROT PROB (TURING: LEN LOCK DENS RANGE)", "SEQ menu: the lanes (VELO CHANCE DELAY REVERB PITCH RATCH); lower keys = steps. SEQ held + ALGORITHM: EUCLID / TURING"],
+    ["ENV", "the envelope's four, by mode (FREE PERC STAB)", "ENVELOPE: the shape drawn"],
+    ["FX", "DIST · INSERT · DELAY send · REVERB send", "FX page: DIST, INSERT, DELAY (TIME FEEDBK TAPE SEND), REVERB, MASTER"],
+    ["LFO", "LFO 1: WAVE RATE DEPTH DEST", "LFO 1 2 3, GLOBAL, MATRIX"],
+    ["EDIT", "the engine's four other settings", "DEEP: every setting of the circle's sound, as a list (SOUND ENV FX MIX)"],
+    ["SCL", "SCALE · ROOT · CHORD · DOSE", "SCALES"],
+    ["GLO", "BPM · LEVEL · PAN · SWING", "MIXER: KNOB 1 2 3 the circles' levels, KNOB 4 MASTER, the output meter"],
+    ["HOME", "back to the circles (closes any page)", "SYSTEM: SETUP (THEME, CLOCK, MIDI IN) · AUDIO · RANDOM · ABOUT"],
+    ["ARP", "SONG chain on / off", "SONG page"],
+    ["SAVE", "the SAVE page", "(+ A B C high: a SONG slot)"],
+    ["PLAY", "play / stop", ""],
+    ["REC", "overdub on / off: the knobs turned are written on the steps", "1 s: the chosen circle's moves cleared"],
+  ];
+  const C = [
+    ["Gesture", "What it does"],
+    ["CIRCLE 1 + 2 + 3", "CHAOS TOTAL (again within 3 s: undone)"],
+    ["DICE 1 + 2 + 3", "CHAOS"],
+    ["OCT− + OCT+ + DICE n", "circle n's LOCKS"],
+    ["OCT− + OCT+ + HOME", "NEW SCENE"],
+    ["OCT− + OCT+ + REC", "every circle's REC moves cleared"],
+    ["REC held + TRIGGER", "a hit added to the chosen circle's pattern"],
+    ["MUTE 1 + 2 + 3", "the three mutes (nothing more)"],
+    ["Fills (upper keys, held)", "DUB DELAY, DUB REVERB, DESTROY, ROLL 1/16, ROLL 1/8 on the chosen circle while held; with REC on they are written"],
+    ['<span class="warn">OCT− + OCT+ held 5 s</span>', '<span class="warn">UPDATE mode (the USB update; the FM-1 stops playing)</span>'],
+    ['<span class="warn">OCT− + OCT+ held at power-on</span>', '<span class="warn">the buttons\' calibration</span>'],
+  ];
+  const fill = (id, rows) => { document.getElementById(id).innerHTML = rows.map((r, i) => `<tr>${r.map((c) => (i ? `<td>${c}</td>` : `<th>${c}</th>`)).join("")}</tr>`).join(""); };
+  fill("tblMenus", M); fill("tblCombos", C);
+}
+
+function build() {
+  for (const id of ["svgPanel", "svgKeys", "svgCorner"]) document.getElementById(id).innerHTML = "";
+  for (const id of ["mvDice", "mvSong", "mvSave"]) document.getElementById(id).innerHTML = "";
+  panel();
+  keybed(document.getElementById("svgKeys"), [10, 20, 980, 290]);
+  document.getElementById("legend").innerHTML = Object.values(G).map(([c, n]) => `<span><i style="border-color:${c};background:${c === "var(--grey)" ? "transparent" : "transparent"};box-shadow:inset 0 0 0 2px ${c}"></i>${n}</span>`).join("");
+  dice(); songMoves(); saveMoves(); tables();
+}
+function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  document.getElementById("bTheme").textContent = t === "day" ? "NIGHT" : "DAY";
+  try { localStorage.setItem("alter.theme", t); } catch {}
+}
+let th = "night";
+try { th = localStorage.getItem("alter.theme") === "day" ? "day" : "night"; } catch {}
+setTheme(th);
+document.getElementById("bTheme").onclick = () => setTheme(document.documentElement.dataset.theme === "day" ? "night" : "day");
+build();
+</script>
+</body>
+</html>

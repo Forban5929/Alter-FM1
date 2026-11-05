@@ -158,6 +158,27 @@ let plays = 0, moved = new Set();
 for (let k = 0; k < 30; k++) { render(1470); one(req.ping()); ex.web_link_sync(); for (const p of out()) if (p.cmd === CMD.PLAY) { plays++; moved.add(p.circles[0].pos); } }
 check(`poussée : PLAY pendant 1 s de jeu (${plays} images, ${moved.size} pas différents vus)`, plays >= 10 && moved.size >= 3);
 
+// v3 (05/11): NAMEs, USER patterns, SONG
+{
+  const sv = one(req.userSave(CMD.SCENE, 20, "kc9")), ls = one(req.userList(CMD.SCENE));
+  check(`v3 SCENE : ranger B05 avec un NOM (rc ${sv?.rc}) -> liste « ${ls?.names?.[20]} » (${ls?.used?.length} places)`,
+    sv?.rc === 1 && ls?.used?.length === 32 && ls.used[20] === 1 && ls.names[20] === "KC9");
+  ex.web_alter(15, 0, 16 | 6 << 8); render(4000);
+  const ps = one(req.userSave(CMD.PAT, 3, "P-6")); ex.web_alter(15, 0, 16 | 2 << 8); render(4000);
+  const pl = one(req.userLoad(CMD.PAT, 3)); render(4000);
+  const bits = (m) => { let n = 0; for (m >>>= 0; m; m >>>= 1) n += m & 1; return n; };
+  const pls = one(req.userList(CMD.PAT));
+  check(`v3 PAT : ranger A04 « ${pls?.names?.[3]} », le charger (rc ${ps?.rc}/${pl?.rc}) : 6 coups (${bits(ex.web_alter_pat(0))})`,
+    ps?.rc === 1 && pl?.rc === 1 && pls.names[3] === "P-6" && bits(ex.web_alter_pat(0)) === 6);
+  const g0 = one(req.song()), st = one(req.songStore(1)), g1 = one(req.song());
+  check(`v3 SONG : état (slots ${g0?.full}), ranger B (rc ${st?.rc}) -> ${g1?.full}`, g0?.cmd === CMD.SONG && st?.rc === 1 && g1.full[1] === 1);
+  const pe = one(req.songPlay(2)), pb = one(req.songPlay(1));
+  const ch = one(req.songChain([{ slot: 1, bars: 0 }, { slot: 1, bars: 3 }])), on = one(req.songOn(1));
+  check(`v3 SONG : jouer C vide refusé (${pe?.rc}), B demandé (${pb?.asked}), chaîne B1 B8 (${ch?.chain?.map((l) => "ABC"[l.slot] + (1 << l.bars)).join(" ")}), ON (${on?.on})`,
+    pe?.rc === 0 && pb?.rc === 1 && pb.asked === 2 && ch?.chain?.length === 2 && ch.chain[1].bars === 3 && on?.on === 1);
+  one(req.songOn(0));
+}
+
 // junk: not ours, or bad lengths -> no reply
 check("trames étrangères ou fausses : aucune réponse", send([0xf0, 0x7d, 0x46, 0x4c, 1, 0xf7]).length === 0 && send(req.state(7)).length === 0 && send([0xf0, 0x7d, 0x41, 0x4c, 4, 0, 0xf7]).length === 0);
 

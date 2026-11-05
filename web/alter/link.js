@@ -3,13 +3,17 @@
 // replies. Used by the page (web/alter/editor.html) and the test (tools/alter/alter_link_test.mjs).
 export const HDR = [0x7d, 0x41, 0x4c];
 export const CMD = { INFO: 1, STATE: 2, DESC: 3, SET: 4, SOUND: 5, SCENE: 6, WATCH: 7, CHANGED: 8, RELOAD: 9, PING: 10,
-  VLIST: 11, VDESC: 12, VALL: 13, VSET: 14, LANE: 15, LSET: 16, ACT: 17, PLAY: 18, VCHANGED: 19, LCHANGED: 20 };
+  VLIST: 11, VDESC: 12, VALL: 13, VSET: 14, LANE: 15, LSET: 16, ACT: 17, PLAY: 18, VCHANGED: 19, LCHANGED: 20,
+  PAT: 21, SONG: 22 };
 // the actions (alter_link.c LA_*): a circle's, then CHAOS / TOTAL (any circle number)
 export const ACT = { MUTE: 0, DIE: 1, CLEAN: 2, DENSM: 3, DENSP: 4, SHL: 5, SHR: 6, TRIG: 7, RANDOM: 8, LANES: 9,
   FLATALL: 10, SHUF0: 11, FLAT0: 17, CHAOS: 23, TOTAL: 24, SELECT: 25, PLAY: 26, STOP: 27, REC: 28 };
 export const SHARED = 3;   // (VALL / VSET: the shared settings)
 export const F_ENUM = 8;
 
+// a NAME: 3 characters of " A-Z 0-9 -" (others: a space)
+export const NAME_CH = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-";
+export const nameBytes = (n) => [...(String(n).toUpperCase() + "   ").slice(0, 3)].map((ch) => (NAME_CH.includes(ch) ? ch : " ").charCodeAt(0));
 const v14 = (v) => { const u = Math.max(-8192, Math.min(8191, v | 0)) + 8192; return [u & 127, (u >> 7) & 127]; };
 export const frame = (cmd, ...args) => [0xf0, ...HDR, cmd, ...args.map((b) => b & 127), 0xf7];
 export const req = {
@@ -21,6 +25,15 @@ export const req = {
   sceneList: () => frame(CMD.SCENE, 0),
   sceneSave: (slot) => frame(CMD.SCENE, 1, slot),
   sceneLoad: (slot) => frame(CMD.SCENE, 2, slot),
+  // v3 (05/11): the NAMEs (3 characters), the USER patterns, SONG
+  userList: (kind) => frame(kind, 3),                       // kind: CMD.SCENE or CMD.PAT
+  userSave: (kind, slot, name) => (name == null ? frame(kind, 1, slot) : frame(kind, 1, slot, ...nameBytes(name))),
+  userLoad: (kind, slot) => frame(kind, 2, slot),
+  song: () => frame(CMD.SONG, 0),
+  songStore: (s) => frame(CMD.SONG, 1, s),
+  songPlay: (s) => frame(CMD.SONG, 2, s),
+  songChain: (links) => frame(CMD.SONG, 3, links.length, ...links.map((l) => (l.slot & 3) | ((l.bars & 3) << 2))),
+  songOn: (on) => frame(CMD.SONG, 4, on ? 1 : 0),
   watch: (on) => frame(CMD.WATCH, on ? 1 : 0),
   ping: () => frame(CMD.PING),
   vlist: () => frame(CMD.VLIST),
@@ -73,10 +86,18 @@ export function parse(f) {
       return { cmd, circ, id, fmt, min, max, def, label, unit, names };
     }
     case CMD.SET: case CMD.CHANGED: return { cmd, circ: b(), id: b(), value: v() };
-    case CMD.SCENE: {
-      const op = b(), slot = b(), rc = b(), used = [];
-      while (i < f.length) used.push(b());
-      return { cmd, op, slot, rc, used };
+    case CMD.SCENE: case CMD.PAT: {
+      const op = b(), slot = b(), rc = b(), used = [], names = [];
+      while (i < f.length) {
+        used.push(b());
+        if (op === 3) { const c = [b(), b(), b()]; names.push(c[0] ? String.fromCharCode(...c) : ""); }
+      }
+      return { cmd, op, slot, rc, used, names };
+    }
+    case CMD.SONG: {
+      const op = b(), rc = b(), full = b(), play = b(), asked = b(), on = b(), link = b(), left = b(), n = b(), chain = [];
+      for (let k = 0; k < n; k++) { const l = b(); chain.push({ slot: l & 3, bars: (l >> 2) & 3 }); }
+      return { cmd, op, rc, full: [full & 1, (full >> 1) & 1, (full >> 2) & 1], play, asked, on, link, left, chain };
     }
     case CMD.WATCH: return { cmd, on: b() };
     case CMD.RELOAD: return { cmd, circ: b() };

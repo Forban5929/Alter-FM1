@@ -10,10 +10,12 @@
 #define LK_H0 0x7D
 #define LK_H1 0x41
 #define LK_H2 0x4C
-#define LK_VERSION "ALTER LINK 1"
+#define LK_VERSION "ALTER LINK 3"
 enum { LKC_INFO = 1, LKC_STATE, LKC_DESC, LKC_SET, LKC_SOUND, LKC_SCENE, LKC_WATCH, LKC_CHANGED, LKC_RELOAD, LKC_PING,
        /* v2 (04/11): the other settings (LK_V), the lanes, the actions, the circles as they play */
-       LKC_VLIST, LKC_VDESC, LKC_VALL, LKC_VSET, LKC_LANE, LKC_LSET, LKC_ACT, LKC_PLAY, LKC_VCHANGED, LKC_LCHANGED };
+       LKC_VLIST, LKC_VDESC, LKC_VALL, LKC_VSET, LKC_LANE, LKC_LSET, LKC_ACT, LKC_PLAY, LKC_VCHANGED, LKC_LCHANGED,
+       /* v3 (05/11): the USER patterns (as SCENE), SONG */
+       LKC_PAT, LKC_SONG };
 
 /* the sound's parameters, in this order (STATE): the engine's eight, then what a USER scene keeps (ALT_SP) */
 static const uint8_t LK_IDS[] = {P_E0, P_E1, P_E2, P_E3, P_E4, P_E5, P_E6, P_E7, P_ATK, P_DEC, P_SUS, P_REL,
@@ -516,6 +518,94 @@ static void lk_vshadow(void)
     lk.play_sig = 0;
 }
 
+/* SCENE / PAT (t 0 scenes, 1 patterns): op 0 the USER slots used; 1 slot [c0 c1 c2]: store here (as SAVE held; with
+ * a NAME: that one, else the one it had); 2 slot: load; 3: the slots used and their NAMEs (v3). Reply op, slot, rc (1 ok,
+ * 0 empty / protected, 2 the flash failed), then for op 0 one used byte per slot, for op 3 used + 3 characters (0: no
+ * NAME) per slot */
+static void lk_user(uint32_t t, uint32_t cmd, const uint8_t *a, uint32_t na)
+{
+    int rc = 0;
+    uint32_t k, c;
+    if (na < 1u || a[0] > 3u || ((a[0] == 1u || a[0] == 2u) && (na < 2u || a[1] >= ALT_NUSER)) ||
+        (a[0] == 1u && na != 2u && na != 5u) || (a[0] == 2u && na != 2u))
+        return;
+    if (a[0] == 1u) {
+        if (na == 5u) {                              /* its NAME (the page's), in ALT_NM_CH's characters */
+            for (k = 0; k < 3u; k++)
+                alt_nm_new[k] = ALT_NM_CH[alt_nm_idx((char)a[2u + k])];
+            if (alt_nm_new[0] == ' ' && alt_nm_new[1] == ' ' && alt_nm_new[2] == ' ')
+                alt_nm_new[0] = 0;
+            alt_nm_set = 1;
+        }
+        rc = alt_row_save(t, 1u + ALT_NFACT + a[1]);
+        alt_nm_set = 0;
+    } else if (a[0] == 2u)
+        rc = alt_row_load(t, 1u + ALT_NFACT + a[1]);
+    lk_begin(cmd);
+    lk_b(a[0]);
+    lk_b(na > 1u ? a[1] : 0u);
+    lk_b(rc < 0 ? 2u : (uint32_t)rc);
+    if (a[0] == 0u || a[0] == 3u)
+        for (k = 0; k < ALT_NUSER; k++) {
+            uint32_t u = t ? alt_used_p[k] : alt_used_s[k];
+            const char *nm = t ? alt_nm_p[k] : alt_nm_s[k];
+            lk_b(u ? 1u : 0u);
+            if (a[0] == 3u)
+                for (c = 0; c < 3u; c++)
+                    lk_b(u && nm[0] ? (uint32_t)(uint8_t)nm[c] : 0u);
+        }
+    lk_send();
+    if (a[0] == 2u && rc > 0)
+        for (c = 0; c < AS_NCIRC; c++)
+            lk_shadow(c);                            /* (the page re-reads STATE after a load) */
+}
+
+/* SONG (v3, alter_ui.c alt_sg_*): op 0 the state; 1 slot: store what plays there (as SAVE held + A B C); 2 slot: it plays
+ * from the next bar (as its key); 3 n, n links (slot | bars' code << 2): the chain (stored); 4 on: the chain on / off
+ * (as ARP). Reply op, rc (1 done, 0 refused, 2 the flash failed), then the state: the full slots (bits), the slot
+ * playing + 1, the one asked for + 1, the chain on, its link playing, that link's bars left, n, the n links */
+static void lk_song(const uint8_t *a, uint32_t na)
+{
+    uint32_t rc = 1, k;
+    if (na < 1u || a[0] > 4u || ((a[0] == 1u || a[0] == 2u) && (na != 2u || a[1] >= SG_NSLOT)) ||
+        (a[0] == 3u && (na < 2u || a[1] > SG_MAXL || na != 2u + a[1])) || (a[0] == 4u && na != 2u))
+        return;
+    if (a[0] == 1u)
+        rc = alt_sg_store(a[1]) ? 1u : 2u;
+    else if (a[0] == 2u) {
+        if (sg_slot[a[1]].used)
+            alt_sg_ask(a[1]);
+        else
+            rc = 0;
+    } else if (a[0] == 3u) {
+        for (k = 0; k < SG_MAXL; k++)
+            asg.chain[k] = k < a[1] ? (uint8_t)((a[2u + k] & 3u) % SG_NSLOT | (a[2u + k] & 12u)) : 0u;
+        asg.n = a[1];
+        if (asg.row >= asg.n)
+            asg.row = 0;
+        alt_sg_push();
+        alt_sg_chain_save();
+    } else if (a[0] == 4u) {
+        if (a[1] && !asg.n)
+            rc = 0;
+        else
+            alt_sg_on(a[1] != 0);
+    }
+    lk_begin(LKC_SONG);
+    lk_b(a[0]);
+    lk_b(rc);
+    lk_b((uint32_t)sg_slot[0].used | (uint32_t)sg_slot[1].used << 1 | (uint32_t)sg_slot[2].used << 2);
+    lk_b(sg_play);
+    lk_b(asg.q);
+    lk_b(sg_on);
+    lk_b(sg_link);
+    lk_b(sg_left);
+    lk_b(asg.n);
+    for (k = 0; k < asg.n; k++)
+        lk_b(asg.chain[k]);
+    lk_send();
+}
+
 static void lk_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0 and F7 */
 {
     const uint8_t *a = f + 4;
@@ -590,29 +680,15 @@ static void lk_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         alt_load_sound(a[0], a[1]);
         lk_state(a[0]);
         return;
-    case LKC_SCENE: {                                 /* op 0: the USER slots used; 1 slot: store here (as SAVE held);
-                                                      * 2 slot: load. Reply op, slot, rc (1 ok, 0 empty / protected,
-                                                      * 2 the flash failed), then for op 0 one used byte per slot */
-        int rc = 0;
-        if (na < 1u || a[0] > 2u || (a[0] && (na != 2u || a[1] >= ALT_NUSER)))
-            return;
-        if (a[0] == 1u)
-            rc = alt_row_save(0, 1u + ALT_NFACT + a[1]);
-        else if (a[0] == 2u)
-            rc = alt_row_load(0, 1u + ALT_NFACT + a[1]);
-        lk_begin(LKC_SCENE);
-        lk_b(a[0]);
-        lk_b(na > 1u ? a[1] : 0u);
-        lk_b(rc < 0 ? 2u : (uint32_t)rc);
-        if (a[0] == 0u)
-            for (k = 0; k < ALT_NUSER; k++)
-                lk_b(alt_used_s[k] ? 1u : 0u);
-        lk_send();
-        if (a[0] == 2u && rc > 0)
-            for (c = 0; c < AS_NCIRC; c++)
-                lk_shadow(c);                        /* (the page re-reads STATE after a load) */
+    case LKC_SCENE:                                   /* the USER scenes (lk_user) */
+        lk_user(0u, LKC_SCENE, a, na);
         return;
-    }
+    case LKC_PAT:                                     /* the USER patterns (v3, 05/11): as SCENE */
+        lk_user(1u, LKC_PAT, a, na);
+        return;
+    case LKC_SONG:                                    /* SONG (v3, 05/11): lk_song */
+        lk_song(a, na);
+        return;
     case LKC_WATCH:                                   /* on 0/1 */
         if (na != 1u)
             return;

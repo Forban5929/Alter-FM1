@@ -205,6 +205,34 @@ dialog input { width: 100%; background: var(--bg); border: 1px solid var(--rim);
 .dlgBtns { display: flex; gap: 10px; justify-content: flex-end; }
 @media (max-width: 900px) { .strips, .cols { grid-template-columns: 1fr; } .top { grid-template-columns: 1fr; } .link { justify-content: flex-start; } }
 [hidden] { display: none !important; }
+a.btn { text-decoration: none; display: inline-flex; align-items: center; }
+input.nm { width: 5.2em; background: var(--bg); border: 1px solid var(--rim); padding: 5px 8px; font: 13px var(--mono);
+  text-transform: uppercase; letter-spacing: .12em; }
+input.nm:hover, input.nm:focus { border-color: var(--gold); }
+/* ---- SONG (05/11): the three slots, the chain ---- */
+.song { display: grid; gap: 12px; padding: 12px 0; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.6fr); align-items: start; }
+.song .slot { --c: var(--gold); text-align: center; padding: 34px 12px 14px; }
+.song .slot:nth-child(1) { --c: var(--c1); } .song .slot:nth-child(2) { --c: var(--c2); } .song .slot:nth-child(3) { --c: var(--c3); }
+.song .big { font: 700 64px/1 var(--serif); color: var(--grey); margin: 4px 0 6px; }
+.song .slot.full .big { color: var(--c); }
+.song .slot.on { box-shadow: inset 0 0 0 3px var(--bg), inset 0 0 0 4px var(--c), 0 0 18px color-mix(in srgb, var(--c) 45%, transparent); }
+.song .slot.on .big { color: var(--c); text-shadow: 0 0 14px color-mix(in srgb, var(--c) 60%, transparent); }
+.song .slot.asked .big { animation: blink .5s steps(2) infinite; }
+@keyframes blink { 50% { opacity: .25; } }
+.song .st { font: 13px var(--mono); color: var(--dim); min-height: 20px; letter-spacing: .06em; }
+.song .slot .btns { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+.song .chain { padding: 34px 14px 14px; }
+.song .links { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0 12px; min-height: 64px; }
+.song .lk { display: grid; gap: 4px; justify-items: center; border: 1px solid var(--rim); padding: 6px 8px; background: var(--bg); position: relative; }
+.song .lk.now { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+.song .lk select { padding: 2px 4px; font: 13px var(--mono); }
+.song .lk .x { position: absolute; top: -9px; right: -9px; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--rim);
+  background: var(--bg); cursor: pointer; font-size: 12px; line-height: 16px; padding: 0; }
+.song .arrow { color: var(--dim); font-family: var(--serif); }
+.song .crow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.song .crow output { margin-left: auto; font: 13px var(--mono); color: var(--dim); }
+.song .help { color: var(--dim); font-size: 13px; margin: 10px 0 0; }
+@media (max-width: 1100px) { .song { grid-template-columns: repeat(3, minmax(0, 1fr)); } .song .chain { grid-column: 1 / -1; } }
 @media (prefers-reduced-motion: no-preference) { .p output { transition: color .4s; } }
 
 /* ---- the page as one screen (04/11, Romain: "the page holds without scrolling"): header, circles, tabs, then the
@@ -310,6 +338,7 @@ legend { font-size: 13px; }
     <button class="btn" id="bDemo">Try without a synth</button>
     <label class="zoom" title="The page's size: AUTO fits it to the window"><span>SIZE</span><select id="zoom" aria-label="Page size">
       <option value="auto">AUTO</option><option value="0.8">S</option><option value="0.9">M</option><option value="1">L</option><option value="1.15">XL</option></select></label>
+    <a class="btn" id="bGuide" href="guide.html" target="_blank" rel="noopener" title="Every key and button of ALTER, drawn">Controls guide</a>
     <button class="btn theme" id="bTheme" aria-label="Switch to the DAY theme"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3a9 9 0 1 0 6 15.5A8 8 0 0 1 15 3z" fill="currentColor"/></svg><span>NIGHT</span></button>
   </div>
 </header>
@@ -322,9 +351,16 @@ legend { font-size: 13px; }
       <input type="file" id="file" accept=".json,application/json" hidden>
     </div>
     <div class="grp"><span>Scene in the FM-1</span>
-      <select id="slot" aria-label="USER slot"></select>
+      <select id="slot" aria-label="USER scene slot"></select>
+      <input class="nm" id="slotName" maxlength="3" placeholder="NAME" aria-label="The scene's NAME (3 characters)" title="Its NAME: 3 characters, A-Z 0-9 -">
       <button class="btn" id="bStore">Store here</button>
       <button class="btn" id="bLoad">Load</button>
+    </div>
+    <div class="grp" id="patGrp" hidden><span>Pattern</span>
+      <select id="pslot" aria-label="USER pattern slot"></select>
+      <input class="nm" id="pslotName" maxlength="3" placeholder="NAME" aria-label="The pattern's NAME (3 characters)" title="Its NAME: 3 characters, A-Z 0-9 -">
+      <button class="btn" id="bPStore">Store here</button>
+      <button class="btn" id="bPLoad">Load</button>
     </div>
   </section>
   <p class="msg" id="msg" role="status"></p>
@@ -338,6 +374,7 @@ legend { font-size: 13px; }
     <button class="tab" role="tab" data-tab="rythmes" aria-selected="false"><i>X</i>Rhythms</button>
     <button class="tab" role="tab" data-tab="modulation" aria-selected="false"><i>XVIII</i>Modulation</button>
     <button class="tab" role="tab" data-tab="effets" aria-selected="false"><i>XVI</i>Effects</button>
+    <button class="tab" role="tab" data-tab="song" aria-selected="false" id="tabSong" hidden><i>XX</i>Song</button>
   </div>
   <div class="globals">
     <button class="act" id="aChaos" title="A new draw on the three circles (as DICE 1 + 2 + 3)">CHAOS</button>
@@ -353,7 +390,9 @@ legend { font-size: 13px; }
   <ol>
     <li>What you move here changes the sound on the synth at once, and what you turn on the synth moves here.</li>
     <li>“Save” keeps the three sounds in a file on your computer, to share with anyone.</li>
-    <li>“Store here” keeps the whole scene (sounds, rhythms, effects) in a USER slot of the synth, like holding SAVE.</li>
+    <li>“Store here” keeps the whole scene (sounds, rhythms, effects) in a USER slot of the synth, with its 3-character
+      NAME, like holding SAVE. The patterns (the rhythms only) have their own slots.</li>
+    <li>SONG: the three slots A B C and the chain that loops them, as on the synth's keys (the “Song” tab).</li>
   </ol>
   <p>No synth at hand? Open the <a href="../" target="_blank" rel="noopener">web emulator</a> in another tab, switch it on, then click
     “Connect the emulator”: you hear it, and its screen and this page follow each other. “Try without a synth” runs ALTER
@@ -362,11 +401,12 @@ legend { font-size: 13px; }
 <section class="panel" data-panel="sons" role="tabpanel" hidden><main class="strips" id="strips"></main></section>
 <section class="panel" data-panel="rythmes" role="tabpanel" hidden><div class="shared" data-shared></div><div class="strips" data-cols></div></section>
 <section class="panel" data-panel="modulation" role="tabpanel" hidden><div class="strips" data-cols></div><div class="shared wide" data-wide></div></section>
+<section class="panel" data-panel="song" role="tabpanel" hidden><div class="song" id="song"></div></section>
 <section class="panel" data-panel="effets" role="tabpanel" hidden><div class="shared fxrow" data-shared></div><div class="shared wide" data-wide></div></section>
 <footer class="foot">
   <p>ALTER is free firmware (GPL-3.0) built on Felucca. Code: <a href="https://github.com/Forban5929/Alter-FM1" target="_blank" rel="noopener">github.com/Forban5929/Alter-FM1</a>.
     Fonts: TeX Gyre Pagella (GUST Font License), Inter Tight and IBM Plex Mono (SIL Open Font License).
-    <a href="../" target="_blank" rel="noopener">Web emulator</a> · <a href="../install/" target="_blank" rel="noopener">Install ALTER on the FM-1</a> · <span id="ver"></span></p>
+    <a href="guide.html" target="_blank" rel="noopener">Controls guide</a> · <a href="../" target="_blank" rel="noopener">Web emulator</a> · <a href="../install/" target="_blank" rel="noopener">Install ALTER on the FM-1</a> · <span id="ver"></span></p>
 </footer>
 </div>
 </div>
@@ -378,7 +418,7 @@ legend { font-size: 13px; }
 </dialog>
 
 <script type="module">
-import { req, parse, splitFrames, CMD, F_ENUM, show, PATCH_KIND, ACT, SHARED } from "./link.js";
+import { req, parse, splitFrames, CMD, F_ENUM, show, PATCH_KIND, ACT, SHARED, NAME_CH } from "./link.js";
 
 const $ = (id) => document.getElementById(id);
 const MODES = ["FREE", "PERC", "STAB", "DRONE"];
@@ -514,7 +554,13 @@ async function start(p, kind, label) {
     port.close(); port = null;
     return say("The synth stopped answering while its settings were read. Unplug and replug the USB, then try again.", true);
   }
+  v3 = false;
   await listSlots();
+  $("patGrp").hidden = !v3 || !(await listUser("pat"));   // (v3, 05/11: patterns, NAMEs, SONG)
+  $("tabSong").hidden = !v3;
+  if (v3) { buildSong(); try { song = await ask(req.song()); drawSong(); } catch {} }
+  clearInterval(songT);
+  songT = setInterval(pollSong, 500);
   try { await startV2(); } catch { v2 = null; }      // (an older firmware: no v2, the sounds only)
   showV2();
   await ask(req.watch(1));
@@ -530,6 +576,7 @@ async function start(p, kind, label) {
 }
 function lost() {
   if (!port) return;
+  clearInterval(songT);
   say("The link with the synth is lost. Check the cable, then click “Connect the FM-1”.", true);
   $("state").dataset.on = ""; $("stateTxt").textContent = "Not connected";
   port.close(); port = null; clearInterval(pinger);
@@ -701,38 +748,147 @@ async function openPatch(file) {
   } catch { soft(); }
 }
 
-/* ---------- USER scenes in the FM-1 ---------- */
+/* ---------- USER scenes and patterns in the FM-1 (05/11: 32 each, banks A B, a 3-character NAME; v3 firmware) ---------- */
 const slotName = (i) => `${"AB"[i >> 4] ?? "?"}${String((i % 16) + 1).padStart(2, "0")}`;   // (bank A B of 16, as on the synth)
-async function listSlots() {
-  const r = await ask(req.sceneList());
-  slots = r.used;
-  const s = $("slot"), keep = s.value;
+const USER = {
+  scene: { cmd: CMD.SCENE, sel: "slot", nm: "slotName", word: "scene", used: [], names: [] },
+  pat: { cmd: CMD.PAT, sel: "pslot", nm: "pslotName", word: "pattern", used: [], names: [] },
+};
+let v3 = false;                                      // (the firmware knows NAMEs, patterns, SONG)
+const cleanName = (t) => [...String(t).toUpperCase()].filter((ch) => NAME_CH.includes(ch)).join("").slice(0, 3);
+async function listUser(kind) {
+  const U = USER[kind];
+  let r = null;
+  try { r = await ask(req.userList(U.cmd), 1500, 1); } catch { r = null; }   // (op 3: a v3 firmware; an older one says nothing)
+  if (!r && kind === "scene") { r = await ask(req.sceneList()); r.names = []; }
+  if (!r) return false;
+  if (kind === "scene" && r.op === 3) v3 = true;
+  U.used = r.used; U.names = r.names || [];
+  const s = $(U.sel), keep = s.value;
   s.innerHTML = "";
-  slots.forEach((u, i) => s.append(new Option(`USER ${slotName(i)}${u ? " (used)" : " (empty)"}`, i)));
+  U.used.forEach((u, i) => s.append(new Option(`${slotName(i)}${u && U.names[i] ? "  " + U.names[i] : ""}${u ? "" : " (empty)"}`, i)));
   if (keep) s.value = keep;
+  showName(kind);
+  return true;
 }
-async function store() {
-  const i = +$("slot").value;
-  if (slots[i] && !(await dialogAsk(`USER ${slotName(i)} already holds a scene. Replace it with the one playing?`, { ok: "Replace" }))) return;
+const listSlots = () => listUser("scene");
+function showName(kind) {
+  const U = USER[kind], i = +$(U.sel).value;
+  $(U.nm).value = U.names[i] || "";
+  $(U.nm).hidden = !v3;
+}
+async function storeUser(kind) {
+  const U = USER[kind], i = +$(U.sel).value, nm = cleanName($(U.nm).value), W = U.word;
+  if (U.used[i] && !(await dialogAsk(`USER ${slotName(i)} already holds a ${W}. Replace it with the one playing?`, { ok: "Replace" }))) return;
   say(`Storing in USER ${slotName(i)}…`);
   try {
-    const r = await ask(req.sceneSave(i), 5000);
-    if (r.rc === 1) say(`Scene stored in USER ${slotName(i)}. It also loads from SAVE on the synth.`);
+    const r = await ask(v3 ? req.userSave(U.cmd, i, nm.padEnd(3, " ")) : req.sceneSave(i), 5000);
+    if (r.rc === 1) say(`${W[0].toUpperCase() + W.slice(1)} stored in USER ${slotName(i)}${nm ? ` as “${nm}”` : ""}. It also loads from SAVE on the synth.`);
     else say(r.rc === 2 ? "The synth's memory refused the write. Nothing was stored." : "This slot is protected.", true);
-    await listSlots();
+    await listUser(kind);
   } catch { soft(); }
 }
-async function load() {
-  const i = +$("slot").value;
-  if (!slots[i]) return say(`USER ${slotName(i)} is empty: nothing to load.`, true);
-  if (!(await dialogAsk(`Load USER ${slotName(i)}? The scene playing will be replaced: store it first if you want to keep it.`, { ok: "Load" }))) return;
+async function loadUser(kind) {
+  const U = USER[kind], i = +$(U.sel).value, W = U.word;
+  if (!U.used[i]) return say(`USER ${slotName(i)} is empty: nothing to load.`, true);
+  const what = kind === "pat" ? "The rhythms playing will be replaced (the sounds stay)" : "The scene playing will be replaced: store it first if you want to keep it";
+  if (!(await dialogAsk(`Load ${W} ${slotName(i)}${U.names[i] ? " “" + U.names[i] + "”" : ""}? ${what}.`, { ok: "Load" }))) return;
   try {
-    const r = await ask(req.sceneLoad(i), 3000);
+    const r = await ask(kind === "pat" ? req.userLoad(U.cmd, i) : req.sceneLoad(i), 3000);
     if (r.rc !== 1) return say(`USER ${slotName(i)} could not be loaded.`, true);
     for (let c = 0; c < 3; c++) await refresh(c);
     if (v2) await readV2();
-    say(`USER ${slotName(i)} loaded.`);
+    say(`${W[0].toUpperCase() + W.slice(1)} ${slotName(i)} loaded.`);
   } catch { soft(); }
+}
+const store = () => storeUser("scene"), load = () => loadUser("scene");
+
+/* ---------- SONG (05/11, v3): the slots A B C (the rhythms only) and the chain that loops them ---------- */
+const BARS = [1, 2, 4, 8];
+let song = null, songT = 0, songEdit = false;
+function buildSong() {
+  const root = $("song");
+  root.innerHTML = "";
+  for (let k = 0; k < 3; k++) {
+    const d = document.createElement("section");
+    d.className = "slot tc";
+    d.innerHTML = `<div class="rib"><span>Slot ${"ABC"[k]}</span></div><span class="num">${["I", "II", "III"][k]}</span>
+      <div class="big">${"ABC"[k]}</div><div class="st" data-st></div>
+      <div class="btns"><button class="act" data-play>Play</button><button class="act" data-store title="As SAVE held + ${"CDE"[k]} high on the synth">Store what plays</button></div>`;
+    d.querySelector("[data-play]").onclick = () => songAsk(req.songPlay(k), `Slot ${"ABC"[k]}: from the next bar.`);
+    d.querySelector("[data-store]").onclick = async () => {
+      if (song?.full[k] && !(await dialogAsk(`Slot ${"ABC"[k]} is full. Replace it with the rhythms playing?`, { ok: "Replace" }))) return;
+      songAsk(req.songStore(k), `The rhythms playing are in slot ${"ABC"[k]}.`);
+    };
+    root.append(d);
+  }
+  const c = document.createElement("section");
+  c.className = "chain tc";
+  c.innerHTML = `<div class="rib"><span>The chain</span></div><span class="num">XX</span>
+    <div class="links" data-links></div>
+    <div class="crow"><button class="act" data-add>+ Link</button><button class="act" data-on>Chain ON</button><output data-pos></output></div>
+    <p class="help">On the synth: hold A and tap C then B for A › C › B (4 bars a link). Here: each link's slot and length, the
+      chain loops. ARP tapped = ON / OFF, from its first link at the next bar.</p>`;
+  c.querySelector("[data-add]").onclick = () => {
+    const ch = song?.chain ? song.chain.slice() : [];
+    if (ch.length >= 16) return say("A chain holds 16 links at most.", true);
+    ch.push(ch.length ? { ...ch[ch.length - 1] } : { slot: 0, bars: 2 });
+    sendChain(ch);
+  };
+  c.querySelector("[data-on]").onclick = () => {
+    if (!song?.chain.length) return say("No chain yet: add a link first.", true);
+    songAsk(req.songOn(!song.on), song.on ? "Chain off: the slot playing goes on." : "Chain on: from its first link at the next bar.");
+  };
+  root.append(c);
+}
+function drawSong() {
+  if (!song) return;
+  const root = $("song");
+  root.querySelectorAll(".slot").forEach((d, k) => {
+    const full = !!song.full[k], on = full && song.play === k + 1, asked = song.asked === k + 1;
+    d.classList.toggle("full", full); d.classList.toggle("on", on); d.classList.toggle("asked", asked);
+    d.querySelector("[data-st]").textContent = !full ? "EMPTY" : on ? "PLAYING" : asked ? "NEXT BAR" : "STORED";
+    d.querySelector("[data-play]").disabled = !full;
+  });
+  const L = root.querySelector("[data-links]");
+  if (!songEdit) {
+    L.innerHTML = "";
+    if (!song.chain.length) L.innerHTML = `<span class="st">NO CHAIN</span>`;
+    song.chain.forEach((l, i) => {
+      if (i) L.insertAdjacentHTML("beforeend", `<span class="arrow">›</span>`);
+      const b = document.createElement("div");
+      b.className = "lk";
+      b.innerHTML = `<select data-s aria-label="Link ${i + 1}: its slot">${"ABC".split("").map((x, k) => `<option value="${k}">${x}</option>`).join("")}</select>
+        <select data-b aria-label="Link ${i + 1}: its bars">${BARS.map((n, k) => `<option value="${k}">${n} BAR${n > 1 ? "S" : ""}</option>`).join("")}</select>
+        <button class="x" data-x aria-label="Remove link ${i + 1}">✕</button>`;
+      b.querySelector("[data-s]").value = l.slot; b.querySelector("[data-b]").value = l.bars;
+      const edit = () => { const ch = song.chain.map((x) => ({ ...x })); ch[i] = { slot: +b.querySelector("[data-s]").value, bars: +b.querySelector("[data-b]").value }; sendChain(ch); };
+      b.querySelector("[data-s]").onchange = edit; b.querySelector("[data-b]").onchange = edit;
+      b.querySelector("[data-s]").onfocus = b.querySelector("[data-b]").onfocus = () => (songEdit = true);
+      b.querySelector("[data-s]").onblur = b.querySelector("[data-b]").onblur = () => (songEdit = false);
+      b.querySelector("[data-x]").onclick = () => sendChain(song.chain.filter((_, k) => k !== i));
+      L.append(b);
+    });
+  }
+  L.querySelectorAll(".lk").forEach((b, i) => b.classList.toggle("now", !!song.on && i === song.link));
+  const on = root.querySelector("[data-on]");
+  on.textContent = song.on ? "Chain OFF" : "Chain ON";
+  on.classList.toggle("on", !!song.on);
+  const cur = song.chain[song.link];
+  root.querySelector("[data-pos]").textContent = song.on && cur
+    ? `LINK ${song.link + 1}/${song.chain.length} · BAR ${BARS[cur.bars] - Math.max(1, song.left) + 1}/${BARS[cur.bars]}` : song.on ? "" : "OFF";
+}
+async function songAsk(bytes, ok) {
+  try {
+    const r = await ask(bytes, 3000);
+    song = r; drawSong();
+    if (r.rc === 1) say(ok); else say(r.rc === 2 ? "The synth's memory refused the write." : "Refused: that slot is empty.", true);
+  } catch { soft(); }
+}
+const sendChain = (ch) => { songEdit = false; songAsk(req.songChain(ch), ch.length ? `Chain: ${ch.map((l) => "ABC"[l.slot]).join(" › ")}.` : "No chain."); };
+async function pollSong() {
+  if (!port || !v3 || currentTab !== "song" || document.hidden) return;
+  try { song = await ask(req.song(), 1500, 1); drawSong(); } catch {}
 }
 
 /* ---------- v2: every other setting (rhythms, lanes, LFO, matrix, shared effects), the circles as they play ---------- */
@@ -1289,6 +1445,7 @@ function drawPlay(m) {
 /* ---------- the tabs ---------- */
 function selectTab(t) {
   currentTab = t;
+  if (t === "song") pollSong();
   document.querySelectorAll(".tab").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === t)));
   document.querySelectorAll("[data-panel]").forEach((p) => (p.hidden = p.dataset.panel !== t));
   refit();
@@ -1371,6 +1528,11 @@ $("bOpen").onclick = () => $("file").click();
 $("file").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) openPatch(f); };
 $("bStore").onclick = store;
 $("bLoad").onclick = load;
+$("bPStore").onclick = () => storeUser("pat");
+$("bPLoad").onclick = () => loadUser("pat");
+$("slot").onchange = () => showName("scene");
+$("pslot").onchange = () => showName("pat");
+for (const id of ["slotName", "pslotName"]) $(id).oninput = (e) => { const v = cleanName(e.target.value); if (v !== e.target.value) e.target.value = v; };
 window.__alter = { circ, get info() { return info; }, get v2() { return v2; } };   // (for the tests)
 if (new URLSearchParams(location.search).has("demo")) connectDemo();   // (editor/?demo: straight to the simulator)
 </script>

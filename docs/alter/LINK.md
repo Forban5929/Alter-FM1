@@ -11,12 +11,12 @@ File de sortie USB : `SXQ` 256 (felucca.c, avant usb.c).
 
 | cmd | requête | réponse |
 | --- | --- | --- |
-| 1 INFO | — | version, 3 cercles, 4 moteurs (noms), N sons (moteur, nom), 16 places USER, 22 ids de réglage |
+| 1 INFO | — | version (« ALTER LINK 3 »), 3 cercles, 7 moteurs (noms), N sons (moteur, nom), 32 places USER, 22 ids de réglage |
 | 2 STATE | cercle | cercle, moteur, son, mode d'enveloppe, 22 valeurs (BASE : sans le décalage du dé) |
 | 3 DESC | cercle, id [, moteur] | fmt, min, max, déf, nom, unité, noms d'une liste |
 | 4 SET | cercle, id, valeur | cercle, id, valeur gardée (dans ses limites ; le dé reste par-dessus) |
 | 5 SOUND | cercle, son | STATE (comme PRESETS sur la machine) |
-| 6 SCENE | 0 liste / 1 place = ranger (= SAVE tenu) / 2 place = charger | op, place, rc (1 ok, 0 vide/protégée, 2 flash), [16 octets occupée] |
+| 6 SCENE | 0 liste / 1 place [3 car.] = ranger (= SAVE tenu ; avec NOM) / 2 place = charger / 3 liste + NOMS (v3) | op, place, rc (1 ok, 0 vide/protégée, 2 flash), [32 × occupée] ou [32 × (occupée, 3 car. ; 0 = sans nom)] |
 | 7 WATCH | 0/1 | 0/1 ; tant qu'on parle dans les 3 s : poussées 8 CHANGED (cercle, id, valeur) et 9 RELOAD (cercle) |
 | 10 PING | — | 0 (la page en envoie 1/s) |
 
@@ -52,3 +52,16 @@ noms des groupes et réglages du firmware aussi (LK_GRP, LK_V : RHYTHM SCALE ENV
 Look = l'écran de la FM-1 (cartes de tarot, thèmes NIGHT / DAY gardés dans le navigateur, polices dans `web/alter/fonts/`) ; points des pas
 = taille selon la vélocité (couloir VELO tourné par FORCE ROT, sans le dé). Firmware sans v2 : VLIST sans réponse →
 la page garde les sons et dit d'installer la dernière version. Patch fichier : toujours les 3 sons seulement.
+
+## v3 (05/11) — NOMS, patterns USER, SONG
+
+| cmd | requête | réponse |
+| --- | --- | --- |
+| 21 PAT | comme SCENE (0 liste, 1 place [3 car.], 2 place, 3 liste + NOMS) | comme SCENE ; un pattern = les rythmes seuls |
+| 22 SONG | 0 état / 1 slot = ranger (= SAVE tenu + A B C) / 2 slot = jouer à la mesure suivante / 3 n, n maillons (slot \| mesures << 2 ; 0..3 = 1 2 4 8) = la chaîne (gardée) / 4 on = chaîne ON/OFF (= ARP) | op, rc (1, 0 refusé, 2 flash), slots pleins (bits), slot joué + 1, demandé + 1, chaîne on, maillon joué, mesures restantes, n, n maillons |
+
+NOM = 3 caractères de « espace A-Z 0-9 - » (le reste = espace ; 3 espaces = pas de nom). La page : liste « A05  KCK », champ NAME à côté
+de Store here (scènes et patterns), onglet SONG (3 cartes A B C : PLAY / STORE WHAT PLAYS ; la chaîne : maillons slot + mesures,
++ LINK, ✕, CHAIN ON/OFF, « LINK 1/2 · BAR 2/4 »), interrogé toutes les 500 ms quand l'onglet est ouvert. Firmware sans v3 : SCENE 3
+sans réponse → la page reste en v2 (pas de NAME, ni patterns, ni SONG). **Guide des touches** : `web/alter/guide.html` (publié
+`/editor/guide.html`, lien « Controls guide ») — dessins du panneau et des touches, gestes ; à tenir à jour avec CLAUDE.md.

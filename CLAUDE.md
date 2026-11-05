@@ -30,7 +30,7 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
 - RAM ~16 Ko libres (gros tampons → `__attribute__((section(".pool")))`, ~19 Ko libres ; CI exige 4 Ko RAM / 8 Ko pool). Sous-modules `firmware/engines`, `firmware/bsp` : ne pas toucher.
 - Mise à jour USB : garder l'identité `FM-1_900` et « FM-1 » dans le nom USB. GPL-3.0 : garder la page ABOUT.
 - 2e cœur : une partie ne touche que l'état de SON cercle (tout état par cercle, jamais partagé dans mix_part).
-- Page compagnon (`web/alter/`, protocole `docs/alter/LINK.md`) : **jamais prompt/alert/confirm**.
+- Page compagnon (`web/alter/`, protocole `docs/alter/LINK.md`, v3) + guide (`web/alter/guide.html`) : **jamais prompt/alert/confirm**.
 
 ## Carte du code ALTER (`firmware/src/alter_*`)
 `alter_seq.c` séquenceur pur (cercles, dés `as_draw_w`, couloirs) · `alter_play.c` côté audio (fills, modes, file UI→audio) ·
@@ -115,5 +115,8 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   A16, pattern A03 retrouvés) ; banque B testée après extinction. **Pas sur la FM-1** : 1er démarrage = migration.
 - [x] 05/11 (jam) : TURING au hasard borné, sélection du cercle plus visible + contours, NOMS des USER. Testé émulateur
   (+ compatibilité avec les scènes de la version 32+32 sans noms), **pas sur la FM-1**.
+- [x] 05/11 : **page compagnon v3** (LINK 3) : NOMS des scènes, patterns USER, onglet SONG ; **guide des touches**
+  `web/alter/guide.html` (`/editor/guide.html`, dessins dans le style du synthé, en anglais comme la page). Testé : link_test +
+  navigateur (mode démo). **Garder le guide à jour** à chaque changement de commande.
 - [ ] MIDI LEARN ALTER (BCR32).
 - [ ] Étape 4 : tranche de console par piste (disto → EQ → comp → delay → reverb).
