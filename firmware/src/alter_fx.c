@@ -402,14 +402,15 @@ static struct {
  * (apart from LEVEL: the player's VOLUME stays his) brings it to AC_TARGET and stays there. The measure: the RMS of
  * windows of 1024 samples (23 ms) while it sounds, the mean of the four loudest (so a sparse rhythm counts as a dense
  * one); done once it has 8 such windows and 4 s (a slow swell, a slow LFO), or after 8 s (silent: unchanged). Too loud on the way
- * (1.5 x the target): down at once. Within -18 .. +18 dB. Once frozen, a guard: a window over 2 x the target
+ * (1.5 x the target): down at once; and (05/11) from its first sounding window the gain already heads for what the
+ * windows so far say. Within -18 .. +24 dB. Once frozen, a guard: a window over 2 x the target
  * (+6 dB, a slow swell the measure missed) lowers it, never up again. A sound chosen by hand (PRESETS, a scene) gets 0 dB again.
  * The UI asks through alt_cal_cmd (a gain Q15, 0 = measure) and alt_cal_cnt (it writes both, the audio side reads) */
 #define AC_WIN 1024u
 #define AC_TARGET 5600                    /* the RMS aimed at: the median of the 23 sounds, in the mix's units (tools/alter/alter_level.mjs) */
 #define AC_UNITY 32768
 #define AC_MIN 4129                       /* -18 dB */
-#define AC_MAX 260200                     /* +18 dB */
+#define AC_MAX 519300                     /* +24 dB (05/11: +18 left the quietest draws far under) */
 static volatile int32_t alt_cal_cmd[AM_NC];
 static volatile uint32_t alt_cal_cnt[AM_NC];
 static uint32_t ac_seen[AM_NC];
@@ -485,6 +486,14 @@ static void ac_measure(uint32_t c, const int32_t *b, int32_t lvl, uint32_t n)   
                 ac[c].top[k] = r;
             if ((int64_t)r * ac_g[c] > (int64_t)AC_TARGET * 3 / 2 * AC_UNITY)   /* too loud: down now */
                 ac_tg[c] = ac_g[c] = clamp((int32_t)((int64_t)AC_TARGET * AC_UNITY / r), AC_MIN, AC_MAX);
+            else {                        /* (Romain 05/11: level from the first hits, not after 4..8 s) the gain
+                                           * heads at once for what the windows so far say (the measure ends as before) */
+                uint32_t m = ac[c].nw < 4u ? ac[c].nw : 4u, L = 0;
+                for (k = 0; k < m; k++)
+                    L += ac[c].top[k];
+                L /= m;
+                ac_tg[c] = clamp((int32_t)((int64_t)AC_TARGET * AC_UNITY / (L | 1u)), AC_MIN, AC_MAX);
+            }
             if (ac[c].nw >= 8u && ac[c].t >= FS * 4u)
                 ac[c].t = FS * 8u;        /* enough: done at the next poll */
         }

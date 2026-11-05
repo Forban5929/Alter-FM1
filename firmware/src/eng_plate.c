@@ -180,7 +180,7 @@ static void plate_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
         y = y * 3 + (int32_t)(((int64_t)x * hit) >> 7);   /* the ring (x 6: a strike's energy spreads over 6000 samples) and a part of the strike (HIT) */
         S->dc = y - S->dcx + (int32_t)(((int64_t)S->dc * 32604) >> 15);   /* the DC blocker (~8 Hz) */
         S->dcx = y;
-        out[i] += voice_amp(soft_knee(clamp(S->dc, -(1 << 20), 1 << 20), 22000), m, i);
+        out[i] += voice_amp(soft_knee(clamp(S->dc * 13 / 16, -(1 << 20), 1 << 20), 22000), m, i);   /* (-1.8 dB, Romain 05/11) */
     }
     S->env = env;
     S->rng = rng;

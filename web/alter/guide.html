@@ -129,7 +129,8 @@ td:first-child { white-space: nowrap; }
 
 <section class="tc" id="song"><div class="t"><span>Song</span></div><span class="num">XX</span>
   <p class="lead">Three slots A B C keep the <b>rhythms</b> of the three circles (steps, lanes, ranges, the dice's draw, REC's
-    moves, the mutes). The sounds stay as they are. A slot always starts at the next bar, every circle from its step 1.</p>
+    moves, the mutes). The sounds stay as they are. A slot always starts at the next bar, every circle from its step 1.
+    What you change while a slot plays stays in it (until power-off; SAVE held + its key keeps it for good).</p>
   <div id="mvSong"></div>
   <h2>On the screen</h2>
   <svg id="svgCorner" class="pan" style="max-width:640px" viewBox="0 0 520 150" role="img" aria-label="The A B C corner of the circles' view"></svg>
@@ -272,7 +273,7 @@ function songMoves() {
   gesture(h, { keys: { 19: "press" }, btns: [["SAVE", "hold"]], only: S, title: "SAVE held + A: store in A", words: "The rhythms playing go into slot A (and stay after power-off). The SAVE page it opened closes." });
   gesture(h, { keys: { 19: "hold", 23: "press", 21: "press" }, only: S, title: "A held + C, then B: a chain", words: "A › C › B, 4 bars each, looping from the next bar. Let A go: it goes on." });
   gesture(h, { keys: {}, btns: [["", ""], ["", ""], ["ARP", "tap"]], only: S, title: "ARP tapped: chain on / off", words: "On: from its first link at the next bar. Off: the slot playing goes on alone." });
-  gesture(h, { keys: {}, btns: [["", ""], ["", ""], ["ARP", "hold"]], only: S, title: "ARP held: the SONG page", words: "SELECT a link · KNOB 1 its slot · KNOB 2 its bars (1 2 4 8) · KNOB 3 how many links (16 at most)." });
+  gesture(h, { keys: {}, btns: [["", ""], ["", ""], ["ARP", "hold"]], only: S, title: "ARP held: the SONG page", words: "SELECT a link · KNOB 1 its slot · KNOB 2 its bars (1 2 4 8) · KNOB 3 how many links (16 at most) · KNOB 4 the chain on / off." });
   // the corner of the circles' view
   const s = document.getElementById("svgCorner");
   el("rect", { x: 0, y: 0, width: 240, height: 150, rx: 10, class: "scr" }, s);
@@ -281,10 +282,10 @@ function songMoves() {
     else if (kind === "full") el("rect", { x, y, width: 26, height: 28, fill: "none", stroke: col, "stroke-width": 2 }, s);
     tx(s, x + 13, y + 20, l, "kl", kind === "on" ? "#0e0c10" : kind === "empty" ? "#64563c" : col).setAttribute("style", "font-size:15px");
   };
-  box(16, 24, "A", "on", "#c9504a"); box(46, 24, "B", "empty", "#64563c"); box(76, 24, "C", "full", "#d4ae52");
-  tx(s, 16, 76, "A > C", "kn").setAttribute("style", "font-size:15px;text-anchor:start;fill:#ebd9a8");
-  tx(s, 150, 120, "(top left of the screen)", "sub");
-  const leg = [["filled", "the slot playing"], ["framed", "a stored slot"], ["grey", "an empty slot"], ["blinking", "starts at the next bar"], ["A > C", "the chain looping (the link playing in colour)"]];
+  box(200, 14, "A", "full", "#c9504a"); box(200, 46, "C", "on", "#d4ae52"); box(200, 78, "B", "full", "#4fa88c");
+  el("circle", { cx: 100, cy: 75, r: 52, fill: "none", stroke: "#6f5a30" }, s);
+  tx(s, 100, 140, "(right edge of the screen)", "sub");
+  const leg = [["only", "while a chain of 2 links or more loops"], ["top to bottom", "its links, in order"], ["filled", "the link playing, in its slot's colour"], ["framed", "the others"]];
   leg.forEach(([a, b], i) => { tx(s, 262, 26 + i * 24, a, "lbl").setAttribute("style", "text-anchor:start"); tx(s, 340, 26 + i * 24, b, "sub").setAttribute("style", "text-anchor:start"); });
 }
 

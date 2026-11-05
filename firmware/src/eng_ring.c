@@ -65,7 +65,7 @@ static void ring_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     seg = sp >> 8 > 6 ? 6 : sp >> 8;
     frac = sp - seg * 256;
     ob = RING_SPR[seg] + (RING_SPR[seg + 1] - RING_SPR[seg]) * frac / 256 + v->s[2];
-    radio = p[P_E4];
+    radio = p[P_E4] * 70 / 127;                  /* RDIO: the knob at full = 70 (Romain 05/11: more was too much) */
     rng = v->s[5];
     if (radio) {                                 /* the carrier wanders (a random walk, slow) */
         v->s[4] += (int32_t)((noise32(&rng) >> 22) & 1023) - 512;
@@ -137,7 +137,7 @@ static void ring_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
 
 /* {MATR SPRD RES DIRT RADIO TONE BLND SWEP} (ALTER's sounds: alter_sounds.c ALT_PRE) */
 static const preset_t RING_PRESETS[] = {
-    {"RADIO", {40, 50, 60, 30, 60, 70, 20, 0}, {0, 100, 110, 60}, 0, 0, FX(0, 0, 10, 20)},
+    {"RADIO", {40, 50, 60, 30, 13, 70, 20, 0}, {0, 100, 110, 60}, 0, 0, FX(0, 0, 10, 20)},
 };
 
 static const engine_t ENG_RING = {

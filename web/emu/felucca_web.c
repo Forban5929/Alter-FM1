@@ -402,6 +402,11 @@ EXPORT uint32_t web_midi(uint32_t status, uint32_t d1, uint32_t d2)
     return (uint32_t)midi_enqueue((status >> 4) | status << 8 | (d1 & 127u) << 16 | (d2 & 127u) << 24, 1);
 }
 
+/* (tests, 05/11) a realtime byte (F8 clock, FA start, FB continue, FC stop) as the TRS (src 2) or USB (1) gives it; and
+ * the CLOCK setting (0 INT, 1 USB, 2 TRS); the global step ALTER's circles are on */
+EXPORT uint32_t web_midi_rt(uint32_t b, uint32_t src) { return (uint32_t)midi_enqueue(0xFu | (b & 255u) << 8, src); }
+EXPORT void web_clock_mode(uint32_t m) { song.g[G_CLOCK] = (int16_t)(m % 3u); }
+EXPORT uint32_t web_gstep(void) { return alt_gstep; }
 /* the LEDs: bit b = the button labelled b lit (bit 14: PLAY's green), keys bit k; the dim glow and the breath alike */
 static uint32_t led_on(const uint8_t *l, uint32_t id)
 {

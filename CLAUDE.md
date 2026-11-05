@@ -88,15 +88,24 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
 - **SONG (05/11, simplifié le jour même ; `alter_song.c` côté audio + `alt_sg_*` dans alter_ui.c)** : C D E hautes = slots
   A B C (les 3 blanches avant les 2 dernières à droite). Tapée = ce slot joue à la mesure suivante (la chaîne s'arrête) ·
   **SAVE tenu + A/B/C** = sauver ce qui joue (la page SAVE se referme) · **tenir A + taper C puis B** = chaîne A>C>B
-  (4 mesures par maillon), elle boucle · coin haut-gauche de l'écran PLAY : A B C (plein = joue, cadre = plein, gris =
-  vide, clignote = mesure suivante) + la chaîne · ARP tapé = chaîne ON/OFF (repart du maillon 1) ·
-  ARP tenu = page SONG (SELECT maillon, KNOB 1 slot, 2 mesures 1/2/4/8, 3 nb de maillons, max 16). Slot = rythmes seuls
+  (4 mesures par maillon), elle boucle · bord droit de l'écran PLAY, vertical, **seulement si une chaîne de ≥ 2 tourne** :
+  ses maillons (celui qui joue plein) · ARP tapé = chaîne ON/OFF (repart du maillon 1) · ARP tenu = page SONG (liste
+  seule + 4 knobs nommés en bas : SLOT, BARS 1/2/4/8, LINKS max 16, CHAIN ON/OFF ; SELECT = maillon).
+  **Modifs live gardées dans le slot qui joue** (`sg_keep` avant chaque changement, RAM ; `sg_detach` quand une scène /
+  un pattern / NEW SCENE est chargé : plus de slot). Slot = rythmes seuls
   (as_circ_t entier : pas, couloirs, PLAGES, tirage du dé, pas ajoutés, fills REC, mouvements REC, mutes ; PAS les sons ni
   root/chord/dose). Changement à la barre (alt_gstep % 16), chaque cercle repart du pas 1. Flash : objets 10-12 (slots) + 13
   (chaîne) à 0xA0000 (ex-samples Felucca, inutilisés). Indépendant des scènes. Chaîne OFF à l'allumage. Test : `web_alter_song`.
 - **TURING tiré au hasard** (CHAOS TOTAL, « Au hasard ») : `alt_tur_draw` = LEN 5-16 (max de 2 tirages : plus près de 16),
   DENS 40-60 %, LOCK 50-75 %, RANGE 1-4.
 - Écran PLAY : cercle choisi = anneau épais + halo de sa couleur ; lignes des triggers et points avec un contour couleur du fond.
+- **LEDs du clavier (vue PLAY, 05/11)** : toute touche avec une fonction = pleine ; un état actif (mute, cercle, slot,
+  TURING figé) bat : creux au niveau `nm` (mid ~12 %) 170 ms par seconde ; touche momentanée appuyée = creux ; sans
+  fonction = éteinte (les LEDs n'ont pas de niveau entre ~60 % et plein, bsp).
+- **Niveleur (alter_fx.c ac_*)** : après un tirage, le gain suit dès la 1re fenêtre sonore (plus 4-8 s), plage −18..+24 dB.
+  Écart des 3 cercles dans les 2 premières s après CHAOS : 15,5 → 8,1 dB (moyenne, émulateur).
+- **Horloge externe** : seq.c convertit seq_n (unités MIDI_CLOCK_GRID) en échantillons pour ALTER (`midi_alt_grid`) — avant,
+  les cercles tournaient à GRID/beat × le tempo. Test emu : `web_midi_rt`, `web_clock_mode`, `web_gstep`.
 - **KICK** : knob 4 = RUMBLE (réverb sombre distordue, ducker par le kick, suit le niveau du kick ; 70 par défaut ; sauvé dans
   la scène, octet `rsv`). Seuls les sons avec `rumble` ≠ 0 dans ALT_PRE l'ont.
 
@@ -126,9 +135,14 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
 - [x] 05/11 : **page compagnon v3** (LINK 3) : NOMS des scènes, patterns USER, onglet SONG ; **guide des touches**
   `web/alter/guide.html` (`/editor/guide.html`, dessins dans le style du synthé, en anglais comme la page). Testé : link_test +
   navigateur (mode démo). **Garder le guide à jour** à chaque changement de commande.
-- [ ] **PROCHAINE SESSION** : d'abord le retour de Romain sur la FM-1 (tout le 05/11 est testé en émulateur seulement :
-  SONG, 32+32 + migration, NOMS, halo/contours, PLATE/CORDE/RING, page v3, guide, CONSOLE). Puis au choix de Romain.
 - [x] **Étape 4 (05/11) : CONSOLE par cercle** (voir MIXER). Testé émulateur : 6 tests fx (LOW/HIGH KILL, MID +12, COMP
   crest ↓ sans saut de volume, retour à plat, scène USER), 2 cœurs (scène « + CONSOLE »), syntaxe FM-1. CPU navigateur :
-  pas de différence mesurable. **Pas sur la FM-1, pas écouté** : Romain juge (surtout le COMP).
+  pas de différence mesurable. **Pas sur la FM-1, pas écouté** : Romain juge (surtout le COMP). (Faite dans une autre
+  session en parallèle ; fusionnée.)
+- [x] 05/11 soir, retours tests FM-1 (1-19 OK sauf) : SONG modifs live gardées, page SONG 4 knobs, chaîne à droite,
+  LEDs, niveleur plus rapide, **bug horloge externe corrigé**, PLATE −1,8 dB, CORDE MATR plafonné (×90/127) + BROKEN refait
+  (−37,7 dBFS), RING RDIO ×70/127 + RADIO RDIO 13 + SIREN refait. Pas écoutés.
+- [ ] **PROCHAINE SESSION** : réponses de Romain sur le TRS (CLOCK=TRS ? Ableton « Sync » ? adaptateur A/B ? notes OK ?),
+  tests 20-27 de sa checklist (RING, sons refaits, page compagnon branchée, UPDATE), réécoute des changements, et la
+  CONSOLE (jamais essayée sur la FM-1).
 - [ ] Idées : CONSOLE dans la page compagnon + LINK ; EQ/COMP dans REC ; MIDI LEARN ALTER (BCR32).

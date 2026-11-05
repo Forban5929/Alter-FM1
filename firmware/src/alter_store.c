@@ -347,6 +347,7 @@ static void alt_load_scene(uint32_t n)
 {
     const alt_scene_t *sc = &ALT_SCENE[n % ALT_NSCENE];
     uint32_t c;
+    sg_detach = 1;                               /* (SONG: the circles are no slot's now) */
     afl_off();                                   /* (the factory scenes: no MASTER FILTER, no added steps) */
     for (c = 0; c < AS_NCIRC; c++) {
         acs_reset(c);                            /* (nor a CONSOLE: flat) */
@@ -409,6 +410,7 @@ static void alt_new_scene(void)
     static const char *const PRE[AS_NCIRC] = {"THUD", "TOMS", "HAT"};
     static const uint8_t ROOT[AS_NCIRC] = {36, 48, 60};
     uint32_t c;
+    sg_detach = 1;                               /* (SONG: the circles are no slot's now) */
     afl_off();
     for (c = 0; c < AS_NCIRC; c++) {
         acs_reset(c);                            /* (the CONSOLE flat) */
@@ -440,24 +442,9 @@ static void alt_new_scene(void)
 /* the UI's side (alter_store.c): circle c's moves packed in b (alter_rec.c AR_PACK), and back */
 static void ar_export(uint32_t c, uint8_t *b)
 {
-    uint32_t i, j, n = 0;
     fm1_irq_off();
-    for (i = 0; i < AR_NID; i++)
-        b[i] = ar_init ? ar_id[c][i] : AR_NONE;
-    for (i = 0; ar_init && i < ar_n[c] && i < AR_MAX; i++) {
-        const ar_ev_t *e = &ar_ev[c][i];
-        for (j = 0; j < AR_NID && ar_id[c][j] != e->id; j++)
-            ;
-        if (j >= AR_NID || e->step >= AS_MAXLEN)
-            continue;
-        b[AR_NID + 1u + 2u * n] = (uint8_t)(j << 5 | e->step);
-        b[AR_NID + 2u + 2u * n] = (uint8_t)(int8_t)clamp(e->v, -128, 127);
-        n++;
-    }
+    ar_pack(c, b);                               /* (alter_rec.c) */
     fm1_irq_on();
-    b[AR_NID] = (uint8_t)n;
-    for (i = n; i < AR_MAX; i++)
-        b[AR_NID + 1u + 2u * i] = b[AR_NID + 2u + 2u * i] = 0;
 }
 static void ar_import(uint32_t c, const uint8_t *b)   /* b = 0: none (the moves cleared) */
 {
@@ -875,6 +862,7 @@ static const char *alt_row_about(uint32_t t, uint32_t i)
 static int alt_row_load(uint32_t t, uint32_t i)
 {
     uint32_t c, u = i > ALT_NFACT ? (i - 1u - ALT_NFACT) % ALT_NUSER : 0u;
+    sg_detach = 1;                               /* (SONG: the circles are no slot's now, alter_song.c sg_keep) */
     if (t == 0) {
         if (i == 0)
             alt_new_scene();

@@ -851,5 +851,36 @@ if (wavPath) {                                                  // 4 bars from a
   const mean = got.reduce((a, g) => a + g.len, 0) / (got.length || 1);
   check(`TURING drawn: ${got.length} of 90 circles, all in range: ${ok}, mean LEN ${mean.toFixed(1)} (> 10.5: nearer 16)`, got.length >= 15 && ok && mean > 10.5);
 }
+// an external clock (Romain 05/11: TRS from Ableton): START, 24 clocks a quarter, STOP; the circles on its tempo
+{
+  ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
+  const res = [];
+  ex.web_alter(1, 0, 0); render(FS);
+  for (const bpm of [100, 140]) {
+    ex.web_clock_mode(2); render(FS / 2);
+    ex.web_midi_rt(0xFA, 2); render(16);
+    const per = FS * 60 / bpm / 24; let acc = 0; const g0 = 0;   // (START: the circles from step 0)
+    for (let i = 0; i < 24 * 16; i++) { ex.web_midi_rt(0xF8, 2); acc += per; const r = Math.round(acc); render(r); acc -= r; }
+    const g1 = ex.web_gstep(); ex.web_midi_rt(0xFC, 2); render(FS); res.push([bpm, g1 - g0, ex.web_gstep() - g1]);
+    ex.web_clock_mode(0); render(FS / 4);
+  }
+  check(`TRS clock: 16 beats = ${res.map((r) => `${r[1]} steps at ${r[0]} BPM`).join(", ")} (64 ± 1), STOP holds (${res.map((r) => r[2]).join(", ")})`,
+        res.every((r) => Math.abs(r[1] - 64) <= 1 && r[2] === 0));
+}
+// SONG (05/11): an edit made while a slot plays stays in that slot (A > B > A: A comes back as changed)
+{
+  const W = (op, a, b) => ex.web_alter(op, a, b), bits = (m) => { let n = 0; for (m >>>= 0; m; m >>>= 1) n += m & 1; return n; };
+  ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
+  W(1, 0, 0); render(FS);
+  if (peak(render(FS, true)) < 0.002) play();
+  W(4, BPM, 0); W(18, 1, 0);
+  W(15, 0, 16 | 4 << 8); render(BAR); ex.web_buttons(1 << 7); render(1300); tap(19); ex.web_buttons(0); render(1300);
+  W(15, 0, 16 | 7 << 8); render(BAR); ex.web_buttons(1 << 7); render(1300); tap(21); ex.web_buttons(0); render(1300);
+  tap(19); render(BAR * 2);                                     // A plays
+  W(15, 0, 16 | 11 << 8); render(BAR);                          // an edit while A plays: 11 hits
+  tap(21); render(BAR * 2); const inB = bits(ex.web_alter_pat(0));
+  tap(19); render(BAR * 2); const backA = bits(ex.web_alter_pat(0));
+  check(`SONG: an edit while A plays stays in A (B ${inB} hits, A again ${backA}: 11)`, inB === 7 && backA === 11);
+}
 console.log(fails ? `alter: ${fails} FAIL` : "alter: all ok");
 process.exit(fails ? 1 : 0);

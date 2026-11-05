@@ -36,6 +36,25 @@ static volatile uint8_t sg_left;                 /* .. its bars left, this one c
 static volatile uint32_t sg_done_cnt;            /* a slot taken */
 
 static uint32_t sg_bars(uint32_t code) { return 1u << (code & 3u); }
+static volatile uint8_t sg_detach;               /* UI: a scene / a pattern loaded: the circles are no slot's now */
+
+/* before another slot (or the same again) is taken: what the circles play now kept in the slot playing (Romain 05/11:
+ * an edit made while A plays stays in A, as on the Rytm; in RAM: SAVE held + A keeps it on the flash) */
+static void sg_keep(void)
+{
+    uint32_t c, k;
+    sg_slot_t *S;
+    if (!sg_play || sg_play > SG_NSLOT || !sg_slot[sg_play - 1u].used)
+        return;
+    S = &sg_slot[sg_play - 1u];
+    for (c = 0; c < AS_NCIRC; c++) {
+        S->c[c] = alt_seq.c[c];
+        S->c[c].cfg = alt_seq.c[c].next;         /* (the settings as asked: a change waiting for the cycle's end too) */
+        for (k = 0; k < AS_MAXLEN; k++)
+            S->fxr[c][k] = alt_fxr[c][k];
+        ar_pack(c, S->rec[c]);
+    }
+}
 
 /* slot s on the three circles, from this step (each from its step 1); the SCALE page's root, chord, dose kept */
 static void sg_take(uint32_t s)
@@ -65,6 +84,10 @@ static void sg_take(uint32_t s)
 static void sg_bar(void)
 {
     uint32_t want = 0, n = sg_n;
+    if (sg_detach) {                             /* (a scene loaded: nothing to keep in a slot) */
+        sg_detach = 0;
+        sg_play = 0;
+    }
     if (alt_gstep % 16u)
         return;
     if (sg_restart || sg_start_cnt != sg_start_seen) {   /* the chain from its first link: as if its last ended */
@@ -87,6 +110,7 @@ static void sg_bar(void)
         want = sg_ask;
     }
     if (want && want <= SG_NSLOT && sg_slot[want - 1u].used) {
+        sg_keep();
         sg_take(want - 1u);
         sg_play = (uint8_t)want;
         sg_done_cnt++;

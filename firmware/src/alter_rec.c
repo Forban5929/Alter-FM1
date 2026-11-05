@@ -57,6 +57,27 @@ static void ar_clear(uint32_t c)
     }
 }
 
+/* circle c's moves into a pack (AR_PACK bytes; the audio side as it is, the UI's irq off: alter_store.c ar_export) */
+static void ar_pack(uint32_t c, uint8_t *b)
+{
+    uint32_t i, j, n = 0;
+    for (i = 0; i < AR_NID; i++)
+        b[i] = ar_init ? ar_id[c][i] : AR_NONE;
+    for (i = 0; ar_init && i < ar_n[c] && i < AR_MAX; i++) {
+        const ar_ev_t *e = &ar_ev[c][i];
+        for (j = 0; j < AR_NID && ar_id[c][j] != e->id; j++)
+            ;
+        if (j >= AR_NID || e->step >= AS_MAXLEN)
+            continue;
+        b[AR_NID + 1u + 2u * n] = (uint8_t)(j << 5 | e->step);
+        b[AR_NID + 2u + 2u * n] = (uint8_t)(int8_t)clamp(e->v, -128, 127);
+        n++;
+    }
+    b[AR_NID] = (uint8_t)n;
+    for (i = n; i < AR_MAX; i++)
+        b[AR_NID + 1u + 2u * i] = b[AR_NID + 2u + 2u * i] = 0;
+}
+
 /* the audio side: circle c's moves from a pack at once (SONG, alter_song.c: a slot that starts on this step) */
 static void ar_unpack(uint32_t c, const uint8_t *b)
 {

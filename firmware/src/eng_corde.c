@@ -6,8 +6,8 @@
  *   exciter -> line (one period) -> allpasses (SPRD) -> low-pass (TONE) -> BUZZ -> DIRT -> x RES -> back ; out: the line
  *
  * The four main knobs follow the new engines' grammar (MATTER, SPREAD, RESONANCE, DIRT):
- * MATR  what sets it going: 0..42 a soft pluck (a dark burst), 43..84 a hard pick (bright, a click), 85..127 a bow
- *       or a scrape that lasts while the note is held (friction: crackle -> rough noise)
+ * MATR  what sets it going (the knob scaled to 0..90, 05/11): 0..42 a soft pluck (a dark burst), 43..84 a hard pick
+ *       (bright, a click), 85..90 a bow or a scrape that lasts while the note is held (friction: a crackle)
  * SPRD  the stiffness: 0 a plain string (in tune, harmonic) .. a piano wire .. a cable, a spring (inharmonic, clanging)
  * RES   how long it rings: a muted thud (0.1 s) -> a wire that sustains (15 s), the same at every pitch
  * DIRT  a drive in the loop: 0 clean; up the middle it thickens and distorts; past ~90 a fold too: it screams,
@@ -65,7 +65,8 @@ static void corde_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
     int32_t mt, c, apd, g, dirt, drv, fold, tone, rate, buzz, env, rng, xa, xg;
     if (!S)
         return;
-    mt = clamp((p[P_E0] << 8) + m->shape - (64 << 8), 0, 127 << 8) >> 8;   /* MATR (+ SHP) */
+    mt = (clamp((p[P_E0] << 8) + m->shape - (64 << 8), 0, 127 << 8) >> 8) * 90 / 127;   /* MATR (+ SHP); the knob at
+                                                  * full = 90 (Romain 05/11: over it the friction was only noise) */
     /* SPRD: the allpasses' coefficient (Q15, 0 .. -0.75: stiffer, more sharp overtones) and their delay at low
      * frequencies, (1 - c) / (1 + c) samples each, taken off the line (Q16) */
     c = -(p[P_E1] * p[P_E1] * 24576 / 16129);
@@ -172,7 +173,7 @@ static void corde_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
 
 /* {MATR SPRD RES DIRT TONE DCAY BUZZ BEND} (ALTER's sounds: alter_sounds.c ALT_PRE) */
 static const preset_t CORDE_PRESETS[] = {
-    {"WIRE", {60, 40, 110, 20, 90, 10, 0, 0}, {0, 100, 127, 80}, 0, 0, FX(0, 0, 10, 20)},
+    {"WIRE", {85, 40, 110, 20, 90, 10, 0, 0}, {0, 100, 127, 80}, 0, 0, FX(0, 0, 10, 20)},
 };
 
 static const engine_t ENG_CORDE = {

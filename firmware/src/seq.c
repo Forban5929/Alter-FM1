@@ -241,12 +241,14 @@ enum { AM_OFF, AM_UP, AM_DN, AM_UPDN, AM_RND, AM_ORD, AM_REPEAT, AM_DNUP, AM_UP8
 #define MIDI_CLOCK_GRID 24000u                    /* fixed units per quarter, divisible by every DIV denominator */
 typedef struct { uint32_t remainder; } midi_grid_t;
 static midi_grid_t midi_seq_grid[NTRK], midi_arp_grid[NPART], midi_click_grid, midi_beat_grid;
+static midi_grid_t midi_alt_grid;                /* (ALTER's circles: alter_tick counts samples, 05/11) */
 static __attribute__((noinline)) void midi_grid_reset(void)
 {
     memset(midi_seq_grid, 0, sizeof midi_seq_grid);
     memset(midi_arp_grid, 0, sizeof midi_arp_grid);
     memset(&midi_click_grid, 0, sizeof midi_click_grid);
     memset(&midi_beat_grid, 0, sizeof midi_beat_grid);
+    memset(&midi_alt_grid, 0, sizeof midi_alt_grid);
 }
 static __attribute__((noinline)) uint32_t midi_grid_advance(midi_grid_t *g, uint32_t n, uint32_t div)
 {
@@ -1455,7 +1457,9 @@ static void events_block(uint32_t n)
         cin_record();
     if (song.playing)
         click_tick(seq_n);
-    alter_tick(seq_n);
+    /* ALTER counts samples (a sixteenth = div_samples(2)); an external clock advances seq_n in MIDI_CLOCK_GRID units
+     * per quarter: converted, or the circles ran at GRID / beat x the tempo (Romain 05/11: TRS clock "rien") */
+    alter_tick(clock_mode ? midi_grid_advance(&midi_alt_grid, seq_n, 0u) : seq_n);
     for (i = 0; i < NPART; i++) {
         uint32_t arp_n = clock_mode ? midi_grid_advance(&midi_arp_grid[i], seq_n, (uint32_t)trk[i].p[P_ARATE]) : n;
         arp_step(&trk[i], arp_n, clock_mode && song.playing ? arp_n : n);
