@@ -784,7 +784,7 @@ static int tracks_test(const char *dir)
         }
     printf("tracks: one part, 8 notes held (host -O2, ns per sample, heaviest preset per engine):");
     for (e = 0; e < NENGINES; e++)
-        if (e == ENGI_ALTER || e == ENGI_PHYS || e == ENGI_NOISE || e == ENGI_RESO)
+        if (e == ENGI_ALTER || e == ENGI_PHYS || e == ENGI_NOISE || e == ENGI_RESO || e == ENGI_PLATE || e == ENGI_CORDE || e == ENGI_RING)
             printf(" %s %s %.1f%s", ENGINES[e]->name, ENGINES[e]->presets[heavy[e]].name, best_e[e],
                    e + 1u < NENGINES ? "," : "\n");
     printf("tracks: %s\n", fail ? "FAILED" : "all checks ok");

@@ -103,10 +103,14 @@ static uint32_t alt_rat_at[AS_NCIRC], alt_rat_dt[AS_NCIRC];   /* repeats: the ne
 static const uint8_t ALT_TIMB_ALTER[AS_NTIMB] = {P_E0, P_E1, P_E2, P_E4};   /* MRPH SPRD HARM AMNT */
 static const uint8_t ALT_TIMB_PHYS[AS_NTIMB] = {P_E1, P_E2, P_E3, P_E4};    /* STRC BRIT DAMP POS */
 static const uint8_t ALT_TIMB_NOISE[AS_NTIMB] = {P_E1, P_E2, P_E3, P_E5};   /* COLR FREQ RES DENS */
+static const uint8_t ALT_TIMB_PLATE[AS_NTIMB] = {P_E0, P_E1, P_E4, P_E6};   /* MATR SPRD TONE BEND (05/11) */
+static const uint8_t ALT_TIMB_CORDE[AS_NTIMB] = {P_E0, P_E1, P_E4, P_E6};   /* MATR SPRD TONE BUZZ */
+static const uint8_t ALT_TIMB_RING[AS_NTIMB] = {P_E0, P_E1, P_E5, P_E6};    /* MATR SPRD TONE BLND */
 static const uint8_t *alt_timb_p(const track_t *t)
 {
     const engine_t *e = ENGINES[eng_idx(t->eng_req)];
-    return e == &ENG_ALTER ? ALT_TIMB_ALTER : e == &ENG_PHYS ? ALT_TIMB_PHYS : e == &ENG_NOISE ? ALT_TIMB_NOISE : 0;
+    return e == &ENG_ALTER ? ALT_TIMB_ALTER : e == &ENG_PHYS ? ALT_TIMB_PHYS : e == &ENG_NOISE ? ALT_TIMB_NOISE :
+           e == &ENG_PLATE ? ALT_TIMB_PLATE : e == &ENG_CORDE ? ALT_TIMB_CORDE : e == &ENG_RING ? ALT_TIMB_RING : 0;
 }
 
 /* a parameter's slot in alt_applied, -1 = none */

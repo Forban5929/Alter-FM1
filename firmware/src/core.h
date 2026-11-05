@@ -21,11 +21,14 @@
                                             * second core (mod.c, voice.c SPREAD, eng_formant.c): one each with two cores,
                                             * one for all with one, as up to 1.6 */
 #define C1_PI(t) ((uint32_t)((t) - trk) % C1_NP)   /* a part's copy */
-#define NENGINES 15u             /* engine numbers 0..14: ALTER 14, PHYS 9, NOISE 11, the others empty (engines.c) */
+#define NENGINES 15u             /* engine numbers 0..14: ALTER 14, PHYS 9, NOISE 11, RESO 10, PLATE 12, CORDE 2, RING 3, the others empty (engines.c) */
 #define ENGI_ALTER 14u
 #define ENGI_NOISE 11u
-#define NENG_SHOWN 4u            /* the engines one can pick: ALTER PHYS NOISE RESO (engines.c ENGINE_ORDER) */
+#define NENG_SHOWN 7u            /* the engines one can pick: ALTER PHYS NOISE RESO PLATE CORDE RING (engines.c ENGINE_ORDER) */
 #define ENGI_RESO 10u            /* RESO: four struck resonant filters (eng_reso.c) */
+#define ENGI_PLATE 12u           /* PLATE: a struck metal sheet, four lines (eng_plate.c, 05/11) */
+#define ENGI_CORDE 2u            /* CORDE: a mistreated metal string (eng_corde.c, 05/11) */
+#define ENGI_RING 3u             /* RING: a ring modulator, a valve, a radio (eng_ring.c, 05/11) */
 #define UP_SLOTS 32u             /* user presets (upreset.c) */
 
 /* ------------------------------------------------------- parameters --- */

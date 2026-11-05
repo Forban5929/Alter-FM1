@@ -37,7 +37,12 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
 `alter_ui.c` vue PLAY + menus · `alter_fxpage.c` page FX · `alter_fx.c` presets FX, MASTER, **RUMBLE** · `alter_filter.c`
 MASTER FILTER · `alter_lfo.c` · `alter_sounds.c` sons + scènes d'usine · `alter_store.c` SAVE/LOAD · `alter_persist.c`
 réglages flash · `eng_alter.c` / `eng_reso.c` moteurs · `fx.c` (Felucca + nos ajouts : delay MODE/TAPE, glisse des envois,
-gain MASTER + vumètre). Moteurs : ALTER 14, PHYS 9, NOISE 11, RESO 10 (NENGINES 15 fixe).
+gain MASTER + vumètre). Moteurs (numéro, index ALT_ENGS) : ALTER 14 (0), PHYS 9 (1), NOISE 11 (2), RESO 10 (3),
+**PLATE 12 (4)** `eng_plate.c`, **CORDE 2 (5)** `eng_corde.c`, **RING 3 (6)** `eng_ring.c` (05/11 ; NENGINES 15 fixe, libres :
+0 1 4-8 13 — 13 = alt_sys en flash, ne pas prendre ; 1 = DIGITAL réservé). Knobs 1-4 des nouveaux = MATR SPRD RES DIRT ;
+RES en durée (même longueur à toutes les notes, via reso_exp2). Ajouter un moteur : core.h ENGI_x + NENG_SHOWN, engines.c
+(include + table + ENGINE_ORDER), alter_ui.c ALT_ENGS/ALT_NENG, alter_play.c ALT_TIMB_x, sons à la FIN d'ALT_PRE,
+alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.c (liste).
 
 ## Les commandes (état au 05/11)
 - Clavier : F G A = MUTE 1 2 3 · C D E = DÉ 1 2 3 · G A = SHIFT −/+ · B = LOCK (TURING) · noires F# G# A# = CERCLE 1 2 3
@@ -81,7 +86,9 @@ gain MASTER + vumètre). Moteurs : ALTER 14, PHYS 9, NOISE 11, RESO 10 (NENGINES
   seq.c (transport + horloge MIDI des cercles), menu_items.c (lignes de SYSTEM), ui_menu.c menu_document (ABOUT), main.c
   (UPDATE, calibration), midi_*.c. MIDI LEARN de Felucca parti avec ses pages (un learn ALTER = à faire pour le BCR32).
   Méthode : `/tmp`-script « prune » = compiler avec -Wunused-function et supprimer ce qui est signalé, en boucle, HORS sous-modules.
-- [ ] Nouveaux moteurs (PLATE, CORDE, RING) — en cours (05/11).
+- [x] 05/11 : PLATE, CORDE, RING + 4 sons chacun (GONG TOLE SCRAPE CRACKED · WIRE SITAR BOW BROKEN · RADIO RING BELL LASER
+  SIREN, niveaux ≈ −31 dBFS sauf BROKEN −36) ; SYSTEM RANDOM : 7 moteurs (défilent), nouveaux ON (alt_sys[7]). CPU navigateur ≈ ALTER/RESO.
+  **Réglés aux mesures, pas écoutés** : Romain juge.
 - [ ] **ÉTAPE SUIVANTE (notes de Romain 05/11) : MODE SONG** sur les touches blanches hautes libres, « comme le mode song de
   l'Analog Rytm » : la séquence actuelle mise en A, une autre sauvée en B, une autre en C ; 3 touches (avec un raccourci OCT− /
   OCT+) pour jouer A B C et les CHAÎNER dans l'ordre voulu (A C, C A B…), la chaîne bouclée. À clarifier avant de coder :

@@ -11,7 +11,7 @@ const FS = 44100, wasm = fs.readFileSync(wasmPath);
 const src = fs.readFileSync(new URL("../../firmware/src/alter_sounds.c", import.meta.url), "utf8");
 const sounds = [...src.matchAll(/^\s*\{"([A-Z ]+)", ([0-9]), \{/gm)].map((m) => ({ name: m[1], eng: +m[2] }));   // (a name may have a space: OPEN HAT)
 const scenes = [...src.matchAll(/^\s*\{"([A-Z]+)", "([^"]+)", (\d+),/gm)].map((m) => ({ name: m[1], about: m[2], bpm: +m[3] }));
-const ENG = ["ALTER", "PHYS", "NOISE", "RESO"];
+const ENG = ["ALTER", "PHYS", "NOISE", "RESO", "PLATE", "CORDE", "RING"];
 fs.mkdirSync(`${out}/wav`, { recursive: true });
 
 async function boot() {

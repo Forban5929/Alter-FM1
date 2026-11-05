@@ -25,6 +25,9 @@ static uint8_t eng_mem_owner[NPART];       /* engine index + 1 whose state is in
 #include "eng_phys.c"           /* PHYS: DaisySP physical models (phys_dsp.c, MIT) */
 #include "eng_alter.c"          /* ALTER: six struck oscillators (after the Basimilus Iteritas Alter) */
 #include "eng_reso.c"           /* RESO: four struck resonant filters (after a QMMF) */
+#include "eng_plate.c"          /* PLATE: a struck metal sheet (05/11) */
+#include "eng_corde.c"          /* CORDE: a mistreated metal string (05/11) */
+#include "eng_ring.c"           /* RING: a ring modulator, a valve, a radio (05/11) */
 #include "alter_legacy.c"       /* what the old Felucca pages still name of the engines taken out */
 
 /* ALTER plays three engines; the other numbers are kept empty (a silent engine nobody can pick), so the engine
@@ -47,11 +50,15 @@ static const engine_t ENG_GONE = {
 };
 
 static const engine_t *const ENGINES[NENGINES] = {
-    &ENG_GONE, &ENG_GONE, &ENG_GONE, &ENG_GONE, &ENG_GONE, &ENG_GONE, &ENG_GONE, &ENG_GONE, &ENG_GONE,
+    &ENG_GONE, &ENG_GONE,
+    &ENG_CORDE,                  /* 2 (ENGI_CORDE) */
+    &ENG_RING,                   /* 3 (ENGI_RING) */
+    &ENG_GONE, &ENG_GONE, &ENG_GONE, &ENG_GONE, &ENG_GONE,
     &ENG_PHYS,                   /* 9 (ENGI_PHYS) */
     &ENG_RESO,                   /* 10 (ENGI_RESO) */
     &ENG_NOISE,                  /* 11 (ENGI_NOISE) */
-    &ENG_GONE, &ENG_GONE,
+    &ENG_PLATE,                  /* 12 (ENGI_PLATE) */
+    &ENG_GONE,
     &ENG_ALTER,                  /* 14 (ENGI_ALTER) */
 };
 
@@ -80,7 +87,7 @@ static void eng_mem_claim(const track_t *t)
 /* the order the engines are shown in (PRESETS browsing and its ENG knob, the EDIT layer's keys, the editor's list):
  * engine indices, never DIGITAL's reserved 1 (with FELUCCA_FM4 it follows FM6). The indices stay as they are (the
  * stores and the protocol hold them); only this table orders them */
-static const uint8_t ENGINE_ORDER[NENG_SHOWN] = {ENGI_ALTER, ENGI_PHYS, ENGI_NOISE, ENGI_RESO};
+static const uint8_t ENGINE_ORDER[NENG_SHOWN] = {ENGI_ALTER, ENGI_PHYS, ENGI_NOISE, ENGI_RESO, ENGI_PLATE, ENGI_CORDE, ENGI_RING};
 
 static uint32_t eng_vis(uint32_t n) { return ENGINE_ORDER[n % NENG_SHOWN]; }
 

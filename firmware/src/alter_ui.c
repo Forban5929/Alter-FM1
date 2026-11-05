@@ -158,8 +158,9 @@ static void alt_say(const char *s)
 }
 
 /* the presets of the three engines in a row: the n-th as (engine, preset); the place of (engine, preset) */
-#define ALT_NENG 4u
-static const uint8_t ALT_ENGS[ALT_NENG] = {ENGI_ALTER, ENGI_PHYS, 11, ENGI_RESO};   /* 11: NOISE (engines.c ENGINES) */
+#define ALT_NENG 7u
+static const uint8_t ALT_ENGS[ALT_NENG] = {ENGI_ALTER, ENGI_PHYS, 11, ENGI_RESO, ENGI_PLATE, ENGI_CORDE, ENGI_RING};   /* 11:
+                                                  * NOISE (engines.c ENGINES); 4 5 6 PLATE CORDE RING (05/11) */
 /* circle c's added steps set (the UI's; alter_seq.c as_circ_t.add, TRIGGER + REC) (a scene loaded, REC held 1 s: cleared) */
 static void alt_add_set(uint32_t c, uint32_t m)
 {
@@ -746,8 +747,9 @@ static int16_t alt_crange(const param_desc_t *d, int32_t div)   /* anywhere in d
  * RESO reste choisissable à la main dans PRESETS) */
 /* SYSTEM (HOME held, 04/11): what the random may draw, kept in the settings (alt_sys, a byte row no engine uses:
  * favorites.factory[13], engine 13 retired): [0] ALT_SYS_OK once set, [1] the engines it may draw (bit = ALT_ENGS index;
- * default ALTER PHYS NOISE, RESO off as Romain asked 03/11), [2] the envelope modes CHAOS TOTAL may draw (bit = AM_*:
- * FREE PERC STAB), [3] CLOCK + 1, [4] MIDI IN + 1, [5] the MIXER's MASTER + 1, [6] TUNE's row value + 1 */
+ * default ALTER PHYS NOISE PLATE CORDE RING, RESO off as Romain asked 03/11), [2] the envelope modes CHAOS TOTAL may draw (bit = AM_*:
+ * FREE PERC STAB), [3] CLOCK + 1, [4] MIDI IN + 1, [5] the MIXER's MASTER + 1, [6] TUNE's row value + 1, [7] 1: PLATE
+ * CORDE RING (05/11) known */
 #define alt_sys (favorites.factory[13])
 #define ALT_SYS_OK 0xA7u
 static void alt_sys_init(void)
@@ -757,8 +759,13 @@ static void alt_sys_init(void)
         for (k = 0; k < 32u; k++)
             alt_sys[k] = 0;
         alt_sys[0] = ALT_SYS_OK;
-        alt_sys[1] = 7u;                         /* ALTER PHYS NOISE */
+        alt_sys[1] = 0x77u;                      /* ALTER PHYS NOISE, PLATE CORDE RING (RESO off) */
+        alt_sys[7] = 1u;
         alt_sys[2] = 7u;                         /* FREE PERC STAB */
+    }
+    if (alt_sys[7] != 1u) {                      /* (stored before PLATE CORDE RING, 05/11: they join the random) */
+        alt_sys[1] |= 0x70u;
+        alt_sys[7] = 1u;
     }
     if (alt_sys[3])
         song.g[G_CLOCK] = (int16_t)(alt_sys[3] - 1u);
@@ -772,7 +779,7 @@ static void alt_sys_init(void)
 static uint8_t alt_die_w[AS_NCIRC];               /* what each DICE key draws, from the OCT held at its press */
 static uint32_t alt_rand_pre(void)
 {
-    uint32_t pi = 0, n, ok = alt_sys[0] == ALT_SYS_OK && (alt_sys[1] & 15u) ? alt_sys[1] & 15u : 7u;
+    uint32_t pi = 0, n, ok = alt_sys[0] == ALT_SYS_OK && (alt_sys[1] & 127u) ? alt_sys[1] & 127u : 0x77u;
     for (n = 0; n < 200u; n++) {
         pi = alt_cr(ALT_NPRE);
         if ((ok >> (ALT_PRE[pi].eng % ALT_NENG)) & 1u)
@@ -2625,12 +2632,15 @@ static const uint8_t SYS_AROW[] = {MI_CLICK, MI_CLKLVL, MI_LOWCUT, MI_USB, MI_TU
 #endif
 };
 #define SYS_NAUD ((uint32_t)NELEM(SYS_AROW))
-static const char *const SYS_RROW[7] = {"ALTER", "PHYS", "NOISE", "RESO", "FREE", "PERC", "STAB"};
+#define SYS_NRE ALT_NENG                         /* (RANDOM: the engines' rows, then the three modes') */
+static const char *const SYS_RROW[ALT_NENG + 3u] = {"ALTER", "PHYS", "NOISE", "RESO", "PLATE", "CORDE", "RING",
+                                                    "FREE", "PERC", "STAB"};
+static uint8_t alt_sys_top;                      /* (the first row shown: RANDOM's ten scroll)  */
 static uint8_t alt_sys_tab;
 static int16_t alt_sys_scroll;                   /* (ABOUT: pixels scrolled) */
 static uint32_t alt_sys_rows(void)
 {
-    return alt_sys_tab == SYS_TMIDI ? SYS_NMIDI : alt_sys_tab == SYS_TAUD ? SYS_NAUD : alt_sys_tab == SYS_TRAND ? 7u : 0u;
+    return alt_sys_tab == SYS_TMIDI ? SYS_NMIDI : alt_sys_tab == SYS_TAUD ? SYS_NAUD : alt_sys_tab == SYS_TRAND ? SYS_NRE + 3u : 0u;
 }
 static const char *alt_sys_name(uint32_t r)
 {
@@ -2640,7 +2650,7 @@ static const char *alt_sys_text(uint32_t r)
 {
     static char tb[12];
     if (alt_sys_tab == SYS_TRAND) {
-        uint32_t m = r < 4u ? alt_sys[1] >> r : alt_sys[2] >> (r - 4u);
+        uint32_t m = r < SYS_NRE ? alt_sys[1] >> r : alt_sys[2] >> (r - SYS_NRE);
         return (m & 1u) ? "ON" : "OFF";
     }
     if (alt_sys_tab == SYS_TAUD) {
@@ -2665,8 +2675,8 @@ static void alt_sys_turn(uint32_t r, int32_t s)
 {
     int32_t d = s > 0 ? 1 : -1;
     if (alt_sys_tab == SYS_TRAND) {
-        uint8_t *b = &alt_sys[r < 4u ? 1 : 2];
-        uint32_t bit = 1u << (r < 4u ? r : r - 4u), all = r < 4u ? 15u : 7u, v = d > 0 ? *b | bit : *b & ~bit;
+        uint8_t *b = &alt_sys[r < SYS_NRE ? 1 : 2];
+        uint32_t bit = 1u << (r < SYS_NRE ? r : r - SYS_NRE), all = r < SYS_NRE ? 127u : 7u, v = d > 0 ? *b | bit : *b & ~bit;
         if (v & all)                             /* (one stays on) */
             *b = (uint8_t)v;
     } else if (alt_sys_tab == SYS_TAUD) {
@@ -2702,13 +2712,20 @@ static void alt_sys_input(void)
     if ((s = panel_enc(EN_ALGO)) != 0) {
         alt_sys_tab = (uint8_t)clamp((int32_t)alt_sys_tab + (s > 0 ? 1 : -1), 0, SYS_NT - 1);
         au.set_row = 0;
+        alt_sys_top = 0;
         alt_sys_scroll = 0;
     }
     if ((s = panel_enc(EN_SELECT)) != 0) {
         if (alt_sys_tab == SYS_TABOUT)
             alt_sys_scroll = (int16_t)clamp((int32_t)alt_sys_scroll + s * 18, 0, alt_sys_scroll_max());
         else
+        {
             au.set_row = (uint8_t)clamp((int32_t)au.set_row + s, 0, (int32_t)alt_sys_rows() - 1);
+            if (au.set_row < alt_sys_top)        /* (the list follows the row) */
+                alt_sys_top = au.set_row;
+            if (au.set_row >= alt_sys_top + 7u)
+                alt_sys_top = (uint8_t)(au.set_row - 6u);
+        }
     }
     for (i = 0; i < 4u; i++)
         if ((s = panel_enc(EN_K1 + i)) != 0 && i == 0u) {
@@ -2738,7 +2755,7 @@ static void alt_sys_scene(void)
     static const char *const FOOT[SYS_NT][2] = {
         {"CLOCK TRS = THE RYTM'S CLOCK", "MIDI IN: CHANNELS 1 2 3 = CIRCLES"},   /* (SETUP) */
         {"2ND CORE: AFTER A RESTART", "SPEAKER EQ: THE FM-1'S SPEAKER"},
-        {"ENGINES: CHAOS, CHAOS TOTAL", "MODES: CHAOS TOTAL"},
+        {"ENGINES: CHAOS, CHAOS TOTAL", "MODES: CHAOS TOTAL (SELECT: MORE)"},
         {"SELECT / KNOB 1: SCROLL", "GPL-3.0: THE SOURCE IS FREE"},
     };
     if (alt_sys_tab == SYS_TABOUT) {             /* the document first, its top hidden under the card */
@@ -2749,8 +2766,10 @@ static void alt_sys_scene(void)
     alt_card("SYSTEM", "XXI");
     alt_sys_battery(200, 24);
     alt_tabs(40, SYS_TAB, SYS_NT, alt_sys_tab, ALT_GOLD);
-    for (r = 0; r < n; r++) {
-        int32_t y = 60 + (int32_t)r * 19;
+    if (alt_sys_top + 7u > n)
+        alt_sys_top = (uint8_t)(n > 7u ? n - 7u : 0u);
+    for (r = alt_sys_top; r < n && r < alt_sys_top + 7u; r++) {
+        int32_t y = 60 + (int32_t)(r - alt_sys_top) * 19;
         if (r == au.set_row) {
             cv_rect(8, y - 3, 224, 18, hl);
             alt_diamond(15, y + 6, 3, 3, col);
@@ -3293,7 +3312,7 @@ static void alter_draw(void)
         sig = sig * 31u + (uint32_t)alt_sys_scroll * 3u;
     }
     if (au.mn == QP_SYS)
-        sig = sig * 31u + alt_sys_tab * 7u + alt_sys[1] * 11u + alt_sys[2] * 13u + (uint32_t)song.g[G_CLOCK] * 17u +
+        sig = sig * 31u + alt_sys_top * 5u + alt_sys_tab * 7u + alt_sys[1] * 11u + alt_sys[2] * 13u + (uint32_t)song.g[G_CLOCK] * 17u +
               (uint32_t)song.g[G_ROUTE] * 19u + (uint32_t)batt_shown() * 23u
 #if FELUCCA_CPU2
               + menu_get(MI_CPU2) * 29u

@@ -25,7 +25,7 @@ const one = (bytes) => send(bytes)[0];
 
 const info = one(req.info());
 check(`INFO: ${info?.version}, ${info?.ncirc} cercles, moteurs ${info?.engines?.join(" ")}`,
-  info && info.ncirc === 3 && info.engines.length === 4);
+  info && info.ncirc === 3 && info.engines.length === 7);   // (PLATE CORDE RING: 05/11)
 check(`INFO: ${info.sounds.length} sons, ${info.nuser} places USER, ${info.ids.length} réglages`, info.sounds.length >= 23 && info.nuser === 16 && info.ids.length === 22);
 
 const st = [0, 1, 2].map((c) => one(req.state(c)));
