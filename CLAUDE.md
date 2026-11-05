@@ -81,5 +81,11 @@ gain MASTER + vumètre). Moteurs : ALTER 14, PHYS 9, NOISE 11, RESO 10 (NENGINES
   seq.c (transport + horloge MIDI des cercles), menu_items.c (lignes de SYSTEM), ui_menu.c menu_document (ABOUT), main.c
   (UPDATE, calibration), midi_*.c. MIDI LEARN de Felucca parti avec ses pages (un learn ALTER = à faire pour le BCR32).
   Méthode : `/tmp`-script « prune » = compiler avec -Wunused-function et supprimer ce qui est signalé, en boucle, HORS sous-modules.
-- [ ] Nouveaux moteurs (PLATE, CORDE, RING) · MIDI LEARN ALTER · touches blanches hautes libres.
+- [ ] Nouveaux moteurs (PLATE, CORDE, RING) — en cours (05/11).
+- [ ] **ÉTAPE SUIVANTE (notes de Romain 05/11) : MODE SONG** sur les touches blanches hautes libres, « comme le mode song de
+  l'Analog Rytm » : la séquence actuelle mise en A, une autre sauvée en B, une autre en C ; 3 touches (avec un raccourci OCT− /
+  OCT+) pour jouer A B C et les CHAÎNER dans l'ordre voulu (A C, C A B…), la chaîne bouclée. À clarifier avant de coder :
+  « séquence » = rythmes seuls ou tout le son ? longueur d'un maillon (1 cycle, N mesures) ? changement au bout du cycle ?
+  combien de maillons ? sauvé dans la scène ?
+- [ ] MIDI LEARN ALTER (BCR32) · Étape 4 (tranche de console par piste).
 - [ ] Étape 4 : tranche de console par piste (disto → EQ → comp → delay → reverb).
