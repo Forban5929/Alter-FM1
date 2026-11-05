@@ -118,5 +118,7 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
 - [x] 05/11 : **page compagnon v3** (LINK 3) : NOMS des scènes, patterns USER, onglet SONG ; **guide des touches**
   `web/alter/guide.html` (`/editor/guide.html`, dessins dans le style du synthé, en anglais comme la page). Testé : link_test +
   navigateur (mode démo). **Garder le guide à jour** à chaque changement de commande.
+- [ ] **PROCHAINE SESSION** : d'abord le retour de Romain sur la FM-1 (tout le 05/11 est testé en émulateur seulement :
+  SONG, 32+32 + migration, NOMS, halo/contours, PLATE/CORDE/RING, page v3, guide). Puis au choix de Romain :
 - [ ] MIDI LEARN ALTER (BCR32).
 - [ ] Étape 4 : tranche de console par piste (disto → EQ → comp → delay → reverb).
