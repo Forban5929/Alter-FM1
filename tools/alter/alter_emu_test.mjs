@@ -669,8 +669,8 @@ play();
   check(`NAME: A02 stored as "${named}" (the scene's first sound, KNOB 1 +1, KNOB 3 -1; nothing before: "${shown}"), after power-off "${nm(e6, 0, 1)}", A03 left by HOME: empty (${ex.web_alter_name(0, 2)})`,
         named.length === 3 && shown === "" && nm(e6, 0, 1) === named && ex.web_alter_name(0, 2) === 0);
 }
-// SONG (05/11): OCT+ + C D E high stores the rhythms in a slot, a tap plays it from the next bar, OCT- held + the keys
-// writes a chain (4 bars a link) that loops; ARP held: the SONG page (KNOB 2 a link's bars); the flash keeps it all
+// SONG (05/11): SAVE held + C D E high stores the rhythms in a slot, a tap plays it from the next bar, a slot's key held + the
+// others tapped writes a chain (4 bars a link) that loops; ARP held: the SONG page (KNOB 2 a link's bars); the flash keeps it all
 {
   const W = (op, a, b) => ex.web_alter(op, a, b), OCTDN = 12, OCTUP = 13, ARP = 8, KA = 19, KB = 21, KC = 23;
   const bits = (m) => { let n = 0; for (; m; m >>>= 1) n += m & 1; return n; };
@@ -680,16 +680,16 @@ play();
   if (peak(render(FS, true)) < 0.002) play();
   W(4, BPM, 0);
   W(15, 0, 16 | 4 << 8); render(BAR);
-  withBtn(OCTUP, () => tap(KA));
+  withBtn(7, () => tap(KA));
   W(15, 0, 16 | 7 << 8); render(BAR);
-  withBtn(OCTUP, () => tap(KB));
-  check(`SONG: OCT+ + C D E high stores slots A and B (mask ${S(4)}), circle 1 plays 7 (${P()})`, S(4) === 3 && P() === 7);
+  withBtn(7, () => tap(KB));
+  check(`SONG: SAVE held + C D E high stores slots A and B (mask ${S(4)}), circle 1 plays 7 (${P()})`, S(4) === 3 && P() === 7);
   tap(KA); const early = P(); render(BAR + STEP);
   check(`SONG: A tapped plays from the next bar (${early} -> ${P()} hits, slot ${S(0)})`, P() === 4 && S(0) === 1);
   tap(KC); render(BAR + STEP);
   check(`SONG: C (empty) tapped: nothing changes (slot ${S(0)}, ${P()} hits)`, S(0) === 1 && P() === 4);
-  ex.web_buttons(1 << OCTDN); render(1300); tap(KB); tap(KA); ex.web_buttons(0); render(1300);
-  check(`SONG: OCT- held + B A writes a chain of ${S(2)} links, on (${S(3)})`, S(2) === 2 && S(3) === 1);
+  K(1 << KB); render(1300); K((1 << KB) | (1 << KA)); render(1300); K(1 << KB); render(1300); K(0); render(1300);   // B held, A tapped
+  check(`SONG: B held + A tapped writes a chain of ${S(2)} links, on (${S(3)})`, S(2) === 2 && S(3) === 1);
   const runs = (n) => {                                         // the slot playing, a quarter bar apart: its runs
     const r = []; let ok = true;
     for (let i = 0; i < n * 4; i++) {

@@ -285,9 +285,10 @@ static void alt_nm_open(uint32_t t, uint32_t r)  /* its NAME, or one to start fr
 }
 
 /* ---- SONG (Romain 05/11; the audio side: alter_song.c) ---------------------------------------------------------------
+ *   (Romain 05/11, made simpler: everything on the three keys, SAVE to store)
  *   C D E high (white)     tapped: that slot plays from the next bar (the chain stops); empty: nothing
- *   OCT+ + C D E           what plays now stored in that slot (and on the flash)
- *   OCT- held + C D E ..   a new chain, the keys in their order (each link 4 bars); OCT- let go: the chain plays
+ *   SAVE held + C D E      what plays now stored in that slot (and on the flash; the SAVE page it opened closes)
+ *   C held + E, D tapped   a chain C > E > D (each link 4 bars), from the next bar, looping; the held key let go: it goes on
  *   ARP tapped             the chain on (from its first link, at the next bar) / off (the slot playing goes on)
  *   ARP held 0.5 s         the SONG page: SELECT a link, KNOB 1 its slot, KNOB 2 its bars (1 2 4 8), KNOB 3 the links
  * On the flash in objects 10..13 (storage.c OBJ_ALTSONG0: the slots, then the chain), not in the scenes. At power-on the
@@ -298,7 +299,7 @@ static void alt_menu_set(uint32_t q);
 #define SG_MAGIC_C 0x43544C41u                    /* "ALTC": the chain */
 #define SG_DEF_BARS 2u                            /* (a new link: 4 bars) */
 static struct {
-    uint8_t wr, bn, buf[SG_MAXL];                 /* OCT- held: a chain being written */
+    uint8_t wr, bn, buf[SG_MAXL];                 /* a slot's key held (+ 1): a chain being written from it */
     uint8_t chain[SG_MAXL], n;                    /* the chain (the UI's copy) */
     uint8_t q;                                    /* the slot asked for (+ 1), until it plays */
     uint8_t row, top, dirty;                      /* the SONG page: its link, its first row shown; the chain to store */
@@ -306,6 +307,7 @@ static struct {
     uint8_t arp_held;                             /* ARP's hold has opened the page */
     char msg[48];
 } asg;
+static uint8_t asg_save_held;                     /* SAVE still held since its press opened the SAVE page */
 static struct { uint32_t magic; uint8_t n, rsv[3]; uint8_t chain[SG_MAXL]; } asg_rec __attribute__((section(".pool")));
 _Static_assert(sizeof(sg_slot_t) <= ST_PAYLOAD_MAX_X, "a SONG slot fits an object");
 
@@ -420,10 +422,11 @@ static void alt_sg_sync(void)
             au.cfg[c] = n;
         }
     }
-    if (asg.wr && !((fm1_in.buttons >> panel.btn[B_OCTDN]) & 1u)) {   /* OCT- let go: the chain written plays */
+    if (asg.wr && !((fm1_in.notes >> (19u + 2u * (asg.wr - 1u))) & 1u)) {   /* the first key let go: the chain
+                                                  * written (two links or more) plays */
         uint32_t i;
         asg.wr = 0;
-        if (asg.bn) {
+        if (asg.bn >= 2u) {
             for (i = 0; i < SG_MAXL; i++)
                 asg.chain[i] = i < asg.bn ? asg.buf[i] : 0u;
             asg.n = asg.bn;
@@ -438,29 +441,29 @@ static void alt_sg_sync(void)
     if (asg.dirty && au.mn != QP_SONG)
         alt_sg_chain_save();
 }
-/* a slot's key went down (s: 0..2), OCT- / OCT+ held */
-static void alt_sg_key(uint32_t s, int dn, int up)
+/* SAVE held + a slot's key: what plays stored there */
+static void alt_sg_save_key(uint32_t s)
 {
     static const char *const SAVED[SG_NSLOT] = {"A SAVED", "B SAVED", "C SAVED"};
+    alt_say(alt_sg_store(s) ? SAVED[s] : "SAVE FAILED");
+}
+/* a slot's key went down (s: 0..2): alone, that slot from the next bar; another slot's key held, a link more */
+static void alt_sg_key(uint32_t s)
+{
     static const char *const NAME[SG_NSLOT] = {"SONG A", "SONG B", "SONG C"};
-    if (dn && up)
-        return;
-    if (up) {
-        alt_say(alt_sg_store(s) ? SAVED[s] : "SAVE FAILED");
-        return;
-    }
     if (!sg_slot[s].used) {
         alt_say("EMPTY");
         return;
     }
-    if (dn) {                                    /* OCT- held: a link more */
-        if (!asg.wr)
-            asg.wr = 1, asg.bn = 0;
+    if (asg.wr) {                                /* the first key held: the chain */
         if (asg.bn < SG_MAXL)
             asg.buf[asg.bn++] = (uint8_t)(s | SG_DEF_BARS << 2);
         alt_say(alt_sg_chain_text(asg.buf, asg.bn, "CHAIN"));
         return;
     }
+    asg.wr = (uint8_t)(s + 1u);                  /* (held: the first of a chain, if another key follows) */
+    asg.bn = 1;
+    asg.buf[0] = (uint8_t)(s | SG_DEF_BARS << 2);
     alt_sg_ask(s);
     alt_say(NAME[s]);
 }
@@ -1661,12 +1664,23 @@ static int alter_ui_input(uint32_t pressed)
         } else if (!hd)
             home_t0 = 0;
     }
+    if (!((fm1_in.buttons >> panel.btn[B_SAVE]) & 1u))
+        asg_save_held = 0;
     if (((pressed >> panel.btn[B_SAVE]) & 1u) && !au.scene_open) {   /* SAVE: the SAVE page (its press opens it) */
+        asg_save_held = 1;                       /* (held on: + C D E high stores a SONG slot) */
         au.scene_open = 1;
         au.save_t0 = 0;
         au.qp = QP_NONE;
         au.lockc = 0;
         alt_menu_set(0);
+    } else if (au.scene_open && asg_save_held && ((fm1_in.buttons >> panel.btn[B_SAVE]) & 1u) &&
+               (keys & ~au.keys & ((1u << 19) | (1u << 21) | (1u << 23)))) {   /* SAVE held + C D E high: SONG's slot */
+        uint32_t dk = keys & ~au.keys;
+        alt_sg_save_key((dk >> 19) & 1u ? 0u : (dk >> 21) & 1u ? 1u : 2u);
+        au.scene_open = 0;                       /* (the SAVE page it opened: closed) */
+        asg_save_held = 0;
+        au.keys = keys;
+        return 1;
     } else if (au.scene_open && anm.open) {      /* the NAME page: SAVE stores (its release: nothing more) */
         if ((pressed >> panel.btn[B_SAVE]) & 1u) {
             uint32_t k;
@@ -1838,7 +1852,7 @@ static int alter_ui_input(uint32_t pressed)
             if (combo) {
                 ;                                /* (part of a combo: nothing else) */
             } else if (a->kind == AK_SONG) {     /* SONG: a slot (alt_sg_key) */
-                alt_sg_key(i2, (int)((fm1_in.buttons >> panel.btn[B_OCTDN]) & 1u), (int)((fm1_in.buttons >> panel.btn[B_OCTUP]) & 1u));
+                alt_sg_key(i2);
                 au.tap_ms[k] = fm1_ms | 1u;
             } else if (a->kind == AK_MUTE) {
                 alt_say(a->name);
@@ -3013,7 +3027,7 @@ static void alt_sg_scene(void)
     }
     if (!asg.n) {
         cv_text(120 - text_w(ALT_FM, "NO CHAIN") / 2, 100, ALT_FM, "NO CHAIN", ALT_DIM);
-        cv_text(120 - text_w(ALT_FS, "OCT- HELD + C D E HIGH, IN ORDER") / 2, 124, ALT_FS, "OCT- HELD + C D E HIGH, IN ORDER", ALT_DIM);
+        cv_text(120 - text_w(ALT_FS, "HOLD A, TAP C THEN B: A > C > B") / 2, 124, ALT_FS, "HOLD A, TAP C THEN B: A > C > B", ALT_DIM);
     } else {
         cv_text(12, 78, ALT_FS, sg_on ? "CHAIN ON" : "CHAIN OFF", sg_on ? ALT_GOLD : ALT_DIM);
         if (sg_on && sg_link < asg.n) {
@@ -3056,7 +3070,7 @@ static void alt_sg_scene(void)
     }
     cv_rect(8, 196, 224, 1, alt_gold_line(30));
     cv_text(8, 202, ALT_FS, "KNOB 1 SLOT  2 BARS  3 LINKS", ALT_INK);
-    cv_text(8, 216, ALT_FS, "ARP: CHAIN  OCT+ + C D E: SAVE", ALT_DIM);
+    cv_text(8, 216, ALT_FS, "SAVE + A B C: STORE  ARP: CHAIN", ALT_DIM);
 }
 
 /* SYSTEM (XXI, the World; HOME held 0.5 s, Romain 04/11, 05/11): four tabs (ALGORITHM), rows (SELECT), KNOB 1 changes
@@ -3706,6 +3720,32 @@ static void alt_scene(uint32_t q, uint32_t flash)
         alt_aaring16(ALT_CX * 16, ALT_CY * 16, 27 * 16, alt_gold_line(45));
         alt_prism();
     }
+    {                                            /* SONG (Romain 05/11): A B C in the corner (filled: playing; framed:
+                                                  * stored; grey: empty; blinking: next bar), the chain under them */
+        uint32_t k;
+        for (k = 0; k < SG_NSLOT; k++) {
+            int32_t x = 8 + (int32_t)k * 15, y = 30;
+            int used = sg_slot[k].used, on = used && sg_play == k + 1u, asked = asg.q == k + 1u && ((fm1_ms >> 7) & 1u);
+            char nm[2] = {(char)('A' + k), 0};
+            uint16_t c = used ? ALT_COL[k] : ALT_GREY;
+            if (on || asked)
+                cv_rect(x, y, 13, 14, c);
+            else if (used)
+                cv_frame(x, y, 13, 14, c);
+            cv_text_on(x + 7 - text_w(ALT_FS, nm) / 2, y + 1, ALT_FS, nm, on || asked ? ALT_BG : c, on || asked ? c : ALT_BG);
+        }
+        if (sg_on && asg.n) {                    /* the chain: the link playing in its colour */
+            int32_t x = 8;
+            for (k = 0; k < asg.n && k < 6u; k++) {
+                char nm[2] = {(char)('A' + (asg.chain[k] & 3u)), 0};
+                if (k)
+                    x = cv_text_on(x, 48, ALT_FS, ">", ALT_DIM, ALT_BG);
+                x = cv_text_on(x, 48, ALT_FS, nm, k == sg_link ? ALT_COL[asg.chain[k] & 3u] : ALT_DIM, ALT_BG);
+            }
+            if (asg.n > 6u)
+                (void)cv_text_on(x, 48, ALT_FS, "..", ALT_DIM, ALT_BG);
+        }
+    }
     alt_foot(q);
 }
 
@@ -3795,6 +3835,8 @@ static void alter_draw(void)
     sig = sig * 31u + au.mn * 61u + au.set_row * 67u + (uint32_t)ALT_DAY * 71u + au.cfg[au.sel % AS_NCIRC].chord * 73u;
     sig = sig * 31u + alt_dial_live() * 83u;
     sig = sig * 31u + (uint32_t)ar_on * 89u + (ar_n[au.sel % AS_NCIRC] != 0) * 97u;
+    sig = sig * 31u + sg_play * 3u + sg_link * 5u + sg_on * 7u + (asg.q ? asg.q * 11u + ((fm1_ms >> 7) & 1u) : 0u) +
+          sg_slot[0].used * 13u + sg_slot[1].used * 17u + sg_slot[2].used * 19u + asg.n * 23u;   /* (SONG's corner) */
     if (au.mn == QP_SONG) {                      /* (SONG: the slots, the chain, where it is) */
         uint32_t k;
         sig = sig * 31u + sg_play * 3u + sg_link * 5u + sg_left * 7u + sg_on * 11u + asg.q * 13u + asg.row * 17u + asg.n * 19u +

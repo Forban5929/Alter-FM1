@@ -77,9 +77,11 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
 - Page FX DELAY : TIME (1/16 1/8 1/8D 1/4 seulement) FEEDBK **TAPE** SEND. Presets : ECHO, DUB, DUB LONG (1/4 au lieu de
   1/4D), PING-PONG, GHOST, TAPE (SLAP, SPACE, TRIPLET, 16TH DOT retirés). MODE/TAPE dans G_DRLVL/G_DRREV (inertes chez
   Felucca) et octets 28-29 de l'enregistrement FX des scènes.
-- **SONG (05/11, `alter_song.c` côté audio + `alt_sg_*` dans alter_ui.c)** : C D E hautes tapées = ce slot joue à la
-  mesure suivante (la chaîne s'arrête) · OCT+ + C D E = sauver ce qui joue dans le slot · OCT− tenu + C D E dans l'ordre =
-  nouvelle chaîne (4 mesures par maillon), OCT− lâché = elle boucle · ARP tapé = chaîne ON/OFF (repart du maillon 1) ·
+- **SONG (05/11, simplifié le jour même ; `alter_song.c` côté audio + `alt_sg_*` dans alter_ui.c)** : C D E hautes = slots
+  A B C (les 3 blanches avant les 2 dernières à droite). Tapée = ce slot joue à la mesure suivante (la chaîne s'arrête) ·
+  **SAVE tenu + A/B/C** = sauver ce qui joue (la page SAVE se referme) · **tenir A + taper C puis B** = chaîne A>C>B
+  (4 mesures par maillon), elle boucle · coin haut-gauche de l'écran PLAY : A B C (plein = joue, cadre = plein, gris =
+  vide, clignote = mesure suivante) + la chaîne · ARP tapé = chaîne ON/OFF (repart du maillon 1) ·
   ARP tenu = page SONG (SELECT maillon, KNOB 1 slot, 2 mesures 1/2/4/8, 3 nb de maillons, max 16). Slot = rythmes seuls
   (as_circ_t entier : pas, couloirs, PLAGES, tirage du dé, pas ajoutés, fills REC, mouvements REC, mutes ; PAS les sons ni
   root/chord/dose). Changement à la barre (alt_gstep % 16), chaque cercle repart du pas 1. Flash : objets 10-12 (slots) + 13
