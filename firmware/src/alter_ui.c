@@ -262,7 +262,7 @@ static struct {
     uint8_t arp_held;                             /* ARP's hold has opened the page */
     char msg[48];
 } asg;
-static struct { uint32_t magic; uint8_t n, rsv[3]; uint8_t chain[SG_MAXL]; } asg_rec;
+static struct { uint32_t magic; uint8_t n, rsv[3]; uint8_t chain[SG_MAXL]; } asg_rec __attribute__((section(".pool")));
 _Static_assert(sizeof(sg_slot_t) <= ST_PAYLOAD_MAX_X, "a SONG slot fits an object");
 
 static void alt_sg_push(void)                    /* the chain to the audio side */
@@ -305,8 +305,8 @@ static void alt_sg_boot(void)                    /* the slots and the chain from
 }
 static int alt_sg_store(uint32_t s)              /* what plays now into slot s; 0: the flash failed */
 {
-    static uint8_t rec[AS_NCIRC][AR_PACK];
-    static as_circ_t cc[AS_NCIRC];
+    static uint8_t rec[AS_NCIRC][AR_PACK] __attribute__((section(".pool")));   /* (RAM is short: the pool) */
+    static as_circ_t cc[AS_NCIRC] __attribute__((section(".pool")));
     sg_slot_t *S = &sg_slot[s % SG_NSLOT];
     uint32_t c, k;
     for (c = 0; c < AS_NCIRC; c++)
