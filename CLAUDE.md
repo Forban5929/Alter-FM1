@@ -90,8 +90,8 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   pas ajoutés, fills, REC, PLAGES) lu en flash au chargement : objets 14-29 (2 scènes/objet), patterns 30-31 (16/objet),
   0xA8000-0xCBFFF. En RAM : seulement les drapeaux `alt_used_s/p`. Anciennes banques (objets 1-7, 9 ; 16 places) = lues
   UNE fois au 1er démarrage et copiées en banque A (`alt_us_migrate`, marqueur = objet 30), puis plus touchées. Objet 8 = mêmes
-  secteurs que 7 : NE PAS UTILISER. Mémoire (build CI 05/11 après) : code 310/568 Ko, **RAM 56/72 Ko
-  (≈ 16 Ko libres)**, pool 340/360 Ko (≈ 19,5 Ko libres ; anciennes banques 11 Ko dedans, récupérables).
+  secteurs que 7 : NE PAS UTILISER. Mémoire (build CI 07/11) : code 329/568 Ko, **RAM 58/72 Ko
+  (≈ 15 Ko libres)**, pool 351/360 Ko (≈ 17,5 Ko libres ; anciennes banques 11 Ko dedans, récupérables).
 - Page FX DELAY : TIME (1/16 1/8 1/8D 1/4 seulement) FEEDBK **TAPE** SEND. Presets : ECHO, DUB, DUB LONG (1/4 au lieu de
   1/4D), PING-PONG, GHOST, TAPE (SLAP, SPACE, TRIPLET, 16TH DOT retirés). MODE/TAPE dans G_DRLVL/G_DRREV (inertes chez
   Felucca) et octets 28-29 de l'enregistrement FX des scènes.
