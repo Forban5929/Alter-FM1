@@ -15,12 +15,14 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
    - `sh tools/alter/wasm/build_emu.sh` (→ `build/emu/`, ~30 s ; `mkdir -p build/alter build/host` avant les cc)
    - `node tools/alter/alter_emu_test.mjs build/emu/felucca.wasm build/emu/alter_play.wav` · `node tools/alter/alter_fx_test.mjs build/emu/felucca.wasm`
    - `cc -std=c99 -O2 -Wall -o build/alter/alter_seq_test tools/alter/alter_seq_test.c && build/alter/alter_seq_test`
-   - `node tools/alter/alter_link_test.mjs build/emu/felucca.wasm` · `node web/emu/emu_test.mjs …` (**4 échecs VOULUS**)
+   - `node tools/alter/alter_link_test.mjs build/emu/felucca.wasm` · `node tools/alter/alter_learn_test.mjs build/emu/felucca.wasm`
+     · `node web/emu/emu_test.mjs …` (**4 échecs VOULUS**)
    - 2 cœurs (GitHub le lance) : `cc -std=gnu99 -O1 -w -fsanitize=thread -DFELUCCA_CPU2=1 -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -Ifirmware/bsp/chip -Ifirmware/bsp/boards/fm1 tests/dualcore_test.c -o build/host/dualcore_test -lpthread -lm`
    - Syntaxe FM-1 : `clang --target=wasm32 -fsyntax-only -std=gnu99 -w -Werror=implicit-function-declaration -Werror=undefined-internal -nostdlibinc -isystem tools/alter/wasm/include -isystem $(clang -print-resource-dir)/include -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Ifirmware/bsp/chip -Ifirmware/bsp/boards/fm1 firmware/src/felucca.c`
 3. Outils : `alter_render.mjs wasm DIR` (WAV + niveaux de tous les sons), `alter_shot.mjs wasm DIR "w:500 B:GLO+ w:700 B:GLO- s:nom"`
    (captures), `alter_knob_probe.mjs`. Ops de test `web_alter` : liste en tête de `alt_web_cmd` (alter_ui.c) ;
    **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE.
+   `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
 4. Pousser sur `etape-3d` → GitHub Actions construit le vrai firmware + publie https://forban5929.github.io/Alter-FM1/ (version
    dans /version.txt). Le cloud ne télécharge pas les artifacts ni le compilateur JieLi : **rien n'est mesuré sur la FM-1 depuis le cloud.**
 
@@ -30,11 +32,11 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
 - RAM ~16 Ko libres (gros tampons → `__attribute__((section(".pool")))`, ~19 Ko libres ; CI exige 4 Ko RAM / 8 Ko pool). Sous-modules `firmware/engines`, `firmware/bsp` : ne pas toucher.
 - Mise à jour USB : garder l'identité `FM-1_900` et « FM-1 » dans le nom USB. GPL-3.0 : garder la page ABOUT.
 - 2e cœur : une partie ne touche que l'état de SON cercle (tout état par cercle, jamais partagé dans mix_part).
-- Page compagnon (`web/alter/`, protocole `docs/alter/LINK.md`, v3) + guide (`web/alter/guide.html`) : **jamais prompt/alert/confirm**.
+- Page compagnon (`web/alter/`, protocole `docs/alter/LINK.md`, **v4**) + guide (`web/alter/guide.html`) : **jamais prompt/alert/confirm**.
 
 ## Carte du code ALTER (`firmware/src/alter_*`)
 `alter_seq.c` séquenceur pur (cercles, dés `as_draw_w`, couloirs) · `alter_play.c` côté audio (fills, modes, file UI→audio) ·
-`alter_ui.c` vue PLAY + menus · `alter_fxpage.c` page FX · `alter_fx.c` presets FX, MASTER, **RUMBLE** · **`alter_console.c`
+`alter_ui.c` vue PLAY + menus · **`alter_learn.c` MIDI LEARN** (+ `midi_control.c alm_midi` côté audio) · `alter_fxpage.c` page FX · `alter_fx.c` presets FX, MASTER, **RUMBLE** · **`alter_console.c`
 CONSOLE** (EQ + COMP par cercle, appelée dans fx.c mix_part/mix_spread après DIST+INSERT) · `alter_filter.c`
 MASTER FILTER · `alter_lfo.c` · `alter_sounds.c` sons + scènes d'usine · `alter_store.c` SAVE/LOAD · `alter_persist.c`
 réglages flash · `eng_alter.c` / `eng_reso.c` moteurs · `fx.c` (Felucca + nos ajouts : delay MODE/TAPE, glisse des envois,
@@ -63,14 +65,21 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   2 rangées, SELECT = rangée, KNOB 1-4 : DRIVE (P_DIST) LOW MID HIGH / COMP DELAY REVERB LEVEL (P_DLY P_REV P_LEVEL via
   alt_qpush → REC ok). LOW MID HIGH COMP = `acs_v[c][4]` (64 64 64 0 = à plat = code sauté, bit pour bit ; 0 = KILL, 32 = −12,
   127 = +12 dB ; coupures 250 Hz / 2,5 kHz) ; COMP 1 knob : seuil −4..−22 dB, ratio 2..8, rattrapage auto (crêtes remises
-  à leur niveau, max +12 dB), barre dorée = réduction. **Pas dans REC**, gardé dans les scènes USER (`alt_ub.s.cs`, après
-  `nm` ; objets plus courts = à plat), usine/NEW = à plat. Pas dans la page compagnon. Delay/reverb = envois vers les bus
+  à leur niveau, max +12 dB), barre dorée = réduction. **Pas dans REC** (choix de Romain 07/11), gardé dans les scènes USER (`alt_ub.s.cs`, après
+  `nm` ; objets plus courts = à plat), usine/NEW = à plat. **Page compagnon (LINK 4)** : onglet EFFECTS, colonnes CONSOLE. Delay/reverb = envois vers les bus
   communs (pas de delay par cercle : RAM). Tests : op `web_alter` **20** (a = cercle | valeur<<8, b), peek **11**.
-  **HOME tenu = SYSTEM** (batterie en haut ; onglets SETUP : THEME, CLOCK INT/USB/TRS, MIDI IN, **TRS SEEN / USB SEEN**
+  **HOME tenu = SYSTEM** (batterie en haut ; onglets SETUP, **LEARN** (voir MIDI LEARN), AUDIO, RANDOM, ABOUT ; SETUP : THEME, CLOCK INT/USB/TRS, MIDI IN, **TRS SEEN / USB SEEN**
   (lecture seule : messages MIDI reçus par prise depuis l'allumage, « CLK » si des F8 arrivent ; `alt_midi_n`, compté dans seq.c) · AUDIO : lignes Felucca
   CLICK (OFF/ON), CLICK LEVEL, SPEAKER EQ, USB LEVEL, TUNE, 2ND CORE · RANDOM : les 7 moteurs et modes FREE PERC
   STAB permis au hasard (la liste défile) · ABOUT : document GPL de Felucca, défile). Gardé en flash : `alt_sys` = favorites.factory[13]
   ([3] CLOCK, [4] MIDI IN, [5] MASTER, [6] TUNE ; le reste dans les réglages Felucca).
+- **MIDI LEARN (07/11, `alter_learn.c`)** : SYSTEM > LEARN. Ligne GROUP (KNOB 1) = CIRCLE I/II/III (réglage d'UN cercle fixe :
+  8 du son, ADSR, CONSOLE, PAN, INSERT, CHORUS, RUMBLE, GLIDE, HITS, DOSE ; CC seulement) / GLOBAL (MASTER, TEMPO, SWING, MASTER
+  FILTER, DELAY, REVERB ; dernière ligne CLEAR ALL) / ACTIONS (touches + PLAY REC OCT± ARP ; CC ≥ 64 ou note). SELECT = ligne,
+  KNOB 1 → = WAITING puis le 1er CC/note = lié ; KNOB 1 ← = effacé. Lien = canal + numéro exacts, avant le filtre MIDI IN ;
+  un contrôle = une chose. Valeur absolue 0..127 (encodeurs en ABSOLU). Réglage du son par la file (REC l'écrit), CONSOLE et
+  GLOBAL en direct. Actions = touches/boutons virtuels (`ALT_NOTES`/`ALT_BTNS`). Carte CC fixe Felucca gardée pour les CC non
+  liés. Flash : favorites.factory[5..8] (magic 0xA1, 42 liens × 3 o ; **codes à ne jamais réordonner**, détail HISTORIQUE).
 - OCT− + OCT+ + HOME = NEW SCENE · REC tapé/tenu 1 s/OCT−+OCT++REC. **OCT− + OCT+ tenus 5 s = mode UPDATE** (main.c,
   à garder absolument) · OCT− + OCT+ tenus à l'allumage = calibration des boutons (main.c panel_setup).
 - **USER : 32 scènes + 32 patterns (05/11)**, page SAVE à 4 onglets (ALGORITHM) : SCENES A, SCENES B, PATT. A, PATT. B
@@ -154,7 +163,9 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   Retour Romain : TRS NOTHING avec du MIDI branché (USB NOTHING = normal : la page compagnon = SysEx du lien, pas compté).
   Ajout : « RAW n » si des octets arrivent (um.bytes) sans message valide. Pistes : câble type B / Ableton Sync ; essayer
   l'horloge par USB (CLOCK USB, Ableton → port FM-1).
-- [ ] **PROCHAINE SESSION** : réponses de Romain sur le TRS (CLOCK=TRS ? Ableton « Sync » ? adaptateur A/B ? notes OK ?),
-  tests 20-27 de sa checklist (RING, sons refaits, page compagnon branchée, UPDATE), réécoute des changements, et la
-  CONSOLE (jamais essayée sur la FM-1).
-- [ ] Idées : CONSOLE dans la page compagnon + LINK ; EQ/COMP dans REC ; MIDI LEARN ALTER (BCR32).
+- [x] 07/11 : Romain : sons refaits + CONSOLE OK à l'écoute ; TRS MIDI **en pause** (sans doute son câble). **CONSOLE dans la
+  page compagnon (LINK 4)** + **MIDI LEARN** (page LEARN de SYSTEM). Testés émulateur (link 5 tests, learn 17 tests, captures,
+  page en mode démo dans Chrome), syntaxe FM-1, 2 cœurs. **Pas sur la FM-1.**
+- [ ] **PROCHAINE SESSION** : retour de Romain sur le MIDI LEARN avec son contrôleur (BCR32 : encodeurs en absolu ?) et la
+  CONSOLE de la page compagnon branchée ; TRS quand il aura un autre câble.
+- [ ] Idées : un contrôle → plusieurs réglages (macro) ; LEARN dans la page compagnon ; DENSITY/ROT continus.

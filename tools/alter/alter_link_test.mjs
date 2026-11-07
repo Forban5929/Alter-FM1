@@ -122,6 +122,21 @@ const DEP = ix(cdesc, "DEPTH", 3);
 r = one(req.vset(0, DEP, -20));
 check(`VSET LFO 1 DEPTH du cercle 1 = -20 (gardé ${r?.value})`, r?.value === -20 && all(0)[DEP] === -20);
 
+// LINK 4 (07/11): the CONSOLE of each circle (DRIVE LOW MID HIGH / COMP DELAY REVERB LEVEL), group 15
+const CG = vl.groups.indexOf("CONSOLE"), cons = cdesc.map((d, i) => [d, i]).filter(([d]) => d.grp === CG).map(([d]) => d.name);
+check(`CONSOLE : groupe ${CG}, ${cons.join(" ")}`, info.version === "ALTER LINK 4" && CG === 15 &&
+  cons.join() === "DRIVE,LOW,MID,HIGH,COMP,DELAY,REVERB,LEVEL");
+const CLOW = ix(cdesc, "LOW", CG), CCOMP = ix(cdesc, "COMP", CG), CDRV = ix(cdesc, "DRIVE", CG), CLVL = ix(cdesc, "LEVEL", CG);
+r = one(req.vset(1, CLOW, 0)); const r3 = one(req.vset(1, CCOMP, 90));
+check(`VSET CONSOLE du cercle 2 : LOW KILL (${r?.value}), COMP 90 (${r3?.value}), relus dans VALL`,
+  r?.value === 0 && r3?.value === 90 && all(1)[CLOW] === 0 && all(1)[CCOMP] === 90 && all(0)[CLOW] === 64);
+r = one(req.vset(1, CDRV, 55));
+check(`VSET CONSOLE DRIVE 55 = le DIST du son (STATE : ${one(req.state(1)).values[info.ids.indexOf(descs.findIndex((d) => d.label === "DST") >= 0 ? info.ids[descs.findIndex((d) => d.label === "DST")] : -1)]})`,
+  r?.value === 55 && one(req.state(1)).values[descs.findIndex((d) => d.label === "DST")] === 55);
+r = one(req.vset(2, CLVL, 300));
+check(`VSET CONSOLE LEVEL 300 : gardé ${r?.value} (127 au plus)`, r?.value === 127);
+one(req.vset(1, CLOW, 64)); one(req.vset(1, CCOMP, 0));
+
 // the lanes
 const ln0 = one(req.lane(2, 0));
 check(`LANE : VELO du cercle 3, 16 valeurs (${ln0?.values?.slice(0, 4).join(" ")} ...)`, ln0?.values?.length === 16);
@@ -151,6 +166,12 @@ check("ACT inconnue : refusée (ok 0)", one(req.act(0, 99))?.ok === 0);
 one(req.watch(1)); ex.web_link_sync(); out();
 ex.web_alter(15, 0, 9 | 3 << 8); render(2000); ex.web_link_sync();   // (circle 1: LEN 9 HITS 3, as the device's knobs)
 let pu = out();
+ex.web_alter(20, 2 | 2 << 8, 100); render(2000); ex.web_link_sync();   // (circle 3's HIGH to 100, as its CONSOLE knob)
+const pc = out();
+check(`poussée : la CONSOLE changée sur la machine arrive (HIGH du cercle 3 = ${pc.find((p) => p.cmd === CMD.VCHANGED && p.circ === 2 && p.i === ix(cdesc, "HIGH", CG))?.value})`,
+  pc.some((p) => p.cmd === CMD.VCHANGED && p.circ === 2 && p.i === ix(cdesc, "HIGH", CG) && p.value === 100));
+ex.web_alter(20, 2 | 2 << 8, 64);
+pu = pu.concat(pc);
 check(`poussée : un réglage changé sur la machine arrive (${pu.filter((p) => p.cmd === CMD.VCHANGED).map((p) => cdesc[p.i]?.name + "=" + p.value).join(" ")})`,
   pu.some((p) => p.cmd === CMD.VCHANGED && p.circ === 0 && p.i === LEN && p.value === 9));
 ex.web_buttons(1 << 10); render(2000); ex.web_buttons(0);

@@ -234,58 +234,66 @@ static void midi_cc_set(track_t *t, uint32_t id, uint32_t value)
     t->p[id] = (int16_t)v;
     (void)motion_capture(t, id, (int16_t)v);
 }
-/* MIDI LEARN (1.5, Discussion #170): up to ML_N CCs, each set to one parameter of one track, whatever channel it
- * comes on (a channel ROUT ignores stays ignored) and whichever track that channel plays. Kept with the settings in
- * the 32 bytes of favorites.factory[14] (no engine 14: favorites.c; all 0 in every older setting = nothing learned),
- * an entry two bytes, as a 16-bit value LSB first: bits 0..6 the CC, 7..8 the track, 9..15 the parameter's code, 0 =
- * an empty entry: a common parameter its P_* id + 1 (1 .. ML_E0 - 1: their ids never move, new ones go before P_E0),
- * an engine parameter ML_E0 + k for P_E0 + k (P_E0 moves when common ones are added). A learned CC no longer reaches
- * the standard map (#103) on any channel: the controller is the user's now. The CCs with a meaning of their own
- * (midi_control's cases, CC0 / 32 bank select, CC11 EXPR, CC96 / 97 data increment, CC120..127) are never learned. The UI
- * (midi_learn.c) writes the entries with the interrupts off; ml_arm / ml_heard hand a CC heard while learning to it */
-#define ML_N 16u
-#define ML_E0 120u
-typedef char ml_ids_fit[P_E0 < ML_E0 && P_COUNT - P_E0 == 8 ? 1 : -1];
-static uint8_t *const ml_tab;               /* favorites.factory[14] (midi_learn.c: a build without the UI, none) */
-static volatile uint8_t *const ml_io;       /* ui.ml.io (midi_learn.c; not globals here: the ISR's data keeps its layout) */
-#define ml_arm (ml_io[0])                   /* the UI waits for a CC (MIDI LEARN with a parameter picked) */
-#define ml_heard (ml_io[1])                 /* .. the CC that came meanwhile, + 1 (0 none) */
-static uint32_t ml_id(uint32_t code)        /* an entry's code -> P_* id, P_COUNT: none this firmware knows */
+/* ALTER's MIDI LEARN (07/11, Romain: "pour tout type de contrôleur"; Felucca's own learn left with its pages). A
+ * controller's CC, or a note, linked to a setting of a circle, a shared one, or an action (a key of the FM-1). The
+ * table: alter_learn.c (in the settings, favorites.factory rows 5..8, engines that do not exist), ALM_N entries of 3
+ * bytes after a magic byte: [0] the number | 0x80 for a note, [1] the channel | 0x80 (in use), [2] what it moves. A
+ * linked control matches its own channel and number only, whatever MIDI IN routes (heard before it), and never reaches
+ * the rest (no note played, the standard CC map below skipped for it): the standard map stays for every other CC.
+ * Here (the audio side) only: the latest value of each link (0..127; a note 127 on, 0 off) and a count of its messages;
+ * the UI (alter_learn.c alm_poll) does the work in the main loop. Learning: the UI arms alm_io->arm, the next CC or
+ * note-on comes back in heard[] (and is swallowed, as everything until the UI disarms) */
+#define ALM_N 42u
+#define ALM_MAGIC 0xA1u
+typedef struct {
+    volatile uint8_t arm, heard[3];          /* heard: number (| 0x80 note), channel, 1 = something came */
+    volatile uint8_t v[ALM_N], seq[ALM_N];   /* each link's latest value, its messages counted (mod 256) */
+} alm_io_t;
+static const uint8_t *const alm_tab;         /* (alter_learn.c; a build without the UI: none) */
+static alm_io_t *const alm_io;
+static int alm_free_cc(uint32_t cc)          /* (bank select, data entry, (N)RPN and the channel modes: never) */
 {
-    return code >= ML_E0 ? P_E0 + code - ML_E0 : code && code <= P_E0 ? code - 1u : P_COUNT;
+    return cc && cc < 120u && cc != 6u && cc != 32u && cc != 38u && (cc < 96u || cc > 101u);
 }
-static int ml_free_cc(uint32_t cc)          /* (CC1 6 38 64 98..101 120..127: midi_control's own) */
+static int __attribute__((noinline)) alm_midi(uint32_t st, uint32_t ch, uint32_t d1, uint32_t d2)
 {
-    return cc && cc < 120u && cc != 1u && cc != 6u && cc != 11u && cc != 32u && cc != 38u && cc != 64u &&
-           (cc < 96u || cc > 101u);
-}
-/* 1: cc is learned (set here) or taken by MIDI LEARN waiting for one */
-static int __attribute__((noinline)) midi_learned(uint32_t cc, uint32_t value)
-{
-    uint32_t i, e, id, hit = 0;
-    if (!ml_tab || !ml_free_cc(cc))
+    const uint8_t *e;
+    alm_io_t *io = alm_io;
+    uint32_t i, src, val;
+    if (!alm_tab || !io || alm_tab[0] != ALM_MAGIC)
         return 0;
-    if (ml_arm) {
-        if (!ml_heard)
-            ml_heard = (uint8_t)(cc + 1u);
+    if (st == 0x90u && !d2)
+        st = 0x80u;
+    if (st == 0xB0u) {
+        if (!alm_free_cc(d1))
+            return 0;
+        src = d1;
+        val = d2;
+    } else if (st == 0x90u || st == 0x80u) {
+        src = 0x80u | d1;
+        val = st == 0x90u ? 127u : 0u;
+    } else
+        return 0;
+    if (io->arm) {
+        if (st != 0x80u && !io->heard[2]) {
+            io->heard[0] = (uint8_t)src;
+            io->heard[1] = (uint8_t)ch;
+            io->heard[2] = 1;
+        }
         return 1;
     }
-    for (i = 0; i < ML_N; i++) {
-        e = ml_tab[2u * i] | (uint32_t)ml_tab[2u * i + 1u] << 8;
-        if ((e >> 9) && (e & 127u) == cc) {
-            if ((id = ml_id(e >> 9)) < P_COUNT)
-                midi_cc_set(&trk[(e >> 7) & 3u], id, value);
-            hit = 1;
+    for (i = 0, e = alm_tab + 2; i < ALM_N; i++, e += 3)
+        if ((e[1] & 0x80u) && e[0] == src && (e[1] & 15u) == ch) {
+            io->v[i] = (uint8_t)val;
+            io->seq[i]++;
+            return 1;
         }
-    }
-    return hit;
+    return 0;
 }
 
 static void __attribute__((noinline)) midi_cc_map(track_t *t, uint32_t cc, uint32_t value)
 {
     uint32_t i, id = 0xFFFFu, e;
-    if (midi_learned(cc, value))                /* (a learned CC is the user's: not the map's) */
-        return;
     for (i = 0; i < NELEM(MIDI_CC_MAP); i++)
         if (MIDI_CC_MAP[i][0] == cc)
             id = MIDI_CC_MAP[i][1];
@@ -392,6 +400,8 @@ static volatile uint8_t *const mpc_io;
  * channel aftertouch, Program Change, so they stay free for other instruments. */
 static void __attribute__((noinline)) midi_event(uint32_t st, uint32_t ch, uint32_t d1, uint32_t d2)
 {
+    if (alm_midi(st, ch, d1, d2))                  /* (ALTER's MIDI LEARN: a linked control, any channel) */
+        return;
     if (song.g[G_ROUTE] != 1 && !midi_in_block(ch))
         return;
     if (st == 0x90u || st == 0x80u)

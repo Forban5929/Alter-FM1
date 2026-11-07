@@ -65,3 +65,11 @@ de Store here (scènes et patterns), onglet SONG (3 cartes A B C : PLAY / STORE 
 + LINK, ✕, CHAIN ON/OFF, « LINK 1/2 · BAR 2/4 »), interrogé toutes les 500 ms quand l'onglet est ouvert. Firmware sans v3 : SCENE 3
 sans réponse → la page reste en v2 (pas de NAME, ni patterns, ni SONG). **Guide des touches** : `web/alter/guide.html` (publié
 `/editor/guide.html`, lien « Controls guide ») — dessins du panneau et des touches, gestes ; à tenir à jour avec CLAUDE.md.
+
+## v4 (07/11) — CONSOLE
+
+INFO dit « ALTER LINK 4 ». Groupe 15 **CONSOLE** ajouté À LA FIN de `LK_GRP` ; 8 réglages par cercle ajoutés à la fin de `LK_V`
+(les index d'avant ne bougent pas) : DRIVE (= P_DIST du son), LOW MID HIGH COMP (= `acs_v`, alter_console.c), DELAY REVERB
+LEVEL (= P_DLY P_REV P_LEVEL). `LV_CONS` / `LV_PAR`. Poussés comme les autres (VCHANGED). Page : onglet EFFECTS, une colonne par
+cercle en haut (LOW MID HIGH affichés en dB, 0 = KILL). Firmware v3 : pas de groupe 15 → pas de colonnes (`pl.cols` filtré).
+Test : `alter_link_test.mjs` (5 tests CONSOLE).

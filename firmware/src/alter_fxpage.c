@@ -156,11 +156,11 @@ static void afp_input(uint32_t pressed)
     uint32_t i, dn = panel.btn[B_OCTDN], up = panel.btn[B_OCTUP];
     int32_t s;
     if (afp.tab == AFP_FLT) {                    /* OCT- / OCT+ alone: the snapshot edited, MORPH to it */
-        if ((pressed >> dn) & 1u && !((fm1_in.buttons >> up) & 1u)) {
+        if ((pressed >> dn) & 1u && !((ALT_BTNS >> up) & 1u)) {
             afp.ab = 0;
             afl_morph = 0;
             alt_say("EDIT A");
-        } else if ((pressed >> up) & 1u && !((fm1_in.buttons >> dn) & 1u)) {
+        } else if ((pressed >> up) & 1u && !((ALT_BTNS >> dn) & 1u)) {
             afp.ab = 1;
             afl_morph = 127;
             alt_say("EDIT B");

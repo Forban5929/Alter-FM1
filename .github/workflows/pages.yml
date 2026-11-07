@@ -62,6 +62,7 @@ jobs:
         run: |
           node tools/alter/alter_emu_test.mjs build/emu/felucca.wasm build/emu/alter_play.wav
           node tools/alter/alter_link_test.mjs build/emu/felucca.wasm
+          node tools/alter/alter_learn_test.mjs build/emu/felucca.wasm
       - name: Préparer le site
         run: |
           mkdir -p site/fonts

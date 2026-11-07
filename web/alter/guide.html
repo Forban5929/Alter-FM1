@@ -142,6 +142,13 @@ td:first-child { white-space: nowrap; }
   <div id="mvSave"></div>
 </section>
 
+<section class="tc" id="learn"><div class="t"><span>MIDI learn</span></div><span class="num">XIX</span>
+  <p class="lead">Any MIDI controller (USB or TRS) can drive ALTER. <b>HOME held</b> opens SYSTEM; ALGORITHM to the
+    <b>LEARN</b> tab. Its first row, GROUP (KNOB 1), picks what the list shows. SELECT a row, turn <b>KNOB 1 right</b>:
+    it says WAITING — move a knob or press a pad on your controller: linked. KNOB 1 left clears the row's link.</p>
+  <table id="tblLearn"></table>
+</section>
+
 <section class="tc" id="menus"><div class="t"><span>Pages &amp; menus</span></div><span class="num">XVII</span>
   <table id="tblMenus"></table>
 </section>
@@ -309,7 +316,7 @@ function tables() {
     ["EDIT", "the engine's four other settings", "DEEP: every setting of the circle's sound, as a list (SOUND ENV FX MIX)"],
     ["SCL", "SCALE · ROOT · CHORD · DOSE", "SCALES"],
     ["GLO", "BPM · LEVEL · PAN · SWING", "MIXER: tab MIX = KNOB 1 2 3 the circles' levels, KNOB 4 MASTER, the output meter · ALGORITHM: tabs I II III = each circle's CONSOLE (SELECT the row; KNOB 1-4: DRIVE LOW MID HIGH / COMP DELAY REVERB LEVEL; LOW MID HIGH at 0 = KILL)"],
-    ["HOME", "back to the circles (closes any page)", "SYSTEM: SETUP (THEME, CLOCK, MIDI IN, TRS SEEN / USB SEEN: the MIDI each jack received) · AUDIO · RANDOM · ABOUT"],
+    ["HOME", "back to the circles (closes any page)", "SYSTEM: SETUP (THEME, CLOCK, MIDI IN, TRS SEEN / USB SEEN: the MIDI each jack received) · LEARN (MIDI learn) · AUDIO · RANDOM · ABOUT"],
     ["ARP", "SONG chain on / off", "SONG page"],
     ["SAVE", "the SAVE page", "(+ A B C high: a SONG slot)"],
     ["PLAY", "play / stop", ""],
@@ -328,8 +335,15 @@ function tables() {
     ['<span class="warn">OCT− + OCT+ held 5 s</span>', '<span class="warn">UPDATE mode (the USB update; the FM-1 stops playing)</span>'],
     ['<span class="warn">OCT− + OCT+ held at power-on</span>', '<span class="warn">the buttons\' calibration</span>'],
   ];
+  const L = [
+    ["GROUP", "What its rows link"],
+    ["CIRCLE I · II · III", "a setting of that circle (whichever is chosen): the sound's eight, ATTACK DECAY SUSTAIN RELEASE, the CONSOLE (DRIVE LOW MID HIGH COMP DELAY REVERB LEVEL), PAN, INSERT, CHORUS, RUMBLE, GLIDE, HITS, DICE DOSE — a knob or fader (CC) only"],
+    ["GLOBAL", "MASTER, TEMPO, SWING, the MASTER FILTER (FREQ RES DRIVE MIX MORPH), DELAY FEEDBACK / COLOR, REVERB SIZE / DAMP · last row CLEAR ALL (KNOB 1 left): every link cleared"],
+    ["ACTIONS", "a key or button of the FM-1, held as long as the controller's button or pad (a CC or a note): MUTE 1-3, DICE 1-3, CHAOS, CIRCLE 1-3, CHAOS TOTAL, DENSITY, SHIFT, LOCK, the fills, TRIGGER, SONG A B C, PLAY / STOP, REC, OCT− / OCT+ (OCT− on a pad + DICE: velocity and chance), ARP"],
+    ["Good to know", "A link listens to its own channel and number only. One control moves one thing: learning it again moves the link. A setting jumps to the controller's value (set your encoders to absolute 0-127, not relative). The links are kept after power-off, for every scene. CCs not linked keep the fixed map (CC7 LEVEL, CC74 timbre, CC91 REVERB…, channels 1 2 3 = circles)."],
+  ];
   const fill = (id, rows) => { document.getElementById(id).innerHTML = rows.map((r, i) => `<tr>${r.map((c) => (i ? `<td>${c}</td>` : `<th>${c}</th>`)).join("")}</tr>`).join(""); };
-  fill("tblMenus", M); fill("tblCombos", C);
+  fill("tblMenus", M); fill("tblCombos", C); fill("tblLearn", L);
 }
 
 function build() {

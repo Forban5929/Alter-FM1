@@ -350,6 +350,25 @@ et en REC les effets tenus (DUB DELAY etc.) sont enregistrés aussi.
   rejouent (web_alter_fxr, web_alter_send) ; sauvé dans USER 04 ; REC tenu 1 s efface. Sons identiques au bit près.
 
 
+## 07/11 — CONSOLE dans la page compagnon + MIDI LEARN ALTER
+Retours de Romain : sons refaits et CONSOLE OK à l'écoute ; EQ/COMP **pas** dans REC (choix) ; TRS MIDI en pause (sans doute
+son câble). Choix (AskUserQuestion) : learn par une **page LEARN dans SYSTEM** (pas de geste rapide), un knob lié = **un cercle
+fixe**, **knobs + boutons** (actions), **carte CC fixe gardée** pour les CC non appris.
+- LINK 4 : groupe CONSOLE (8 réglages par cercle, ajoutés en fin de `LK_V`) ; page : colonnes CONSOLE en haut d'EFFECTS.
+- MIDI LEARN : `alter_learn.c` (UI, inclus dans la partie SYSTEM d'alter_ui.c) + `midi_control.c alm_midi` (côté audio,
+  appelé en tête de `midi_event`, AVANT le filtre MIDI IN). Table : favorites.factory[5..8] (128 o ; [0] = 0xA1, effacée une
+  fois si absent car Felucca y gardait des favoris), 42 liens × 3 octets (numéro | 0x80 note, canal | 0x80 utilisé, code).
+  Codes : cercle c réglage t = c*32+t (`ALM_CT`, 30), GLOBAL 96+g (`ALM_GT`, 12), ACTION 128+a (`ALM_AT`, 30) — à ne
+  jamais réordonner (la flash garde les codes). Côté audio : seulement la dernière valeur + un compteur par lien
+  (`alm_io_s.v/seq`) ; `alm_poll` (1re chose d'alter_ui_input) applique : réglage du son = file `alt_qpush` (REC l'écrit),
+  CONSOLE / RUMBLE / GLOBAL = direct ; action = touches/boutons virtuels `alm_keys` / `alm_btns` OR-és partout où
+  alter_ui.c lisait `fm1_in.notes` / `fm1_in.buttons` (macros `ALT_NOTES` / `ALT_BTNS`) → mêmes combos que le clavier
+  (CHAOS = DÉ 1+2+3, CHAOS TOTAL = CERCLE 1+2+3). Un « on puis off » dans la même passe = un tap (tenu une passe).
+  Un contrôle = une chose (réapprendre déplace). Une note est refusée sur un réglage. CC jamais appris : 0 6 32 38 96-101 120-127.
+  Ancien learn Felucca (`midi_learned`, factory[14]) retiré ; midi_learn.c réduit à `ml_count` (= 0).
+- Tests : `tools/alter/alter_learn_test.mjs` (17, ajouté à pages.yml), peek 12 (mute/hits/sel/playing/REC), 100+P (param),
+  400+i (lien i). Captures vérifiées (lignes, WAITING, CC21 CH16). **Pas sur la FM-1.**
+
 ## Archive : CLAUDE.md complet au 04/11/2026 (avant le rangement v4)
 Gardé tel quel : le détail des étapes FLASH, page compagnon, hasard, REC, MASTER FILTER, RESO, réverbs…
 

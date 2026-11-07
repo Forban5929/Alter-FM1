@@ -54,6 +54,12 @@ static const alt_key_t ALT_KEY[27] = {    /* k: semitones above F3 (whites 0 2 4
     [20] = {AK_FILL, AF_ROLL16, "ROLL 1/16"}, [22] = {AK_FILL, AF_ROLL32, "ROLL 1/8"},
     [25] = {AK_TRIG, 0, "TRIGGER"},         /* a hit of the chosen circle at once; + REC: added to it (alter_play.c alt_trig_now) */
 };
+/* MIDI LEARN's actions (alter_learn.c alm_poll): the keys and buttons a controller holds now, added to the FM-1's own;
+ * alm_bdown: its buttons pressed this pass */
+static uint32_t alm_keys, alm_btns, alm_bdown;
+#define ALT_NOTES (fm1_in.notes | alm_keys)
+#define ALT_BTNS (fm1_in.buttons | alm_btns)
+static void alm_poll(void);
 #define ALT_DIE_HOLD_MS 600u
 #define ALT_REC_CLEAR_MS 1000u                   /* REC held: the chosen circle's moves cleared */
 #define ALT_TAP_MS 150u                   /* a tapped key's bright LED */
@@ -424,7 +430,7 @@ static void alt_sg_sync(void)
             au.cfg[c] = n;
         }
     }
-    if (asg.wr && !((fm1_in.notes >> (19u + 2u * (asg.wr - 1u))) & 1u)) {   /* the first key let go: the chain
+    if (asg.wr && !((ALT_NOTES >> (19u + 2u * (asg.wr - 1u))) & 1u)) {   /* the first key let go: the chain
                                                   * written (two links or more) plays */
         uint32_t i;
         asg.wr = 0;
@@ -472,7 +478,7 @@ static void alt_sg_key(uint32_t s)
 /* ARP: tapped the chain on / off; held 0.5 s the SONG page (pressed: this frame's presses) */
 static void alt_sg_arp(uint32_t pressed, uint32_t hold_ms)
 {
-    uint32_t dn = (fm1_in.buttons >> panel.btn[B_ARP]) & 1u;
+    uint32_t dn = (ALT_BTNS >> panel.btn[B_ARP]) & 1u;
     if ((pressed >> panel.btn[B_ARP]) & 1u) {
         asg.arp_t0 = fm1_ms | 1u;
         asg.arp_held = 0;
@@ -951,7 +957,7 @@ static void alt_seq_input(uint32_t keys)
         if ((down >> k) & 1u && ALT_SEQ_BK[k] != ASK_NONE) {
             uint32_t b = ALT_SEQ_BK[k];
             uint32_t both = (1u << panel.btn[B_OCTDN]) | (1u << panel.btn[B_OCTUP]);
-            if (b < LN_N && (fm1_in.buttons & both) == both) {   /* OCT- + OCT+ held: that lane back to flat */
+            if (b < LN_N && (ALT_BTNS & both) == both) {   /* OCT- + OCT+ held: that lane back to flat */
                 alt_lane_flat(b);
                 au.lane = (uint8_t)b;
                 alt_say("FLAT");
@@ -1024,7 +1030,7 @@ static uint32_t alt_page(void)
 {
     uint32_t q;
     for (q = 1; q < QP_N; q++)
-        if ((fm1_in.buttons >> panel.btn[ALT_QP_BTN[q]]) & 1u)
+        if ((ALT_BTNS >> panel.btn[ALT_QP_BTN[q]]) & 1u)
             return q;
     return au.qp;
 }
@@ -1578,10 +1584,13 @@ static void alt_mx_nav(void);                    /* the MIXER's tabs (the CONSOL
 static void alt_sys_input(void);                  /* SYSTEM (HOME held) */
 static int alter_ui_input(uint32_t pressed)
 {
-    uint32_t keys = fm1_in.notes, down, k, i, ours = alt_ours(), q, octs, both;
+    uint32_t keys, down, k, i, ours = alt_ours(), q, octs, both;
     int32_t s;
+    alm_poll();                                  /* MIDI LEARN: the settings moved, the keys and buttons held */
+    pressed |= alm_bdown;
+    keys = ALT_NOTES;
     both = (1u << panel.btn[B_OCTDN]) | (1u << panel.btn[B_OCTUP]);
-    octs = (fm1_in.buttons & both) == both;
+    octs = (ALT_BTNS & both) == both;
     if (octs && alter_view() && !au.handed && ((pressed >> panel.btn[B_HOME]) & 1u)) {   /* OCT- + OCT+ + HOME: NEW
                                                   * SCENE at once (Romain 01/11), every page closed */
         alt_row_load(0, 0);
@@ -1627,7 +1636,7 @@ static int alter_ui_input(uint32_t pressed)
         transport_req = song.playing || seq_counting() ? 2u : 1u;
     {                                            /* REC (alter_rec.c): tap = overdub on / off; held 1 s = the chosen
                                                   * circle cleared; OCT- + OCT+ + REC = every circle cleared */
-        uint32_t rd = (fm1_in.buttons >> panel.btn[B_REC]) & 1u;
+        uint32_t rd = (ALT_BTNS >> panel.btn[B_REC]) & 1u;
         if ((pressed >> panel.btn[B_REC]) & 1u) {
             au.rec_t0 = fm1_ms | 1u;
             au.rec_done = 0;
@@ -1657,7 +1666,7 @@ static int alter_ui_input(uint32_t pressed)
     }
     {                                            /* HOME: the circles, no page; held 0.5 s: SYSTEM (04/11) */
         static uint32_t home_t0;
-        uint32_t hd = (fm1_in.buttons >> panel.btn[B_HOME]) & 1u;
+        uint32_t hd = (ALT_BTNS >> panel.btn[B_HOME]) & 1u;
         if ((pressed >> panel.btn[B_HOME]) & 1u) {
             int was = au.mn == QP_SYS;
             anm.open = 0;                        /* (the NAME page: left, nothing stored) */
@@ -1674,7 +1683,7 @@ static int alter_ui_input(uint32_t pressed)
         } else if (!hd)
             home_t0 = 0;
     }
-    if (!((fm1_in.buttons >> panel.btn[B_SAVE]) & 1u))
+    if (!((ALT_BTNS >> panel.btn[B_SAVE]) & 1u))
         asg_save_held = 0;
     if (((pressed >> panel.btn[B_SAVE]) & 1u) && !au.scene_open) {   /* SAVE: the SAVE page (its press opens it) */
         asg_save_held = 1;                       /* (held on: + C D E high stores a SONG slot) */
@@ -1683,7 +1692,7 @@ static int alter_ui_input(uint32_t pressed)
         au.qp = QP_NONE;
         au.lockc = 0;
         alt_menu_set(0);
-    } else if (au.scene_open && asg_save_held && ((fm1_in.buttons >> panel.btn[B_SAVE]) & 1u) &&
+    } else if (au.scene_open && asg_save_held && ((ALT_BTNS >> panel.btn[B_SAVE]) & 1u) &&
                (keys & ~au.keys & ((1u << 19) | (1u << 21) | (1u << 23)))) {   /* SAVE held + C D E high: SONG's slot */
         uint32_t dk = keys & ~au.keys;
         alt_sg_save_key((dk >> 19) & 1u ? 0u : (dk >> 21) & 1u ? 1u : 2u);
@@ -1708,7 +1717,7 @@ static int alter_ui_input(uint32_t pressed)
             alt_say(rc > 0 ? "SAVED" : rc == 0 ? "PROTECTED" : "SAVE FAILED");
         }
     } else if (au.scene_open) {                  /* on it: a tap loads, held 1 s stores (a USER row: its NAME first) */
-        uint32_t dn = (fm1_in.buttons >> panel.btn[B_SAVE]) & 1u, t = au.tab >> 1, r = alt_tab_row(au.tab, au.row[au.tab]);
+        uint32_t dn = (ALT_BTNS >> panel.btn[B_SAVE]) & 1u, t = au.tab >> 1, r = alt_tab_row(au.tab, au.row[au.tab]);
         if (((pressed >> panel.btn[B_SAVE]) & 1u)) {
             au.save_t0 = fm1_ms | 1u;
             au.save_done = 0;
@@ -1755,7 +1764,7 @@ static int alter_ui_input(uint32_t pressed)
         return 1;
     }
     for (q = 1; q < QP_N; q++) {                 /* the page buttons: a tap the quick page, held 0.5 s the menu */
-        uint32_t dn = (fm1_in.buttons >> panel.btn[ALT_QP_BTN[q]]) & 1u, was = (au.qp_was >> q) & 1u;
+        uint32_t dn = (ALT_BTNS >> panel.btn[ALT_QP_BTN[q]]) & 1u, was = (au.qp_was >> q) & 1u;
         if (dn && !was) {
             au.qp_t0[q] = fm1_ms;
             au.lockc = 0;
@@ -1796,7 +1805,7 @@ static int alter_ui_input(uint32_t pressed)
         au.keys = keys;
         return 1;
     }
-    if (((fm1_in.buttons >> panel.btn[B_SEQ]) & 1u) && (s = panel_enc(EN_ALGO)) != 0)
+    if (((ALT_BTNS >> panel.btn[B_SEQ]) & 1u) && (s = panel_enc(EN_ALGO)) != 0)
         alt_seq_type(s);                         /* SEQ held + ALGORITHM: the chosen circle's engine */
     if (au.seq_open) {                           /* the SEQ menu */
         alt_seq_input(keys);
@@ -1879,7 +1888,7 @@ static int alter_ui_input(uint32_t pressed)
                 alt_hold = 0;
                 return 1;
             } else if (a->kind == AK_DIE) {
-                uint32_t dn2 = (fm1_in.buttons >> panel.btn[B_OCTDN]) & 1u, up2 = (fm1_in.buttons >> panel.btn[B_OCTUP]) & 1u;
+                uint32_t dn2 = (ALT_BTNS >> panel.btn[B_OCTDN]) & 1u, up2 = (ALT_BTNS >> panel.btn[B_OCTUP]) & 1u;
                 alt_die_w[i2] = (uint8_t)(dn2 ? AS_DW_VC : up2 ? AS_DW_PDR : AS_DW_RHY);   /* (Romain 04/11: three dice) */
                 au.die_t0[i2] = fm1_ms | 1u;
                 au.die_clean_done &= (uint8_t)~(1u << i2);
@@ -1900,7 +1909,7 @@ static int alter_ui_input(uint32_t pressed)
                     au.cfg[au.sel].rot = as_wrap((int32_t)au.cfg[au.sel].rot + d, au.cfg[au.sel].len);
                 au.tap_ms[k] = fm1_ms | 1u;
             } else if (a->kind == AK_TRIG) {     /* TRIGGER: a hit at once; REC held or on: on the nearest step too */
-                uint32_t c2 = au.sel % AS_NCIRC, rd = (fm1_in.buttons >> panel.btn[B_REC]) & 1u;
+                uint32_t c2 = au.sel % AS_NCIRC, rd = (ALT_BTNS >> panel.btn[B_REC]) & 1u;
                 alt_trig_tot[c2]++;
                 if (rd || ar_on) {
                     alt_trig_add_tot[c2]++;
@@ -1984,7 +1993,7 @@ static void alter_leds(uint8_t *nl, uint8_t *nd, uint8_t *nb, uint8_t *nm)
                     faint = !lit && !mid;
                 }
             if (ALT_SEQ_BK[k] != ASK_NONE) {
-                lit = ALT_SEQ_BK[k] == au.lane || (int)((fm1_in.notes >> k) & 1u);
+                lit = ALT_SEQ_BK[k] == au.lane || (int)((ALT_NOTES >> k) & 1u);
                 faint = !lit;
             }
             led_clear(nl, 14u + k);
@@ -2016,15 +2025,15 @@ static void alter_leds(uint8_t *nl, uint8_t *nd, uint8_t *nb, uint8_t *nm)
         else if (a->kind == AK_SEL)              /* the chosen circle's key lit */
             lit = au.sel == a->arg;
         else if (a->kind == AK_DIE || a->kind == AK_SHIFT || a->kind == AK_DENS || a->kind == AK_TRIG)
-            lit = (int)((fm1_in.notes >> k) & 1u) || (au.tap_ms[k] && (int32_t)(fm1_ms - au.tap_ms[k]) < (int32_t)ALT_TAP_MS);
+            lit = (int)((ALT_NOTES >> k) & 1u) || (au.tap_ms[k] && (int32_t)(fm1_ms - au.tap_ms[k]) < (int32_t)ALT_TAP_MS);
         else if (a->kind == AK_FILL)
-            lit = (int)((fm1_in.notes >> k) & 1u);
+            lit = (int)((ALT_NOTES >> k) & 1u);
         else if (a->kind == AK_TLOCK)            /* (dark unless the chosen circle is TURING) */
             lit = au.cfg[au.sel].type == AS_T_TURING && alt_seq.c[au.sel].tfreeze;
         else if (a->kind == AK_SONG)             /* SONG: the slot playing lit, the one asked for blinking, a full one
                                                   * faint, an empty one dark */
             lit = (sg_play == a->arg + 1u && sg_slot[a->arg].used) || (asg.q == a->arg + 1u && ((fm1_ms >> 7) & 1u)) ||
-                  (int)((fm1_in.notes >> k) & 1u);
+                  (int)((ALT_NOTES >> k) & 1u);
         faint = a->kind && !lit && (a->kind != AK_TLOCK || au.cfg[au.sel].type == AS_T_TURING) &&
                 (a->kind != AK_SONG || sg_slot[a->arg].used);
         led_clear(nl, 14u + k);
@@ -3211,8 +3220,8 @@ static void alt_sg_scene(void)
 enum { SYS_THEME, SYS_CLOCK, SYS_MIDIIN, SYS_TRSSEEN, SYS_USBSEEN, SYS_NMIDI };   /* (SEEN: read only, 05/11) */
 static const char *alt_set_text(uint32_t r);    /* (THEME: below) */
 static void alt_set_turn(uint32_t r, int32_t s);
-enum { SYS_TMIDI, SYS_TAUD, SYS_TRAND, SYS_TABOUT, SYS_NT };
-static const char *const SYS_TAB[SYS_NT] = {"SETUP", "AUDIO", "RANDOM", "ABOUT"};
+enum { SYS_TMIDI, SYS_TLEARN, SYS_TAUD, SYS_TRAND, SYS_TABOUT, SYS_NT };
+static const char *const SYS_TAB[SYS_NT] = {"SETUP", "LEARN", "AUDIO", "RANDOM", "ABOUT"};
 static const char *const SYS_MROW[SYS_NMIDI] = {"THEME", "CLOCK", "MIDI IN", "TRS SEEN", "USB SEEN"};
 static const uint8_t SYS_AROW[] = {MI_CLICK, MI_CLKLVL, MI_LOWCUT, MI_USB, MI_TUNE,   /* (COUNT-IN left 05/11: only
                                                   * Felucca's REC counted in) */
@@ -3227,17 +3236,20 @@ static const char *const SYS_RROW[ALT_NENG + 3u] = {"ALTER", "PHYS", "NOISE", "R
 static uint8_t alt_sys_top;                      /* (the first row shown: RANDOM's ten scroll)  */
 static uint8_t alt_sys_tab;
 static int16_t alt_sys_scroll;                   /* (ABOUT: pixels scrolled) */
+#include "alter_learn.c"                         /* LEARN: MIDI LEARN (07/11) */
 static uint32_t alt_sys_rows(void)
 {
-    return alt_sys_tab == SYS_TMIDI ? SYS_NMIDI : alt_sys_tab == SYS_TAUD ? SYS_NAUD : alt_sys_tab == SYS_TRAND ? SYS_NRE + 3u : 0u;
+    return alt_sys_tab == SYS_TLEARN ? alm_rows() : alt_sys_tab == SYS_TMIDI ? SYS_NMIDI : alt_sys_tab == SYS_TAUD ? SYS_NAUD : alt_sys_tab == SYS_TRAND ? SYS_NRE + 3u : 0u;
 }
 static const char *alt_sys_name(uint32_t r)
 {
-    return alt_sys_tab == SYS_TMIDI ? SYS_MROW[r] : alt_sys_tab == SYS_TAUD ? MI_NAME[SYS_AROW[r]] : SYS_RROW[r];
+    return alt_sys_tab == SYS_TLEARN ? alm_name(r) : alt_sys_tab == SYS_TMIDI ? SYS_MROW[r] : alt_sys_tab == SYS_TAUD ? MI_NAME[SYS_AROW[r]] : SYS_RROW[r];
 }
 static const char *alt_sys_text(uint32_t r)
 {
     static char tb[12];
+    if (alt_sys_tab == SYS_TLEARN)
+        return alm_text(r);
     if (alt_sys_tab == SYS_TRAND) {
         uint32_t m = r < SYS_NRE ? alt_sys[1] >> r : alt_sys[2] >> (r - SYS_NRE);
         return (m & 1u) ? "ON" : "OFF";
@@ -3283,6 +3295,10 @@ static const char *alt_sys_text(uint32_t r)
 static void alt_sys_turn(uint32_t r, int32_t s)
 {
     int32_t d = s > 0 ? 1 : -1;
+    if (alt_sys_tab == SYS_TLEARN) {
+        alm_turn(r, s);
+        return;                                  /* (it saves itself) */
+    }
     if (alt_sys_tab == SYS_TRAND) {
         uint8_t *b = &alt_sys[r < SYS_NRE ? 1 : 2];
         uint32_t bit = 1u << (r < SYS_NRE ? r : r - SYS_NRE), all = r < SYS_NRE ? 127u : 7u, v = d > 0 ? *b | bit : *b & ~bit;
@@ -3338,6 +3354,8 @@ static void alt_sys_input(void)
                 alt_sys_top = (uint8_t)(au.set_row - 6u);
         }
     }
+    if (alt_sys_tab == SYS_TLEARN)
+        alm_input();
     for (i = 0; i < 4u; i++)
         if ((s = panel_enc(EN_K1 + i)) != 0 && i == 0u) {
             if (alt_sys_tab == SYS_TABOUT)       /* (KNOB 1 scrolls ABOUT too) */
@@ -3365,6 +3383,7 @@ static void alt_sys_scene(void)
     uint16_t col = ALT_COL[au.sel % AS_NCIRC], hl = alt_gold_line(16);
     static const char *const FOOT[SYS_NT][2] = {
         {"CLOCK TRS = THE RYTM'S CLOCK", "MIDI IN: CHANNELS 1 2 3 = CIRCLES"},   /* (SETUP) */
+        {"KNOB 1 >: LEARN   <: CLEAR", "GROUP: CIRCLE I II III, GLOBAL, ACTIONS"},
         {"2ND CORE: AFTER A RESTART", "SPEAKER EQ: THE FM-1'S SPEAKER"},
         {"ENGINES: CHAOS, CHAOS TOTAL", "MODES: CHAOS TOTAL (SELECT: MORE)"},
         {"SELECT / KNOB 1: SCROLL", "GPL-3.0: THE SOURCE IS FREE"},
@@ -3386,10 +3405,17 @@ static void alt_sys_scene(void)
             alt_diamond(15, y + 6, 3, 3, col);
         }
         cv_text_on(24, y, ALT_FM, alt_sys_name(r), ALT_INK, r == au.set_row ? hl : ALT_BG);
-        cv_text_r(226, y, ALT_FM, alt_sys_text(r), r == au.set_row ? col : ALT_DIM, r == au.set_row ? hl : ALT_BG);
+        if (alt_sys_tab == SYS_TLEARN && r && alt_sys_text(r)[0] != '-')   /* (LEARN: a link in the small letters,
+                                                  * the names are long; none: "-") */
+            cv_text_r(226, y + 3, ALT_FS, alt_sys_text(r), r == au.set_row || alm_wait == r ? col : ALT_DIM,
+                      r == au.set_row ? hl : ALT_BG);
+        else
+            cv_text_r(226, y, ALT_FM, alt_sys_text(r), r == au.set_row ? col : ALT_DIM, r == au.set_row ? hl : ALT_BG);
     }
     cv_rect(8, 196, 224, 1, alt_gold_line(30));
-    cv_text(8, 202, ALT_FS, FOOT[alt_sys_tab % SYS_NT][0], ALT_DIM);
+    cv_text(8, 202, ALT_FS, alt_sys_tab == SYS_TLEARN && alm_msg && fm1_ms - alm_msg_ms < 2000u ? alm_msg :
+                            FOOT[alt_sys_tab % SYS_NT][0], alt_sys_tab == SYS_TLEARN && alm_msg && fm1_ms - alm_msg_ms < 2000u ?
+                            ALT_GOLD : ALT_DIM);
     cv_text(8, 216, ALT_FS, FOOT[alt_sys_tab % SYS_NT][1], ALT_DIM);
 }
 
@@ -3994,6 +4020,8 @@ static void alter_draw(void)
                + (fm1_ms - alt_midi_clk_ms[1] < 500u) * 7u +
               (fm1_ms - alt_midi_clk_ms[2] < 500u) * 11u;   /* (TRS / USB SEEN) */
         sig = sig * 31u + (uint32_t)alt_sys_scroll * 3u;
+        if (alt_sys_tab == SYS_TLEARN)
+            sig = sig * 31u + alm_sig();
     }
     if (au.mn == QP_SYS)
         sig = sig * 31u + alt_sys_top * 5u + alt_sys_tab * 7u + alt_sys[1] * 11u + alt_sys[2] * 13u + (uint32_t)song.g[G_CLOCK] * 17u +
@@ -4142,6 +4170,13 @@ static int32_t alt_peek(uint32_t c, uint32_t w)
         return au.cfg[c].trange;
     if (w == 11u)                                /* (the CONSOLE: LOW MID HIGH COMP, a byte each) */
         return (int32_t)(acs_v[c][0] | acs_v[c][1] << 8 | acs_v[c][2] << 16 | (uint32_t)acs_v[c][3] << 24);
+    if (w == 12u)                                /* (MIDI LEARN's tests: MUTE, HITS, the chosen circle, playing, REC) */
+        return (int32_t)(au.cfg[c].mute | au.cfg[c].hits << 8 | au.sel << 16 | (uint32_t)song.playing << 24 |
+                         (uint32_t)ar_on << 25);
+    if (w >= 100u && w < 100u + P_COUNT)         /* (a part's parameter as it is) */
+        return trk[c].p[w - 100u];
+    if (w >= 400u && w < 400u + ALM_N)           /* (MIDI LEARN's entry w - 400: its three bytes) */
+        return (int32_t)(alm_e(w - 400u)[0] | alm_e(w - 400u)[1] << 8 | (uint32_t)alm_e(w - 400u)[2] << 16);
     return w == 0 ? (int32_t)trk[c].eng_req : w == 1 ? (int32_t)au.cfg[c].chord : alt_fxb_total(c);
 }
 static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)

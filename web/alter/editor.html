@@ -402,7 +402,7 @@ legend { font-size: 13px; }
 <section class="panel" data-panel="rythmes" role="tabpanel" hidden><div class="shared" data-shared></div><div class="strips" data-cols></div></section>
 <section class="panel" data-panel="modulation" role="tabpanel" hidden><div class="strips" data-cols></div><div class="shared wide" data-wide></div></section>
 <section class="panel" data-panel="song" role="tabpanel" hidden><div class="song" id="song"></div></section>
-<section class="panel" data-panel="effets" role="tabpanel" hidden><div class="shared fxrow" data-shared></div><div class="shared wide" data-wide></div></section>
+<section class="panel" data-panel="effets" role="tabpanel" hidden><div class="strips" data-cols></div><div class="shared fxrow" data-shared></div><div class="shared wide" data-wide></div></section>
 <footer class="foot">
   <p>ALTER is free firmware (GPL-3.0) built on Felucca. Code: <a href="https://github.com/Forban5929/Alter-FM1" target="_blank" rel="noopener">github.com/Forban5929/Alter-FM1</a>.
     Fonts: TeX Gyre Pagella (GUST Font License), Inter Tight and IBM Plex Mono (SIL Open Font License).
@@ -893,13 +893,13 @@ async function pollSong() {
 
 /* ---------- v2: every other setting (rhythms, lanes, LFO, matrix, shared effects), the circles as they play ---------- */
 // LK_GRP's numbers (alter_link.c)
-const GR = { RYT: 0, GAM: 1, ENV: 2, L1: 3, L2: 4, L3: 5, MTX: 6, LGL: 7, TMP: 8, DLY: 9, REV: 10, MST: 11, FA: 12, FB: 13, MRP: 14 };
+const GR = { RYT: 0, GAM: 1, ENV: 2, L1: 3, L2: 4, L3: 5, MTX: 6, LGL: 7, TMP: 8, DLY: 9, REV: 10, MST: 11, FA: 12, FB: 13, MRP: 14, CONS: 15 };
 // where each group goes: a circle's column on a tab, or the tab's shared cards
 const PLACE = {
   sons: { cols: [GR.ENV], shared: [] },
   rythmes: { cols: [GR.RYT, GR.GAM], shared: [GR.GAM, GR.TMP] },
   modulation: { cols: [GR.L1, GR.L2, GR.L3, GR.MTX], shared: [GR.LGL] },
-  effets: { cols: [], shared: [GR.DLY, GR.REV, GR.FA, GR.FB, GR.MRP, GR.MST] },
+  effets: { cols: [GR.CONS], shared: [GR.DLY, GR.REV, GR.FA, GR.FB, GR.MRP, GR.MST] },
 };
 const LANE_LIM = [[1, 127], [0, 127], [0, 127], [0, 127], [-7, 7], [0, 3]];   // (alter_ui.c alt_lane_lim)
 const LANE_SHORT = ["VELO", "CHNC", "DLY", "REV", "PITCH", "RATCH"];
@@ -908,7 +908,11 @@ let v2 = null, currentTab = "sons";
 const vctl = [[], [], [], []];                      // the controls of circle 0..2's settings, [3] the shared ones
 const lane = [0, 1, 2].map(() => ({ sel: 0, values: [[], [], [], [], [], []], el: null, drag: false }));
 
-const showV = (d, v) => (d.names.length ? d.names[v - d.min] ?? String(v)
+// the CONSOLE's EQ (alter_console.c acs_gain): 0 KILL, 64 = 0 dB, 127 = +12 dB
+const eqDb = (v) => { const g = v <= 64 ? v * v : 4096 + (v - 64) * (v - 64) * 2 + (v - 64) * 65; return 20 * Math.log10(g / 4096); };
+const showCons = (d, v) => /^(LOW|MID|HIGH)$/.test(d.name) ? (v === 0 ? "KILL" : `${v > 64 ? "+" : ""}${eqDb(v).toFixed(1)} dB`)
+  : v === 0 && d.name !== "LEVEL" ? "OFF" : String(v);
+const showV = (d, v) => (d.grp === GR.CONS ? showCons(d, v) : d.names.length ? d.names[v - d.min] ?? String(v)
   : d.name === "NOTE" ? `${NOTE[v % 12]}${Math.floor(v / 12) - 1}`
   : d.name === "TEMPO" ? `${v} BPM` : String(v));
 
@@ -1007,7 +1011,8 @@ function buildV2() {
     cols.append(col);
   }
   // the tabs' columns and shared cards
-  for (const [tab, pl] of Object.entries(PLACE)) {
+  for (const [tab, pl0] of Object.entries(PLACE)) {
+    const pl = { ...pl0, cols: pl0.cols.filter((g) => g < vl.groups.length) };   // (an older firmware: no CONSOLE)
     const panel = document.querySelector(`[data-panel="${tab}"]`);
     const colsBox = tab === "sons" ? null : panel.querySelector("[data-cols]");
     const shared = panel.querySelector("[data-shared]"), wide = panel.querySelector("[data-wide]");
