@@ -16,6 +16,7 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
    - `node tools/alter/alter_emu_test.mjs build/emu/felucca.wasm build/emu/alter_play.wav` · `node tools/alter/alter_fx_test.mjs build/emu/felucca.wasm`
    - `cc -std=c99 -O2 -Wall -o build/alter/alter_seq_test tools/alter/alter_seq_test.c && build/alter/alter_seq_test`
    - `node tools/alter/alter_link_test.mjs build/emu/felucca.wasm` · `node tools/alter/alter_learn_test.mjs build/emu/felucca.wasm`
+     · `node tools/alter/alter_smooth_test.mjs build/emu/felucca.wasm` (bandes = redessin complet, coût ON/OFF)
      · `node web/emu/emu_test.mjs …` (**4 échecs VOULUS**)
    - 2 cœurs (GitHub le lance) : `cc -std=gnu99 -O1 -w -fsanitize=thread -DFELUCCA_CPU2=1 -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -Ifirmware/bsp/chip -Ifirmware/bsp/boards/fm1 tests/dualcore_test.c -o build/host/dualcore_test -lpthread -lm`
    - Syntaxe FM-1 : `clang --target=wasm32 -fsyntax-only -std=gnu99 -w -Werror=implicit-function-declaration -Werror=undefined-internal -nostdlibinc -isystem tools/alter/wasm/include -isystem $(clang -print-resource-dir)/include -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Ifirmware/bsp/chip -Ifirmware/bsp/boards/fm1 firmware/src/felucca.c`
@@ -68,7 +69,7 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   à leur niveau, max +12 dB), barre dorée = réduction. **Pas dans REC** (choix de Romain 07/11), gardé dans les scènes USER (`alt_ub.s.cs`, après
   `nm` ; objets plus courts = à plat), usine/NEW = à plat. **Page compagnon (LINK 4)** : onglet EFFECTS, colonnes CONSOLE. Delay/reverb = envois vers les bus
   communs (pas de delay par cercle : RAM). Tests : op `web_alter` **20** (a = cercle | valeur<<8, b), peek **11**.
-  **HOME tenu = SYSTEM** (batterie en haut ; onglets SETUP, **LEARN** (voir MIDI LEARN), AUDIO, RANDOM, ABOUT ; SETUP : THEME, CLOCK INT/USB/TRS, MIDI IN, **TRS SEEN / USB SEEN**
+  **HOME tenu = SYSTEM** (batterie en haut ; onglets SETUP, **LEARN** (voir MIDI LEARN), AUDIO, RANDOM, ABOUT ; SETUP : THEME, **SMOOTH** ON/OFF (alt_sys[8], 0 = ON), CLOCK INT/USB/TRS, MIDI IN, **TRS SEEN / USB SEEN**
   (lecture seule : messages MIDI reçus par prise depuis l'allumage, « CLK » si des F8 arrivent ; `alt_midi_n`, compté dans seq.c) · AUDIO : lignes Felucca
   CLICK (OFF/ON), CLICK LEVEL, SPEAKER EQ, USB LEVEL, TUNE, 2ND CORE · RANDOM : les 7 moteurs et modes FREE PERC
   STAB permis au hasard (la liste défile) · ABOUT : document GPL de Felucca, défile). Gardé en flash : `alt_sys` = favorites.factory[13]
@@ -171,7 +172,13 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   `follow`/`animLoop`) : étoile + aiguille avancent en continu entre deux PLAY, vitesse = temps moyen entre pas mesuré,
   jamais plus d'1 pas d'avance (attend le pas suivant), saut = direct ; coup = anneau qui grandit et s'efface (`pulse`) ;
   rien de tout ça si « réduire les animations » est demandé par le système. Testé : link (3 tests RUMBLE), Chrome démo. **Pas avec la FM-1.**
-- [ ] **PROCHAINE SESSION** : retour de Romain sur la page fluide + RUMBLE avec la FM-1 ; **puis écran FM-1 fluide** (choix
-  de Romain : page d'abord) = version test avec images/s affichées, car une aiguille continue casse le redessin « lignes
-  touchées » (risque de lag). Aussi : MIDI LEARN avec le BCR32, CONSOLE de la page branchée, TRS (autre câble).
+- [x] 08/11 : **écran FM-1 fluide (VERSION TEST)**, SYSTEM > SETUP > SMOOTH (ON par défaut) : étoile de chaque cercle qui
+  glisse sur son anneau + alidade qui tourne, depuis `alt_msrc[c][0]` (POS de alter_lfo : pas + temps dedans, horloge de
+  l'audio) ; coup = étoile 10 → 6 en 200 ms. Pris une fois par image (`alt_sm_take`). Redessin par **bandes de lignes**
+  (bitmap `alt_rows`, bandes à ≤ 16 lignes fusionnées) : étoiles ±12, alidade centre→pointe. **« nnF » = images/s** sur la
+  ligne CPU (`alt_fps`). Émulateur : identique pixel à pixel à un redessin complet (ON et OFF) ; coût navigateur d'une
+  image ON ≈ 47 % d'une complète (OFF ≈ 22 %, mais seulement à chaque pas). **FPS réel FM-1 non mesuré.**
+- [ ] **PROCHAINE SESSION** : retour de Romain : FPS lu sur la FM-1 (« nnF »), fluide ou pas, CPU/coupures avec SMOOTH ON vs OFF ;
+  si lent : limiter à ~30 images/s ou alidade plus courte. Aussi page fluide + RUMBLE avec la FM-1, MIDI LEARN avec le
+  BCR32, CONSOLE de la page branchée, TRS (autre câble).
 - [ ] Idées : un contrôle → plusieurs réglages (macro) ; LEARN dans la page compagnon ; DENSITY/ROT continus.

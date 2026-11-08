@@ -508,6 +508,7 @@ EXPORT uint32_t web_test_user_preset(uint32_t i) { return (uint32_t)up_used(i); 
 
 EXPORT uint16_t *web_screen(void) { return web_fb; }
 EXPORT uint32_t web_screen_draws(void) { return web_draws; }
+EXPORT void web_alter_smooth(uint32_t on) { alt_sys[8] = (uint8_t)(on ? 0u : 1u); }   /* (tests 08/11: SYSTEM > SMOOTH) */
 EXPORT uint32_t web_now_ms(void) { return fm1_ms; }
 EXPORT uint32_t web_playing(void) { return song.playing; }
 EXPORT uint32_t web_sample_rate(void) { return FS; }
