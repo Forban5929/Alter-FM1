@@ -2113,6 +2113,33 @@ static void alt_disc(int32_t cx, int32_t cy, int32_t r, uint16_t c)
     int32_t dy, dx, r16 = r * 16 + 8;
     if (alt_miss(cx - r - 1, cy - r - 1, cx + r + 1, cy + r + 1))
         return;
+    if (r >= 0 && r <= 10) {                     /* (09/11: the edge's coverage worked out once a radius, not a square
+                                                  * root a pixel; the same values) */
+        static uint8_t cov[2299] __attribute__((section(".pool")));   /* (radius r's square at sum of (2k+3)^2, k < r) */
+        static uint16_t ok __attribute__((section(".pool")));
+        int32_t w = 2 * r + 3, k, o = 0;
+        uint8_t *t;
+        for (k = 0; k < r; k++)
+            o += (2 * k + 3) * (2 * k + 3);
+        t = cov + o;
+        if (!(ok >> r & 1u)) {
+            for (dy = -r - 1; dy <= r + 1; dy++)
+                for (dx = -r - 1; dx <= r + 1; dx++) {
+                    int32_t d = (int32_t)alt_isqrt((uint32_t)((dx * dx + dy * dy) * 256)), a = (r16 - d) * 16 + 128;
+                    t[(dy + r + 1) * w + dx + r + 1] = (uint8_t)(a >= 256 ? 255 : a > 0 ? a : 0);
+                }
+            ok |= (uint16_t)(1u << r);
+        }
+        for (dy = -r - 1; dy <= r + 1; dy++)
+            for (dx = -r - 1; dx <= r + 1; dx++) {
+                uint32_t a = t[(dy + r + 1) * w + dx + r + 1];
+                if (a == 255u)
+                    cv_rect(cx + dx, cy + dy, 1, 1, c);
+                else if (a)
+                    alt_plot(cx + dx, cy + dy, c, (int32_t)a);
+            }
+        return;
+    }
     for (dy = -r - 1; dy <= r + 1; dy++)
         for (dx = -r - 1; dx <= r + 1; dx++) {
             int32_t d = (int32_t)alt_isqrt((uint32_t)((dx * dx + dy * dy) * 256)), a = (r16 - d) * 16 + 128;
@@ -3677,12 +3704,21 @@ static void alt_rows(uint32_t *d, int32_t lo, int32_t hi)   /* rows lo .. hi to 
 /* VERSION TEST (08/11): the frames sent to the screen in the last second (any change: a band or the whole), shown on
  * the CPU line as "nnF" */
 static uint32_t alt_fps, alt_fps_n, alt_fps_ms, alt_full_n;   /* (alt_full_n: whole frames, tests) */
-static void alt_fps_tick(void) { alt_fps_n++; }
+/* (09/11) and how long a frame takes to draw, ms (the time from alter_draw's start to its last blit, the audio's
+ * interrupts in it): "28F 9MS". Many ms: the drawing is slow; few ms but few F: something else holds the loop */
+static uint32_t alt_draw_t0, alt_draw_us, alt_draw_ms;
+static void alt_fps_tick(void)
+{
+    alt_fps_n++;
+    alt_draw_us += (fm1_ticks() - alt_draw_t0) / FM1_TICKS_PER_US;
+}
 static void alt_fps_poll(void)                   /* (once a second: a still screen counts 0) */
 {
     if (fm1_ms - alt_fps_ms >= 1000u) {
         alt_fps = alt_fps_n;
+        alt_draw_ms = alt_fps_n ? (alt_draw_us / alt_fps_n + 500u) / 1000u : 0u;
         alt_fps_n = 0;
+        alt_draw_us = 0;
         alt_fps_ms = fm1_ms;
     }
 }
@@ -3741,7 +3777,7 @@ static void alt_cpu_num(char *b, uint32_t *n, uint32_t v)
 }
 static void alt_cpu_line(void)
 {
-    char b[24];
+    char b[32];
     uint32_t n = 0;
     uint16_t col = alt_cpu_cut ? ALT_RED : alt_cpu_pk >= 75u ? ALT_GOLD : ALT_DIM;
     b[n++] = 'C', b[n++] = 'P', b[n++] = 'U', b[n++] = ' ';
@@ -3752,6 +3788,9 @@ static void alt_cpu_line(void)
     b[n++] = ' ';                                 /* (08/11: the screen's frames a second) */
     alt_cpu_num(b, &n, alt_fps);
     b[n++] = 'F';
+    b[n++] = ' ';
+    alt_cpu_num(b, &n, alt_draw_ms);
+    b[n++] = 'M', b[n++] = 'S';
 #if FELUCCA_CPU2
     if (alt_cpu_c1)                               /* le 2e cœur prend des cercles (MENU > SYSTEM > 2ND CORE) */
         b[n++] = ' ', b[n++] = '2', b[n++] = 'C';
@@ -3767,6 +3806,29 @@ static void alt_cpu_line(void)
     }
 }
 #endif
+
+/* circle i's step j of len on its ring (09/11: worked out once a LEN, not for every small rectangle) */
+static void alt_step_xy(uint32_t i, uint32_t len, uint32_t j, int32_t *x, int32_t *y)
+{
+    static int16_t sx[AS_NCIRC][32], sy[AS_NCIRC][32];
+    static uint8_t sl[AS_NCIRC];
+    i %= AS_NCIRC;
+    if (len > 32u || j >= 32u) {
+        alt_at((uint32_t)(((uint64_t)j << 32) / (len ? len : 1u)), ALT_R[i], x, y);
+        return;
+    }
+    if (sl[i] != len) {
+        uint32_t k;
+        for (k = 0; k < len; k++) {
+            int32_t a, b;
+            alt_at((uint32_t)(((uint64_t)k << 32) / len), ALT_R[i], &a, &b);
+            sx[i][k] = (int16_t)a, sy[i][k] = (int16_t)b;
+        }
+        sl[i] = (uint8_t)len;
+    }
+    *x = sx[i][j];
+    *y = sy[i][j];
+}
 
 static void alt_scene(uint32_t q, uint32_t flash)
 {
@@ -3819,14 +3881,24 @@ static void alt_scene(uint32_t q, uint32_t flash)
         return;
     }
     /* the card's engraving: rays from the centre (under everything, kept off the knobs) */
-    for (i = 0; i < 48u; i++) {
-        uint32_t tn = i * (0xFFFFFFFFu / 48u);
-        int32_t cs = sine_i(tn + 0x40000000u), r1 = 98, x0, y0, x1, y1;
-        if (cs < 0 && r1 * -cs > (76 << 15))
-            r1 = (76 << 15) / -cs;
-        alt_pt(ALT_CX, ALT_CY, tn, 46, &x0, &y0);
-        alt_pt(ALT_CX, ALT_CY, tn, r1, &x1, &y1);
-        alt_aaline(x0, y0, x1, y1, alt_gold_line(12));
+    {
+        static int16_t ray[48][4];               /* (09/11: their ends worked out once) */
+        static uint8_t ray_ok;
+        uint16_t rc = alt_gold_line(12);
+        if (!ray_ok) {
+            for (i = 0; i < 48u; i++) {
+                uint32_t tn = i * (0xFFFFFFFFu / 48u);
+                int32_t cs = sine_i(tn + 0x40000000u), r1 = 98, x0, y0, x1, y1;
+                if (cs < 0 && r1 * -cs > (76 << 15))
+                    r1 = (76 << 15) / -cs;
+                alt_pt(ALT_CX, ALT_CY, tn, 46, &x0, &y0);
+                alt_pt(ALT_CX, ALT_CY, tn, r1, &x1, &y1);
+                ray[i][0] = (int16_t)x0, ray[i][1] = (int16_t)y0, ray[i][2] = (int16_t)x1, ray[i][3] = (int16_t)y1;
+            }
+            ray_ok = 1;
+        }
+        for (i = 0; i < 48u; i++)
+            alt_aaline(ray[i][0], ray[i][1], ray[i][2], ray[i][3], rc);
     }
     /* the head: the card, the sound's name in its ribbon, the arcana of the page shown; the tempo, the engine, the
      * mode (SMOOTH 08/11: a piece of the screen away from the card's edges and the head: not walked) */
@@ -3909,7 +3981,7 @@ static void alt_scene(uint32_t q, uint32_t flash)
             alt_aaring16(ALT_CX * 16, ALT_CY * 16, r * 16, alt_gold_line(muted ? 30 : 55));   /* the ring: gold */
         for (j = 0; j < len && j < 32u; j++)
             if ((c->pat >> j) & 1u)
-                alt_at((uint32_t)(((uint64_t)j << 32) / len), r, &hx[m], &hy[m]), m++;
+                alt_step_xy(i, len, j, &hx[m], &hy[m]), m++;
         if (m >= 2u) {                           /* the sigil: the hits joined, a star once there are five */
             uint32_t k, cur = 0;
             st = 1u;
@@ -3947,7 +4019,7 @@ static void alt_scene(uint32_t q, uint32_t flash)
             int on = (int)((c->pat >> j) & 1u), here = song.playing && j == now && !ALT_SMOOTH;
             int32_t g = ALT_SMOOTH && on && j == alt_hit_step[i] ? alt_sm_g[i] : 0;   /* (SMOOTH: it plays: grows) */
             uint16_t cg = g ? alt_mixc(col, ALT_INK, g * 30) : col;
-            alt_at((uint32_t)(((uint64_t)j << 32) / len), r, &x, &y);
+            alt_step_xy(i, len, j, &x, &y);
             if (on)                              /* (a contour: the hit apart from its ring, Romain 05/11) */
                 alt_disc(x, y, (i == 2u ? 4 : 6) + g, ALT_BG);
             if (here && on)
@@ -4060,7 +4132,7 @@ static alt_rc_t alt_rc[12];
 static uint32_t alt_nrc;
 static uint32_t alt_sm_dang;                     /* the alidade drawn: its turn, on or not */
 static uint8_t alt_sm_don, alt_sm_dhs[AS_NCIRC], alt_sm_dg[AS_NCIRC], alt_sm_dgl;
-static uint32_t alt_sm_foot, alt_sm_head, alt_sm_dfoot, alt_sm_dhead;   /* the knobs', the CPU line's sig: now, drawn */
+static uint32_t alt_sm_foot, alt_sm_head, alt_sm_dfoot, alt_sm_dhead, alt_sm_footk[4], alt_sm_dfootk[4];   /* the knobs', the CPU line's sig: now, drawn */
 static void alt_rc_add(int32_t x0, int32_t y0, int32_t x1, int32_t y1)
 {
     uint32_t k;
@@ -4106,6 +4178,8 @@ static void alt_sm_seen(void)
     alt_sm_dgl = (uint8_t)alt_sm_glsig();
     alt_sm_dfoot = alt_sm_foot;
     alt_sm_dhead = alt_sm_head;
+    for (i = 0; i < 4u; i++)
+        alt_sm_dfootk[i] = alt_sm_footk[i];
 }
 static void alt_rc_alid(uint32_t turn)           /* the alidade at turn: six boxes along it */
 {
@@ -4155,10 +4229,11 @@ static int alt_sm_frame(uint32_t q, uint32_t flash)
             static const int8_t PB[AS_NCIRC][4] = {{-22, -24, 3, 14}, {-3, -24, 22, 14}, {-22, -2, 22, 15}};
             alt_rc_add(ALT_CX + PB[i][0], ALT_CY + PB[i][1], ALT_CX + PB[i][2], ALT_CY + PB[i][3]);
         }
-    if (alt_sm_foot != alt_sm_dfoot)             /* (the knobs: a value, an LFO on one) */
-        alt_rc_add(0, 190, 239, 239);
+    for (i = 0; i < 4u; i++)                     /* (a knob: its value, an LFO on it; itself alone, 09/11) */
+        if (alt_sm_footk[i] != alt_sm_dfootk[i])
+            alt_rc_add(4 + (int32_t)i * 57, 192, 64 + (int32_t)i * 57, 239);
     if (alt_sm_head != alt_sm_dhead)             /* (the CPU line, top left) */
-        alt_rc_add(6, 16, 160, 48);
+        alt_rc_add(6, 16, 196, 48);
     {
         uint32_t keep = alt_sm_ang[au.sel % AS_NCIRC];
         alt_sm_ang[au.sel % AS_NCIRC] = ang;     /* (unmoved: drawn where it was) */
@@ -4196,6 +4271,7 @@ static void alter_draw(void)
 {
     uint32_t sig = 0, sfoot = 0, shead = 0, i, h, flash = 0, q = au.lockc ? 0u : alt_page();
     alt_now_ms = fm1_ms;
+    alt_draw_t0 = fm1_ticks();
     for (i = 0; i < AS_NCIRC; i++) {
         if ((h = alt_hits[i]) != au.hits_seen[i]) {
             uint32_t len = alt_seq.c[i].cfg.len ? alt_seq.c[i].cfg.len : 1u;
@@ -4215,13 +4291,16 @@ static void alter_draw(void)
         const char *nm;
         char tx[12];
         int32_t f;
-        sfoot = sfoot * 31u + (uint32_t)alt_kv(q, i, &nm, tx, &f);   /* (the knobs: apart, SMOOTH draws them alone) */
+        uint32_t sk = (uint32_t)alt_kv(q, i, &nm, tx, &f);   /* (the knobs: apart, SMOOTH draws each alone) */
         if (f >= 0 && !au.mat_open && !au.scene_open && !au.lockc) {
             int32_t lo, hi, pc;
             alt_live_bar(q, i, f, &lo, &hi, &pc);
-            sfoot = sfoot * 31u + (uint32_t)(lo * 977 + hi * 31 + 7);   /* (the range) */
+            sk = sk * 31u + (uint32_t)(lo * 977 + hi * 31 + 7);   /* (the range) */
         }
-        sfoot = sfoot * 31u + (uint32_t)alt_knob_lfo(q, i);
+        sk = sk * 31u + (uint32_t)alt_knob_lfo(q, i);
+        sk = sk * 31u + ((alt_dial_live() >> i) & 1u) * 83u;
+        alt_sm_footk[i] = sk;
+        sfoot = sfoot * 31u + sk;
     }
     sig = sig * 31u + anm.open * 3u + anm.ch[0] * 5u + anm.ch[1] * 7u + anm.ch[2] * 11u;   /* (the NAME page) */
     sig = sig * 31u + alt_emode[au.sel] * 37u + alt_seq.scale * 41u + au.scene_open * 43u + au.row[au.tab] * 47u + au.tab * 59u +
@@ -4270,7 +4349,7 @@ static void alter_draw(void)
 #endif
               ;
     sig = sig * 31u + au.mn * 61u + au.set_row * 67u + (uint32_t)ALT_DAY * 71u + au.cfg[au.sel % AS_NCIRC].chord * 73u;
-    sfoot = sfoot * 31u + alt_dial_live() * 83u;
+
     sig = sig * 31u + (uint32_t)ar_on * 89u + (ar_n[au.sel % AS_NCIRC] != 0) * 97u;
     sig = sig * 31u + sg_play * 3u + sg_link * 5u + sg_on * 7u + (asg.q ? asg.q * 11u + ((fm1_ms >> 7) & 1u) : 0u) +
           sg_slot[0].used * 13u + sg_slot[1].used * 17u + sg_slot[2].used * 19u + asg.n * 23u;   /* (SONG's corner) */
@@ -4287,7 +4366,7 @@ static void alter_draw(void)
     alt_fps_poll();
 #if ALTER_CPU_SHOW
     alt_cpu_poll();
-    shead = shead * 31u + alt_fps * 113u + alt_cpu_avg * 101u + alt_cpu_pk * 103u + alt_cpu_cut * 107u + alt_cpu_c1 * 109u;   /* (version test : la charge CPU) */
+    shead = shead * 31u + alt_fps * 113u + alt_draw_ms * 127u + alt_cpu_avg * 101u + alt_cpu_pk * 103u + alt_cpu_cut * 107u + alt_cpu_c1 * 109u;   /* (version test : la charge CPU) */
 #endif
     ui.force = 1;                                /* (whatever comes after this view draws itself whole) */
     {                                            /* the steps playing and the hits' flash: a page that shows them has

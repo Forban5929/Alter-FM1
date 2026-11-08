@@ -31,7 +31,20 @@ static void alt_plot(int32_t x, int32_t y, uint16_t c, int32_t a)
     if ((uint32_t)x >= cv_w || (uint32_t)y >= cv_h || a <= 0)
         return;
     p = &cv_px[(uint32_t)y * cv_w + (uint32_t)x];
-    *p = a >= 256 ? swap16(c) : swap16(alt_mixc(swap16(*p), c, a * 100 / 256));
+    if (a >= 256) {
+        *p = swap16(c);
+        return;
+    }
+    {                                            /* (09/11: a blend in 1/256 by shifts, no division a pixel: the
+                                                  * anti-aliasing was a quarter of the screen's time) */
+        uint32_t o = swap16(*p);
+        int32_t r0 = (int32_t)(o >> 11), g0 = (int32_t)((o >> 5) & 63u), b0 = (int32_t)(o & 31u);
+        int32_t r1 = (int32_t)(c >> 11), g1 = (int32_t)((c >> 5) & 63u), b1 = (int32_t)(c & 31u);
+        r0 += ((r1 - r0) * a) >> 8;
+        g0 += ((g1 - g0) * a) >> 8;
+        b0 += ((b1 - b0) * a) >> 8;
+        *p = swap16((uint16_t)((uint32_t)r0 << 11 | (uint32_t)g0 << 5 | (uint32_t)b0));
+    }
 }
 
 /* an anti-aliased line between two points in 1/16 px (Wu's: each column / row lights its two nearest pixels) */
@@ -69,7 +82,31 @@ static void alt_aaline(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint16_t 
     alt_aaline16(x0 * 16, y0 * 16, x1 * 16, y1 * 16, c);
 }
 
-/* an anti-aliased ring: centre and radius in 1/16 px, as short chords */
+/* the turn of (dx, dy) seen from the centre (0 = up, clockwise; y down), within ~0.1 degree: atan by a table */
+static uint32_t alt_turnof(int32_t dx, int32_t dy)
+{
+    static const uint32_t AT[33] = {0u, 21354465u, 42667331u, 63897482u, 85004756u, 105950391u, 126697423u, 147211045u,
+        167458907u, 187411349u, 207041579u, 226325781u, 245243172u, 263775993u, 281909457u, 299631651u, 316933406u,
+        333808132u, 350251643u, 366261957u, 381839095u, 396984877u, 411702716u, 425997422u, 439875013u, 453342536u,
+        466407904u, 479079736u, 491367227u, 503280012u, 514828063u, 526021581u, 536870912u};   /* atan(i/32), a turn = 2^32 */
+    int32_t ux = dx, uy = -dy;
+    uint32_t ax = (uint32_t)(ux < 0 ? -ux : ux), ay = (uint32_t)(uy < 0 ? -uy : uy), num = ax < ay ? ax : ay,
+             den = ax < ay ? ay : ax, q, i, f, a;
+    if (!den)
+        return 0;
+    q = (uint32_t)(((uint64_t)num << 16) / den);   /* 0 .. 65536 */
+    i = q >> 11;
+    f = q & 2047u;
+    a = i >= 32u ? AT[32] : AT[i] + (uint32_t)(((uint64_t)(AT[i + 1u] - AT[i]) * f) >> 11);
+    if (ax > ay)
+        a = 0x40000000u - a;                     /* (from up: the first quadrant's) */
+    if (ux >= 0)
+        return uy >= 0 ? a : 0x80000000u - a;
+    return uy < 0 ? 0x80000000u + a : 0u - a;
+}
+
+/* an anti-aliased ring: centre and radius in 1/16 px, as short chords (09/11: only the chords where the canvas is,
+ * found by its corners' turns: the halo's rings were walked whole, 200 chords each, for every small rectangle) */
 static void alt_aaring16(int32_t cx, int32_t cy, int32_t r, uint16_t c)
 {
     uint32_t n = (uint32_t)(r >> 4) * 2u + 24u, k;
@@ -86,6 +123,45 @@ static void alt_aaring16(int32_t cx, int32_t cy, int32_t r, uint16_t c)
         df = (int64_t)fx * fx + (int64_t)fy * fy;
         if (dn > rl || df < rs)
             return;
+        if (n > 200u)
+            n = 200u;
+        if (!(a0 <= 0 && a1 >= 0 && b0 <= 0 && b1 >= 0)) {   /* (the centre off the canvas: an arc of it) */
+            uint32_t t[4], g, best = 0, bi = 0, j, lo, hi, kk;
+            t[0] = alt_turnof(a0 - 48, b0 - 48);
+            t[1] = alt_turnof(a1 + 48, b0 - 48);
+            t[2] = alt_turnof(a0 - 48, b1 + 48);
+            t[3] = alt_turnof(a1 + 48, b1 + 48);
+            for (j = 0; j < 4u; j++)             /* (sorted) */
+                for (g = j + 1u; g < 4u; g++)
+                    if (t[g] < t[j])
+                        bi = t[g], t[g] = t[j], t[j] = bi;
+            bi = 0;
+            for (j = 0; j < 4u; j++) {           /* the widest gap between them: the arc is the rest */
+                g = t[(j + 1u) & 3u] - t[j];
+                if (g > best)
+                    best = g, bi = j;
+            }
+            lo = t[(bi + 1u) & 3u];
+            hi = t[bi];
+            lo = (uint32_t)(((uint64_t)lo * n) >> 32);
+            hi = (uint32_t)(((uint64_t)hi * n) >> 32) + 3u;
+            kk = (hi + n - lo) % n;              /* chords lo .. hi (and two more each side), in the whole ring's
+                                                  * order (the joints' blends as drawn whole) */
+            for (k = 1; k <= n; k++) {
+                uint32_t k1 = k, t0, t1;
+                if ((k1 + n - lo) % n > kk + 1u)
+                    continue;
+                t0 = (uint32_t)((uint64_t)0x100000000ull * (k1 - 1u) / n);
+                t1 = (uint32_t)((uint64_t)0x100000000ull * k1 / n);
+                if (k1 == 1u)                    /* (the first chord from the top as the whole ring starts it) */
+                    alt_aaline16(cx, cy - r, cx + (int32_t)(((int64_t)r * sine_i(t1)) >> 15),
+                                 cy - (int32_t)(((int64_t)r * sine_i(t1 + 0x40000000u)) >> 15), c);
+                else
+                    alt_aaline16(cx + (int32_t)(((int64_t)r * sine_i(t0)) >> 15), cy - (int32_t)(((int64_t)r * sine_i(t0 + 0x40000000u)) >> 15),
+                                 cx + (int32_t)(((int64_t)r * sine_i(t1)) >> 15), cy - (int32_t)(((int64_t)r * sine_i(t1 + 0x40000000u)) >> 15), c);
+            }
+            return;
+        }
     }
     if (n > 200u)
         n = 200u;

@@ -200,5 +200,13 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
 - [x] 08/11 nuit : Romain « la ligne est coupée par endroits » : l'alidade était tracée SOUS les anneaux et les lignes
   des motifs (et leurs contours couleur du fond). alt_scene en 3 passes (`pass`) : 0 anneaux + motifs (alidade OFF ici,
   comme avant), 1 alidade SMOOTH, 2 triggers par-dessus. Vérifié en capture émulateur.
+- [x] 09/11 : Romain « 10F en jouant, CPU > 60 % ». **JIANT** (juanjiant-bit/JIANT, fork Felucca) comparé : même LCD (SPI
+  12 MHz DMA, écran entier ≈ 77 ms), même CPU (360 MHz ; leur option 320 = plus lent) ; eux = dessin plat pas cher redessiné
+  entier + **cellules 8×4 hashées** (gfx.c cv_blit_cells : seules les cellules changées partent). Nous = dessin cher (AA),
+  envoi déjà minimal → optimisé le **calcul** (pixel pour pixel identique) : `alt_plot` mélange par décalages (plus de
+  divisions), `alt_aaring16` ne parcourt que les cordes de l'arc vu (`alt_turnof` = atan par table ; ordre des cordes gardé),
+  rayons et places des pas précalculés (`alt_step_xy`), `alt_disc` couverture en table (.pool 2,3 Ko), knobs du bas un par
+  un (`alt_sm_footk`). Image fluide navigateur 0,11 → 0,083 ms. **Ligne CPU : « nnF xxMS »** = temps de dessin moyen d'une
+  image (`alt_draw_ms`) : beaucoup de ms = dessin lent ; peu de ms mais peu de F = boucle tenue ailleurs (audio).
 - [ ] **PROCHAINE SESSION** : « nnF » avec 3 cercles (but : ~30 stable). Si encore bas : SPI (bsp : pas sans accord). Aussi MIDI LEARN avec le BCR32, CONSOLE de la page branchée, TRS (autre câble).
 - [ ] Idées : un contrôle → plusieurs réglages (macro) ; LEARN dans la page compagnon ; DENSITY/ROT continus.
