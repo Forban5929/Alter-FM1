@@ -197,5 +197,8 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   (`alt_glow` 3 ou 0, `push` 0) et **rectangle du seul morceau** qui change (`PB`) ; **SMOOTH limité à ~30 images/s**
   (`alt_sm_cap` 28 ms : 1 image toutes les 2 boucles de 15 ms ; 0 dans les tests d'identité, `web_alter_smcap`).
   Émulateur : pixels envoyés 4,9 → 2,0 écrans/s, identique pixel à pixel. **Pas mesuré sur la FM-1.**
+- [x] 08/11 nuit : Romain « la ligne est coupée par endroits » : l'alidade était tracée SOUS les anneaux et les lignes
+  des motifs (et leurs contours couleur du fond). alt_scene en 3 passes (`pass`) : 0 anneaux + motifs (alidade OFF ici,
+  comme avant), 1 alidade SMOOTH, 2 triggers par-dessus. Vérifié en capture émulateur.
 - [ ] **PROCHAINE SESSION** : « nnF » avec 3 cercles (but : ~30 stable). Si encore bas : SPI (bsp : pas sans accord). Aussi MIDI LEARN avec le BCR32, CONSOLE de la page branchée, TRS (autre câble).
 - [ ] Idées : un contrôle → plusieurs réglages (macro) ; LEARN dans la page compagnon ; DENSITY/ROT continus.

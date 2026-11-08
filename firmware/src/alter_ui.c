@@ -3773,7 +3773,7 @@ static void alt_scene(uint32_t q, uint32_t flash)
     const track_t *t = &trk[au.sel];
     const engine_t *e = ENGINES[eng_idx(t->eng_req)];
     char b[24];
-    uint32_t i, j;
+    uint32_t i, j, pass;
     if (au.lockc) {
         alt_locks_scene();
         return;
@@ -3860,26 +3860,33 @@ static void alt_scene(uint32_t q, uint32_t flash)
         alt_cpu_line();
 #endif
     }
-    /* the alidade: the chosen circle's step, a gold hand from the centre */
-    if (song.playing) {
-        const as_circ_t *c = &alt_seq.c[au.sel];
-        uint32_t len = c->cfg.len ? c->cfg.len : 1u, now = (c->pos + len - 1u) % len;
-        int32_t x, y;
-        if (ALT_SMOOTH) {                        /* (SMOOTH: in 1/16 px, 2 px wide and bright: Romain 08/11 "je perds la
-                                                  * ligne des yeux") */
-            alt_alid16(alt_sm_ang[au.sel], &x, &y);
-            alt_aaline16(ALT_CX * 16, ALT_CY * 16, x, y, alt_gold_line(95));
-            if ((x > ALT_CX * 16 ? x - ALT_CX * 16 : ALT_CX * 16 - x) > (y > ALT_CY * 16 ? y - ALT_CY * 16 : ALT_CY * 16 - y))
-                alt_aaline16(ALT_CX * 16, ALT_CY * 16 + 16, x, y + 16, alt_gold_line(95));
-            else
-                alt_aaline16(ALT_CX * 16 + 16, ALT_CY * 16, x + 16, y, alt_gold_line(95));
-        } else {
-            alt_at((uint32_t)(((uint64_t)now << 32) / len), 90, &x, &y);
-            alt_aaline(ALT_CX, ALT_CY, x, y, alt_gold_line(45));
-        }
-    }
     /* the circles, each a sigil: its ring, its hits joined (a square, a triangle, a star ..), its hits as marks: a
      * diamond (outer), a sun (middle), a dot (inner) */
+    for (pass = 0; pass < 3u; pass++) {          /* 0 the alidade (OFF), the rings and their lines; 1 the alidade (SMOOTH);
+                                                  * 2 the steps */
+    /* the alidade: the chosen circle's step, a gold hand from the centre */
+    {
+        if (song.playing && (ALT_SMOOTH ? pass == 1u : pass == 0u)) {   /* (SMOOTH: over the rings and lines, under the triggers: drawn
+                                                      * under them it was cut where they cross, Romain 08/11) */
+            const as_circ_t *c = &alt_seq.c[au.sel];
+            uint32_t len = c->cfg.len ? c->cfg.len : 1u, now = (c->pos + len - 1u) % len;
+            int32_t x, y;
+            if (ALT_SMOOTH) {                        /* (SMOOTH: in 1/16 px, 2 px wide and bright: Romain 08/11 "je perds la
+                                                      * ligne des yeux") */
+                alt_alid16(alt_sm_ang[au.sel], &x, &y);
+                alt_aaline16(ALT_CX * 16, ALT_CY * 16, x, y, alt_gold_line(95));
+                if ((x > ALT_CX * 16 ? x - ALT_CX * 16 : ALT_CX * 16 - x) > (y > ALT_CY * 16 ? y - ALT_CY * 16 : ALT_CY * 16 - y))
+                    alt_aaline16(ALT_CX * 16, ALT_CY * 16 + 16, x, y + 16, alt_gold_line(95));
+                else
+                    alt_aaline16(ALT_CX * 16 + 16, ALT_CY * 16, x + 16, y, alt_gold_line(95));
+            } else {
+                alt_at((uint32_t)(((uint64_t)now << 32) / len), 90, &x, &y);
+                alt_aaline(ALT_CX, ALT_CY, x, y, alt_gold_line(45));
+            }
+        }
+        if (pass == 1u)
+            continue;
+    }
     for (i = 0; i < AS_NCIRC; i++) {
         const as_circ_t *c = &alt_seq.c[i];
         uint32_t len = c->cfg.len ? c->cfg.len : 1u, now = (c->pos + len - 1u) % len, m = 0, st;
@@ -3888,6 +3895,7 @@ static void alt_scene(uint32_t q, uint32_t flash)
         int32_t r = ALT_R[i], x, y, hx[32], hy[32];
         if (dim)
             col = alt_fade(col, 30);
+        if (pass == 0u) {
         if (chosen) {                            /* the chosen circle's in its colour: thick, a halo round it (Romain
                                                   * 05/11: the gold third one stood out too little from the gold lines) */
             int32_t d;
@@ -3932,6 +3940,9 @@ static void alt_scene(uint32_t q, uint32_t flash)
                 cur = nx;
             }
         }
+        }
+        if (pass != 2u)
+            continue;
         for (j = 0; j < len; j++) {              /* the steps */
             int on = (int)((c->pat >> j) & 1u), here = song.playing && j == now && !ALT_SMOOTH;
             int32_t g = ALT_SMOOTH && on && j == alt_hit_step[i] ? alt_sm_g[i] : 0;   /* (SMOOTH: it plays: grows) */
@@ -3961,6 +3972,7 @@ static void alt_scene(uint32_t q, uint32_t flash)
             for (k2 = 0; k2 < 7; k2++)
                 cv_rect(x - 16 + k2, y - (6 - k2), 1, 2 * (6 - k2) + 1, ALT_COL[i]);
         }
+    }
     }
     /* the middle: the key held or tapped, else the three circles' triangle in its gold circle */
     if (au.msg && fm1_ms - au.msg_ms < 900u) {
