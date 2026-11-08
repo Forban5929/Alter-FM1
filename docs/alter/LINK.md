@@ -73,3 +73,10 @@ INFO dit « ALTER LINK 4 ». Groupe 15 **CONSOLE** ajouté À LA FIN de `LK_GRP`
 LEVEL (= P_DLY P_REV P_LEVEL). `LV_CONS` / `LV_PAR`. Poussés comme les autres (VCHANGED). Page : onglet EFFECTS, une colonne par
 cercle en haut (LOW MID HIGH affichés en dB, 0 = KILL). Firmware v3 : pas de groupe 15 → pas de colonnes (`pl.cols` filtré).
 Test : `alter_link_test.mjs` (5 tests CONSOLE).
+
+## v4 + RUMBLE (08/11)
+
+Toujours « ALTER LINK 4 » (ajouts seulement, à la fin). Groupe 16 **RUMBLE** à la fin de `LK_GRP`, 1 réglage par cercle à la
+fin de `LK_V` (`LV_RMB` = `alt_rmb[c]`, 0..127, poussé par VCHANGED). INFO : après les ids, 1 octet par son = il a un RUMBLE (1)
+ou non (0) (`ALT_PRE[k].rumble`). Page : onglet SOUNDS, une ligne RUMBLE en bas du groupe Engine, seulement pour ces sons
+(comme le knob 4 du KICK sur la FM-1). Firmware plus ancien : octets absents = 0 → pas de ligne.

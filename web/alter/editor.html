@@ -111,8 +111,11 @@ select:hover { border-color: var(--gold); }
 .dial .rest { fill: var(--grey); }
 .dial .star { fill: var(--ink); }
 .dial .needle { stroke: var(--gold); stroke-width: 1.4; }
+.dial .pulse { fill: none; stroke: var(--c); stroke-width: 2; transform-box: fill-box; transform-origin: center;
+  animation: pulse .45s ease-out forwards; }
+@keyframes pulse { from { opacity: .95; transform: scale(1); } to { opacity: 0; transform: scale(2.8); } }
 .dial .tri { fill: none; stroke: var(--gold); stroke-width: 1; stroke-linejoin: round; }
-.dial .piece { fill: var(--c); opacity: .35; transition: opacity .25s, transform .25s; transform-box: fill-box; transform-origin: center; }
+.dial .piece { fill: var(--c); opacity: .35; transition: opacity .4s ease-out, transform .25s; transform-box: fill-box; transform-origin: center; }
 .dial.hit .piece { opacity: 1; transition: none; }
 .col.muted { --c: var(--grey); }
 .col.muted .dial .sig { opacity: .4; }
@@ -620,6 +623,7 @@ async function refresh(c) {
       C.el.querySelector("[data-eng]").textContent = info.engines[st.eng] ?? "";
       C.el.querySelector("[data-mode]").textContent = MODES[st.mode] ?? "";
       C.el.querySelector("[data-sound]").value = st.sound;
+      showRmb(c);
       st.values.forEach((v, k) => setCtl(c, k, v));
     } while (C.again);
   })().finally(() => { C.busy = null; });
@@ -662,8 +666,19 @@ function drawControls(c) {
       }
       fs.append(row);
     }
+    if (name === "Engine") {                         // (the RUMBLE: the KICK's knob 4 on the synth; buildV2 puts it here)
+      const rh = document.createElement("div");
+      rh.setAttribute("data-rmb", "");
+      (C.rmbRows || []).forEach((r) => rh.append(r));
+      fs.append(rh);
+      showRmb(c);
+    }
     (name === "Envelope" || name === "Effects" ? gB : gA).append(fs);
   }
+}
+function showRmb(c) {                               // (only the sounds with one: INFO's flag)
+  const C = circ[c], h = C.el.querySelector("[data-rmb]");
+  if (h) h.hidden = !(C.state && info?.sounds[C.state.sound]?.rumble);
 }
 const paint = (r, d) => r.style.setProperty("--f", `${((r.value - d.min) / Math.max(1, d.max - d.min)) * 100}%`);
 function setCtl(c, k, v, fromDevice) {
@@ -893,10 +908,10 @@ async function pollSong() {
 
 /* ---------- v2: every other setting (rhythms, lanes, LFO, matrix, shared effects), the circles as they play ---------- */
 // LK_GRP's numbers (alter_link.c)
-const GR = { RYT: 0, GAM: 1, ENV: 2, L1: 3, L2: 4, L3: 5, MTX: 6, LGL: 7, TMP: 8, DLY: 9, REV: 10, MST: 11, FA: 12, FB: 13, MRP: 14, CONS: 15 };
+const GR = { RYT: 0, GAM: 1, ENV: 2, L1: 3, L2: 4, L3: 5, MTX: 6, LGL: 7, TMP: 8, DLY: 9, REV: 10, MST: 11, FA: 12, FB: 13, MRP: 14, CONS: 15, RMB: 16 };
 // where each group goes: a circle's column on a tab, or the tab's shared cards
 const PLACE = {
-  sons: { cols: [GR.ENV], shared: [] },
+  sons: { cols: [GR.ENV, GR.RMB], shared: [] },
   rythmes: { cols: [GR.RYT, GR.GAM], shared: [GR.GAM, GR.TMP] },
   modulation: { cols: [GR.L1, GR.L2, GR.L3, GR.MTX], shared: [GR.LGL] },
   effets: { cols: [GR.CONS], shared: [GR.DLY, GR.REV, GR.FA, GR.FB, GR.MRP, GR.MST] },
@@ -990,7 +1005,8 @@ function buildV2() {
     col.className = "col tc";
     col.innerHTML = `<div class="rib"><span data-name>&nbsp;</span></div><span class="num">${ROMAN[c]}</span><span class="tag" data-tag></span>
       <div class="colin"><svg class="dial" viewBox="0 0 240 240" role="img" aria-label="Circle ${c + 1}"><circle class="ring" cx="120" cy="120" r="100"/>
-        <circle class="ring2" cx="120" cy="120" r="76"/><g data-steps></g>${dialCenter(c)}</svg>
+        <circle class="ring2" cx="120" cy="120" r="76"/><g data-steps></g><g data-pulse></g>
+        <line class="needle" data-needle x1="120" y1="120" x2="120" y2="34" style="display:none"/><path class="star" data-star d="" style="display:none"/>${dialCenter(c)}</svg>
       <div class="acts">
         <div class="arow"><button class="act" data-a="MUTE">MUTE</button><button class="act" data-a="TRIG">TRIGGER</button>
           <button class="act" data-a="SELECT" title="Choose it on the synth too">SELECT</button></div>
@@ -1022,16 +1038,20 @@ function buildV2() {
     if (tab === "sons") {                             // (the envelope's TYPE: in each strip's Envelope group)
       for (let c = 0; c < 3; c++) {
         const C = circ[c], th = C.el.querySelector("[data-type]");
-        C.typeRows = [];
+        C.typeRows = []; C.rmbRows = [];
+        const rh = C.el.querySelector("[data-rmb]");
         if (th) th.innerHTML = "";
+        if (rh) rh.innerHTML = "";
         cdesc.forEach((d, i) => {
           if (!pl.cols.includes(d.grp)) return;
           const t = varRow(d, `v${c}_${i}`, (v) => queueVar(c, i, v));
           t.row.classList.remove("w");
           vctl[c][i] = t;
+          if (d.grp === GR.RMB) { C.rmbRows.push(t.row); if (rh) rh.append(t.row); return; }
           C.typeRows.push(t.row);
           if (th) th.append(t.row);
         });
+        showRmb(c);
       }
     }
     for (let c = 0; c < 3 && pl.cols.length && tab !== "sons"; c++) {
@@ -1389,6 +1409,55 @@ function drawLane(c, k0) {
 
 /* ---------- the circles as they play (PLAY, pushed ~30 a second) ---------- */
 const lastHits = [-1, -1, -1];
+/* the smooth motion (08/11): PLAY only says which step plays, ~30 times a second at most; the page moves the star and
+ * the needle itself between two steps, at the speed it measures (the time between steps, averaged: the tempo, the
+ * external clock, the swing averaged out). It never runs more than one step ahead: if the next step is late, it waits
+ * on it; if it is behind, it catches up forwards. A jump (SHIFT, LEN, a SONG change, a missed push) = straight there. */
+const still = matchMedia("(prefers-reduced-motion: reduce)");
+const anim = [0, 1, 2].map(() => ({ on: false, sel: false, len: 16, pos: -1, u: 0, ph: 0, per: 0, t: 0 }));
+function follow(c, on, sel, len, pos) {
+  const A = anim[c], now = performance.now();
+  A.on = !!on; A.sel = sel;
+  if (!A.on) { A.pos = -1; A.per = 0; return; }
+  if (len !== A.len || A.pos < 0) { A.len = len; A.pos = pos; A.u = pos; A.ph = pos; A.t = now; return; }
+  if (pos === A.pos) return;
+  const dl = (((pos - A.pos) % len) + len) % len;
+  if (dl === 1) {
+    const dt = now - A.t;
+    if (dt > 20 && dt < 3000) A.per = A.per ? A.per * 0.75 + dt * 0.25 : dt;
+    A.u += 1;
+    if (A.ph < A.u - 1) A.ph = A.u; else if (A.ph < A.u) A.ph += (A.u - A.ph) * 0.5;
+  } else { A.u += dl; A.ph = A.u; }               // (not the next step: there at once)
+  A.pos = pos; A.t = now;
+}
+function pulse(col, x, y, r) {
+  if (still.matches) return;
+  const g = col.querySelector("[data-pulse]"), e = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+  e.setAttribute("class", "pulse"); e.setAttribute("cx", x.toFixed(1)); e.setAttribute("cy", y.toFixed(1)); e.setAttribute("r", r.toFixed(1));
+  e.addEventListener("animationend", () => e.remove());
+  g.append(e);
+  while (g.childElementCount > 8) g.firstChild.remove();
+}
+let animT = 0;
+function animLoop(t) {
+  const dt = Math.min(100, animT ? t - animT : 0);
+  animT = t;
+  const cols = $("cols")?.children || [];
+  anim.forEach((A, c) => {
+    const col = cols[c];
+    if (!col) return;
+    const st = col.querySelector("[data-star]"), nd = col.querySelector("[data-needle]");
+    if (!st || !nd) return;
+    if (!A.on) { st.style.display = nd.style.display = "none"; return; }
+    if (A.per && !still.matches) A.ph = Math.min(A.ph + dt / A.per, A.u + 1);   // (one step ahead at most)
+    else A.ph = A.u;
+    const q = ((A.ph % A.len) + A.len) % A.len, a = (q / A.len) * 2 * Math.PI - Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a);
+    st.setAttribute("d", star(120 + 100 * ca, 120 + 100 * sa, 11)); st.style.display = "";
+    nd.setAttribute("x2", (120 + 86 * ca).toFixed(1)); nd.setAttribute("y2", (120 + 86 * sa).toFixed(1)); nd.style.display = A.sel ? "" : "none";
+  });
+  requestAnimationFrame(animLoop);
+}
+requestAnimationFrame(animLoop);
 const star = (x, y, a) => { const b = a * 0.26, f = (v) => v.toFixed(1);
   return `M${f(x)} ${f(y - a)}L${f(x + b)} ${f(y - b)}L${f(x + a)} ${f(y)}L${f(x + b)} ${f(y + b)}L${f(x)} ${f(y + a)}L${f(x - b)} ${f(y + b)}L${f(x - a)} ${f(y)}L${f(x - b)} ${f(y - b)}Z`; };
 const gcd = (a, b) => (b ? gcd(b, a % b) : a);
@@ -1420,10 +1489,8 @@ function drawPlay(m) {
         marks += c === 0 ? `<polygon class="mk" points="${f(x)},${f(y - s * 1.35)} ${f(x + s)},${f(y)} ${f(x)},${f(y + s * 1.35)} ${f(x - s)},${f(y)}"/>`
           : `<circle class="mk${c === 1 ? " ring" : ""}" cx="${f(x)}" cy="${f(y)}" r="${f(c === 1 ? s * 0.85 : s * 0.9)}"/>`;
       } else marks += `<circle class="rest" cx="${f(x)}" cy="${f(y)}" r="1.6"/>`;
-      if (now) {
-        top += `<path class="star" d="${star(x, y, 11)}"/>`;
-        if (m.sel === c) top = `<line class="needle" x1="120" y1="120" x2="${f(120 + 86 * ca)}" y2="${f(120 + 86 * sa)}"/>` + top;
-      }
+      if (now && lastHits[c] >= 0 && p.hits !== lastHits[c] && !p.mute && on)
+        pulse(col, x, y, 4 + (5 * velAt(c, j, len)) / 127);   // (the hit: a ring that grows and fades)
     }
     // the sigil: the hits joined (a star {n/2} from five hits on, as on the synth)
     let sig = "";
@@ -1440,6 +1507,7 @@ function drawPlay(m) {
       dial._t = setTimeout(() => dial.classList.remove("hit"), 110);
     }
     lastHits[c] = p.hits;
+    follow(c, m.playing, m.sel === c, len, p.pos);
     const st = circ[c].state;
     col.querySelector("[data-name]").textContent = st ? info.sounds[st.sound]?.name ?? "" : "";
     const mode = circ[c].el?.querySelector("[data-mode]")?.textContent ?? "";

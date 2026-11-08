@@ -73,6 +73,7 @@ export function parse(f) {
       for (let k = 0; k < nsound; k++) { const eng = b(); sounds.push({ eng, name: s() }); }
       const nuser = b(), nid = b(), ids = [];
       for (let k = 0; k < nid; k++) ids.push(b());
+      sounds.forEach((so) => (so.rumble = !!b()));   // (08/11: appended; an older firmware: none)
       return { cmd, version, ncirc, engines, sounds, nuser, ids };
     }
     case CMD.STATE: {

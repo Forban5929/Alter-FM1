@@ -166,6 +166,12 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
 - [x] 07/11 : Romain : sons refaits + CONSOLE OK à l'écoute ; TRS MIDI **en pause** (sans doute son câble). **CONSOLE dans la
   page compagnon (LINK 4)** + **MIDI LEARN** (page LEARN de SYSTEM). Testés émulateur (link 5 tests, learn 17 tests, captures,
   page en mode démo dans Chrome), syntaxe FM-1, 2 cœurs. **Pas sur la FM-1.**
-- [ ] **PROCHAINE SESSION** : retour de Romain sur le MIDI LEARN avec son contrôleur (BCR32 : encodeurs en absolu ?) et la
-  CONSOLE de la page compagnon branchée ; TRS quand il aura un autre câble.
+- [x] 08/11 : **RUMBLE dans la page compagnon** (groupe 16 `LV_RMB` + drapeau par son dans INFO, LINK.md « v4 + RUMBLE ») :
+  ligne RUMBLE en bas du groupe Engine, seulement pour les sons qui en ont un (KICK). **Page plus fluide** (editor.html
+  `follow`/`animLoop`) : étoile + aiguille avancent en continu entre deux PLAY, vitesse = temps moyen entre pas mesuré,
+  jamais plus d'1 pas d'avance (attend le pas suivant), saut = direct ; coup = anneau qui grandit et s'efface (`pulse`) ;
+  rien de tout ça si « réduire les animations » est demandé par le système. Testé : link (3 tests RUMBLE), Chrome démo. **Pas avec la FM-1.**
+- [ ] **PROCHAINE SESSION** : retour de Romain sur la page fluide + RUMBLE avec la FM-1 ; **puis écran FM-1 fluide** (choix
+  de Romain : page d'abord) = version test avec images/s affichées, car une aiguille continue casse le redessin « lignes
+  touchées » (risque de lag). Aussi : MIDI LEARN avec le BCR32, CONSOLE de la page branchée, TRS (autre câble).
 - [ ] Idées : un contrôle → plusieurs réglages (macro) ; LEARN dans la page compagnon ; DENSITY/ROT continus.

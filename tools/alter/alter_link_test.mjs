@@ -137,6 +137,19 @@ r = one(req.vset(2, CLVL, 300));
 check(`VSET CONSOLE LEVEL 300 : gardé ${r?.value} (127 au plus)`, r?.value === 127);
 one(req.vset(1, CLOW, 64)); one(req.vset(1, CCOMP, 0));
 
+// 08/11: the RUMBLE (the KICK's knob 4), group 16; INFO marks the sounds that have one
+const RG = vl.groups.indexOf("RUMBLE"), RMB = ix(cdesc, "RUMBLE", RG), kick = info.sounds.findIndex((s) => s.name === "KICK");
+const withR = info.sounds.filter((s) => s.rumble).map((s) => s.name);
+check(`RUMBLE : groupe ${RG}, sons qui l'ont : ${withR.join(" ")}`, RG === 16 && RMB >= 0 && kick >= 0 && info.sounds[kick].rumble &&
+  withR.length < info.sounds.length);
+one(req.sound(2, kick));
+const rk = all(2)[RMB];
+r = one(req.vset(2, RMB, 20));
+check(`RUMBLE du KICK (cercle 3) : ${rk} au chargement, VSET 20 (gardé ${r?.value}), relu ${all(2)[RMB]}`, rk === 70 && r?.value === 20 && all(2)[RMB] === 20);
+r = one(req.vset(2, RMB, 500));
+check(`VSET RUMBLE 500 : gardé ${r?.value} (127 au plus)`, r?.value === 127);
+one(req.vset(2, RMB, 70));
+
 // the lanes
 const ln0 = one(req.lane(2, 0));
 check(`LANE : VELO du cercle 3, 16 valeurs (${ln0?.values?.slice(0, 4).join(" ")} ...)`, ln0?.values?.length === 16);

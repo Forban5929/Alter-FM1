@@ -142,16 +142,16 @@ static int32_t lk_set(uint32_t c, uint32_t id, int32_t v)
 
 
 /* ---- v2: the other settings, by number (LK_V): a circle's (scope 1: VALL / VSET with the circle) or shared ------- */
-enum { LV_CFG, LV_MODE, LV_LFO, LV_MTX, LV_SCALE, LV_GL, LV_G, LV_AMX, LV_AFL, LV_MORPH, LV_CONS, LV_PAR };
+enum { LV_CFG, LV_MODE, LV_LFO, LV_MTX, LV_SCALE, LV_GL, LV_G, LV_AMX, LV_AFL, LV_MORPH, LV_CONS, LV_PAR, LV_RMB };
 /* (LV_CONS: the CONSOLE's acs_v[c][ref]; LV_PAR: the sound's parameter ref, its base, as SET: the CONSOLE's DRIVE,
- * DELAY, REVERB, LEVEL; LINK 4, 07/11) */
+ * DELAY, REVERB, LEVEL; LINK 4, 07/11; LV_RMB: the circle's RUMBLE alt_rmb, 08/11) */
 enum { LF_TYPE, LF_LEN, LF_HITS, LF_ROT, LF_PROB, LF_FROT, LF_TLOCK, LF_TDENS, LF_TRANGE, LF_MUTE, LF_ROOT, LF_CHORD,
        LF_DOSE };
 static const char *const LK_GRP[] = {"RHYTHM", "SCALE", "ENVELOPE", "LFO 1", "LFO 2", "LFO 3", "MATRIX",
                                      "LFO GLOBAL", "TEMPO", "DELAY", "REVERB", "MASTER", "FILTER A", "FILTER B",
-                                     "MORPH", "CONSOLE"};
+                                     "MORPH", "CONSOLE", "RUMBLE"};
 enum { GR_RYT, GR_GAM, GR_ENV, GR_L1, GR_L2, GR_L3, GR_MTX, GR_LGL, GR_TMP, GR_DLY, GR_REV, GR_MST, GR_FA, GR_FB, GR_MRP,
-       GR_CONS };
+       GR_CONS, GR_RMB };
 static const char *const LK_OFFON[2] = {"OFF", "ON"};
 static const char *const LK_SLOPE[2] = {"12 DB", "24 DB"};
 typedef struct {
@@ -222,6 +222,8 @@ static const lk_var_t LK_V[] = {
     LKV_C(LV_CONS, ACS_HIGH, GR_CONS, "HIGH", 0, 127, 0), LKV_C(LV_CONS, ACS_COMP, GR_CONS, "COMP", 0, 127, 0),
     LKV_C(LV_PAR, P_DLY, GR_CONS, "DELAY", 0, 127, 0), LKV_C(LV_PAR, P_REV, GR_CONS, "REVERB", 0, 127, 0),
     LKV_C(LV_PAR, P_LEVEL, GR_CONS, "LEVEL", 0, 127, 0),
+    /* 08/11: the RUMBLE (the KICK's knob 4; the page shows it for the sounds INFO marks) */
+    LKV_C(LV_RMB, 0, GR_RMB, "RUMBLE", 0, 127, 0),
 };
 #define LK_NV (sizeof LK_V / sizeof LK_V[0])
 _Static_assert(LK_NV <= 2u * 48u, "LK_V: lk.vs holds 48 a scope");
@@ -286,6 +288,7 @@ static int32_t lk_vget(const lk_var_t *v, uint32_t c)
     case LV_AFL: return afl[(v->ref >> 4) & 1u][(v->ref & 15u) % AFL_N];
     case LV_CONS: return acs_v[c % AS_NCIRC][v->ref % ACS_N];
     case LV_PAR: return clamp(alt_base(c % AS_NCIRC, v->ref), 0, 127);
+    case LV_RMB: return alt_rmb[c % AS_NCIRC];
     default: return afl_morph;
     }
 }
@@ -355,6 +358,7 @@ static int32_t lk_vset(const lk_var_t *v, uint32_t c, int32_t x)
         break;
     case LV_CONS: acs_v[c][v->ref % ACS_N] = (uint8_t)x; break;
     case LV_PAR: (void)lk_set(c, v->ref, x); break;
+    case LV_RMB: alt_rmb[c] = (uint8_t)x; break;
     default: afl_morph = (uint8_t)x; break;
     }
     return lk_vget(v, c);
@@ -642,6 +646,8 @@ static void lk_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         lk_b(LK_NID);
         for (k = 0; k < LK_NID; k++)
             lk_b(LK_IDS[k]);
+        for (k = 0; k < ALT_NPRE; k++)               /* (08/11, appended: each sound has a RUMBLE, 1, or not) */
+            lk_b(ALT_PRE[k].rumble != 0);
         lk_send();
         return;
     case LKC_STATE:                                   /* circle */
