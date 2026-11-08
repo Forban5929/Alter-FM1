@@ -172,13 +172,18 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   `follow`/`animLoop`) : étoile + aiguille avancent en continu entre deux PLAY, vitesse = temps moyen entre pas mesuré,
   jamais plus d'1 pas d'avance (attend le pas suivant), saut = direct ; coup = anneau qui grandit et s'efface (`pulse`) ;
   rien de tout ça si « réduire les animations » est demandé par le système. Testé : link (3 tests RUMBLE), Chrome démo. **Pas avec la FM-1.**
-- [x] 08/11 : **écran FM-1 fluide (VERSION TEST)**, SYSTEM > SETUP > SMOOTH (ON par défaut) : étoile de chaque cercle qui
-  glisse sur son anneau + alidade qui tourne, depuis `alt_msrc[c][0]` (POS de alter_lfo : pas + temps dedans, horloge de
-  l'audio) ; coup = étoile 10 → 6 en 200 ms. Pris une fois par image (`alt_sm_take`). Redessin par **bandes de lignes**
-  (bitmap `alt_rows`, bandes à ≤ 16 lignes fusionnées) : étoiles ±12, alidade centre→pointe. **« nnF » = images/s** sur la
-  ligne CPU (`alt_fps`). Émulateur : identique pixel à pixel à un redessin complet (ON et OFF) ; coût navigateur d'une
-  image ON ≈ 47 % d'une complète (OFF ≈ 22 %, mais seulement à chaque pas). **FPS réel FM-1 non mesuré.**
-- [ ] **PROCHAINE SESSION** : retour de Romain : FPS lu sur la FM-1 (« nnF »), fluide ou pas, CPU/coupures avec SMOOTH ON vs OFF ;
-  si lent : limiter à ~30 images/s ou alidade plus courte. Aussi page fluide + RUMBLE avec la FM-1, MIDI LEARN avec le
-  BCR32, CONSOLE de la page branchée, TRS (autre câble).
+- [x] 08/11 : **écran FM-1 fluide (VERSION TEST)**, SYSTEM > SETUP > SMOOTH (ON par défaut). 1er essai (étoiles qui
+  glissent) : **6F** sur la FM-1 + Romain « étoiles trop présentes ». **Refait** : pas d'étoile ; l'alidade (cercle choisi)
+  tourne en continu depuis `alt_msrc[c][0]` (POS : pas + temps dedans, horloge de l'audio) ; un trigger qui joue grossit
+  de 2 px plus clair puis revient en 130 ms (`alt_hit_step`, `alt_sm_g`). Dessin : **petits rectangles** (`alt_sm_frame`,
+  `alt_rc_add` : alidade en 6 boîtes ancienne + nouvelle place, trigger ±11, triangle du centre quand il brille ; fusion
+  seulement si ça n'agrandit pas) ; gfx.c **`cv_ox`** (décalage x) ; la scène saute ce qui est hors du rectangle
+  (`alt_miss` dans alt_disc/alt_tri/alt_aaline16, test d'anneau dans alt_aaring16, tête/carte et knobs sautés hors
+  zone) ; heure de l'image `alt_now_ms`. Le triangle du centre (`alt_glow`) n'est plus dans le sig : avant, **chaque coup
+  = image complète** (aussi en OFF : 25 → 11 écrans/s). Émulateur : identique pixel à pixel (ON/OFF, 300 images) ;
+  ON = 4,5 écrans de pixels/s, coût ≈ 25 % d'une image complète. **« nnF »** = images/s sur la ligne CPU. Page compagnon
+  au même style (aiguille sur chaque cercle, trigger qui gonfle `pop`). **FPS FM-1 de cette version non mesuré.**
+- [ ] **PROCHAINE SESSION** : retour de Romain : « nnF » de la nouvelle version, CPU/coupures ON vs OFF. Si encore lent : limiter
+  l'alidade à ~30 images/s, ou SPI (bsp : ne pas toucher sans accord). Aussi MIDI LEARN avec le BCR32, CONSOLE de la page
+  branchée, TRS (autre câble).
 - [ ] Idées : un contrôle → plusieurs réglages (macro) ; LEARN dans la page compagnon ; DENSITY/ROT continus.

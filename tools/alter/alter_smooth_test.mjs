@@ -17,7 +17,7 @@ for (const on of [1, 0]) {
   ex.web_alter_smooth(on);
   ex.web_draw_bench(1, 0);
   let bad = 0, frames = 0, moved = 0, prev = fb();
-  for (let k = 0; k < 120; k++) {                       // 120 frames of ~15 ms: ~1.8 s of play
+  for (let k = 0; k < 300; k++) {                       // 300 frames of ~15 ms: ~4.5 s of play (the alidade's turns)
     render(662);
     ex.web_draw_bench(1, 3);                            // the loop's own drawing at this instant (bands when it can)
     const a = fb();
@@ -27,7 +27,7 @@ for (const on of [1, 0]) {
     if (a.some((v, i) => v !== b[i])) bad++;
     prev = b; frames++;
   }
-  check(`SMOOTH ${on ? "ON " : "OFF"} : ${frames} images, ${moved} ont bougé, ${bad} différentes d'un redessin complet`, bad === 0 && moved > (on ? 90 : 5));
+  check(`SMOOTH ${on ? "ON " : "OFF"} : ${frames} images, ${moved} ont bougé, ${bad} différentes d'un redessin complet`, bad === 0 && moved > (on ? 250 : 5));
 }
 // cost: the loop's own frames (partial) vs whole frames, ~15 ms of audio between each
 const cost = (on, whole) => {
@@ -36,6 +36,13 @@ const cost = (on, whole) => {
   for (let k = 0; k < 200; k++) { render(662); const t0 = performance.now(); ex.web_draw_bench(1, whole ? 0 : 3); t += performance.now() - t0; }
   return t / 200;
 };
+const px = (on) => {                                     // pixels sent to the screen a second of play, the loop's own
+  ex.web_alter_smooth(on); ex.web_draw_bench(1, 0); render(4410);
+  const p0 = ex.web_screen_px(); render(44100); return ex.web_screen_px() - p0;
+};
+const pOn = px(1), pOff = px(0);
+console.log(`smooth: pixels envoyés à l'écran par seconde de jeu : SMOOTH ON ${pOn} (${(pOn / 57600).toFixed(1)} écrans), OFF ${pOff} (${(pOff / 57600).toFixed(1)} écrans)`);
+check(`SMOOTH ON envoie moins de 12 écrans entiers par seconde (${(pOn / 57600).toFixed(1)})`, pOn < 12 * 57600);
 const full = cost(1, 1), sOn = cost(1, 0), sOff = cost(0, 0);
 console.log(`smooth: coût moyen d'une image (navigateur) : complète ${full.toFixed(2)} ms, SMOOTH ON ${sOn.toFixed(2)} ms (${(100 * sOn / full).toFixed(0)} %), OFF ${sOff.toFixed(2)} ms (${(100 * sOff / full).toFixed(0)} %)`);
 console.log(fails ? `smooth: ${fails} ÉCHEC(S)` : "smooth: tout ok");

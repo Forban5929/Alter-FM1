@@ -2099,11 +2099,20 @@ static uint16_t alt_mixc(uint16_t a, uint16_t c, int32_t pct)
     return (uint16_t)out;
 }
 
+/* (08/11, SMOOTH) the box x0..x1, y0..y1 (screen pixels) misses the canvas: what would be drawn there is skipped
+ * whole (a small rectangle of the screen drawn alone does not walk every line of the scene) */
+static int alt_miss(int32_t x0, int32_t y0, int32_t x1, int32_t y1)
+{
+    return x1 < -cv_ox || x0 >= (int32_t)cv_w - cv_ox || y1 < -cv_oy || y0 >= (int32_t)cv_h - cv_oy;
+}
+
 static void alt_plot(int32_t x, int32_t y, uint16_t c, int32_t a);   /* (alter_look.c) */
 /* a disc, its edge anti-aliased (each edge pixel as much of c as the disc covers of it) */
 static void alt_disc(int32_t cx, int32_t cy, int32_t r, uint16_t c)
 {
     int32_t dy, dx, r16 = r * 16 + 8;
+    if (alt_miss(cx - r - 1, cy - r - 1, cx + r + 1, cy + r + 1))
+        return;
     for (dy = -r - 1; dy <= r + 1; dy++)
         for (dx = -r - 1; dx <= r + 1; dx++) {
             int32_t d = (int32_t)alt_isqrt((uint32_t)((dx * dx + dy * dy) * 256)), a = (r16 - d) * 16 + 128;
@@ -3577,9 +3586,10 @@ static void alt_set_turn(uint32_t r, int32_t s)
 
 
 /* how bright circle i's piece of the middle is: 4 just hit .. 0 at rest (about a quarter second) */
+static uint32_t alt_now_ms;                      /* (the frame's ms: every rectangle of a frame draws the same) */
 static uint32_t alt_glow(uint32_t i)
 {
-    uint32_t t = fm1_ms - au.flash_ms[i % AS_NCIRC];
+    uint32_t t = alt_now_ms - au.flash_ms[i % AS_NCIRC];
     return t < 50u ? 4u : t < 100u ? 3u : t < 160u ? 2u : t < 240u ? 1u : 0u;
 }
 /* a filled triangle (screen coordinates, 1/16 px), each row from edge to edge */
@@ -3591,7 +3601,8 @@ static void alt_tri(int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x2, 
     if (y2 < y0) { ALT_SWAP(x0, x2); ALT_SWAP(y0, y2); }
     if (y2 < y1) { ALT_SWAP(x1, x2); ALT_SWAP(y1, y2); }
 #undef ALT_SWAP
-    if (y2 == y0)
+    if (y2 == y0 || alt_miss(((x0 < x1 ? (x0 < x2 ? x0 : x2) : (x1 < x2 ? x1 : x2)) >> 4) - 1, (y0 >> 4) - 1,
+                            ((x0 > x1 ? (x0 > x2 ? x0 : x2) : (x1 > x2 ? x1 : x2)) >> 4) + 1, (y2 >> 4) + 1))
         return;
     for (y = (y0 + 15) / 16; y * 16 <= y2; y++) {
         int32_t yy = y * 16, xa, xb, xl, xr;
@@ -3646,11 +3657,12 @@ static void alt_prism(void)
     }
 }
 
-/* SMOOTH (08/11, Romain: "des animations plus fluides"; SYSTEM > SETUP > SMOOTH, ON by default): the star of each
- * circle glides round its ring and the alidade turns, from each circle's POS (alter_lfo.c alt_msrc: its step and the
- * time into it, from the audio's own clock: the tempo, the swing, an external clock as they are), instead of jumping
- * from step to step; a hit makes the star big, then it shrinks back in 200 ms. Taken once a frame (alt_sm_take), so
- * every band of a frame draws the same. OFF: the steps as before. */
+/* SMOOTH (08/11, Romain: "des animations plus fluides"; SYSTEM > SETUP > SMOOTH, ON by default): the alidade (the
+ * chosen circle's gold hand) turns smoothly, from its POS (alter_lfo.c alt_msrc: its step and the time into it, from
+ * the audio's own clock: the tempo, the swing, an external clock as they are), and a trigger that plays grows 2 px,
+ * lighter, and shrinks back in 130 ms (Romain: no stars, "they take too much room"). Taken once a frame
+ * (alt_sm_take). Drawn as small rectangles round what moves (alt_sm_frame: 6 FPS at first, whole bands of the scene).
+ * OFF: the steps as before. */
 #define ALT_SMOOTH (alt_sys[8] == 0u)
 static void alt_rows(uint32_t *d, int32_t lo, int32_t hi)   /* rows lo .. hi to draw again (a bit each, 240) */
 {
@@ -3661,7 +3673,7 @@ static void alt_rows(uint32_t *d, int32_t lo, int32_t hi)   /* rows lo .. hi to 
 }
 /* VERSION TEST (08/11): the frames sent to the screen in the last second (any change: a band or the whole), shown on
  * the CPU line as "nnF" */
-static uint32_t alt_fps, alt_fps_n, alt_fps_ms;
+static uint32_t alt_fps, alt_fps_n, alt_fps_ms, alt_full_n;   /* (alt_full_n: whole frames, tests) */
 static void alt_fps_tick(void) { alt_fps_n++; }
 static void alt_fps_poll(void)                   /* (once a second: a still screen counts 0) */
 {
@@ -3672,14 +3684,15 @@ static void alt_fps_poll(void)                   /* (once a second: a still scre
     }
 }
 static uint32_t alt_sm_ang[AS_NCIRC];            /* each circle's turn this frame */
-static uint8_t alt_sm_sz[AS_NCIRC];              /* its star's arms */
+static uint8_t alt_hit_step[AS_NCIRC];           /* the step of each circle's last hit (alter_draw) */
+static uint8_t alt_sm_g[AS_NCIRC];               /* how much it grows now: 2, 1, 0 */
 static void alt_sm_take(void)
 {
     uint32_t i, t;
     for (i = 0; i < AS_NCIRC; i++) {
         alt_sm_ang[i] = (uint32_t)(uint16_t)alt_msrc[i][0] << 17;   /* (Q15 of the circle -> a turn) */
-        t = fm1_ms - au.flash_ms[i];
-        alt_sm_sz[i] = (uint8_t)(t < 200u ? 10u - t * 4u / 200u : 6u);
+        t = alt_now_ms - au.flash_ms[i];
+        alt_sm_g[i] = (uint8_t)(!song.playing ? 0u : t < 60u ? 2u : t < 130u ? 1u : 0u);
     }
 }
 
@@ -3808,8 +3821,8 @@ static void alt_scene(uint32_t q, uint32_t flash)
         alt_aaline(x0, y0, x1, y1, alt_gold_line(12));
     }
     /* the head: the card, the sound's name in its ribbon, the arcana of the page shown; the tempo, the engine, the
-     * mode */
-    {
+     * mode (SMOOTH 08/11: a piece of the screen away from the card's edges and the head: not walked) */
+    if (cv_oy > -40 || cv_ox > -8 || (int32_t)cv_w - cv_ox > 232 || (int32_t)cv_h - cv_oy > 228) {
         static const char *const ARC[QP_N] = {"XIV", "X", "XIII", "XVI", "XVIII", "I", "XVII", "XXI"};
         uint32_t bpm = (uint32_t)song.g[G_BPM], n = 0, m = alt_emode[au.sel] % AM_N;
         int32_t x;
@@ -3903,9 +3916,11 @@ static void alt_scene(uint32_t q, uint32_t flash)
         }
         for (j = 0; j < len; j++) {              /* the steps */
             int on = (int)((c->pat >> j) & 1u), here = song.playing && j == now && !ALT_SMOOTH;
+            int32_t g = ALT_SMOOTH && on && j == alt_hit_step[i] ? alt_sm_g[i] : 0;   /* (SMOOTH: it plays: grows) */
+            uint16_t cg = g ? alt_mixc(col, ALT_INK, g * 30) : col;
             alt_at((uint32_t)(((uint64_t)j << 32) / len), r, &x, &y);
             if (on)                              /* (a contour: the hit apart from its ring, Romain 05/11) */
-                alt_disc(x, y, i == 2u ? 4 : 6, ALT_BG);
+                alt_disc(x, y, (i == 2u ? 4 : 6) + g, ALT_BG);
             if (here && on)
                 alt_star(x, y, (flash >> i) & 1u ? 9 : 7, ALT_INK);
             if (!on) {
@@ -3913,18 +3928,14 @@ static void alt_scene(uint32_t q, uint32_t flash)
                 continue;
             }
             if (i == 0u) {
-                alt_diamond(x, y, 4, 6, alt_mixc(ALT_BG, ALT_INK, 70));
-                alt_diamond(x, y, 3, 5, col);
+                alt_diamond(x, y, 4 + g, 6 + g, alt_mixc(ALT_BG, ALT_INK, 70));
+                alt_diamond(x, y, 3 + g, 5 + g, cg);
             } else if (i == 1u) {
-                alt_disc(x, y, 4, col);
+                alt_disc(x, y, 4 + g, cg);
                 alt_disc(x, y, 2, ALT_BG);
                 cv_rect(x, y, 1, 1, ALT_INK);
             } else
-                alt_disc(x, y, 2, col);
-        }
-        if (ALT_SMOOTH && song.playing) {        /* (SMOOTH: the star where the circle is, between its steps) */
-            alt_at(alt_sm_ang[i], r, &x, &y);
-            alt_star(x, y, alt_sm_sz[i], muted ? ALT_GREY : ALT_INK);
+                alt_disc(x, y, 2 + g, cg);
         }
         if (c->die) {                            /* a draw on: a small triangle at the circle's left, pointing in */
             int32_t k2;
@@ -3961,7 +3972,8 @@ static void alt_scene(uint32_t q, uint32_t flash)
         if (asg.n > 8u)
             cv_text(222, 48 + 8 * 17, ALT_FS, "..", ALT_DIM);
     }
-    alt_foot(q);
+    if ((int32_t)cv_h - cv_oy > 192)             /* (the knobs: from row 194 down) */
+        alt_foot(q);
 }
 
 
@@ -3973,7 +3985,9 @@ static void alt_scene(uint32_t q, uint32_t flash)
 #define ALT_GR_H 64u
 static uint8_t alt_grain[ALT_GR_W * ALT_GR_H / 4u] __attribute__((section(".pool")));
 static uint8_t alt_grain_ok;
-static void alt_paper_rows(uint32_t y0, uint32_t n)
+static void alt_paper_rect(uint32_t x0, uint32_t y0, uint32_t w, uint32_t n);
+static void alt_paper_rows(uint32_t y0, uint32_t n) { alt_paper_rect(0, y0, 240u, n); }
+static void alt_paper_rect(uint32_t x0, uint32_t y0, uint32_t w, uint32_t n)   /* (x0, y0, w x n: the canvas) */
 {
     uint16_t t[4];
     uint32_t x, y, i = 0;
@@ -3998,25 +4012,156 @@ static void alt_paper_rows(uint32_t y0, uint32_t n)
     t[3] = swap16(ALT_DAY ? RGB(249, 239, 213) : RGB(23, 20, 22));
     for (y = 0; y < n; y++) {
         const uint8_t *row = &alt_grain[((y0 + y) % ALT_GR_H) * (ALT_GR_W / 4u)];
-        for (x = 0; x < 240u; x++, i++)
+        for (x = x0; x < x0 + w; x++, i++)
             cv_px[i] = t[(row[(x % ALT_GR_W) >> 2] >> ((x & 3u) * 2u)) & 3u];
     }
 }
 static void alt_paper(uint32_t h) { alt_paper_rows(h * 120u, 120u); }
 
 
+/* SMOOTH's frame (08/11, "6F": a band of the whole width each star, the scene walked whole each band; Romain: draw
+ * only what moves): rectangles round the alidade's old and new place (in six pieces along it), round a trigger that
+ * grows or shrinks, round the centre's pieces when they glow; each drawn alone (cv_ox, cv_oy), the scene skipping
+ * what misses it (alt_miss). What was drawn: alt_sm_seen. Returns 1 if anything was sent. */
+typedef struct {
+    int16_t x0, y0, x1, y1;                      /* (inclusive) */
+} alt_rc_t;
+static alt_rc_t alt_rc[12];
+static uint32_t alt_nrc;
+static uint32_t alt_sm_dang;                     /* the alidade drawn: its turn, on or not */
+static uint8_t alt_sm_don, alt_sm_dhs[AS_NCIRC], alt_sm_dg[AS_NCIRC], alt_sm_dgl;
+static void alt_rc_add(int32_t x0, int32_t y0, int32_t x1, int32_t y1)
+{
+    uint32_t k;
+    x0 = clamp(x0, 0, 239) & ~1;
+    y0 = clamp(y0, 0, 239) & ~1;
+    x1 = clamp(x1, 0, 239) | 1;
+    y1 = clamp(y1, 0, 239) | 1;
+    for (k = 0; k < alt_nrc; k++) {              /* (two as one only when that adds little: the boxes along a slanted
+                                                  * alidade touch, their union would be its whole square) */
+        alt_rc_t *r = &alt_rc[k];
+        int32_t ux0 = x0 < r->x0 ? x0 : r->x0, uy0 = y0 < r->y0 ? y0 : r->y0, ux1 = x1 > r->x1 ? x1 : r->x1,
+                uy1 = y1 > r->y1 ? y1 : r->y1;
+        if ((ux1 - ux0 + 1) * (uy1 - uy0 + 1) <=
+            (x1 - x0 + 1) * (y1 - y0 + 1) + (r->x1 - r->x0 + 1) * (r->y1 - r->y0 + 1) + 64) {
+            x0 = x0 < r->x0 ? x0 : r->x0;
+            y0 = y0 < r->y0 ? y0 : r->y0;
+            x1 = x1 > r->x1 ? x1 : r->x1;
+            y1 = y1 > r->y1 ? y1 : r->y1;
+            *r = alt_rc[--alt_nrc];
+            k = (uint32_t)-1;
+        }
+    }
+    if (alt_nrc == NELEM(alt_rc)) {              /* (full: into the last) */
+        alt_rc_t *r = &alt_rc[alt_nrc - 1u];
+        x0 = x0 < r->x0 ? x0 : r->x0;
+        y0 = y0 < r->y0 ? y0 : r->y0;
+        x1 = x1 > r->x1 ? x1 : r->x1;
+        y1 = y1 > r->y1 ? y1 : r->y1;
+        alt_nrc--;
+    }
+    alt_rc[alt_nrc].x0 = (int16_t)x0, alt_rc[alt_nrc].y0 = (int16_t)y0;
+    alt_rc[alt_nrc].x1 = (int16_t)x1, alt_rc[alt_nrc].y1 = (int16_t)y1;
+    alt_nrc++;
+}
+static uint32_t alt_sm_glsig(void) { return alt_glow(0) | alt_glow(1) << 3 | alt_glow(2) << 6; }
+static void alt_sm_seen(void)
+{
+    uint32_t i;
+    alt_sm_don = (uint8_t)song.playing;
+    alt_sm_dang = alt_sm_ang[au.sel % AS_NCIRC];
+    for (i = 0; i < AS_NCIRC; i++)
+        alt_sm_dhs[i] = alt_hit_step[i], alt_sm_dg[i] = alt_sm_g[i];
+    alt_sm_dgl = (uint8_t)alt_sm_glsig();
+}
+static void alt_rc_alid(uint32_t turn)           /* the alidade at turn: six boxes along it */
+{
+    int32_t k, xa, ya, xb, yb;
+    for (k = 0; k < 6; k++) {
+        alt_at(turn, k * 15, &xa, &ya);
+        alt_at(turn, k * 15 + 15, &xb, &yb);
+        alt_rc_add((xa < xb ? xa : xb) - 2, (ya < yb ? ya : yb) - 2, (xa > xb ? xa : xb) + 2, (ya > yb ? ya : yb) + 2);
+    }
+}
+static void alt_rc_step(uint32_t i, uint32_t j)  /* circle i's step j, its mark grown */
+{
+    uint32_t len = alt_seq.c[i].cfg.len ? alt_seq.c[i].cfg.len : 1u;
+    int32_t x, y;
+    if (j >= len)
+        return;
+    alt_at((uint32_t)(((uint64_t)j << 32) / len), ALT_R[i], &x, &y);
+    alt_rc_add(x - 11, y - 11, x + 11, y + 11);
+}
+static int alt_sm_frame(uint32_t q, uint32_t flash)
+{
+    uint32_t i, k, ang = alt_sm_ang[au.sel % AS_NCIRC];
+    alt_nrc = 0;
+    if (song.playing && ang != alt_sm_dang) {    /* (a pixel's worth of turn or less: the same line) */
+        int32_t xa, ya, xb, yb;
+        alt_at(ang, 90, &xa, &ya);
+        alt_at(alt_sm_dang, 90, &xb, &yb);
+        if (xa != xb || ya != yb || !alt_sm_don) {
+            if (alt_sm_don)
+                alt_rc_alid(alt_sm_dang);
+            alt_rc_alid(ang);
+        } else
+            ang = alt_sm_dang;
+    }
+    for (i = 0; i < AS_NCIRC; i++)
+        if (alt_hit_step[i] != alt_sm_dhs[i] || alt_sm_g[i] != alt_sm_dg[i]) {
+            alt_rc_step(i, alt_sm_dhs[i]);
+            alt_rc_step(i, alt_hit_step[i]);
+        }
+    if (alt_sm_glsig() != alt_sm_dgl)            /* (the centre's pieces) */
+        alt_rc_add(ALT_CX - 30, ALT_CY - 32, ALT_CX + 30, ALT_CY + 24);
+    {
+        uint32_t keep = alt_sm_ang[au.sel % AS_NCIRC];
+        alt_sm_ang[au.sel % AS_NCIRC] = ang;     /* (unmoved: drawn where it was) */
+        alt_sm_seen();
+        alt_sm_ang[au.sel % AS_NCIRC] = keep;
+    }
+    if (!alt_nrc)
+        return 0;
+    alt_draw_gl_n = alt_gl_n;
+    alt_draw_lfo_p = alt_lfo_p;
+    for (k = 0; k < alt_nrc; k++) {
+        const alt_rc_t *r = &alt_rc[k];
+        uint32_t w = (uint32_t)(r->x1 - r->x0 + 1), y = (uint32_t)r->y0, h = (uint32_t)(r->y1 + 1);
+        uint32_t keep = alt_sm_ang[au.sel % AS_NCIRC];
+        alt_sm_ang[au.sel % AS_NCIRC] = alt_sm_dang;
+        while (y < h) {
+            uint32_t n = h - y, cap = (CV_MAX / w) & ~1u;
+            n = n > cap ? cap : n;
+            cv_begin(w, n, ALT_BG);
+            alt_paper_rect((uint32_t)r->x0, y, w, n);
+            cv_ox = -r->x0;
+            cv_oy = -(int32_t)y;
+            alt_scene(q, flash);
+            cv_ox = 0;
+            cv_oy = 0;
+            cv_blit((uint32_t)r->x0, y);
+            y += n;
+        }
+        alt_sm_ang[au.sel % AS_NCIRC] = keep;
+    }
+    return 1;
+}
+
 static void alter_draw(void)
 {
     uint32_t sig = 0, i, h, flash = 0, q = au.lockc ? 0u : alt_page();
+    alt_now_ms = fm1_ms;
     for (i = 0; i < AS_NCIRC; i++) {
         if ((h = alt_hits[i]) != au.hits_seen[i]) {
+            uint32_t len = alt_seq.c[i].cfg.len ? alt_seq.c[i].cfg.len : 1u;
             au.hits_seen[i] = h;
-            au.flash_ms[i] = fm1_ms;
+            au.flash_ms[i] = alt_now_ms;
+            alt_hit_step[i] = (uint8_t)((alt_seq.c[i].pos + len - 1u) % len);   /* (SMOOTH: the trigger that grows) */
         }
-        if (fm1_ms - au.flash_ms[i] < 70u)
+        if (alt_now_ms - au.flash_ms[i] < 70u)
             flash |= 1u << i;
-        sig = sig * 7u + alt_glow(i);
     }
+    alt_sm_take();
     for (i = 0; i < AS_NCIRC; i++)               /* what the picture depends on (the steps playing: apart, below) */
         sig = sig * 31u + alt_seq.c[i].pat * 7u + (uint32_t)alt_seq.c[i].cfg.len * 131u +
               au.cfg[i].len + au.cfg[i].hits * 3u + au.cfg[i].rot * 5u + au.cfg[i].prob * 9u + au.cfg[i].mute * 11u +
@@ -4100,44 +4245,39 @@ static void alter_draw(void)
     sig = sig * 31u + alt_fps * 113u + alt_cpu_avg * 101u + alt_cpu_pk * 103u + alt_cpu_cut * 107u + alt_cpu_c1 * 109u;   /* (version test : la charge CPU) */
 #endif
     ui.force = 1;                                /* (whatever comes after this view draws itself whole) */
-    if (ALT_SMOOTH)
-        alt_sm_take();
     {                                            /* the steps playing and the hits' flash: a page that shows them has
                                                   * them in its sig; the circles' view redraws only the rows they move
                                                   * on (Romain 05/11: "laggy": a whole frame each step) */
-        static uint8_t now_seen[AS_NCIRC], fl_seen, sm_s[AS_NCIRC];
-        static int32_t sm_x[AS_NCIRC], sm_y[AS_NCIRC], sm_ax, sm_ay;   /* (SMOOTH: the stars and the alidade drawn) */
+        static uint8_t now_seen[AS_NCIRC], fl_seen;
         uint8_t now[AS_NCIRC];
-        int32_t nx[AS_NCIRC], ny[AS_NCIRC], ax, ay;
         int circles = !au.lockc && !au.scene_open && !au.mat_open && !au.seq_open && !afp.open && !au.mn;
         for (i = 0; i < AS_NCIRC; i++) {
             uint32_t len = alt_seq.c[i].cfg.len ? alt_seq.c[i].cfg.len : 1u;
             now[i] = (uint8_t)((alt_seq.c[i].pos + len - 1u) % len);
-            alt_at(alt_sm_ang[i], ALT_R[i], &nx[i], &ny[i]);
         }
-        alt_at(alt_sm_ang[au.sel % AS_NCIRC], 90, &ax, &ay);
         if (!circles) {                          /* (another page: they are part of the picture) */
             for (i = 0; i < AS_NCIRC; i++)
                 sig = sig * 31u + alt_seq.c[i].pos;
             sig = sig * 31u + flash * 5u;
-        } else if (au.drawn && sig == au.sig) {
+            for (i = 0; i < AS_NCIRC; i++)
+                sig = sig * 7u + alt_glow(i);
+        }
+        if (circles && au.drawn && sig == au.sig) {
+            if (ALT_SMOOTH) {
+                if (alt_sm_frame(q, flash))
+                    alt_fps_tick();
+                return;
+            }
+            {
+            static uint8_t gl_seen;
             uint32_t dirty[8] = {0, 0, 0, 0, 0, 0, 0, 0};
             int32_t y = 0;
             int any = 0;
-            if (ALT_SMOOTH) {                    /* the rows of each star that moved (old place and new), of the
-                                                  * alidade (from the centre to its old and new tip) */
-                if (song.playing) {
-                    for (i = 0; i < AS_NCIRC; i++)
-                        if (nx[i] != sm_x[i] || ny[i] != sm_y[i] || alt_sm_sz[i] != sm_s[i]) {
-                            alt_rows(dirty, sm_y[i] - 12, sm_y[i] + 12);
-                            alt_rows(dirty, ny[i] - 12, ny[i] + 12);
-                        }
-                    if (ax != sm_ax || ay != sm_ay) {
-                        alt_rows(dirty, (sm_ay < ALT_CY ? sm_ay : ALT_CY) - 2, (sm_ay > ALT_CY ? sm_ay : ALT_CY) + 2);
-                        alt_rows(dirty, (ay < ALT_CY ? ay : ALT_CY) - 2, (ay > ALT_CY ? ay : ALT_CY) + 2);
-                    }
+                if (alt_sm_glsig() != gl_seen) { /* (the centre's pieces glow: their rows alone, 08/11; they made a
+                                                  * whole frame of every hit) */
+                    gl_seen = (uint8_t)alt_sm_glsig();
+                    alt_rows(dirty, ALT_CY - 32, ALT_CY + 24);
                 }
-            } else
                 for (i = 0; i < AS_NCIRC; i++)   /* the rows the old and new marks of each circle that moved cover */
                     if (now[i] != now_seen[i] || ((flash ^ fl_seen) >> i & 1u)) {
                         uint32_t len = alt_seq.c[i].cfg.len ? alt_seq.c[i].cfg.len : 1u, k;
@@ -4151,11 +4291,8 @@ static void alter_draw(void)
                             }
                         }
                     }
-            for (i = 0; i < AS_NCIRC; i++) {
+            for (i = 0; i < AS_NCIRC; i++)
                 now_seen[i] = now[i];
-                sm_x[i] = nx[i], sm_y[i] = ny[i], sm_s[i] = alt_sm_sz[i];
-            }
-            sm_ax = ax, sm_ay = ay;
             fl_seen = (uint8_t)flash;
             alt_draw_gl_n = alt_gl_n;
             alt_draw_lfo_p = alt_lfo_p;
@@ -4189,12 +4326,10 @@ static void alter_draw(void)
             if (any)
                 alt_fps_tick();
             return;
+            }
         }
-        for (i = 0; i < AS_NCIRC; i++) {
+        for (i = 0; i < AS_NCIRC; i++)
             now_seen[i] = now[i];
-            sm_x[i] = nx[i], sm_y[i] = ny[i], sm_s[i] = alt_sm_sz[i];
-        }
-        sm_ax = ax, sm_ay = ay;
         fl_seen = (uint8_t)flash;
     }
     if (au.drawn && sig == au.sig)
@@ -4211,7 +4346,9 @@ static void alter_draw(void)
         cv_oy = 0;
         cv_blit(0, i * 120u);
     }
+    alt_sm_seen();
     alt_fps_tick();
+    alt_full_n++;
 }
 
 /* the browser build's hooks (web/emu/felucca_web.c web_alter): op 0 circle a's sound b, 1 scene a, 2 mute circle a

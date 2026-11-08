@@ -26,6 +26,7 @@ static void alt_pt(int32_t cx, int32_t cy, uint32_t turn, int32_t r, int32_t *x,
 static void alt_plot(int32_t x, int32_t y, uint16_t c, int32_t a)
 {
     uint16_t *p;
+    x += cv_ox;
     y += cv_oy;
     if ((uint32_t)x >= cv_w || (uint32_t)y >= cv_h || a <= 0)
         return;
@@ -37,6 +38,9 @@ static void alt_plot(int32_t x, int32_t y, uint16_t c, int32_t a)
 static void alt_aaline16(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint16_t c)
 {
     int32_t steep = (y1 > y0 ? y1 - y0 : y0 - y1) > (x1 > x0 ? x1 - x0 : x0 - x1), t, dx, dy, g, xp, xe;
+    if (alt_miss(((x0 < x1 ? x0 : x1) >> 4) - 2, ((y0 < y1 ? y0 : y1) >> 4) - 2, ((x0 > x1 ? x0 : x1) >> 4) + 2,
+                ((y0 > y1 ? y0 : y1) >> 4) + 2))
+        return;
     if (steep) {
         t = x0, x0 = y0, y0 = t;
         t = x1, x1 = y1, y1 = t;
@@ -70,6 +74,19 @@ static void alt_aaring16(int32_t cx, int32_t cy, int32_t r, uint16_t c)
 {
     uint32_t n = (uint32_t)(r >> 4) * 2u + 24u, k;
     int32_t px = cx, py = cy - r, x, y;
+    {                                            /* (the canvas wholly inside the ring or wholly outside it: none) */
+        int32_t a0 = -cv_ox * 16 - cx, a1 = ((int32_t)cv_w - cv_ox) * 16 - cx, b0 = -cv_oy * 16 - cy,
+                b1 = ((int32_t)cv_h - cv_oy) * 16 - cy, nx, ny, fx, fy;
+        int64_t dn, df, rl = (int64_t)(r + 48) * (r + 48), rs = r > 48 ? (int64_t)(r - 48) * (r - 48) : 0;
+        nx = a0 > 0 ? a0 : a1 < 0 ? a1 : 0;
+        ny = b0 > 0 ? b0 : b1 < 0 ? b1 : 0;
+        fx = -a0 > a1 ? a0 : a1;
+        fy = -b0 > b1 ? b0 : b1;
+        dn = (int64_t)nx * nx + (int64_t)ny * ny;
+        df = (int64_t)fx * fx + (int64_t)fy * fy;
+        if (dn > rl || df < rs)
+            return;
+    }
     if (n > 200u)
         n = 200u;
     for (k = 1; k <= n; k++) {

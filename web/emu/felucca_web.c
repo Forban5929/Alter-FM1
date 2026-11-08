@@ -128,7 +128,7 @@ static void fm1_irq_on(void) {}
 
 /* ----------------------------------------------------------- the screen --- */
 static uint16_t web_fb[240 * 240];       /* RGB565 as the panel gets it (high byte first) */
-static uint32_t web_draws;
+static uint32_t web_draws, web_px;                 /* (web_px: pixels sent, tests 08/11) */
 static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
 {
     uint32_t i, j;
@@ -145,6 +145,7 @@ static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
         for (i = 0; i < w && x + i < 240u; i++)
             web_fb[(y + j) * 240u + x + i] = p[j * w + i];
     web_draws++;
+    web_px += w * h;
 }
 static void lcd_sync(void) {}
 static void lcd_power(uint32_t s)              /* MENU > SCREEN OFF (lcd.c): off, the page dark; on: redrawn before */
@@ -411,6 +412,7 @@ EXPORT void web_draw_bench(uint32_t n, uint32_t what)
     for (k = 0; k < n; k++) {
         if (what == 0u) { au.drawn = 0; alter_draw(); continue; }
         if (what == 3u) { alter_draw(); continue; }   /* (as the loop: partial when it can) */
+        if (what == 4u) { cv_begin(16, 16, ALT_BG); cv_ox = -100; cv_oy = -60; alt_scene(q, 0); cv_ox = 0; cv_oy = 0; continue; }   /* (a 16 x 16 piece alone: the scene's walk) */
         for (i = 0; i < 2u; i++) {
             cv_begin(240, 120, ALT_BG);
             if (what == 1u) alt_paper(i);
@@ -508,6 +510,8 @@ EXPORT uint32_t web_test_user_preset(uint32_t i) { return (uint32_t)up_used(i); 
 
 EXPORT uint16_t *web_screen(void) { return web_fb; }
 EXPORT uint32_t web_screen_draws(void) { return web_draws; }
+EXPORT uint32_t web_screen_px(void) { return web_px; }
+EXPORT uint32_t web_alter_full(void) { return alt_full_n; }
 EXPORT void web_alter_smooth(uint32_t on) { alt_sys[8] = (uint8_t)(on ? 0u : 1u); }   /* (tests 08/11: SYSTEM > SMOOTH) */
 EXPORT uint32_t web_now_ms(void) { return fm1_ms; }
 EXPORT uint32_t web_playing(void) { return song.playing; }
