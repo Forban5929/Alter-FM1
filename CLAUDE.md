@@ -190,6 +190,9 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   (`alt_sm_head`/`alt_sm_foot` → leurs rectangles) : avant, 2 images complètes/s (CPU) + chaque mouvement de LFO sur un
   knob = alidade figée puis rattrapage. **Page** : vitesse mesurée sur 16 pas (pas pas à pas), écart rattrapé sur 2 pas
   (`A.err`), plus de butée « 1 pas d'avance » ; mesuré en démo : avant 0..5,9 rad/s, maintenant 3,1..3,7. **Pas sur la FM-1.**
-- [ ] **PROCHAINE SESSION** : retour de Romain (fluidité + « nnF » FM-1, page branchée). Si besoin : alidade à ~30 images/s,
+- [x] 08/11 soir : **Romain : « smooth sur les deux, même en swing »**. Mesuré FM-1 (« nnF ») : 10-15 images/s avec 3
+  cercles qui jouent, 15-20 avec 2, 30 avec 1 (chaque coup = rectangle du trigger + rectangle du triangle du centre
+  62×58 pendant 240 ms : le plus cher). Piste si besoin : triangle du centre moins cher / sans lueur en SMOOTH.
+- [ ] **PROCHAINE SESSION** : (fluidité OK). Si besoin : alidade à ~30 images/s,
   SPI (bsp : pas sans accord). Aussi MIDI LEARN avec le BCR32, CONSOLE de la page branchée, TRS (autre câble).
 - [ ] Idées : un contrôle → plusieurs réglages (macro) ; LEARN dans la page compagnon ; DENSITY/ROT continus.
