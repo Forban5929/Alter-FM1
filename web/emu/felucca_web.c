@@ -512,6 +512,8 @@ EXPORT uint16_t *web_screen(void) { return web_fb; }
 EXPORT uint32_t web_screen_draws(void) { return web_draws; }
 EXPORT uint32_t web_screen_px(void) { return web_px; }
 EXPORT uint32_t web_alter_full(void) { return alt_full_n; }
+EXPORT uint32_t web_alter_disp(uint32_t c, uint32_t old) { return old ? (uint16_t)alt_msrc[c % 3u][0] : alt_disp[c % 3u]; }   /* (tests 08/11: the alidade's place, the POS before) */
+EXPORT void web_alter_set_swing(uint32_t v) { song.g[G_SWING] = (int16_t)(v % 101u); }   /* (tests 08/11) */
 EXPORT void web_alter_smooth(uint32_t on) { alt_sys[8] = (uint8_t)(on ? 0u : 1u); }   /* (tests 08/11: SYSTEM > SMOOTH) */
 EXPORT uint32_t web_now_ms(void) { return fm1_ms; }
 EXPORT uint32_t web_playing(void) { return song.playing; }

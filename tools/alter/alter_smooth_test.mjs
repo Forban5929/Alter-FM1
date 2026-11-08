@@ -43,6 +43,17 @@ const px = (on) => {                                     // pixels sent to the s
 const pOn = px(1), pOff = px(0);
 console.log(`smooth: pixels envoyés à l'écran par seconde de jeu : SMOOTH ON ${pOn} (${(pOn / 57600).toFixed(1)} écrans), OFF ${pOff} (${(pOff / 57600).toFixed(1)} écrans)`);
 check(`SMOOTH ON envoie moins de 12 écrans entiers par seconde (${(pOn / 57600).toFixed(1)})`, pOn < 12 * 57600);
+// the alidade's speed, SWING 60: each ~15 ms frame it should turn by about as much (the POS it used before: waits, jumps)
+for (const old of [1, 0]) {
+  ex.web_alter(4, 120, 0);                                   // (tempo 120)
+  ex.web_alter_set_swing?.(60);
+  const d = [];
+  let prev = ex.web_alter_disp(0, old);
+  for (let k = 0; k < 120; k++) { render(662); const v = ex.web_alter_disp(0, old); d.push((v - prev + 32768) % 32768); prev = v; }
+  const s = d.slice(5).sort((a, b) => a - b), lo = s[Math.floor(s.length * 0.05)], hi = s[Math.floor(s.length * 0.95)];
+  console.log(`smooth: pas de l'aiguille par image, SWING 60, ${old ? "avant (POS)" : "maintenant"} : de ${lo} à ${hi} (rapport ${(hi / Math.max(1, lo)).toFixed(2)})`);
+  if (!old) check(`aiguille régulière avec du SWING (écart des pas par image ${(hi / Math.max(1, lo)).toFixed(2)} ≤ 1,3)`, lo > 0 && hi / lo <= 1.3);
+}
 const full = cost(1, 1), sOn = cost(1, 0), sOff = cost(0, 0);
 console.log(`smooth: coût moyen d'une image (navigateur) : complète ${full.toFixed(2)} ms, SMOOTH ON ${sOn.toFixed(2)} ms (${(100 * sOn / full).toFixed(0)} %), OFF ${sOff.toFixed(2)} ms (${(100 * sOff / full).toFixed(0)} %)`);
 console.log(fails ? `smooth: ${fails} ÉCHEC(S)` : "smooth: tout ok");

@@ -429,6 +429,9 @@ static void alt_gl_tick(uint32_t n, uint32_t p)
     }
 }
 
+/* each circle's place for the screen's alidade (SMOOTH, 08/11): Q15 of its turn */
+static volatile uint16_t alt_disp[AS_NCIRC];
+static uint32_t alt_len_even(uint32_t p) { return p + (uint32_t)clamp(song.g[G_SWING], 0, 100) * p / 200u; }
 /* each circle's POS (alter_lfo.c): its step sounding and the time into it, over its length */
 static void alt_pos_src(uint32_t p)
 {
@@ -437,6 +440,13 @@ static void alt_pos_src(uint32_t p)
         const as_circ_t *cc = &alt_seq.c[c];
         uint32_t len = cc->cfg.len ? cc->cfg.len : 1u, now = (cc->pos + len - 1u) % len;
         alt_msrc[c][0] = (int16_t)(alt_run ? (now * 32768u + f) / len : 0u);
+        if (alt_run && p) {                      /* (the screen's: at an even speed over each pair of sixteenths,
+                                                  * the swing's long and short one alike: no wait, no jump) */
+            uint32_t t = (alt_par ? alt_len_even(p) : 0u) + alt_pos;
+            alt_disp[c] = (uint16_t)(((((now + len - alt_par) % len) * 32768u + (uint32_t)((uint64_t)t * 32768u / p)) / len) &
+                                     32767u);
+        } else
+            alt_disp[c] = 0;
     }
 }
 

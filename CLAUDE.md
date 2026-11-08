@@ -183,7 +183,13 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   = image complète** (aussi en OFF : 25 → 11 écrans/s). Émulateur : identique pixel à pixel (ON/OFF, 300 images) ;
   ON = 4,5 écrans de pixels/s, coût ≈ 25 % d'une image complète. **« nnF »** = images/s sur la ligne CPU. Page compagnon
   au même style (aiguille sur chaque cercle, trigger qui gonfle `pop`). **FPS FM-1 de cette version non mesuré.**
-- [ ] **PROCHAINE SESSION** : retour de Romain : « nnF » de la nouvelle version, CPU/coupures ON vs OFF. Si encore lent : limiter
-  l'alidade à ~30 images/s, ou SPI (bsp : ne pas toucher sans accord). Aussi MIDI LEARN avec le BCR32, CONSOLE de la page
-  branchée, TRS (autre câble).
+- [x] 08/11 (3e retour : « plus smooth », triggers OK, mais ligne qui saute/accélère, peu visible) : **FM-1** : position de
+  l'alidade = `alt_disp[c]` (alter_play.c alt_pos_src) à **vitesse constante sur chaque paire de doubles-croches** (le
+  POS `alt_msrc` attendait sur les pas longs du SWING puis sautait ; mesuré SWING 60 : avant 0..852/image, maintenant
+  237..286) ; tracée au 1/16 px (`alt_alid16`), 2 px, or 95 % ; **ligne CPU et knobs du bas hors du sig** en SMOOTH
+  (`alt_sm_head`/`alt_sm_foot` → leurs rectangles) : avant, 2 images complètes/s (CPU) + chaque mouvement de LFO sur un
+  knob = alidade figée puis rattrapage. **Page** : vitesse mesurée sur 16 pas (pas pas à pas), écart rattrapé sur 2 pas
+  (`A.err`), plus de butée « 1 pas d'avance » ; mesuré en démo : avant 0..5,9 rad/s, maintenant 3,1..3,7. **Pas sur la FM-1.**
+- [ ] **PROCHAINE SESSION** : retour de Romain (fluidité + « nnF » FM-1, page branchée). Si besoin : alidade à ~30 images/s,
+  SPI (bsp : pas sans accord). Aussi MIDI LEARN avec le BCR32, CONSOLE de la page branchée, TRS (autre câble).
 - [ ] Idées : un contrôle → plusieurs réglages (macro) ; LEARN dans la page compagnon ; DENSITY/ROT continus.

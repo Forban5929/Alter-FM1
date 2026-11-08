@@ -3685,12 +3685,17 @@ static void alt_fps_poll(void)                   /* (once a second: a still scre
 }
 static uint32_t alt_sm_ang[AS_NCIRC];            /* each circle's turn this frame */
 static uint8_t alt_hit_step[AS_NCIRC];           /* the step of each circle's last hit (alter_draw) */
+static void alt_alid16(uint32_t turn, int32_t *x, int32_t *y)   /* the alidade's tip, 90 px out, in 1/16 px */
+{
+    *x = ALT_CX * 16 + ((90 * 16 * sine_i(turn)) >> 15);
+    *y = ALT_CY * 16 - ((90 * 16 * sine_i(turn + 0x40000000u)) >> 15);
+}
 static uint8_t alt_sm_g[AS_NCIRC];               /* how much it grows now: 2, 1, 0 */
 static void alt_sm_take(void)
 {
     uint32_t i, t;
     for (i = 0; i < AS_NCIRC; i++) {
-        alt_sm_ang[i] = (uint32_t)(uint16_t)alt_msrc[i][0] << 17;   /* (Q15 of the circle -> a turn) */
+        alt_sm_ang[i] = (uint32_t)alt_disp[i] << 17;   /* (Q15 of the circle -> a turn: alter_play.c, even speed) */
         t = alt_now_ms - au.flash_ms[i];
         alt_sm_g[i] = (uint8_t)(!song.playing ? 0u : t < 60u ? 2u : t < 130u ? 1u : 0u);
     }
@@ -3857,8 +3862,18 @@ static void alt_scene(uint32_t q, uint32_t flash)
         const as_circ_t *c = &alt_seq.c[au.sel];
         uint32_t len = c->cfg.len ? c->cfg.len : 1u, now = (c->pos + len - 1u) % len;
         int32_t x, y;
-        alt_at(ALT_SMOOTH ? alt_sm_ang[au.sel] : (uint32_t)(((uint64_t)now << 32) / len), 90, &x, &y);
-        alt_aaline(ALT_CX, ALT_CY, x, y, alt_gold_line(45));
+        if (ALT_SMOOTH) {                        /* (SMOOTH: in 1/16 px, 2 px wide and bright: Romain 08/11 "je perds la
+                                                  * ligne des yeux") */
+            alt_alid16(alt_sm_ang[au.sel], &x, &y);
+            alt_aaline16(ALT_CX * 16, ALT_CY * 16, x, y, alt_gold_line(95));
+            if ((x > ALT_CX * 16 ? x - ALT_CX * 16 : ALT_CX * 16 - x) > (y > ALT_CY * 16 ? y - ALT_CY * 16 : ALT_CY * 16 - y))
+                alt_aaline16(ALT_CX * 16, ALT_CY * 16 + 16, x, y + 16, alt_gold_line(95));
+            else
+                alt_aaline16(ALT_CX * 16 + 16, ALT_CY * 16, x + 16, y, alt_gold_line(95));
+        } else {
+            alt_at((uint32_t)(((uint64_t)now << 32) / len), 90, &x, &y);
+            alt_aaline(ALT_CX, ALT_CY, x, y, alt_gold_line(45));
+        }
     }
     /* the circles, each a sigil: its ring, its hits joined (a square, a triangle, a star ..), its hits as marks: a
      * diamond (outer), a sun (middle), a dot (inner) */
@@ -4030,6 +4045,7 @@ static alt_rc_t alt_rc[12];
 static uint32_t alt_nrc;
 static uint32_t alt_sm_dang;                     /* the alidade drawn: its turn, on or not */
 static uint8_t alt_sm_don, alt_sm_dhs[AS_NCIRC], alt_sm_dg[AS_NCIRC], alt_sm_dgl;
+static uint32_t alt_sm_foot, alt_sm_head, alt_sm_dfoot, alt_sm_dhead;   /* the knobs', the CPU line's sig: now, drawn */
 static void alt_rc_add(int32_t x0, int32_t y0, int32_t x1, int32_t y1)
 {
     uint32_t k;
@@ -4073,6 +4089,8 @@ static void alt_sm_seen(void)
     for (i = 0; i < AS_NCIRC; i++)
         alt_sm_dhs[i] = alt_hit_step[i], alt_sm_dg[i] = alt_sm_g[i];
     alt_sm_dgl = (uint8_t)alt_sm_glsig();
+    alt_sm_dfoot = alt_sm_foot;
+    alt_sm_dhead = alt_sm_head;
 }
 static void alt_rc_alid(uint32_t turn)           /* the alidade at turn: six boxes along it */
 {
@@ -4080,7 +4098,7 @@ static void alt_rc_alid(uint32_t turn)           /* the alidade at turn: six box
     for (k = 0; k < 6; k++) {
         alt_at(turn, k * 15, &xa, &ya);
         alt_at(turn, k * 15 + 15, &xb, &yb);
-        alt_rc_add((xa < xb ? xa : xb) - 2, (ya < yb ? ya : yb) - 2, (xa > xb ? xa : xb) + 2, (ya > yb ? ya : yb) + 2);
+        alt_rc_add((xa < xb ? xa : xb) - 3, (ya < yb ? ya : yb) - 3, (xa > xb ? xa : xb) + 3, (ya > yb ? ya : yb) + 3);
     }
 }
 static void alt_rc_step(uint32_t i, uint32_t j)  /* circle i's step j, its mark grown */
@@ -4098,8 +4116,8 @@ static int alt_sm_frame(uint32_t q, uint32_t flash)
     alt_nrc = 0;
     if (song.playing && ang != alt_sm_dang) {    /* (a pixel's worth of turn or less: the same line) */
         int32_t xa, ya, xb, yb;
-        alt_at(ang, 90, &xa, &ya);
-        alt_at(alt_sm_dang, 90, &xb, &yb);
+        alt_alid16(ang, &xa, &ya);
+        alt_alid16(alt_sm_dang, &xb, &yb);
         if (xa != xb || ya != yb || !alt_sm_don) {
             if (alt_sm_don)
                 alt_rc_alid(alt_sm_dang);
@@ -4114,6 +4132,10 @@ static int alt_sm_frame(uint32_t q, uint32_t flash)
         }
     if (alt_sm_glsig() != alt_sm_dgl)            /* (the centre's pieces) */
         alt_rc_add(ALT_CX - 30, ALT_CY - 32, ALT_CX + 30, ALT_CY + 24);
+    if (alt_sm_foot != alt_sm_dfoot)             /* (the knobs: a value, an LFO on one) */
+        alt_rc_add(0, 190, 239, 239);
+    if (alt_sm_head != alt_sm_dhead)             /* (the CPU line, top left) */
+        alt_rc_add(6, 16, 160, 48);
     {
         uint32_t keep = alt_sm_ang[au.sel % AS_NCIRC];
         alt_sm_ang[au.sel % AS_NCIRC] = ang;     /* (unmoved: drawn where it was) */
@@ -4149,7 +4171,7 @@ static int alt_sm_frame(uint32_t q, uint32_t flash)
 
 static void alter_draw(void)
 {
-    uint32_t sig = 0, i, h, flash = 0, q = au.lockc ? 0u : alt_page();
+    uint32_t sig = 0, sfoot = 0, shead = 0, i, h, flash = 0, q = au.lockc ? 0u : alt_page();
     alt_now_ms = fm1_ms;
     for (i = 0; i < AS_NCIRC; i++) {
         if ((h = alt_hits[i]) != au.hits_seen[i]) {
@@ -4170,13 +4192,13 @@ static void alter_draw(void)
         const char *nm;
         char tx[12];
         int32_t f;
-        sig = sig * 31u + (uint32_t)alt_kv(q, i, &nm, tx, &f);
+        sfoot = sfoot * 31u + (uint32_t)alt_kv(q, i, &nm, tx, &f);   /* (the knobs: apart, SMOOTH draws them alone) */
         if (f >= 0 && !au.mat_open && !au.scene_open && !au.lockc) {
             int32_t lo, hi, pc;
             alt_live_bar(q, i, f, &lo, &hi, &pc);
-            sig = sig * 31u + (uint32_t)(lo * 977 + hi * 31 + 7);   /* (the range) */
+            sfoot = sfoot * 31u + (uint32_t)(lo * 977 + hi * 31 + 7);   /* (the range) */
         }
-        sig = sig * 31u + (uint32_t)alt_knob_lfo(q, i);
+        sfoot = sfoot * 31u + (uint32_t)alt_knob_lfo(q, i);
     }
     sig = sig * 31u + anm.open * 3u + anm.ch[0] * 5u + anm.ch[1] * 7u + anm.ch[2] * 11u;   /* (the NAME page) */
     sig = sig * 31u + alt_emode[au.sel] * 37u + alt_seq.scale * 41u + au.scene_open * 43u + au.row[au.tab] * 47u + au.tab * 59u +
@@ -4225,7 +4247,7 @@ static void alter_draw(void)
 #endif
               ;
     sig = sig * 31u + au.mn * 61u + au.set_row * 67u + (uint32_t)ALT_DAY * 71u + au.cfg[au.sel % AS_NCIRC].chord * 73u;
-    sig = sig * 31u + alt_dial_live() * 83u;
+    sfoot = sfoot * 31u + alt_dial_live() * 83u;
     sig = sig * 31u + (uint32_t)ar_on * 89u + (ar_n[au.sel % AS_NCIRC] != 0) * 97u;
     sig = sig * 31u + sg_play * 3u + sg_link * 5u + sg_on * 7u + (asg.q ? asg.q * 11u + ((fm1_ms >> 7) & 1u) : 0u) +
           sg_slot[0].used * 13u + sg_slot[1].used * 17u + sg_slot[2].used * 19u + asg.n * 23u;   /* (SONG's corner) */
@@ -4242,7 +4264,7 @@ static void alter_draw(void)
     alt_fps_poll();
 #if ALTER_CPU_SHOW
     alt_cpu_poll();
-    sig = sig * 31u + alt_fps * 113u + alt_cpu_avg * 101u + alt_cpu_pk * 103u + alt_cpu_cut * 107u + alt_cpu_c1 * 109u;   /* (version test : la charge CPU) */
+    shead = shead * 31u + alt_fps * 113u + alt_cpu_avg * 101u + alt_cpu_pk * 103u + alt_cpu_cut * 107u + alt_cpu_c1 * 109u;   /* (version test : la charge CPU) */
 #endif
     ui.force = 1;                                /* (whatever comes after this view draws itself whole) */
     {                                            /* the steps playing and the hits' flash: a page that shows them has
@@ -4255,6 +4277,11 @@ static void alter_draw(void)
             uint32_t len = alt_seq.c[i].cfg.len ? alt_seq.c[i].cfg.len : 1u;
             now[i] = (uint8_t)((alt_seq.c[i].pos + len - 1u) % len);
         }
+        alt_sm_foot = sfoot;
+        alt_sm_head = shead;
+        if (!(ALT_SMOOTH && circles))            /* (SMOOTH's circles: the knobs and the CPU line drawn alone when they
+                                                  * change; else a whole frame, 2 a second: the alidade stopped) */
+            sig = (sig * 31u + sfoot) * 31u + shead;
         if (!circles) {                          /* (another page: they are part of the picture) */
             for (i = 0; i < AS_NCIRC; i++)
                 sig = sig * 31u + alt_seq.c[i].pos;

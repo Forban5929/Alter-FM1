@@ -1410,25 +1410,26 @@ function drawLane(c, k0) {
 /* ---------- the circles as they play (PLAY, pushed ~30 a second) ---------- */
 const lastHits = [-1, -1, -1];
 /* the smooth motion (08/11): PLAY only says which step plays, ~30 times a second at most; the page turns each circle's
- * needle itself between two steps (Romain: no star; a trigger that plays swells and comes back, as on the FM-1), at the speed it measures (the time between steps, averaged: the tempo, the
- * external clock, the swing averaged out). It never runs more than one step ahead: if the next step is late, it waits
- * on it; if it is behind, it catches up forwards. A jump (SHIFT, LEN, a SONG change, a missed push) = straight there. */
+ * needle itself between two steps (Romain: no star; a trigger that plays swells and comes back, as on the FM-1), at an
+ * even speed (Romain: "la ligne saute, accélère"): measured over the last 16 steps (the tempo, an external clock, the
+ * swing averaged out), what it is off by made up over the next two steps; a jump (SHIFT, LEN, a SONG change) = there. */
 const still = matchMedia("(prefers-reduced-motion: reduce)");
-const anim = [0, 1, 2].map(() => ({ on: false, sel: false, len: 16, pos: -1, u: 0, ph: 0, per: 0, t: 0 }));
+const anim = [0, 1, 2].map(() => ({ on: false, sel: false, len: 16, pos: -1, u: 0, ph: 0, per: 0, err: 0, hist: [] }));
 function follow(c, on, sel, len, pos) {
   const A = anim[c], now = performance.now();
   A.on = !!on; A.sel = sel;
-  if (!A.on) { A.pos = -1; A.per = 0; return; }
-  if (len !== A.len || A.pos < 0) { A.len = len; A.pos = pos; A.u = pos; A.ph = pos; A.t = now; return; }
+  if (!A.on) { A.pos = -1; A.hist = []; A.err = 0; return; }
+  if (len !== A.len || A.pos < 0) { A.len = len; A.pos = pos; A.u = pos; A.ph = pos; A.err = 0; A.hist = [[pos, now]]; return; }
   if (pos === A.pos) return;
   const dl = (((pos - A.pos) % len) + len) % len;
-  if (dl === 1) {
-    const dt = now - A.t;
-    if (dt > 20 && dt < 3000) A.per = A.per ? A.per * 0.75 + dt * 0.25 : dt;
-    A.u += 1;
-    if (A.ph < A.u - 1) A.ph = A.u; else if (A.ph < A.u) A.ph += (A.u - A.ph) * 0.5;
-  } else { A.u += dl; A.ph = A.u; }               // (not the next step: there at once)
-  A.pos = pos; A.t = now;
+  if (dl > 3 && dl < len - 1) { A.u += dl; A.ph = A.u; A.err = 0; A.hist = [[A.u, now]]; A.pos = pos; return; }   // (a jump)
+  A.u += dl; A.pos = pos;
+  A.hist.push([A.u, now]);
+  if (A.hist.length > 17) A.hist.shift();
+  const [u0, t0] = A.hist[0];                         // (the speed over the last 16 steps: the arrivals' jitter averaged)
+  if (A.u - u0 >= 4) { const p = (now - t0) / (A.u - u0); A.per = A.per ? A.per * 0.8 + p * 0.2 : p; }
+  const e = A.u - A.ph;                               // (behind or ahead: made up gently over the next two steps)
+  if (Math.abs(e) > 2) { A.ph = A.u; A.err = 0; } else A.err = e;
 }
 function pop(col, mk) {                              // (a copy of the mark over it, that swells and goes)
   if (still.matches) return;
@@ -1450,8 +1451,11 @@ function animLoop(t) {
     const nd = col.querySelector("[data-needle]");
     if (!nd) return;
     if (!A.on) { nd.style.display = "none"; return; }
-    if (A.per && !still.matches) A.ph = Math.min(A.ph + dt / A.per, A.u + 1);   // (one step ahead at most)
-    else A.ph = A.u;
+    if (A.per && !still.matches) {                   // (an even speed; what it was off by, spread out: no jump)
+      const adj = A.err * Math.min(1, dt / (A.per * 2));
+      A.err -= adj;
+      A.ph = Math.min(A.ph + dt / A.per + adj, A.u + 2);
+    } else A.ph = A.u;
     const q = ((A.ph % A.len) + A.len) % A.len, a = (q / A.len) * 2 * Math.PI - Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a);
     nd.setAttribute("x2", (120 + 100 * ca).toFixed(1)); nd.setAttribute("y2", (120 + 100 * sa).toFixed(1)); nd.style.display = "";
   });
