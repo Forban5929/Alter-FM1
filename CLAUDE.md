@@ -193,6 +193,9 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
 - [x] 08/11 soir : **Romain : « smooth sur les deux, même en swing »**. Mesuré FM-1 (« nnF ») : 10-15 images/s avec 3
   cercles qui jouent, 15-20 avec 2, 30 avec 1 (chaque coup = rectangle du trigger + rectangle du triangle du centre
   62×58 pendant 240 ms : le plus cher). Piste si besoin : triangle du centre moins cher / sans lueur en SMOOTH.
-- [ ] **PROCHAINE SESSION** : (fluidité OK). Si besoin : alidade à ~30 images/s,
-  SPI (bsp : pas sans accord). Aussi MIDI LEARN avec le BCR32, CONSOLE de la page branchée, TRS (autre câble).
+- [x] 08/11 nuit (Romain : « 30 images stables ») : en SMOOTH, triangle du centre = **flash 80 ms sans décalage**
+  (`alt_glow` 3 ou 0, `push` 0) et **rectangle du seul morceau** qui change (`PB`) ; **SMOOTH limité à ~30 images/s**
+  (`alt_sm_cap` 28 ms : 1 image toutes les 2 boucles de 15 ms ; 0 dans les tests d'identité, `web_alter_smcap`).
+  Émulateur : pixels envoyés 4,9 → 2,0 écrans/s, identique pixel à pixel. **Pas mesuré sur la FM-1.**
+- [ ] **PROCHAINE SESSION** : « nnF » avec 3 cercles (but : ~30 stable). Si encore bas : SPI (bsp : pas sans accord). Aussi MIDI LEARN avec le BCR32, CONSOLE de la page branchée, TRS (autre câble).
 - [ ] Idées : un contrôle → plusieurs réglages (macro) ; LEARN dans la page compagnon ; DENSITY/ROT continus.

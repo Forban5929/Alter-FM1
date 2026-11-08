@@ -13,6 +13,7 @@ const render = (n) => { for (let k = 0; k < n; k += 128) ex.web_render(Math.min(
 render(44100);
 ex.web_buttons(1 << 10); render(2048); ex.web_buttons(0); render(4410);   // PLAY
 const fb = () => Uint16Array.from(new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240));
+ex.web_alter_smcap(0);                                  // (every frame drawn: compared with a whole one)
 for (const on of [1, 0]) {
   ex.web_alter_smooth(on);
   ex.web_draw_bench(1, 0);
@@ -31,6 +32,7 @@ for (const on of [1, 0]) {
 }
 // cost: the loop's own frames (partial) vs whole frames, ~15 ms of audio between each
 const cost = (on, whole) => {
+  ex.web_alter_smcap(0);                                // (each frame drawn: the cost of one)
   ex.web_alter_smooth(on); ex.web_draw_bench(1, 0);
   let t = 0;
   for (let k = 0; k < 200; k++) { render(662); const t0 = performance.now(); ex.web_draw_bench(1, whole ? 0 : 3); t += performance.now() - t0; }
@@ -40,6 +42,7 @@ const px = (on) => {                                     // pixels sent to the s
   ex.web_alter_smooth(on); ex.web_draw_bench(1, 0); render(4410);
   const p0 = ex.web_screen_px(); render(44100); return ex.web_screen_px() - p0;
 };
+ex.web_alter_smcap(28);                                 // (as on the FM-1: ~30 frames a second)
 const pOn = px(1), pOff = px(0);
 console.log(`smooth: pixels envoyés à l'écran par seconde de jeu : SMOOTH ON ${pOn} (${(pOn / 57600).toFixed(1)} écrans), OFF ${pOff} (${(pOff / 57600).toFixed(1)} écrans)`);
 check(`SMOOTH ON envoie moins de 12 écrans entiers par seconde (${(pOn / 57600).toFixed(1)})`, pOn < 12 * 57600);
@@ -56,5 +59,6 @@ for (const old of [1, 0]) {
 }
 const full = cost(1, 1), sOn = cost(1, 0), sOff = cost(0, 0);
 console.log(`smooth: coût moyen d'une image (navigateur) : complète ${full.toFixed(2)} ms, SMOOTH ON ${sOn.toFixed(2)} ms (${(100 * sOn / full).toFixed(0)} %), OFF ${sOff.toFixed(2)} ms (${(100 * sOff / full).toFixed(0)} %)`);
+ex.web_alter_smcap(28);
 console.log(fails ? `smooth: ${fails} ÉCHEC(S)` : "smooth: tout ok");
 process.exit(fails ? 1 : 0);

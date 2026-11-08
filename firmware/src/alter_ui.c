@@ -3590,6 +3590,9 @@ static uint32_t alt_now_ms;                      /* (the frame's ms: every recta
 static uint32_t alt_glow(uint32_t i)
 {
     uint32_t t = alt_now_ms - au.flash_ms[i % AS_NCIRC];
+    if (alt_sys[8] == 0u)                        /* (SMOOTH, Romain 08/11 "30 images stables": a short flash, 80 ms, and
+                                                  * the piece stays in its place: 2 small redraws a hit) */
+        return t < 80u ? 3u : 0u;
     return t < 50u ? 4u : t < 100u ? 3u : t < 160u ? 2u : t < 240u ? 1u : 0u;
 }
 /* a filled triangle (screen coordinates, 1/16 px), each row from edge to edge */
@@ -3632,7 +3635,7 @@ static void alt_prism(void)
         int32_t mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;      /* out: towards its outer edge's middle */
         int32_t gx = (a[0] + b[0]) / 3, gy = (a[1] + b[1]) / 3;      /* its own centre (the triangle's is 0, 0) */
         uint32_t lv = alt_glow(i);
-        int32_t len = mx * mx + my * my, push = (int32_t)lv * 8, ox, oy, k;
+        int32_t len = mx * mx + my * my, push = alt_sys[8] == 0u ? 0 : (int32_t)lv * 8, ox, oy, k;
         int32_t px[3], py[3];
         uint16_t col = au.cfg[i].mute ? ALT_GREY : ALT_COL[i];
         {                                        /* (the unit outward step: |m| is 11 px for every piece) */
@@ -4110,9 +4113,14 @@ static void alt_rc_step(uint32_t i, uint32_t j)  /* circle i's step j, its mark 
     alt_at((uint32_t)(((uint64_t)j << 32) / len), ALT_R[i], &x, &y);
     alt_rc_add(x - 11, y - 11, x + 11, y + 11);
 }
+static uint32_t alt_sm_cap = 28u;                /* (ms between two frames at least: ~30 a second, even; 0: none, tests) */
 static int alt_sm_frame(uint32_t q, uint32_t flash)
 {
+    static uint32_t last_ms;
     uint32_t i, k, ang = alt_sm_ang[au.sel % AS_NCIRC];
+    if (alt_now_ms - last_ms < alt_sm_cap)       /* (the main loop comes every 15 ms: a frame every other one) */
+        return 0;
+    last_ms = alt_now_ms;
     alt_nrc = 0;
     if (song.playing && ang != alt_sm_dang) {    /* (a pixel's worth of turn or less: the same line) */
         int32_t xa, ya, xb, yb;
@@ -4130,8 +4138,11 @@ static int alt_sm_frame(uint32_t q, uint32_t flash)
             alt_rc_step(i, alt_sm_dhs[i]);
             alt_rc_step(i, alt_hit_step[i]);
         }
-    if (alt_sm_glsig() != alt_sm_dgl)            /* (the centre's pieces) */
-        alt_rc_add(ALT_CX - 30, ALT_CY - 32, ALT_CX + 30, ALT_CY + 24);
+    for (i = 0; i < AS_NCIRC; i++)               /* (the centre's pieces: only the one that lit or went out) */
+        if (((alt_sm_glsig() ^ alt_sm_dgl) >> (i * 3u)) & 7u) {
+            static const int8_t PB[AS_NCIRC][4] = {{-22, -24, 3, 14}, {-3, -24, 22, 14}, {-22, -2, 22, 15}};
+            alt_rc_add(ALT_CX + PB[i][0], ALT_CY + PB[i][1], ALT_CX + PB[i][2], ALT_CY + PB[i][3]);
+        }
     if (alt_sm_foot != alt_sm_dfoot)             /* (the knobs: a value, an LFO on one) */
         alt_rc_add(0, 190, 239, 239);
     if (alt_sm_head != alt_sm_dhead)             /* (the CPU line, top left) */
