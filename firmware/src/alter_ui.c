@@ -3648,13 +3648,13 @@ static void alt_tri(int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x2, 
     }
 }
 /* the middle (Romain 09/11, "un sextant vaporwave pixel art", replaces the 01/11 triangle): a fixed 60° sextant
- * pointing down from its pivot at the centre, where the alidade starts. Pixel art, no anti-aliasing: a gold rim with
+ * pointing up (Romain, same day) from its pivot at the centre, where the alidade starts. Pixel art, no anti-aliasing: a gold rim with
  * ticks every 10° (longer every 30°), its two gold edges, inside three striped bands (a row in three left out, the
  * vaporwave sun), one per circle in its colour, the outer one circle 1's. A band at rest is faint, the chosen circle's
  * a little lighter, a muted one grey; a hit of its circle lights it (SMOOTH: 80 ms). Drawn from a table worked out
  * once (pixel codes), in runs: part 0 the body (under the alidade), part 1 the pivot (over it) */
-#define ALT_SX_Y0 (-4)
-#define ALT_SX_H 35                              /* rows -4 .. 30 */
+#define ALT_SX_Y0 (-30)
+#define ALT_SX_H 35                              /* rows -30 .. 4 */
 #define ALT_SX_W 33                              /* columns -16 .. 16 */
 static uint8_t alt_sx_t[ALT_SX_H][ALT_SX_W] __attribute__((section(".pool")));
 static uint8_t alt_sx_ok;
@@ -3673,7 +3673,7 @@ static void alt_sx_build(void)
     int32_t x, y, d;
     for (y = ALT_SX_Y0; y < ALT_SX_Y0 + ALT_SX_H; y++)
         for (x = -16; x <= 16; x++) {
-            int32_t d2 = x * x + y * y, ins = y > 0 && (x < 0 ? -x : x) * 1732 <= y * 1000;
+            int32_t d2 = x * x + y * y, ins = y < 0 && (x < 0 ? -x : x) * 1732 <= -y * 1000;
             uint8_t k = 0;
             if (ins && d2 < 625)
                 k = 10;                          /* (inside: the card, the lines behind hidden) */
@@ -3687,10 +3687,10 @@ static void alt_sx_build(void)
                 k = 9;                           /* .. round an ivory cross */
             alt_sx_t[y - ALT_SX_Y0][x + 16] = k;
         }
-    for (d = 150; d <= 210; d += 10)             /* the ticks */
-        alt_sx_mark(d, 107, d % 30 == 0 ? 121 : 115, (uint8_t)(d % 30 == 0 ? 6 : 5));
-    alt_sx_mark(150, 16, 100, 7);                /* the edges */
-    alt_sx_mark(210, 16, 100, 7);
+    for (d = -30; d <= 30; d += 10)              /* the ticks */
+        alt_sx_mark((d + 360) % 360, 107, d % 30 == 0 ? 121 : 115, (uint8_t)(d % 30 == 0 ? 6 : 5));
+    alt_sx_mark(330, 16, 100, 7);                /* the edges */
+    alt_sx_mark(30, 16, 100, 7);
     alt_sx_ok = 1;
 }
 static void alt_sextant(uint32_t part)
@@ -3810,6 +3810,48 @@ static void alt_alid16(uint32_t turn, int32_t *x, int32_t *y)   /* the alidade's
 {
     *x = ALT_CX * 16 + ((90 * 16 * sine_i(turn)) >> 15);
     *y = ALT_CY * 16 - ((90 * 16 * sine_i(turn + 0x40000000u)) >> 15);
+}
+/* (Romain 09/11 evening) the alidade as a divining pendulum: its cord, 2 px, from the pivot to the outer ring, left out
+ * inside each hollow ring (a trigger alone in it), then a crystal pointing out past the outer ring, faceted: its left
+ * half bright, its right half darker. ALT_PEND_TIP px out at most */
+#define ALT_PEND_TIP 103
+static void alt_at16(uint32_t turn, int32_t r16, int32_t *x, int32_t *y)   /* r16 out, in 1/16 px */
+{
+    *x = ALT_CX * 16 + (int32_t)(((int64_t)r16 * sine_i(turn)) >> 15);
+    *y = ALT_CY * 16 - (int32_t)(((int64_t)r16 * sine_i(turn + 0x40000000u)) >> 15);
+}
+static void alt_pendulum(uint32_t turn)
+{
+    static const int8_t SEG[4][2] = {{4, 40 - 6}, {40 + 6, 60 - 8}, {60 + 8, 80 - 9}, {80 + 9, 80 + 9}};
+    int32_t k, xa, ya, xb, yb, ux, uy, vx, vy;
+    uint16_t hi = alt_gold_line(95), lo = alt_gold_line(55);
+    for (k = 0; k < 3; k++) {                    /* the cord, between the rings */
+        alt_at16(turn, SEG[k][0] * 16, &xa, &ya);
+        alt_at16(turn, SEG[k][1] * 16, &xb, &yb);
+        alt_aaline16(xa, ya, xb, yb, hi);
+        if ((xb > xa ? xb - xa : xa - xb) > (yb > ya ? yb - ya : ya - yb))
+            alt_aaline16(xa, ya + 16, xb, yb + 16, hi);
+        else
+            alt_aaline16(xa + 16, ya, xb + 16, yb, hi);
+    }
+    /* the crystal: a short cap from 89 to 91 px out, widening to 4 px each side, then its point out to the tip */
+    ux = sine_i(turn); uy = -sine_i(turn + 0x40000000u);   /* (outward, Q15) */
+    vx = -uy; vy = ux;                           /* (to its left, screen) */
+#define ALT_PP(u, v, X, Y) (X = ALT_CX * 16 + (int32_t)((((int64_t)(u) * ux + (int64_t)(v) * vx) * 16) >> 15), \
+                            Y = ALT_CY * 16 + (int32_t)((((int64_t)(u) * uy + (int64_t)(v) * vy) * 16) >> 15))
+    {
+        int32_t ax, ay, lx, ly, rx, ry, cx, cy, tx, ty;
+        ALT_PP(89, 0, ax, ay);
+        ALT_PP(91, -4, lx, ly);
+        ALT_PP(91, 4, rx, ry);
+        ALT_PP(91, 0, cx, cy);
+        ALT_PP(ALT_PEND_TIP, 0, tx, ty);
+        alt_tri(ax, ay, lx, ly, cx, cy, hi);
+        alt_tri(ax, ay, rx, ry, cx, cy, lo);
+        alt_tri(lx, ly, cx, cy, tx, ty, hi);
+        alt_tri(rx, ry, cx, cy, tx, ty, lo);
+    }
+#undef ALT_PP
 }
 static uint8_t alt_sm_g[AS_NCIRC];               /* how much it grows now: 2, 1, 0 */
 static void alt_sm_take(void)
@@ -4052,12 +4094,7 @@ static void alt_scene(uint32_t q, uint32_t flash)
             if (ALT_SMOOTH) {                        /* (SMOOTH: in 1/16 px, 2 px wide and bright: Romain 08/11 "je perds la
                                                       * ligne des yeux") */
                 uint32_t k;
-                alt_alid16(alt_sm_ang[au.sel], &x, &y);
-                alt_aaline16(ALT_CX * 16, ALT_CY * 16, x, y, alt_gold_line(95));
-                if ((x > ALT_CX * 16 ? x - ALT_CX * 16 : ALT_CX * 16 - x) > (y > ALT_CY * 16 ? y - ALT_CY * 16 : ALT_CY * 16 - y))
-                    alt_aaline16(ALT_CX * 16, ALT_CY * 16 + 16, x, y + 16, alt_gold_line(95));
-                else
-                    alt_aaline16(ALT_CX * 16 + 16, ALT_CY * 16, x + 16, y, alt_gold_line(95));
+                alt_pendulum(alt_sm_ang[au.sel]);
                 for (k = 0; k < AS_NCIRC; k++) { /* (09/11, Romain: "comme un engrenage d'horloge": a hollow ring where
                                                   * it crosses each circle, a trigger's size; the triggers show
                                                   * through it, drawn after) */
@@ -4316,10 +4353,11 @@ static void alt_rc_alid(uint32_t turn)           /* the alidade at turn: two box
                                                   * scene, measured 09/11), and a box round each of its rings */
 {
     int32_t k, xa, ya, xb, yb;
-    for (k = 0; k < 2; k++) {
+    for (k = 0; k < 2; k++) {                    /* (the second out to the pendulum's crystal, 4 px wide each side) */
+        int32_t m = k ? 5 : 3;
         alt_at(turn, k * 45, &xa, &ya);
-        alt_at(turn, k * 45 + 45, &xb, &yb);
-        alt_rc_add((xa < xb ? xa : xb) - 3, (ya < yb ? ya : yb) - 3, (xa > xb ? xa : xb) + 3, (ya > yb ? ya : yb) + 3);
+        alt_at(turn, k ? ALT_PEND_TIP + 1 : 45, &xb, &yb);
+        alt_rc_add((xa < xb ? xa : xb) - m, (ya < yb ? ya : yb) - m, (xa > xb ? xa : xb) + m, (ya > yb ? ya : yb) + m);
     }
     for (k = 0; k < AS_NCIRC; k++) {
         int32_t r = ALT_RING_R[k] + 2;
@@ -4363,7 +4401,7 @@ static int alt_sm_frame(uint32_t q, uint32_t flash)
         }
     for (i = 0; i < AS_NCIRC; i++)               /* (the centre's pieces: only the one that lit or went out) */
         if (((alt_sm_glsig() ^ alt_sm_dgl) >> (i * 3u)) & 7u) {
-            static const int8_t PB[AS_NCIRC][4] = {{-13, 16, 13, 25}, {-10, 10, 10, 19}, {-7, 5, 7, 13}};   /* (the sextant's bands) */
+            static const int8_t PB[AS_NCIRC][4] = {{-13, -25, 13, -16}, {-10, -19, 10, -10}, {-7, -13, 7, -5}};   /* (the sextant's bands) */
             alt_rc_add(ALT_CX + PB[i][0], ALT_CY + PB[i][1], ALT_CX + PB[i][2], ALT_CY + PB[i][3]);
         }
     for (i = 0; i < 4u; i++)                     /* (a knob: its value, an LFO on it; itself alone, 09/11) */

@@ -226,13 +226,17 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   centre+canevas. Coût navigateur ≈ l'ancien (écart < bruit de mesure). Avertir : la ligne suit le cercle choisi ; un
   cercle d'une autre longueur n'a pas son trigger pile dans l'anneau. **Page** : anneau `.gear` au bout de chaque aiguille,
   sous les triggers ; `pop` = s'éclaire sans grossir. **Pas sur la FM-1.**
-- [x] 09/11 soir : **centre = SEXTANT** (remplace le triangle) : 60° fixe vers le bas, pivot au centre d'où part la ligne,
+- [x] 09/11 soir : **centre = SEXTANT** (remplace le triangle) : 60° fixe **vers le haut** (2e retour), pivot au centre d'où part la ligne,
   pixel art sans AA, 3 bandes rayées (1 rangée sur 3 vide) aux couleurs des cercles (extérieur = cercle 1), flash 80 ms au coup,
   gris en MUTE, cercle choisi un peu plus clair ; graduations tous les 10°. Table de codes pixel `alt_sx_t` (.pool 1,2 Ko),
   tracé en segments (`alt_sextant` : partie 0 corps en passe 1 avant la ligne, partie 1 pivot après). Rectangles de flash
   `PB` = bandes. Page : `dialCenter`/`dialPivot` (sextant SVG, bande du cadran en couleur). Test MUTE 1+2+3 lit la zone du
   sextant. Identique pixel à pixel (smooth test). **Pas sur la FM-1** (doit coûter moins que le triangle). Table des anneaux
   de la ligne tassée (`alt_hring` cov[3][21*21]).
+  **Ligne = PENDULE divinatoire** (`alt_pendulum`) : cordon 2 px coupé à l'intérieur des 3 anneaux, cristal à facettes
+  (moitié claire / sombre, `alt_tri`) de 89 à `ALT_PEND_TIP` 103 px (touche le bas du ruban du titre quand il pointe en haut ;
+  tests « haut d'écran » = lignes 0-11). Rectangles : 2e boîte de ligne prolongée jusqu'au cristal (±5) au lieu d'une 3e
+  (coût navigateur ≈ avant : 14 → 15-16 % d'une image complète). Page : `data-needle` = groupe tourné (cordon, anneau, cristal).
 - [ ] **PROCHAINE SESSION** : « nnF xxMS » de cette version (but : ~30F, < 33 ms). Si encore lent : dessin sur le 2e cœur ?
   alléger le son ? SPI (bsp : pas sans accord). Aussi MIDI LEARN avec le BCR32, CONSOLE de la page branchée, TRS (autre câble).
 - [ ] Idées : un contrôle → plusieurs réglages (macro) ; LEARN dans la page compagnon ; DENSITY/ROT continus.

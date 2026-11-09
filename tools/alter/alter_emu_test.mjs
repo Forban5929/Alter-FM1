@@ -94,7 +94,7 @@ check(`SEQ tapped (kept open) + KNOB 2: circle 1 HITS 4 -> 8 ${h8.steps.join(","
 enc(4, 2); bar();
 check("SEQ tapped again: closed (KNOB 2 moves the sound, not HITS)", same(bar().steps, euclid(16, 8, 0)));
 {
-  const scr = () => { render(4000); return Array.from(new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240).slice(0, 240 * 24)).join(); };
+  const scr = () => { render(4000); return Array.from(new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240).slice(0, 240 * 12)).join(); }; // (rows 0-11: the pendulum reaches row 13, 09/11)
   const before = scr();
   ex.web_buttons(1 << SEQB); render(FS * 0.7); ex.web_buttons(0); render(2000);
   const menu = scr();
@@ -315,7 +315,7 @@ tap(10); bar();
 {
   const B = (n) => { ex.web_buttons(1 << n); render(2000); ex.web_buttons(0); render(2000); };
   const H = (n) => { ex.web_buttons(1 << n); render(Math.floor(44100 * 0.7)); ex.web_buttons(0); render(2000); };   // held: the menu
-  const top = () => { render(4000); return Array.from(new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240).slice(0, 240 * 24)).join(); };
+  const top = () => { render(4000); return Array.from(new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240).slice(0, 240 * 12)).join(); };
   // the loudness of each 16th of a bar (its first 60 ms)
   const steps = (b) => Array.from({ length: 16 }, (_, k) => peak(b.audio.slice(k * STEP, k * STEP + 2600)));
   const swell = (l) => Math.max(l[14] / Math.max(l[0], 1e-4), l[0] / Math.max(l[14], 1e-4));
@@ -515,7 +515,7 @@ play();
   const seqMenu = () => { ex.web_buttons(1 << SEQB); render(Math.round(FS * 0.8)); ex.web_buttons(0); render(4000); const h = shot(); ex.web_buttons(1 << 6); render(2000); ex.web_buttons(0); return h; };
   const prism = () => {                                          // the centre's coloured pixels (the sextant, 09/11: a muted band turns grey)
     const a = new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240); let n = 0;
-    for (let y = 122; y < 142; y++) for (let x = 108; x < 133; x++) {
+    for (let y = 90; y < 111; y++) for (let x = 108; x < 133; x++) {
       const v = a[y * 240 + x], p = ((v >> 8) | (v << 8)) & 0xFFFF, r = (p >> 11) * 8, g = ((p >> 5) & 63) * 4, b = (p & 31) * 8;
       if (Math.max(r, g, b) - Math.min(r, g, b) > 40) n++;
     }

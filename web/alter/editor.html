@@ -113,6 +113,7 @@ select:hover { border-color: var(--gold); }
 .dial .needle { stroke: var(--gold); stroke-width: 1.4; }
 .dial .pop { animation: pop .2s ease-out forwards; }   /* (09/11: it lights, its size kept, as on the FM-1) */
 @keyframes pop { 0% { filter: brightness(1.8); } 100% { filter: brightness(1); opacity: 0; } }
+.dial .pend { fill: var(--gold); } .dial .pend.lo { opacity: .55; }
 .dial .gear { fill: none; stroke: var(--gold); stroke-width: 1.6; }   /* (the needle's ring: a trigger shows through it) */
 .dial .tri { fill: none; stroke: var(--gold); stroke-width: 1; stroke-linejoin: round; }
 .dial .sx-bg { fill: var(--bg); }
@@ -988,20 +989,20 @@ function groupBox(name, first) {
   return fs;
 }
 /* the dial: as the FM-1's PLAY screen (alter_ui.c): gold rings and, in the middle, the sextant (09/11): 60°
- * pointing down from the pivot where the needle starts, three striped bands, the outer one circle 1's; the dial's
+ * pointing up (Romain, same day) from the pivot where the needle (a divining pendulum) starts, three striped bands, the outer one circle 1's; the dial's
  * own band in its colour (it lights on a hit), the others faint */
 function dialCenter(c) {
   const S = 1.2, at = (r, d) => [120 + r * S * Math.sin(d * Math.PI / 180), 120 - r * S * Math.cos(d * Math.PI / 180)].map((v) => v.toFixed(1)).join(",");
-  const band = (r0, r1) => `M${at(r0, 150)} L${at(r1, 150)} A${r1 * S} ${r1 * S} 0 0 1 ${at(r1, 210)} L${at(r0, 210)} A${r0 * S} ${r0 * S} 0 0 0 ${at(r0, 150)}Z`;
+  const band = (r0, r1) => `M${at(r0, -30)} L${at(r1, -30)} A${r1 * S} ${r1 * S} 0 0 1 ${at(r1, 30)} L${at(r0, 30)} A${r0 * S} ${r0 * S} 0 0 0 ${at(r0, -30)}Z`;
   const R = [[19, 25], [13, 19], [7, 13]];
-  let s = `<path class="sx-bg" d="M120,120 L${at(25, 150)} A${25 * S} ${25 * S} 0 0 1 ${at(25, 210)}Z"/>`;
+  let s = `<path class="sx-bg" d="M120,120 L${at(25, -30)} A${25 * S} ${25 * S} 0 0 1 ${at(25, 30)}Z"/>`;
   R.forEach(([r0, r1], k) => (s += `<path class="${k === c ? "piece" : "sx-off"}" d="${band(r0, r1)}"/>`));
   for (let y = 3; y <= 24; y += 3) {                // (the stripes: a row in three left out, as on the FM-1)
-    const w = Math.min(y * Math.tan(Math.PI / 6), Math.sqrt(25 * 25 - y * y)) * S, yy = (120 + y * S).toFixed(1);
+    const w = Math.min(y * Math.tan(Math.PI / 6), Math.sqrt(25 * 25 - y * y)) * S, yy = (120 - y * S).toFixed(1);
     s += `<line class="sx-gap" x1="${(120 - w).toFixed(1)}" x2="${(120 + w).toFixed(1)}" y1="${yy}" y2="${yy}"/>`;
   }
-  s += `<path class="tri" d="M120,120 L${at(25, 150)} A${25 * S} ${25 * S} 0 0 1 ${at(25, 210)}Z"/>`;
-  for (let d = 150; d <= 210; d += 10) s += `<line class="tri" x1="${at(26.5, d).split(",")[0]}" y1="${at(26.5, d).split(",")[1]}" x2="${at(d % 30 ? 28.5 : 30.5, d).split(",")[0]}" y2="${at(d % 30 ? 28.5 : 30.5, d).split(",")[1]}"/>`;
+  s += `<path class="tri" d="M120,120 L${at(25, -30)} A${25 * S} ${25 * S} 0 0 1 ${at(25, 30)}Z"/>`;
+  for (let d = -30; d <= 30; d += 10) s += `<line class="tri" x1="${at(26.5, d).split(",")[0]}" y1="${at(26.5, d).split(",")[1]}" x2="${at(d % 30 ? 28.5 : 30.5, d).split(",")[0]}" y2="${at(d % 30 ? 28.5 : 30.5, d).split(",")[1]}"/>`;
   return s;
 }
 function dialPivot() { return `<circle class="sx-piv" cx="120" cy="120" r="3.6"/><circle class="sx-dot" cx="120" cy="120" r="1.2"/>`; }
@@ -1019,7 +1020,8 @@ function buildV2() {
     col.innerHTML = `<div class="rib"><span data-name>&nbsp;</span></div><span class="num">${ROMAN[c]}</span><span class="tag" data-tag></span>
       <div class="colin"><svg class="dial" viewBox="0 0 240 240" role="img" aria-label="Circle ${c + 1}"><circle class="ring" cx="120" cy="120" r="100"/>
         <circle class="ring2" cx="120" cy="120" r="76"/>${dialCenter(c)}
-        <line class="needle" data-needle x1="120" y1="120" x2="120" y2="34" style="display:none"/><circle class="gear" data-gear cx="120" cy="20" r="11" style="display:none"/>
+        <g data-needle style="display:none"><line class="needle" x1="120" y1="115.5" x2="120" y2="31"/><circle class="gear" cx="120" cy="20" r="11"/>
+          <path class="pend" d="M120,9 L116.5,7 L120,7Z M116.5,7 L120,7 L120,0.5Z"/><path class="pend lo" d="M120,9 L123.5,7 L120,7Z M123.5,7 L120,7 L120,0.5Z"/></g>
         ${dialPivot()}<g data-steps></g><g data-pulse></g></svg>
       <div class="acts">
         <div class="arow"><button class="act" data-a="MUTE">MUTE</button><button class="act" data-a="TRIG">TRIGGER</button>
@@ -1463,17 +1465,16 @@ function animLoop(t) {
   anim.forEach((A, c) => {
     const col = cols[c];
     if (!col) return;
-    const nd = col.querySelector("[data-needle]"), gr = col.querySelector("[data-gear]");
+    const nd = col.querySelector("[data-needle]");
     if (!nd) return;
-    if (!A.on) { nd.style.display = "none"; if (gr) gr.style.display = "none"; return; }
+    if (!A.on) { nd.style.display = "none"; return; }
     if (A.per && !still.matches) {                   // (an even speed; what it was off by, spread out: no jump)
       const adj = A.err * Math.min(1, dt / (A.per * 2));
       A.err -= adj;
       A.ph = Math.min(A.ph + dt / A.per + adj, A.u + 2);
     } else A.ph = A.u;
-    const q = ((A.ph % A.len) + A.len) % A.len, a = (q / A.len) * 2 * Math.PI - Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a);
-    nd.setAttribute("x2", (120 + 100 * ca).toFixed(1)); nd.setAttribute("y2", (120 + 100 * sa).toFixed(1)); nd.style.display = "";
-    if (gr) { gr.setAttribute("cx", (120 + 100 * ca).toFixed(1)); gr.setAttribute("cy", (120 + 100 * sa).toFixed(1)); gr.style.display = ""; }
+    const q = ((A.ph % A.len) + A.len) % A.len;
+    nd.setAttribute("transform", `rotate(${((q / A.len) * 360).toFixed(2)} 120 120)`); nd.style.display = "";   // (09/11: the pendulum, turned whole)
   });
   requestAnimationFrame(animLoop);
 }
