@@ -146,23 +146,32 @@ static void alt_aaring16(int32_t cx, int32_t cy, int32_t r, uint16_t c)
         if (n > 200u)
             n = 200u;
         if (!(a0 <= 0 && a1 >= 0 && b0 <= 0 && b1 >= 0)) {   /* (the centre off the canvas: an arc of it) */
-            uint32_t t[4], g, best = 0, bi = 0, j, lo, hi, kk;
-            t[0] = alt_turnof(a0 - 48, b0 - 48);
-            t[1] = alt_turnof(a1 + 48, b0 - 48);
-            t[2] = alt_turnof(a0 - 48, b1 + 48);
-            t[3] = alt_turnof(a1 + 48, b1 + 48);
-            for (j = 0; j < 4u; j++)             /* (sorted) */
-                for (g = j + 1u; g < 4u; g++)
-                    if (t[g] < t[j])
-                        bi = t[g], t[g] = t[j], t[j] = bi;
-            bi = 0;
-            for (j = 0; j < 4u; j++) {           /* the widest gap between them: the arc is the rest */
-                g = t[(j + 1u) & 3u] - t[j];
-                if (g > best)
-                    best = g, bi = j;
+            static int32_t kc[6];                /* (09/11: the arc's turns kept for the same centre and canvas: the
+                                                  * rings round one centre, many in a small rectangle) */
+            static uint32_t klo, khi;
+            uint32_t g, j, lo, hi, kk;
+            if (kc[0] != cx || kc[1] != cy || kc[2] != cv_ox || kc[3] != cv_oy || kc[4] != (int32_t)cv_w || kc[5] != (int32_t)cv_h) {
+                uint32_t t[4], best = 0, bi = 0;
+                t[0] = alt_turnof(a0 - 48, b0 - 48);
+                t[1] = alt_turnof(a1 + 48, b0 - 48);
+                t[2] = alt_turnof(a0 - 48, b1 + 48);
+                t[3] = alt_turnof(a1 + 48, b1 + 48);
+                for (j = 0; j < 4u; j++)         /* (sorted) */
+                    for (g = j + 1u; g < 4u; g++)
+                        if (t[g] < t[j])
+                            bi = t[g], t[g] = t[j], t[j] = bi;
+                bi = 0;
+                for (j = 0; j < 4u; j++) {       /* the widest gap between them: the arc is the rest */
+                    g = t[(j + 1u) & 3u] - t[j];
+                    if (g > best)
+                        best = g, bi = j;
+                }
+                klo = t[(bi + 1u) & 3u];
+                khi = t[bi];
+                kc[0] = cx, kc[1] = cy, kc[2] = cv_ox, kc[3] = cv_oy, kc[4] = (int32_t)cv_w, kc[5] = (int32_t)cv_h;
             }
-            lo = t[(bi + 1u) & 3u];
-            hi = t[bi];
+            lo = klo;
+            hi = khi;
             lo = (uint32_t)(((uint64_t)lo * n) >> 32);
             hi = (uint32_t)(((uint64_t)hi * n) >> 32) + 3u;
             kk = (hi + n - lo) % n;              /* chords lo .. hi (and two more each side), in the whole ring's

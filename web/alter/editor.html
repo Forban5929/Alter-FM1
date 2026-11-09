@@ -111,9 +111,9 @@ select:hover { border-color: var(--gold); }
 .dial .rest { fill: var(--grey); }
 .dial .star { fill: var(--ink); }
 .dial .needle { stroke: var(--gold); stroke-width: 1.4; }
-.dial .pop { transform-box: fill-box; transform-origin: center; animation: pop .18s ease-out forwards; }
-@keyframes pop { 0% { transform: scale(1); filter: brightness(1.7); } 40% { transform: scale(1.5); filter: brightness(1.5); }
-  100% { transform: scale(1); filter: brightness(1); opacity: 0; } }
+.dial .pop { animation: pop .2s ease-out forwards; }   /* (09/11: it lights, its size kept, as on the FM-1) */
+@keyframes pop { 0% { filter: brightness(1.8); } 100% { filter: brightness(1); opacity: 0; } }
+.dial .gear { fill: none; stroke: var(--gold); stroke-width: 1.6; }   /* (the needle's ring: a trigger shows through it) */
 .dial .tri { fill: none; stroke: var(--gold); stroke-width: 1; stroke-linejoin: round; }
 .dial .piece { fill: var(--c); opacity: .35; transition: opacity .4s ease-out, transform .25s; transform-box: fill-box; transform-origin: center; }
 .dial.hit .piece { opacity: 1; transition: none; }
@@ -1005,8 +1005,9 @@ function buildV2() {
     col.className = "col tc";
     col.innerHTML = `<div class="rib"><span data-name>&nbsp;</span></div><span class="num">${ROMAN[c]}</span><span class="tag" data-tag></span>
       <div class="colin"><svg class="dial" viewBox="0 0 240 240" role="img" aria-label="Circle ${c + 1}"><circle class="ring" cx="120" cy="120" r="100"/>
-        <circle class="ring2" cx="120" cy="120" r="76"/><g data-steps></g><g data-pulse></g>
-        <line class="needle" data-needle x1="120" y1="120" x2="120" y2="34" style="display:none"/>${dialCenter(c)}</svg>
+        <circle class="ring2" cx="120" cy="120" r="76"/>
+        <line class="needle" data-needle x1="120" y1="120" x2="120" y2="34" style="display:none"/><circle class="gear" data-gear cx="120" cy="20" r="11" style="display:none"/>
+        <g data-steps></g><g data-pulse></g>${dialCenter(c)}</svg>
       <div class="acts">
         <div class="arow"><button class="act" data-a="MUTE">MUTE</button><button class="act" data-a="TRIG">TRIGGER</button>
           <button class="act" data-a="SELECT" title="Choose it on the synth too">SELECT</button></div>
@@ -1410,7 +1411,8 @@ function drawLane(c, k0) {
 /* ---------- the circles as they play (PLAY, pushed ~30 a second) ---------- */
 const lastHits = [-1, -1, -1];
 /* the smooth motion (08/11): PLAY only says which step plays, ~30 times a second at most; the page turns each circle's
- * needle itself between two steps (Romain: no star; a trigger that plays swells and comes back, as on the FM-1), at an
+ * needle itself between two steps (Romain: no star; a hollow ring at its end, "comme un engrenage d'horloge", a trigger
+ * that plays lights through it, as on the FM-1), at an
  * even speed (Romain: "la ligne saute, accélère"): measured over the last 16 steps (the tempo, an external clock, the
  * swing averaged out), what it is off by made up over the next two steps; a jump (SHIFT, LEN, a SONG change) = there. */
 const still = matchMedia("(prefers-reduced-motion: reduce)");
@@ -1448,9 +1450,9 @@ function animLoop(t) {
   anim.forEach((A, c) => {
     const col = cols[c];
     if (!col) return;
-    const nd = col.querySelector("[data-needle]");
+    const nd = col.querySelector("[data-needle]"), gr = col.querySelector("[data-gear]");
     if (!nd) return;
-    if (!A.on) { nd.style.display = "none"; return; }
+    if (!A.on) { nd.style.display = "none"; if (gr) gr.style.display = "none"; return; }
     if (A.per && !still.matches) {                   // (an even speed; what it was off by, spread out: no jump)
       const adj = A.err * Math.min(1, dt / (A.per * 2));
       A.err -= adj;
@@ -1458,6 +1460,7 @@ function animLoop(t) {
     } else A.ph = A.u;
     const q = ((A.ph % A.len) + A.len) % A.len, a = (q / A.len) * 2 * Math.PI - Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a);
     nd.setAttribute("x2", (120 + 100 * ca).toFixed(1)); nd.setAttribute("y2", (120 + 100 * sa).toFixed(1)); nd.style.display = "";
+    if (gr) { gr.setAttribute("cx", (120 + 100 * ca).toFixed(1)); gr.setAttribute("cy", (120 + 100 * sa).toFixed(1)); gr.style.display = ""; }
   });
   requestAnimationFrame(animLoop);
 }
