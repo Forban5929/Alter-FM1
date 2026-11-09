@@ -3846,6 +3846,9 @@ static void alt_band_set(void)
 }
 static int alt_band(int32_t lo, int32_t hi) { return hi >= alt_wd0 - 1 && lo <= alt_wd1 + 1; }
 
+#define alt_sm_simple_on (ALT_SMOOTH && alt_sm_simple_v)
+static uint32_t alt_sm_simple_v = 1u;              /* (SMOOTH: the halo lighter, 09/11 Romain's choice; 0: as before, tests) */
+
 static void alt_scene(uint32_t q, uint32_t flash)
 {
     const track_t *t = &trk[au.sel];
@@ -3991,9 +3994,11 @@ static void alt_scene(uint32_t q, uint32_t flash)
         else if (chosen) {                       /* the chosen circle's in its colour: thick, a halo round it (Romain
                                                   * 05/11: the gold third one stood out too little from the gold lines) */
             int32_t d;
-            for (d = 6; d >= 2; d--) {
-                alt_aaring16(ALT_CX * 16, ALT_CY * 16, r * 16 + d * 12, alt_fade(col, 52 - d * 7));
-                alt_aaring16(ALT_CX * 16, ALT_CY * 16, r * 16 - d * 12, alt_fade(col, 52 - d * 7));
+            for (d = 6; d >= 2; d -= alt_sm_simple_on ? 2 : 1) {   /* (SMOOTH 09/11: every other one, a little
+                                                  * stronger: the halo in 6 rings, not 10) */
+                uint16_t hc = alt_fade(col, (52 - d * 7) + (alt_sm_simple_on ? 6 : 0));
+                alt_aaring16(ALT_CX * 16, ALT_CY * 16, r * 16 + d * 12, hc);
+                alt_aaring16(ALT_CX * 16, ALT_CY * 16, r * 16 - d * 12, hc);
             }
             for (d = -1; d <= 1; d++)
                 alt_aaring16(ALT_CX * 16, ALT_CY * 16, r * 16 + d * 12, col);

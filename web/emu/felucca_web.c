@@ -515,7 +515,7 @@ EXPORT uint32_t web_alter_full(void) { return alt_full_n; }
 EXPORT uint32_t web_alter_disp(uint32_t c, uint32_t old) { return old ? (uint16_t)alt_msrc[c % 3u][0] : alt_disp[c % 3u]; }   /* (tests 08/11: the alidade's place, the POS before) */
 EXPORT void web_alter_set_swing(uint32_t v) { song.g[G_SWING] = (int16_t)(v % 101u); }   /* (tests 08/11) */
 EXPORT void web_alter_smcap(uint32_t ms) { alt_sm_cap = ms; }   /* (tests 08/11: SMOOTH's frame cap, 0 = none) */
-EXPORT uint32_t web_alter_smstat(uint32_t w, uint32_t v) { if (w == 0) alt_sm_seg = v; if (w == 3) alt_sm_nrc = alt_sm_area = 0; return w == 1 ? alt_sm_nrc : w == 2 ? alt_sm_area : 0; }   /* (tests 09/11) */
+EXPORT uint32_t web_alter_smstat(uint32_t w, uint32_t v) { if (w == 0) alt_sm_seg = v; if (w == 3) alt_sm_nrc = alt_sm_area = 0; if (w == 4) alt_sm_simple_v = v; return w == 1 ? alt_sm_nrc : w == 2 ? alt_sm_area : 0; }   /* (tests 09/11) */
 EXPORT void web_alter_smooth(uint32_t on) { alt_sys[8] = (uint8_t)(on ? 0u : 1u); }   /* (tests 08/11: SYSTEM > SMOOTH) */
 EXPORT uint32_t web_now_ms(void) { return fm1_ms; }
 EXPORT uint32_t web_playing(void) { return song.playing; }

@@ -213,6 +213,11 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   mesuré : 6 → 73 µs, 3 → 61, 2 → 60, 1 → 68) ; **bandes de distance au centre** (`alt_band_set`/`alt_band` : rayons
   44-100 px, anneau ± halo r±10, pas r-12..r+22, triangle 0-32 sautés d'un bloc). Image fluide navigateur 0,083 → 0,06 ms,
   identique pixel à pixel (ON/OFF, avec et sans ligne CPU). Stats tests : `web_alter_smstat`. **Pas mesuré sur la FM-1.**
+- [x] 09/11 13h : Romain **« 21F 46MS »** ; choix : dessin un peu simplifié en SMOOTH. **Halo du cercle choisi : 6 anneaux au
+  lieu de 10** (un sur deux, +6 % d'opacité ; `alt_sm_simple_on`, 0 = comme avant via `web_alter_smstat(4,0)`) : −10 %.
+  **`alt_aaline16` ne parcourt que le bout de ligne au-dessus du canevas** (axe principal + axe secondaire ; chaque pixel
+  calculé seul → mêmes pixels) : −20 %. Image fluide navigateur 59 → 43 µs (≈ −27 % ; estimation FM-1 ~34 ms ≈ 28-30F,
+  **pas mesuré**). Identique pixel à pixel (le halo allégé : comparé ON contre ON).
 - [ ] **PROCHAINE SESSION** : « nnF xxMS » de cette version (but : ~30F, < 33 ms). Si encore lent : dessin sur le 2e cœur ?
   alléger le son ? SPI (bsp : pas sans accord). Aussi MIDI LEARN avec le BCR32, CONSOLE de la page branchée, TRS (autre câble).
 - [ ] Idées : un contrôle → plusieurs réglages (macro) ; LEARN dans la page compagnon ; DENSITY/ROT continus.

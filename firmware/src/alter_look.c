@@ -66,7 +66,27 @@ static void alt_aaline16(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint16_
     dy = y1 - y0;
     g = dx ? (int32_t)(((int64_t)dy << 16) / dx) : 0;
     xe = (x1 + 8) >> 4;
-    for (xp = (x0 + 8) >> 4; xp <= xe; xp++) {
+    xp = (x0 + 8) >> 4;
+    {                                            /* (09/11: only the stretch over the canvas: each pixel is worked out
+                                                  * on its own, so the same pixels, without walking the whole line) */
+        int32_t a0 = steep ? -cv_oy : -cv_ox, a1 = steep ? (int32_t)cv_h - cv_oy - 1 : (int32_t)cv_w - cv_ox - 1;
+        if (xp < a0)
+            xp = a0;
+        if (xe > a1)
+            xe = a1;
+        if (g) {                                 /* (and where its other coordinate is over the canvas) */
+            int32_t b0 = (steep ? -cv_ox : -cv_oy) - 2, b1 = (steep ? (int32_t)cv_w - cv_ox : (int32_t)cv_h - cv_oy) + 1;
+            int32_t xa = (x0 + (int32_t)(((int64_t)(b0 * 16 - y0) << 16) / g)) >> 4;
+            int32_t xb = (x0 + (int32_t)(((int64_t)(b1 * 16 - y0) << 16) / g)) >> 4;
+            if (xa > xb)
+                t = xa, xa = xb, xb = t;
+            if (xp < xa - 2)
+                xp = xa - 2;
+            if (xe > xb + 2)
+                xe = xb + 2;
+        }
+    }
+    for (; xp <= xe; xp++) {
         int32_t yf = y0 + (int32_t)(((int64_t)(xp * 16 - x0) * g) >> 16), yi = yf >> 4, fr = yf & 15;
         if (steep) {
             alt_plot(yi, xp, c, (16 - fr) * 16);
