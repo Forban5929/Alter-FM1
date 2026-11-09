@@ -3830,12 +3830,29 @@ static void alt_step_xy(uint32_t i, uint32_t len, uint32_t j, int32_t *x, int32_
     *y = sy[i][j];
 }
 
+/* (09/11) the canvas's nearest and farthest pixel from the circles' centre: what lies at a known distance from it
+ * (the rays, a ring, its steps, the triangle) is skipped whole when the canvas misses that band */
+static int32_t alt_wd0, alt_wd1;
+static void alt_band_set(void)
+{
+    int32_t a0 = -cv_ox - ALT_CX, a1 = (int32_t)cv_w - cv_ox - 1 - ALT_CX, b0 = -cv_oy - ALT_CY,
+            b1 = (int32_t)cv_h - cv_oy - 1 - ALT_CY, nx, ny, fx, fy;
+    nx = a0 > 0 ? a0 : a1 < 0 ? a1 : 0;
+    ny = b0 > 0 ? b0 : b1 < 0 ? b1 : 0;
+    fx = -a0 > a1 ? a0 : a1;
+    fy = -b0 > b1 ? b0 : b1;
+    alt_wd0 = (int32_t)alt_isqrt((uint32_t)(nx * nx + ny * ny));
+    alt_wd1 = (int32_t)alt_isqrt((uint32_t)(fx * fx + fy * fy)) + 1;
+}
+static int alt_band(int32_t lo, int32_t hi) { return hi >= alt_wd0 - 1 && lo <= alt_wd1 + 1; }
+
 static void alt_scene(uint32_t q, uint32_t flash)
 {
     const track_t *t = &trk[au.sel];
     const engine_t *e = ENGINES[eng_idx(t->eng_req)];
     char b[24];
     uint32_t i, j, pass;
+    alt_band_set();
     if (au.lockc) {
         alt_locks_scene();
         return;
@@ -3897,8 +3914,9 @@ static void alt_scene(uint32_t q, uint32_t flash)
             }
             ray_ok = 1;
         }
-        for (i = 0; i < 48u; i++)
-            alt_aaline(ray[i][0], ray[i][1], ray[i][2], ray[i][3], rc);
+        if (alt_band(44, 100))                   /* (they lie from 46 px out to 98) */
+            for (i = 0; i < 48u; i++)
+                alt_aaline(ray[i][0], ray[i][1], ray[i][2], ray[i][3], rc);
     }
     /* the head: the card, the sound's name in its ribbon, the arcana of the page shown; the tempo, the engine, the
      * mode (SMOOTH 08/11: a piece of the screen away from the card's edges and the head: not walked) */
@@ -3968,7 +3986,9 @@ static void alt_scene(uint32_t q, uint32_t flash)
         if (dim)
             col = alt_fade(col, 30);
         if (pass == 0u) {
-        if (chosen) {                            /* the chosen circle's in its colour: thick, a halo round it (Romain
+        if (!alt_band(r - 10, r + 10))           /* (09/11: the ring and its halo away from the canvas: skipped) */
+            ;
+        else if (chosen) {                       /* the chosen circle's in its colour: thick, a halo round it (Romain
                                                   * 05/11: the gold third one stood out too little from the gold lines) */
             int32_t d;
             for (d = 6; d >= 2; d--) {
@@ -4013,7 +4033,7 @@ static void alt_scene(uint32_t q, uint32_t flash)
             }
         }
         }
-        if (pass != 2u)
+        if (pass != 2u || !alt_band(r - 12, r + 22))   /* (the steps and the die's triangle: round the ring) */
             continue;
         for (j = 0; j < len; j++) {              /* the steps */
             int on = (int)((c->pat >> j) & 1u), here = song.playing && j == now && !ALT_SMOOTH;
@@ -4052,7 +4072,7 @@ static void alt_scene(uint32_t q, uint32_t flash)
         cv_rect(ALT_CX - w / 2 - 5, ALT_CY - 10, w + 10, 20, ALT_BG);
         cv_frame(ALT_CX - w / 2 - 5, ALT_CY - 10, w + 10, 20, ALT_GOLD);
         cv_text_on(ALT_CX - w / 2, ALT_CY - 7, ALT_FS, au.msg, ALT_INK, ALT_BG);
-    } else {
+    } else if (alt_band(0, 32)) {                /* (the triangle and its ring: 27 px out at most) */
         alt_aaring16(ALT_CX * 16, ALT_CY * 16, 27 * 16, alt_gold_line(45));
         alt_prism();
     }
@@ -4181,12 +4201,14 @@ static void alt_sm_seen(void)
     for (i = 0; i < 4u; i++)
         alt_sm_dfootk[i] = alt_sm_footk[i];
 }
-static void alt_rc_alid(uint32_t turn)           /* the alidade at turn: six boxes along it */
+static uint32_t alt_sm_seg = 2u, alt_sm_nrc, alt_sm_area;   /* (the alidade's boxes; rectangles, pixels drawn: tests) */
+static void alt_rc_alid(uint32_t turn)           /* the alidade at turn: boxes along it (2: fewest
+                                                  * walks of the scene for the pixels, measured 09/11) */
 {
-    int32_t k, xa, ya, xb, yb;
-    for (k = 0; k < 6; k++) {
-        alt_at(turn, k * 15, &xa, &ya);
-        alt_at(turn, k * 15 + 15, &xb, &yb);
+    int32_t k, xa, ya, xb, yb, n = (int32_t)alt_sm_seg, st = 90 / n;
+    for (k = 0; k < n; k++) {
+        alt_at(turn, k * st, &xa, &ya);
+        alt_at(turn, k == n - 1 ? 90 : k * st + st, &xb, &yb);
         alt_rc_add((xa < xb ? xa : xb) - 3, (ya < yb ? ya : yb) - 3, (xa > xb ? xa : xb) + 3, (ya > yb ? ya : yb) + 3);
     }
 }
@@ -4242,6 +4264,9 @@ static int alt_sm_frame(uint32_t q, uint32_t flash)
     }
     if (!alt_nrc)
         return 0;
+    alt_sm_nrc += alt_nrc;
+    for (k = 0; k < alt_nrc; k++)
+        alt_sm_area += (uint32_t)(alt_rc[k].x1 - alt_rc[k].x0 + 1) * (uint32_t)(alt_rc[k].y1 - alt_rc[k].y0 + 1);
     alt_draw_gl_n = alt_gl_n;
     alt_draw_lfo_p = alt_lfo_p;
     for (k = 0; k < alt_nrc; k++) {

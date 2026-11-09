@@ -208,5 +208,11 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   rayons et places des pas précalculés (`alt_step_xy`), `alt_disc` couverture en table (.pool 2,3 Ko), knobs du bas un par
   un (`alt_sm_footk`). Image fluide navigateur 0,11 → 0,083 ms. **Ligne CPU : « nnF xxMS »** = temps de dessin moyen d'une
   image (`alt_draw_ms`) : beaucoup de ms = dessin lent ; peu de ms mais peu de F = boucle tenue ailleurs (audio).
-- [ ] **PROCHAINE SESSION** : « nnF » avec 3 cercles (but : ~30 stable). Si encore bas : SPI (bsp : pas sans accord). Aussi MIDI LEARN avec le BCR32, CONSOLE de la page branchée, TRS (autre câble).
+- [x] 09/11 midi : Romain **« 18F 60MS 2C »** → c'est le dessin qui freine (60 ms > 33). Le coût = surtout le **nombre de
+  rectangles** (chaque rectangle reparcourt toute la scène pour savoir quoi sauter). Alidade en **2 boîtes** (`alt_sm_seg`,
+  mesuré : 6 → 73 µs, 3 → 61, 2 → 60, 1 → 68) ; **bandes de distance au centre** (`alt_band_set`/`alt_band` : rayons
+  44-100 px, anneau ± halo r±10, pas r-12..r+22, triangle 0-32 sautés d'un bloc). Image fluide navigateur 0,083 → 0,06 ms,
+  identique pixel à pixel (ON/OFF, avec et sans ligne CPU). Stats tests : `web_alter_smstat`. **Pas mesuré sur la FM-1.**
+- [ ] **PROCHAINE SESSION** : « nnF xxMS » de cette version (but : ~30F, < 33 ms). Si encore lent : dessin sur le 2e cœur ?
+  alléger le son ? SPI (bsp : pas sans accord). Aussi MIDI LEARN avec le BCR32, CONSOLE de la page branchée, TRS (autre câble).
 - [ ] Idées : un contrôle → plusieurs réglages (macro) ; LEARN dans la page compagnon ; DENSITY/ROT continus.
