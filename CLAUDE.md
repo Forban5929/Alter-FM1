@@ -226,7 +226,7 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   centre+canevas. Coût navigateur ≈ l'ancien (écart < bruit de mesure). Avertir : la ligne suit le cercle choisi ; un
   cercle d'une autre longueur n'a pas son trigger pile dans l'anneau. **Page** : anneau `.gear` au bout de chaque aiguille,
   sous les triggers ; `pop` = s'éclaire sans grossir. **Pas sur la FM-1.**
-- [x] 09/11 soir : essai d'un SEXTANT au centre (commits 87…/b148407, dans l'historique git) puis **retiré** (Romain) :
+- [x] 09/11 soir : essai d'un SEXTANT au centre (commits 31c6660 et b148407, dans l'historique git) puis **retiré** (Romain) :
   **retour du triangle d'avant, SANS animation** (plus de flash au coup ni de `alt_glow` : pièces fixes, grises en MUTE ;
   le sig et les rectangles du centre ne bougent plus au coup → OFF beaucoup moins cher, 19 → 5 %). Table des anneaux
   de la ligne tassée (`alt_hring` cov[3][21*21]).
