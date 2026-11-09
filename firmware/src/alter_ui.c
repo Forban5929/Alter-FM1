@@ -3726,23 +3726,23 @@ static uint32_t alt_sm_ang[AS_NCIRC];            /* each circle's turn this fram
 static uint8_t alt_hit_step[AS_NCIRC];           /* the step of each circle's last hit (alter_draw) */
 static const uint8_t ALT_RING_R[AS_NCIRC] = {9, 8, 6};   /* (the alidade's rings: a trigger and its contour) */
 static void alt_hring(int32_t cx, int32_t cy, int32_t r, uint16_t c)   /* a hollow ring, 1.5 px, anti-aliased,
-                                                  * from a table worked out once a radius (r 4 .. 11) */
+                                                  * from a table worked out once a radius (6, 8, 9) */
 {
-    static uint8_t cov[8][25 * 25] __attribute__((section(".pool")));
+    static uint8_t cov[3][21 * 21] __attribute__((section(".pool")));   /* (radii 6, 8, 9: ALT_RING_R) */
     static uint8_t ok __attribute__((section(".pool")));
-    int32_t w = 2 * r + 3, dy, dx;
+    int32_t w = 2 * r + 3, dy, dx, k = r == 6 ? 0 : r == 8 ? 1 : r == 9 ? 2 : -1;
     uint8_t *t;
-    if (r < 4 || r > 11 || alt_miss(cx - r - 1, cy - r - 1, cx + r + 1, cy + r + 1))
+    if (k < 0 || alt_miss(cx - r - 1, cy - r - 1, cx + r + 1, cy + r + 1))
         return;
-    t = cov[r - 4];
-    if (!(ok >> (r - 4) & 1u)) {
+    t = cov[k];
+    if (!(ok >> k & 1u)) {
         for (dy = -r - 1; dy <= r + 1; dy++)
             for (dx = -r - 1; dx <= r + 1; dx++) {
                 int32_t d = (int32_t)alt_isqrt((uint32_t)((dx * dx + dy * dy) * 256)) - r * 16, a;   /* (1/16 px off it) */
                 a = (24 - (d < 0 ? -d : d)) * 16;   /* (full within 0.5 px, gone at 1.5) */
                 t[(dy + r + 1) * w + dx + r + 1] = (uint8_t)(a >= 255 ? 255 : a > 0 ? a : 0);
             }
-        ok |= (uint8_t)(1u << (r - 4));
+        ok |= (uint8_t)(1u << k);
     }
     for (dy = -r - 1; dy <= r + 1; dy++)
         for (dx = -r - 1; dx <= r + 1; dx++) {
