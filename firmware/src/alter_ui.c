@@ -3647,43 +3647,98 @@ static void alt_tri(int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x2, 
             cv_rect(xl / 16, y, xr / 16 - xl / 16, 1, c);
     }
 }
-/* the middle (Romain, 01/11): a triangle cut from its centre into three, one piece per circle in its colour, faint at
- * rest; a hit of that circle lights its piece a little and pushes it out 2 px at most, both fading over a quarter
- * second (Romain: smaller, a discreet pulse). Muted: grey. Each piece set in gold (the tarot look); the chosen
- * circle's piece carries a dot */
-static void alt_prism(void)
+/* the middle (Romain 09/11, "un sextant vaporwave pixel art", replaces the 01/11 triangle): a fixed 60° sextant
+ * pointing down from its pivot at the centre, where the alidade starts. Pixel art, no anti-aliasing: a gold rim with
+ * ticks every 10° (longer every 30°), its two gold edges, inside three striped bands (a row in three left out, the
+ * vaporwave sun), one per circle in its colour, the outer one circle 1's. A band at rest is faint, the chosen circle's
+ * a little lighter, a muted one grey; a hit of its circle lights it (SMOOTH: 80 ms). Drawn from a table worked out
+ * once (pixel codes), in runs: part 0 the body (under the alidade), part 1 the pivot (over it) */
+#define ALT_SX_Y0 (-4)
+#define ALT_SX_H 35                              /* rows -4 .. 30 */
+#define ALT_SX_W 33                              /* columns -16 .. 16 */
+static uint8_t alt_sx_t[ALT_SX_H][ALT_SX_W] __attribute__((section(".pool")));
+static uint8_t alt_sx_ok;
+static void alt_sx_mark(int32_t deg, int32_t q0, int32_t q1, uint8_t code)   /* along a radius, in 1/4 px */
 {
-    static const int32_t V[3][2] = {{0, -22 * 16}, {-19 * 16, 11 * 16}, {19 * 16, 11 * 16}};   /* top, left, right */
-    static const uint8_t E[AS_NCIRC][2] = {{0, 1}, {0, 2}, {1, 2}};   /* circle i's piece: the centre + these two */
-    int32_t cx = ALT_CX * 16, cy = ALT_CY * 16;
+    uint32_t turn = (uint32_t)(((uint64_t)(uint32_t)deg << 32) / 360u);
+    int32_t q;
+    for (q = q0; q <= q1; q++) {
+        int32_t x = (q * sine_i(turn) + (1 << 16)) >> 17, y = -((q * sine_i(turn + 0x40000000u) - (1 << 16)) >> 17);
+        if (x >= -16 && x <= 16 && y >= ALT_SX_Y0 && y < ALT_SX_Y0 + ALT_SX_H)
+            alt_sx_t[y - ALT_SX_Y0][x + 16] = code;
+    }
+}
+static void alt_sx_build(void)
+{
+    int32_t x, y, d;
+    for (y = ALT_SX_Y0; y < ALT_SX_Y0 + ALT_SX_H; y++)
+        for (x = -16; x <= 16; x++) {
+            int32_t d2 = x * x + y * y, ins = y > 0 && (x < 0 ? -x : x) * 1732 <= y * 1000;
+            uint8_t k = 0;
+            if (ins && d2 < 625)
+                k = 10;                          /* (inside: the card, the lines behind hidden) */
+            if (ins && d2 >= 49 && d2 < 625 && y % 3 != 0)
+                k = (uint8_t)(d2 < 169 ? 3 : d2 < 361 ? 2 : 1);   /* (1 + the circle: the outer band circle 1's) */
+            if (ins && d2 >= 625 && d2 < 676)
+                k = 4;                           /* the rim */
+            if (d2 >= 7 && d2 <= 12)
+                k = 8;                           /* the pivot: a gold ring .. */
+            if (d2 <= 1)
+                k = 9;                           /* .. round an ivory cross */
+            alt_sx_t[y - ALT_SX_Y0][x + 16] = k;
+        }
+    for (d = 150; d <= 210; d += 10)             /* the ticks */
+        alt_sx_mark(d, 107, d % 30 == 0 ? 121 : 115, (uint8_t)(d % 30 == 0 ? 6 : 5));
+    alt_sx_mark(150, 16, 100, 7);                /* the edges */
+    alt_sx_mark(210, 16, 100, 7);
+    alt_sx_ok = 1;
+}
+static void alt_sextant(uint32_t part)
+{
+    int32_t y, x, ylo, yhi, xlo, xhi;
+    uint16_t col[11];
     uint32_t i;
-    for (i = 0; i < AS_NCIRC; i++) {
-        const int32_t *a = V[E[i][0]], *b = V[E[i][1]];
-        int32_t mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;      /* out: towards its outer edge's middle */
-        int32_t gx = (a[0] + b[0]) / 3, gy = (a[1] + b[1]) / 3;      /* its own centre (the triangle's is 0, 0) */
-        uint32_t lv = alt_glow(i);
-        int32_t len = mx * mx + my * my, push = alt_sys[8] == 0u ? 0 : (int32_t)lv * 8, ox, oy, k;
-        int32_t px[3], py[3];
-        uint16_t col = au.cfg[i].mute ? ALT_GREY : ALT_COL[i];
-        {                                        /* (the unit outward step: |m| is 11 px for every piece) */
-            (void)len;
-            ox = mx * push / (11 * 16);
-            oy = my * push / (11 * 16);
+    if (!alt_sx_ok)
+        alt_sx_build();
+    ylo = -cv_oy - ALT_CY;                       /* (only the rows and columns on the canvas) */
+    yhi = (int32_t)cv_h - cv_oy - 1 - ALT_CY;
+    xlo = -cv_ox - ALT_CX;
+    xhi = (int32_t)cv_w - cv_ox - 1 - ALT_CX;
+    ylo = ylo < ALT_SX_Y0 ? ALT_SX_Y0 : ylo;
+    yhi = yhi > ALT_SX_Y0 + ALT_SX_H - 1 ? ALT_SX_Y0 + ALT_SX_H - 1 : yhi;
+    xlo = xlo < -16 ? -16 : xlo;
+    xhi = xhi > 16 ? 16 : xhi;
+    if (ylo > yhi || xlo > xhi)
+        return;
+    for (i = 0; i < 11u; i++)
+        col[i] = 0;
+    if (part == 0u) {
+        for (i = 0; i < AS_NCIRC; i++) {
+            uint32_t lv = alt_glow(i);
+            int32_t base = au.cfg[i].mute ? 45 : i == au.sel ? 50 : 38;
+            int32_t p = lv ? base + (85 - base) * (int32_t)lv / (alt_sys[8] == 0u ? 3 : 4) : base;
+            col[1 + i] = alt_fade(au.cfg[i].mute ? ALT_GREY : ALT_COL[i], p);
         }
-        px[0] = 0; py[0] = 0;
-        px[1] = a[0]; py[1] = a[1];
-        px[2] = b[0]; py[2] = b[1];
-        for (k = 0; k < 3; k++) {                /* drawn a little smaller than its place: a gap between the pieces */
-            px[k] = gx + (px[k] - gx) * 7 / 8 + cx + ox;
-            py[k] = gy + (py[k] - gy) * 7 / 8 + cy + oy;
+        col[4] = alt_gold_line(100);
+        col[5] = alt_gold_line(75);
+        col[6] = alt_gold_line(100);
+        col[7] = alt_gold_line(70);
+        col[10] = ALT_BG;
+    } else {
+        col[8] = alt_gold_line(100);
+        col[9] = ALT_INK;
+    }
+    for (y = ylo; y <= yhi; y++) {
+        const uint8_t *row = alt_sx_t[y - ALT_SX_Y0];
+        for (x = xlo; x <= xhi;) {
+            uint8_t k = row[x + 16];
+            int32_t x1 = x + 1;
+            while (x1 <= xhi && row[x1 + 16] == k)
+                x1++;
+            if (k && (k == 8u || k == 9u) == (part == 1u))
+                cv_rect(ALT_CX + x, ALT_CY + y, x1 - x, 1, col[k]);
+            x = x1;
         }
-        alt_tri(px[0], py[0], px[1], py[1], px[2], py[2], alt_fade(col, au.cfg[i].mute ? 45 : 32 + (int32_t)lv * 11));
-        for (k = 0; k < 3; k++) {                /* set in gold */
-            int32_t k2 = (k + 1) % 3;
-            alt_aaline((px[k] + 8) / 16, (py[k] + 8) / 16, (px[k2] + 8) / 16, (py[k2] + 8) / 16, alt_gold_line(75));
-        }
-        if (i == au.sel)                         /* the chosen circle: a dot in its piece */
-            alt_disc((cx + gx + ox) / 16, (cy + gy + oy) / 16, 2, col);
     }
 }
 
@@ -3984,6 +4039,9 @@ static void alt_scene(uint32_t q, uint32_t flash)
      * diamond (outer), a sun (middle), a dot (inner) */
     for (pass = 0; pass < 3u; pass++) {          /* 0 the alidade (OFF), the rings and their lines; 1 the alidade (SMOOTH);
                                                   * 2 the steps */
+    if (pass == 1u && !(au.msg && fm1_ms - au.msg_ms < 900u) && alt_band(0, 32))
+        alt_sextant(0);                          /* (the centre's body: over the rings and their lines, under the
+                                                  * SMOOTH alidade) */
     /* the alidade: the chosen circle's step, a gold hand from the centre */
     {
         if (song.playing && (ALT_SMOOTH ? pass == 1u : pass == 0u)) {   /* (SMOOTH: over the rings and lines, under the triggers: drawn
@@ -4012,8 +4070,11 @@ static void alt_scene(uint32_t q, uint32_t flash)
                 alt_aaline(ALT_CX, ALT_CY, x, y, alt_gold_line(45));
             }
         }
-        if (pass == 1u)
+        if (pass == 1u) {
+            if (!(au.msg && fm1_ms - au.msg_ms < 900u) && alt_band(0, 6))
+                alt_sextant(1);                  /* (the pivot, over the alidade: the hand starts from it) */
             continue;
+        }
     }
     for (i = 0; i < AS_NCIRC; i++) {
         const as_circ_t *c = &alt_seq.c[i];
@@ -4118,15 +4179,12 @@ static void alt_scene(uint32_t q, uint32_t flash)
         }
     }
     }
-    /* the middle: the key held or tapped, else the three circles' triangle in its gold circle */
+    /* the middle: the key held or tapped (else the sextant, drawn under the alidade) */
     if (au.msg && fm1_ms - au.msg_ms < 900u) {
         int32_t w = text_w(ALT_FS, au.msg);
         cv_rect(ALT_CX - w / 2 - 5, ALT_CY - 10, w + 10, 20, ALT_BG);
         cv_frame(ALT_CX - w / 2 - 5, ALT_CY - 10, w + 10, 20, ALT_GOLD);
         cv_text_on(ALT_CX - w / 2, ALT_CY - 7, ALT_FS, au.msg, ALT_INK, ALT_BG);
-    } else if (alt_band(0, 32)) {                /* (the triangle and its ring: 27 px out at most) */
-        alt_aaring16(ALT_CX * 16, ALT_CY * 16, 27 * 16, alt_gold_line(45));
-        alt_prism();
     }
     if (sg_on && asg.n >= 2u) {                  /* SONG (Romain 05/11): only while a chain loops, on the right, top to
                                                   * bottom: its links, the one playing filled in its slot's colour */
@@ -4305,7 +4363,7 @@ static int alt_sm_frame(uint32_t q, uint32_t flash)
         }
     for (i = 0; i < AS_NCIRC; i++)               /* (the centre's pieces: only the one that lit or went out) */
         if (((alt_sm_glsig() ^ alt_sm_dgl) >> (i * 3u)) & 7u) {
-            static const int8_t PB[AS_NCIRC][4] = {{-22, -24, 3, 14}, {-3, -24, 22, 14}, {-22, -2, 22, 15}};
+            static const int8_t PB[AS_NCIRC][4] = {{-13, 16, 13, 25}, {-10, 10, 10, 19}, {-7, 5, 7, 13}};   /* (the sextant's bands) */
             alt_rc_add(ALT_CX + PB[i][0], ALT_CY + PB[i][1], ALT_CX + PB[i][2], ALT_CY + PB[i][3]);
         }
     for (i = 0; i < 4u; i++)                     /* (a knob: its value, an LFO on it; itself alone, 09/11) */

@@ -513,9 +513,9 @@ play();
   const shot = (w = FS * 3) => { render(w); let h = 2166136261; const a = new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240); for (let i = 0; i < a.length; i++) h = Math.imul(h ^ a[i], 16777619); return h >>> 0; };
   const chord = (ks) => { let m = 0; for (const k of ks) { m |= 1 << k; K(m); render(2000); } render(4000); K(0); render(2000); };
   const seqMenu = () => { ex.web_buttons(1 << SEQB); render(Math.round(FS * 0.8)); ex.web_buttons(0); render(4000); const h = shot(); ex.web_buttons(1 << 6); render(2000); ex.web_buttons(0); return h; };
-  const prism = () => {                                          // the centre's coloured pixels (a muted piece turns grey)
+  const prism = () => {                                          // the centre's coloured pixels (the sextant, 09/11: a muted band turns grey)
     const a = new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240); let n = 0;
-    for (let y = 100; y < 132; y++) for (let x = 104; x < 136; x++) {
+    for (let y = 122; y < 142; y++) for (let x = 108; x < 133; x++) {
       const v = a[y * 240 + x], p = ((v >> 8) | (v << 8)) & 0xFFFF, r = (p >> 11) * 8, g = ((p >> 5) & 63) * 4, b = (p & 31) * 8;
       if (Math.max(r, g, b) - Math.min(r, g, b) > 40) n++;
     }
