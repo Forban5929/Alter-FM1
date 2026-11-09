@@ -3638,71 +3638,42 @@ static void alt_tri(int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x2, 
             cv_rect(xl / 16, y, xr / 16 - xl / 16, 1, c);
     }
 }
-/* the middle (Romain 09/11 evening, after the triangle and a sextant): a watch wheel, still, all gold: 16 teeth (21 to
- * 24 px out), its rim, 5 spokes, a hub; the alidade starts from its axle. Anti-aliased from a table worked out once
- * (4 x 4 samples a pixel; bit 5 = the inner parts, a little darker), drawn only where the canvas is */
-#define ALT_WH_R 25
-#define ALT_WH_N (2 * ALT_WH_R + 1)
-static uint8_t alt_wh_t[ALT_WH_N][ALT_WH_N] __attribute__((section(".pool")));
-static uint8_t alt_wh_ok;
-static void alt_wh_build(void)
+/* the middle (Romain, 01/11): a triangle cut from its centre into three, one piece per circle in its colour, faint.
+ * Still since 09/11 (Romain, after trying a sextant and a watch wheel): no glow on a hit, the triggers do that. Muted: grey. Each piece set in gold (the tarot look); the chosen
+ * circle's piece carries a dot */
+static void alt_prism(void)
 {
-    int32_t x, y, i, j;
-    for (y = -ALT_WH_R; y <= ALT_WH_R; y++)
-        for (x = -ALT_WH_R; x <= ALT_WH_R; x++) {
-            int32_t n = 0;
-            for (j = 0; j < 4; j++)
-                for (i = 0; i < 4; i++) {
-                    int32_t dx = x * 8 + 2 * i - 3, dy = y * 8 + 2 * j - 3;   /* (1/8 px from the axle) */
-                    int32_t r2 = dx * dx + dy * dy, r8, edge, metal;
-                    uint32_t t, per = 0x10000000u, f, u;   /* (16 teeth: a turn / 16) */
-                    if (r2 > 25 * 25 * 64 || r2 < 4 * 4 * 64)
-                        continue;                /* (outside, or the axle's hole) */
-                    r8 = 0;
-                    while ((r8 + 1) * (r8 + 1) <= r2)
-                        r8++;
-                    t = alt_turnof(dx, dy);
-                    f = t % per;
-                    u = (uint32_t)(((uint64_t)(f > per / 2u ? f - per / 2u : per / 2u - f) * 1024u) / (per / 2u));   /* 0 tooth's
-                                                  * middle .. 1024 the gap's */
-                    edge = u < 480u ? 24 * 8 : u < 720u ? 24 * 8 - (int32_t)((u - 480u) * 24u / 240u) : 21 * 8;
-                    metal = r8 <= edge;
-                    if (metal && r8 > 7 * 8 && r8 < 17 * 8) {   /* (the windows between the spokes) */
-                        uint32_t sp = 0x33333333u, g = t % sp;   /* (5 spokes) */
-                        int32_t d = (int32_t)(g > sp / 2u ? sp - g : g);   /* (turn off the nearest spoke) */
-                        int64_t off = ((int64_t)r8 * d * 6283) / 1000;   /* (its distance, 1/8 px << 32) */
-                        metal = (off >> 32) <= 10;   /* (a spoke: 2.5 px wide) */
-                    }
-                    if (metal)
-                        n++;
-                }
-            {
-                int32_t r2 = x * x + y * y;
-                alt_wh_t[y + ALT_WH_R][x + ALT_WH_R] = (uint8_t)(n | (r2 < 17 * 17 ? 32 : 0));
-            }
+    static const int32_t V[3][2] = {{0, -22 * 16}, {-19 * 16, 11 * 16}, {19 * 16, 11 * 16}};   /* top, left, right */
+    static const uint8_t E[AS_NCIRC][2] = {{0, 1}, {0, 2}, {1, 2}};   /* circle i's piece: the centre + these two */
+    int32_t cx = ALT_CX * 16, cy = ALT_CY * 16;
+    uint32_t i;
+    for (i = 0; i < AS_NCIRC; i++) {
+        const int32_t *a = V[E[i][0]], *b = V[E[i][1]];
+        int32_t mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;      /* out: towards its outer edge's middle */
+        int32_t gx = (a[0] + b[0]) / 3, gy = (a[1] + b[1]) / 3;      /* its own centre (the triangle's is 0, 0) */
+        int32_t len = mx * mx + my * my, push = 0, ox, oy, k;   /* (still, 09/11: no glow, no push) */
+        int32_t px[3], py[3];
+        uint16_t col = au.cfg[i].mute ? ALT_GREY : ALT_COL[i];
+        {                                        /* (the unit outward step: |m| is 11 px for every piece) */
+            (void)len;
+            ox = mx * push / (11 * 16);
+            oy = my * push / (11 * 16);
         }
-    alt_wh_ok = 1;
-}
-static void alt_wheel(void)
-{
-    int32_t y, x, ylo, yhi, xlo, xhi;
-    uint16_t hi = alt_gold_line(68), lo = alt_gold_line(48);   /* (darker than the alidade: it shows over it) */
-    if (!alt_wh_ok)
-        alt_wh_build();
-    ylo = -cv_oy - ALT_CY;                       /* (only the rows and columns on the canvas) */
-    yhi = (int32_t)cv_h - cv_oy - 1 - ALT_CY;
-    xlo = -cv_ox - ALT_CX;
-    xhi = (int32_t)cv_w - cv_ox - 1 - ALT_CX;
-    ylo = ylo < -ALT_WH_R ? -ALT_WH_R : ylo;
-    yhi = yhi > ALT_WH_R ? ALT_WH_R : yhi;
-    xlo = xlo < -ALT_WH_R ? -ALT_WH_R : xlo;
-    xhi = xhi > ALT_WH_R ? ALT_WH_R : xhi;
-    for (y = ylo; y <= yhi; y++)
-        for (x = xlo; x <= xhi; x++) {
-            uint8_t v = alt_wh_t[y + ALT_WH_R][x + ALT_WH_R];
-            if (v & 31u)
-                alt_plot(ALT_CX + x, ALT_CY + y, (v & 32u) ? lo : hi, (int32_t)(v & 31u) * 16);
+        px[0] = 0; py[0] = 0;
+        px[1] = a[0]; py[1] = a[1];
+        px[2] = b[0]; py[2] = b[1];
+        for (k = 0; k < 3; k++) {                /* drawn a little smaller than its place: a gap between the pieces */
+            px[k] = gx + (px[k] - gx) * 7 / 8 + cx + ox;
+            py[k] = gy + (py[k] - gy) * 7 / 8 + cy + oy;
         }
+        alt_tri(px[0], py[0], px[1], py[1], px[2], py[2], alt_fade(col, au.cfg[i].mute ? 45 : 32));
+        for (k = 0; k < 3; k++) {                /* set in gold */
+            int32_t k2 = (k + 1) % 3;
+            alt_aaline((px[k] + 8) / 16, (py[k] + 8) / 16, (px[k2] + 8) / 16, (py[k2] + 8) / 16, alt_gold_line(75));
+        }
+        if (i == au.sel)                         /* the chosen circle: a dot in its piece */
+            alt_disc((cx + gx + ox) / 16, (cy + gy + oy) / 16, 2, col);
+    }
 }
 
 /* SMOOTH (08/11, Romain: "des animations plus fluides"; SYSTEM > SETUP > SMOOTH, ON by default): the alidade (the
@@ -3742,79 +3713,10 @@ static void alt_fps_poll(void)                   /* (once a second: a still scre
 }
 static uint32_t alt_sm_ang[AS_NCIRC];            /* each circle's turn this frame */
 static uint8_t alt_hit_step[AS_NCIRC];           /* the step of each circle's last hit (alter_draw) */
-static const uint8_t ALT_RING_R[AS_NCIRC] = {9, 8, 6};   /* (the alidade's rings: a trigger and its contour) */
-static void alt_hring(int32_t cx, int32_t cy, int32_t r, uint16_t c)   /* a hollow ring, 1.5 px, anti-aliased,
-                                                  * from a table worked out once a radius (6, 8, 9) */
-{
-    static uint8_t cov[3][21 * 21] __attribute__((section(".pool")));   /* (radii 6, 8, 9: ALT_RING_R) */
-    static uint8_t ok __attribute__((section(".pool")));
-    int32_t w = 2 * r + 3, dy, dx, k = r == 6 ? 0 : r == 8 ? 1 : r == 9 ? 2 : -1;
-    uint8_t *t;
-    if (k < 0 || alt_miss(cx - r - 1, cy - r - 1, cx + r + 1, cy + r + 1))
-        return;
-    t = cov[k];
-    if (!(ok >> k & 1u)) {
-        for (dy = -r - 1; dy <= r + 1; dy++)
-            for (dx = -r - 1; dx <= r + 1; dx++) {
-                int32_t d = (int32_t)alt_isqrt((uint32_t)((dx * dx + dy * dy) * 256)) - r * 16, a;   /* (1/16 px off it) */
-                a = (24 - (d < 0 ? -d : d)) * 16;   /* (full within 0.5 px, gone at 1.5) */
-                t[(dy + r + 1) * w + dx + r + 1] = (uint8_t)(a >= 255 ? 255 : a > 0 ? a : 0);
-            }
-        ok |= (uint8_t)(1u << k);
-    }
-    for (dy = -r - 1; dy <= r + 1; dy++)
-        for (dx = -r - 1; dx <= r + 1; dx++) {
-            uint32_t a = t[(dy + r + 1) * w + dx + r + 1];
-            if (a)
-                alt_plot(cx + dx, cy + dy, c, (int32_t)a);
-        }
-}
 static void alt_alid16(uint32_t turn, int32_t *x, int32_t *y)   /* the alidade's tip, 90 px out, in 1/16 px */
 {
     *x = ALT_CX * 16 + ((90 * 16 * sine_i(turn)) >> 15);
     *y = ALT_CY * 16 - ((90 * 16 * sine_i(turn + 0x40000000u)) >> 15);
-}
-/* (Romain 09/11 evening) the alidade as a divining pendulum: its cord, 2 px, from the pivot to the outer ring, left out
- * inside each hollow ring (a trigger alone in it), then a crystal pointing out past the outer ring, faceted: its left
- * half bright, its right half darker. ALT_PEND_TIP px out at most */
-#define ALT_PEND_TIP 103
-static void alt_at16(uint32_t turn, int32_t r16, int32_t *x, int32_t *y)   /* r16 out, in 1/16 px */
-{
-    *x = ALT_CX * 16 + (int32_t)(((int64_t)r16 * sine_i(turn)) >> 15);
-    *y = ALT_CY * 16 - (int32_t)(((int64_t)r16 * sine_i(turn + 0x40000000u)) >> 15);
-}
-static void alt_pendulum(uint32_t turn)
-{
-    static const int8_t SEG[4][2] = {{3, 40 - 6}, {40 + 6, 60 - 8}, {60 + 8, 80 - 9}, {80 + 9, 80 + 9}};
-    int32_t k, xa, ya, xb, yb, ux, uy, vx, vy;
-    uint16_t hi = alt_gold_line(95), lo = alt_gold_line(55);
-    for (k = 0; k < 3; k++) {                    /* the cord, between the rings */
-        alt_at16(turn, SEG[k][0] * 16, &xa, &ya);
-        alt_at16(turn, SEG[k][1] * 16, &xb, &yb);
-        alt_aaline16(xa, ya, xb, yb, hi);
-        if ((xb > xa ? xb - xa : xa - xb) > (yb > ya ? yb - ya : ya - yb))
-            alt_aaline16(xa, ya + 16, xb, yb + 16, hi);
-        else
-            alt_aaline16(xa + 16, ya, xb + 16, yb, hi);
-    }
-    /* the crystal: a short cap from 89 to 91 px out, widening to 4 px each side, then its point out to the tip */
-    ux = sine_i(turn); uy = -sine_i(turn + 0x40000000u);   /* (outward, Q15) */
-    vx = -uy; vy = ux;                           /* (to its left, screen) */
-#define ALT_PP(u, v, X, Y) (X = ALT_CX * 16 + (int32_t)((((int64_t)(u) * ux + (int64_t)(v) * vx) * 16) >> 15), \
-                            Y = ALT_CY * 16 + (int32_t)((((int64_t)(u) * uy + (int64_t)(v) * vy) * 16) >> 15))
-    {
-        int32_t ax, ay, lx, ly, rx, ry, cx, cy, tx, ty;
-        ALT_PP(89, 0, ax, ay);
-        ALT_PP(91, -4, lx, ly);
-        ALT_PP(91, 4, rx, ry);
-        ALT_PP(91, 0, cx, cy);
-        ALT_PP(ALT_PEND_TIP, 0, tx, ty);
-        alt_tri(ax, ay, lx, ly, cx, cy, hi);
-        alt_tri(ax, ay, rx, ry, cx, cy, lo);
-        alt_tri(lx, ly, cx, cy, tx, ty, hi);
-        alt_tri(rx, ry, cx, cy, tx, ty, lo);
-    }
-#undef ALT_PP
 }
 static uint8_t alt_sm_g[AS_NCIRC];               /* how much it grows now: 2, 1, 0 */
 static void alt_sm_take(void)
@@ -3823,7 +3725,7 @@ static void alt_sm_take(void)
     for (i = 0; i < AS_NCIRC; i++) {
         alt_sm_ang[i] = (uint32_t)alt_disp[i] << 17;   /* (Q15 of the circle -> a turn: alter_play.c, even speed) */
         t = alt_now_ms - au.flash_ms[i];
-        alt_sm_g[i] = (uint8_t)(!song.playing ? 0u : t < 110u ? 2u : 0u);   /* (09/11: lit, then not: 2 redraws a hit) */
+        alt_sm_g[i] = (uint8_t)(!song.playing ? 0u : t < 60u ? 2u : t < 130u ? 1u : 0u);
     }
 }
 
@@ -4044,8 +3946,6 @@ static void alt_scene(uint32_t q, uint32_t flash)
      * diamond (outer), a sun (middle), a dot (inner) */
     for (pass = 0; pass < 3u; pass++) {          /* 0 the alidade (OFF), the rings and their lines; 1 the alidade (SMOOTH);
                                                   * 2 the steps */
-    if (pass == 1u && alt_band(0, 25))
-        alt_wheel();                             /* (the watch wheel: under the alidade, over the rings' lines) */
     /* the alidade: the chosen circle's step, a gold hand from the centre */
     {
         if (song.playing && (ALT_SMOOTH ? pass == 1u : pass == 0u)) {   /* (SMOOTH: over the rings and lines, under the triggers: drawn
@@ -4055,27 +3955,19 @@ static void alt_scene(uint32_t q, uint32_t flash)
             int32_t x, y;
             if (ALT_SMOOTH) {                        /* (SMOOTH: in 1/16 px, 2 px wide and bright: Romain 08/11 "je perds la
                                                       * ligne des yeux") */
-                uint32_t k;
-                alt_pendulum(alt_sm_ang[au.sel]);
-                for (k = 0; k < AS_NCIRC; k++) { /* (09/11, Romain: "comme un engrenage d'horloge": a hollow ring where
-                                                  * it crosses each circle, a trigger's size; the triggers show
-                                                  * through it, drawn after) */
-                    int32_t rx, ry;
-                    alt_at(alt_sm_ang[au.sel], ALT_R[k], &rx, &ry);
-                    alt_hring(rx, ry, ALT_RING_R[k], alt_gold_line(95));
-                }
+                alt_alid16(alt_sm_ang[au.sel], &x, &y);
+                alt_aaline16(ALT_CX * 16, ALT_CY * 16, x, y, alt_gold_line(95));
+                if ((x > ALT_CX * 16 ? x - ALT_CX * 16 : ALT_CX * 16 - x) > (y > ALT_CY * 16 ? y - ALT_CY * 16 : ALT_CY * 16 - y))
+                    alt_aaline16(ALT_CX * 16, ALT_CY * 16 + 16, x, y + 16, alt_gold_line(95));
+                else
+                    alt_aaline16(ALT_CX * 16 + 16, ALT_CY * 16, x + 16, y, alt_gold_line(95));
             } else {
                 alt_at((uint32_t)(((uint64_t)now << 32) / len), 90, &x, &y);
                 alt_aaline(ALT_CX, ALT_CY, x, y, alt_gold_line(45));
             }
         }
-        if (pass == 1u) {
-            if (alt_band(0, 4)) {                /* (the axle, over the alidade's start) */
-                alt_disc(ALT_CX, ALT_CY, 3, alt_gold_line(95));
-                alt_disc(ALT_CX, ALT_CY, 1, ALT_INK);
-            }
+        if (pass == 1u)
             continue;
-        }
     }
     for (i = 0; i < AS_NCIRC; i++) {
         const as_circ_t *c = &alt_seq.c[i];
@@ -4121,11 +4013,6 @@ static void alt_scene(uint32_t q, uint32_t flash)
             for (k = 0; k < (m == 2u ? 1u : m); k++) {   /* (first a contour in the background's colour: each
                                                   * circle's lines stand apart from what is under them, Romain 05/11) */
                 uint32_t nx = (cur + st) % m;
-                if (alt_miss((hx[cur] < hx[nx] ? hx[cur] : hx[nx]) - 4, (hy[cur] < hy[nx] ? hy[cur] : hy[nx]) - 4,
-                             (hx[cur] > hx[nx] ? hx[cur] : hx[nx]) + 4, (hy[cur] > hy[nx] ? hy[cur] : hy[nx]) + 4)) {
-                    cur = nx;                    /* (09/11: the line and its contour away from the canvas: one test) */
-                    continue;
-                }
                 alt_aaline(hx[cur] - 1, hy[cur], hx[nx] - 1, hy[nx], ALT_BG);
                 alt_aaline(hx[cur] + 1, hy[cur], hx[nx] + 1, hy[nx], ALT_BG);
                 alt_aaline(hx[cur], hy[cur] - 1, hx[nx], hy[nx] - 1, ALT_BG);
@@ -4133,13 +4020,10 @@ static void alt_scene(uint32_t q, uint32_t flash)
                 cur = nx;
             }
             cur = 0;
-            {
-            uint16_t lc = i ? alt_fade(col, 40) : alt_gold_line(muted ? 20 : 40);
             for (k = 0; k < (m == 2u ? 1u : m); k++) {
                 uint32_t nx = (cur + st) % m;
-                alt_aaline(hx[cur], hy[cur], hx[nx], hy[nx], lc);
+                alt_aaline(hx[cur], hy[cur], hx[nx], hy[nx], i ? alt_fade(col, 40) : alt_gold_line(muted ? 20 : 40));
                 cur = nx;
-            }
             }
         }
         }
@@ -4147,13 +4031,9 @@ static void alt_scene(uint32_t q, uint32_t flash)
             continue;
         for (j = 0; j < len; j++) {              /* the steps */
             int on = (int)((c->pat >> j) & 1u), here = song.playing && j == now && !ALT_SMOOTH;
-            int32_t gl = ALT_SMOOTH && on && j == alt_hit_step[i] ? alt_sm_g[i] : 0, g = 0;   /* (SMOOTH: it plays:
-                                                  * lighter, its size kept, Romain 09/11; it grew before) */
-            uint16_t cg;
+            int32_t g = ALT_SMOOTH && on && j == alt_hit_step[i] ? alt_sm_g[i] : 0;   /* (SMOOTH: it plays: grows) */
+            uint16_t cg = g ? alt_mixc(col, ALT_INK, g * 30) : col;
             alt_step_xy(i, len, j, &x, &y);
-            if (alt_miss(x - 10, y - 10, x + 10, y + 10))   /* (09/11: a step away from the canvas: one test) */
-                continue;
-            cg = gl ? alt_mixc(col, ALT_INK, gl * 30) : col;
             if (on)                              /* (a contour: the hit apart from its ring, Romain 05/11) */
                 alt_disc(x, y, (i == 2u ? 4 : 6) + g, ALT_BG);
             if (here && on)
@@ -4180,12 +4060,15 @@ static void alt_scene(uint32_t q, uint32_t flash)
         }
     }
     }
-    /* the middle: the key held or tapped over the watch wheel (drawn in the scene's passes) */
+    /* the middle: the key held or tapped, else the three circles' triangle in its gold circle */
     if (au.msg && fm1_ms - au.msg_ms < 900u) {
         int32_t w = text_w(ALT_FS, au.msg);
         cv_rect(ALT_CX - w / 2 - 5, ALT_CY - 10, w + 10, 20, ALT_BG);
         cv_frame(ALT_CX - w / 2 - 5, ALT_CY - 10, w + 10, 20, ALT_GOLD);
         cv_text_on(ALT_CX - w / 2, ALT_CY - 7, ALT_FS, au.msg, ALT_INK, ALT_BG);
+    } else if (alt_band(0, 32)) {                /* (the triangle and its ring: 27 px out at most) */
+        alt_aaring16(ALT_CX * 16, ALT_CY * 16, 27 * 16, alt_gold_line(45));
+        alt_prism();
     }
     if (sg_on && asg.n >= 2u) {                  /* SONG (Romain 05/11): only while a chain loops, on the right, top to
                                                   * bottom: its links, the one playing filled in its slot's colour */
@@ -4310,23 +4193,15 @@ static void alt_sm_seen(void)
     for (i = 0; i < 4u; i++)
         alt_sm_dfootk[i] = alt_sm_footk[i];
 }
-static uint32_t alt_sm_nrc, alt_sm_area;   /* (the alidade's boxes; rectangles, pixels drawn: tests) */
-static void alt_rc_alid(uint32_t turn)           /* the alidade at turn: two boxes along it (the fewest walks of the
-                                                  * scene, measured 09/11), and a box round each of its rings */
+static uint32_t alt_sm_seg = 2u, alt_sm_nrc, alt_sm_area;   /* (the alidade's boxes; rectangles, pixels drawn: tests) */
+static void alt_rc_alid(uint32_t turn)           /* the alidade at turn: boxes along it (2: fewest
+                                                  * walks of the scene for the pixels, measured 09/11) */
 {
-    int32_t k, xa, ya, xb, yb;
-    for (k = 0; k < 3; k++) {                    /* (from the wheel's axle: over the wheel, to 45, out to the pendulum's
-                                                  * crystal 4 px wide each side; 09/11) */
-        static const uint8_t R0[3] = {0, 24, 45}, R1[3] = {24, 45, ALT_PEND_TIP + 1};
-        int32_t m = k == 2 ? 5 : 3;
-        alt_at(turn, R0[k], &xa, &ya);
-        alt_at(turn, R1[k], &xb, &yb);
-        alt_rc_add((xa < xb ? xa : xb) - m, (ya < yb ? ya : yb) - m, (xa > xb ? xa : xb) + m, (ya > yb ? ya : yb) + m);
-    }
-    for (k = 0; k < AS_NCIRC; k++) {
-        int32_t r = ALT_RING_R[k] + 2;
-        alt_at(turn, ALT_R[k], &xa, &ya);
-        alt_rc_add(xa - r, ya - r, xa + r, ya + r);
+    int32_t k, xa, ya, xb, yb, n = (int32_t)alt_sm_seg, st = 90 / n;
+    for (k = 0; k < n; k++) {
+        alt_at(turn, k * st, &xa, &ya);
+        alt_at(turn, k == n - 1 ? 90 : k * st + st, &xb, &yb);
+        alt_rc_add((xa < xb ? xa : xb) - 3, (ya < yb ? ya : yb) - 3, (xa > xb ? xa : xb) + 3, (ya > yb ? ya : yb) + 3);
     }
 }
 static void alt_rc_step(uint32_t i, uint32_t j)  /* circle i's step j, its mark grown */
@@ -4336,7 +4211,7 @@ static void alt_rc_step(uint32_t i, uint32_t j)  /* circle i's step j, its mark 
     if (j >= len)
         return;
     alt_at((uint32_t)(((uint64_t)j << 32) / len), ALT_R[i], &x, &y);
-    alt_rc_add(x - 8, y - 8, x + 8, y + 8);     /* (it lights, its size kept) */
+    alt_rc_add(x - 11, y - 11, x + 11, y + 11);
 }
 static uint32_t alt_sm_cap = 28u;                /* (ms between two frames at least: ~30 a second, even; 0: none, tests) */
 static int alt_sm_frame(uint32_t q, uint32_t flash)

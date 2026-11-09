@@ -94,7 +94,7 @@ check(`SEQ tapped (kept open) + KNOB 2: circle 1 HITS 4 -> 8 ${h8.steps.join(","
 enc(4, 2); bar();
 check("SEQ tapped again: closed (KNOB 2 moves the sound, not HITS)", same(bar().steps, euclid(16, 8, 0)));
 {
-  const scr = () => { render(4000); return Array.from(new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240).slice(0, 240 * 12)).join(); }; // (rows 0-11: the pendulum reaches row 13, 09/11)
+  const scr = () => { render(4000); return Array.from(new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240).slice(0, 240 * 24)).join(); };
   const before = scr();
   ex.web_buttons(1 << SEQB); render(FS * 0.7); ex.web_buttons(0); render(2000);
   const menu = scr();
@@ -315,7 +315,7 @@ tap(10); bar();
 {
   const B = (n) => { ex.web_buttons(1 << n); render(2000); ex.web_buttons(0); render(2000); };
   const H = (n) => { ex.web_buttons(1 << n); render(Math.floor(44100 * 0.7)); ex.web_buttons(0); render(2000); };   // held: the menu
-  const top = () => { render(4000); return Array.from(new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240).slice(0, 240 * 12)).join(); };
+  const top = () => { render(4000); return Array.from(new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240).slice(0, 240 * 24)).join(); };
   // the loudness of each 16th of a bar (its first 60 ms)
   const steps = (b) => Array.from({ length: 16 }, (_, k) => peak(b.audio.slice(k * STEP, k * STEP + 2600)));
   const swell = (l) => Math.max(l[14] / Math.max(l[0], 1e-4), l[0] / Math.max(l[14], 1e-4));

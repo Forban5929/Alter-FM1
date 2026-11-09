@@ -218,26 +218,12 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   **`alt_aaline16` ne parcourt que le bout de ligne au-dessus du canevas** (axe principal + axe secondaire ; chaque pixel
   calculé seul → mêmes pixels) : −20 %. Image fluide navigateur 59 → 43 µs (≈ −27 % ; estimation FM-1 ~34 ms ≈ 28-30F,
   **pas mesuré**). Identique pixel à pixel (le halo allégé : comparé ON contre ON).
-- [x] 09/11 13h40 : Romain **« 28F 24MS »** ✔. Puis **« engrenage d'horloge »** : l'alidade (cercle choisi, 2 px) porte
-  **3 anneaux creux** là où elle croise chaque cercle (`ALT_RING_R` 9/8/6 px, `alt_hring` = couverture en table .pool,
-  au pixel près) ; les triggers sont dessinés après (on les voit dedans) et **s'éclairent sans grossir** (110 ms, 1 palier ;
-  `alt_sm_g`). Rectangles : 2 boîtes de ligne ±3 + 1 boîte par anneau (2 grosses boîtes ±10 = plus lent, mesuré).
-  Coupes groupées : une ligne de motif + ses 4 contours = 1 test, un pas = 1 test ; arc des anneaux mémorisé par
-  centre+canevas. Coût navigateur ≈ l'ancien (écart < bruit de mesure). Avertir : la ligne suit le cercle choisi ; un
-  cercle d'une autre longueur n'a pas son trigger pile dans l'anneau. **Page** : anneau `.gear` au bout de chaque aiguille,
-  sous les triggers ; `pop` = s'éclaire sans grossir. **Pas sur la FM-1.**
-- [x] 09/11 soir : essai d'un SEXTANT au centre (commits 31c6660 et b148407, dans l'historique git) puis **retiré** (Romain) :
-  triangle remis sans animation, puis **remplacé par un ENGRENAGE DE MONTRE** (Romain) : fixe, tout doré (`alt_wheel`,
-  table d'anticrénelage `alt_wh_t` 51×51 en .pool, 2,6 Ko : 16 dents 21-24 px, jante, 5 rayons, moyeu ; intérieur plus
-  sombre), sous la ligne ; axe (disque or + point ivoire) par-dessus. Plus de `alt_glow`/`alt_prism` : rien ne bouge au
-  centre au coup (OFF 19 → 5 %). Les 3 anneaux de la ligne restent des cercles (pas d'engrenages : choix de Romain).
-  Table des anneaux de la ligne tassée (`alt_hring` cov[3][21*21]).
-  **Ligne = PENDULE divinatoire** (`alt_pendulum`) : cordon 2 px **depuis l'axe de l'engrenage (3 px)**, coupé à l'intérieur
-  des 3 anneaux, cristal à facettes (moitié claire / sombre, `alt_tri`) de 89 à `ALT_PEND_TIP` 103 px (touche le bas du
-  ruban du titre quand il pointe en haut ; tests « haut d'écran » = lignes 0-11). Rectangles : boîtes de ligne 0-24, 24-45,
-  45 au cristal (±5 ; 2 ou 3 boîtes = même coût mesuré). Coût navigateur SMOOTH ON ≈ 14-16 % d'une image complète (bruit ±2 ;
-  triangle fixe ≈ 13 %). Page : `data-needle` = groupe tourné (cordon depuis l'axe, anneau, cristal), `dialCenter()` =
-  engrenage SVG, `dialAxle()` par-dessus l'aiguille.
-- [ ] **PROCHAINE SESSION** : « nnF xxMS » de cette version (but : ~30F, < 33 ms). Si encore lent : dessin sur le 2e cœur ?
+- [x] 09/11 13h40 : Romain **« 28F 24MS »** ✔. Puis essais de look l'après-midi (3 anneaux sur la ligne e927cc5, sextant
+  31c6660/b148407, pendule, engrenage de montre 49bd767 : tout dans l'historique git) → **Romain 09/11 soir : retour à la
+  version 28F (eae3f5c : ligne simple, triggers qui grossissent de 2 px) + triangle du centre FIXE** (plus de `alt_glow` :
+  ni flash ni décalage au coup, rien du centre dans le sig ni dans les rectangles ; OFF 7 → 5 %). Page : `.piece` fixe.
+  Gardé de l'après-midi : alter_look.c `alt_aaring16` mémorise l'arc par centre+canevas. Coût navigateur SMOOTH ON
+  10-16 % d'une image complète (bruit). **Look validé par Romain : ne plus y toucher sans demande.**
+- [ ] **PROCHAINE SESSION** : « nnF xxMS » de cette version (but : ~30F, < 33 ms ; 28F 24MS avant le triangle fixe). Si encore lent : dessin sur le 2e cœur ?
   alléger le son ? SPI (bsp : pas sans accord). Aussi MIDI LEARN avec le BCR32, CONSOLE de la page branchée, TRS (autre câble).
 - [ ] Idées : un contrôle → plusieurs réglages (macro) ; LEARN dans la page compagnon ; DENSITY/ROT continus.
