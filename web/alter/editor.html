@@ -116,7 +116,9 @@ select:hover { border-color: var(--gold); }
 .dial .pend { fill: var(--gold); } .dial .pend.lo { opacity: .55; }
 .dial .gear { fill: none; stroke: var(--gold); stroke-width: 1.6; }   /* (the needle's ring: a trigger shows through it) */
 .dial .tri { fill: none; stroke: var(--gold); stroke-width: 1; stroke-linejoin: round; }
-.dial .piece { fill: var(--c); opacity: .35; }   /* (still: no flash on a hit, 09/11) */
+.dial .wheel, .dial .hub-w { fill: var(--gold); opacity: .6; }
+.dial .spoke-w { stroke: var(--gold); stroke-width: 2.5; opacity: .45; }
+.dial .axle { fill: var(--gold); } .dial .axle-dot { fill: var(--ink); }
 .col.muted { --c: var(--grey); }
 .col.muted .dial .sig { opacity: .4; }
 .acts { display: grid; gap: 8px; margin-top: 8px; }
@@ -982,17 +984,21 @@ function groupBox(name, first) {
   if (name) fs.innerHTML = `<legend>${name}</legend>`;
   return fs;
 }
-/* the dial: as the FM-1's PLAY screen (alter_ui.c): gold rings, its piece of the centre's triangle (back 09/11, still)
- * and the needle: a divining pendulum */
-const TRI = [[120, 98], [139.05, 131], [100.95, 131]];
-const PIECE = [[0, 2], [0, 1], [1, 2]];             // circle 1 the left piece, 2 the right, 3 the bottom
-function dialCenter(c) {
-  const p = (q) => q.map((v) => v.join(",")).join(" ");
-  const [a, b] = PIECE[c];
-  return `<polygon class="piece" points="${p([[120, 120], TRI[a], TRI[b]])}"/><polygon class="tri" points="${p(TRI)}"/>
-    <line class="tri" x1="120" y1="120" x2="${TRI[0][0]}" y2="${TRI[0][1]}"/><line class="tri" x1="120" y1="120" x2="${TRI[1][0]}" y2="${TRI[1][1]}"/>
-    <line class="tri" x1="120" y1="120" x2="${TRI[2][0]}" y2="${TRI[2][1]}"/>`;
+/* the dial: as the FM-1's PLAY screen (alter_ui.c): gold rings and, in the middle, a watch wheel (09/11 evening):
+ * 16 teeth, its rim, 5 spokes, the hub; the needle (a divining pendulum) starts from its axle */
+function dialCenter() {
+  const pt = (r, a) => `${(120 + r * Math.sin(a)).toFixed(2)},${(120 - r * Math.cos(a)).toFixed(2)}`;
+  let d = "";
+  for (let i = 0; i < 16; i++) {                       // the teeth: 21 to 24 px out
+    const a0 = (i / 16) * 2 * Math.PI, P = (2 * Math.PI) / 16;
+    d += `${i ? "L" : "M"}${pt(21, a0)} L${pt(21, a0 + P * 0.14)} L${pt(24, a0 + P * 0.26)} L${pt(24, a0 + P * 0.74)} L${pt(21, a0 + P * 0.86)} `;
+  }
+  d += `Z M${pt(17, 0)} A17 17 0 1 0 ${pt(17, Math.PI)} A17 17 0 1 0 ${pt(17, 0)}Z`;   // (the rim's inside: cut out)
+  let s = `<path class="wheel" fill-rule="evenodd" d="${d}"/>`;
+  for (let k = 0; k < 5; k++) { const a = (k / 5) * 2 * Math.PI; s += `<line class="spoke-w" x1="${pt(6, a).split(",")[0]}" y1="${pt(6, a).split(",")[1]}" x2="${pt(17.5, a).split(",")[0]}" y2="${pt(17.5, a).split(",")[1]}"/>`; }
+  return s + `<circle class="hub-w" cx="120" cy="120" r="7"/>`;
 }
+function dialAxle() { return `<circle class="axle" cx="120" cy="120" r="3"/><circle class="axle-dot" cx="120" cy="120" r="1.1"/>`; }
 const COLS = ["var(--c1)", "var(--c2)", "var(--c3)"];
 
 function buildV2() {
@@ -1006,10 +1012,10 @@ function buildV2() {
     col.className = "col tc";
     col.innerHTML = `<div class="rib"><span data-name>&nbsp;</span></div><span class="num">${ROMAN[c]}</span><span class="tag" data-tag></span>
       <div class="colin"><svg class="dial" viewBox="0 0 240 240" role="img" aria-label="Circle ${c + 1}"><circle class="ring" cx="120" cy="120" r="100"/>
-        <circle class="ring2" cx="120" cy="120" r="76"/>
-        <g data-needle style="display:none"><line class="needle" x1="120" y1="94" x2="120" y2="31"/><circle class="gear" cx="120" cy="20" r="11"/>
+        <circle class="ring2" cx="120" cy="120" r="76"/>${dialCenter()}
+        <g data-needle style="display:none"><line class="needle" x1="120" y1="117" x2="120" y2="31"/><circle class="gear" cx="120" cy="20" r="11"/>
           <path class="pend" d="M120,9 L116.5,7 L120,7Z M116.5,7 L120,7 L120,0.5Z"/><path class="pend lo" d="M120,9 L123.5,7 L120,7Z M123.5,7 L120,7 L120,0.5Z"/></g>
-        <g data-steps></g><g data-pulse></g>${dialCenter(c)}</svg>
+        ${dialAxle()}<g data-steps></g><g data-pulse></g></svg>
       <div class="acts">
         <div class="arow"><button class="act" data-a="MUTE">MUTE</button><button class="act" data-a="TRIG">TRIGGER</button>
           <button class="act" data-a="SELECT" title="Choose it on the synth too">SELECT</button></div>

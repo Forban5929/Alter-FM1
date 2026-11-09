@@ -227,14 +227,17 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   cercle d'une autre longueur n'a pas son trigger pile dans l'anneau. **Page** : anneau `.gear` au bout de chaque aiguille,
   sous les triggers ; `pop` = s'éclaire sans grossir. **Pas sur la FM-1.**
 - [x] 09/11 soir : essai d'un SEXTANT au centre (commits 31c6660 et b148407, dans l'historique git) puis **retiré** (Romain) :
-  **retour du triangle d'avant, SANS animation** (plus de flash au coup ni de `alt_glow` : pièces fixes, grises en MUTE ;
-  le sig et les rectangles du centre ne bougent plus au coup → OFF beaucoup moins cher, 19 → 5 %). Table des anneaux
-  de la ligne tassée (`alt_hring` cov[3][21*21]).
-  **Ligne = PENDULE divinatoire** (`alt_pendulum`) : cordon 2 px **depuis l'anneau du triangle (28 px)**, coupé à l'intérieur
+  triangle remis sans animation, puis **remplacé par un ENGRENAGE DE MONTRE** (Romain) : fixe, tout doré (`alt_wheel`,
+  table d'anticrénelage `alt_wh_t` 51×51 en .pool, 2,6 Ko : 16 dents 21-24 px, jante, 5 rayons, moyeu ; intérieur plus
+  sombre), sous la ligne ; axe (disque or + point ivoire) par-dessus. Plus de `alt_glow`/`alt_prism` : rien ne bouge au
+  centre au coup (OFF 19 → 5 %). Les 3 anneaux de la ligne restent des cercles (pas d'engrenages : choix de Romain).
+  Table des anneaux de la ligne tassée (`alt_hring` cov[3][21*21]).
+  **Ligne = PENDULE divinatoire** (`alt_pendulum`) : cordon 2 px **depuis l'axe de l'engrenage (3 px)**, coupé à l'intérieur
   des 3 anneaux, cristal à facettes (moitié claire / sombre, `alt_tri`) de 89 à `ALT_PEND_TIP` 103 px (touche le bas du
-  ruban du titre quand il pointe en haut ; tests « haut d'écran » = lignes 0-11). Rectangles : 1re boîte de ligne de 26 à 45,
-  2e de 45 au cristal (±5). Coût navigateur SMOOTH ON 13-14 % d'une image complète (avant : 14 %). Page : `data-needle` =
-  groupe tourné (cordon depuis r26, anneau, cristal), triangle `dialCenter` d'avant, `.piece` fixe.
+  ruban du titre quand il pointe en haut ; tests « haut d'écran » = lignes 0-11). Rectangles : boîtes de ligne 0-24, 24-45,
+  45 au cristal (±5 ; 2 ou 3 boîtes = même coût mesuré). Coût navigateur SMOOTH ON ≈ 14-16 % d'une image complète (bruit ±2 ;
+  triangle fixe ≈ 13 %). Page : `data-needle` = groupe tourné (cordon depuis l'axe, anneau, cristal), `dialCenter()` =
+  engrenage SVG, `dialAxle()` par-dessus l'aiguille.
 - [ ] **PROCHAINE SESSION** : « nnF xxMS » de cette version (but : ~30F, < 33 ms). Si encore lent : dessin sur le 2e cœur ?
   alléger le son ? SPI (bsp : pas sans accord). Aussi MIDI LEARN avec le BCR32, CONSOLE de la page branchée, TRS (autre câble).
 - [ ] Idées : un contrôle → plusieurs réglages (macro) ; LEARN dans la page compagnon ; DENSITY/ROT continus.
