@@ -116,13 +116,7 @@ select:hover { border-color: var(--gold); }
 .dial .pend { fill: var(--gold); } .dial .pend.lo { opacity: .55; }
 .dial .gear { fill: none; stroke: var(--gold); stroke-width: 1.6; }   /* (the needle's ring: a trigger shows through it) */
 .dial .tri { fill: none; stroke: var(--gold); stroke-width: 1; stroke-linejoin: round; }
-.dial .sx-bg { fill: var(--bg); }
-.dial .sx-off { fill: var(--gold); opacity: .14; }
-.dial .sx-gap { stroke: var(--bg); stroke-width: 1.2; }
-.dial .sx-piv { fill: var(--bg); stroke: var(--gold); stroke-width: 1.2; }
-.dial .sx-dot { fill: var(--ink); }
-.dial .piece { fill: var(--c); opacity: .35; transition: opacity .4s ease-out, transform .25s; transform-box: fill-box; transform-origin: center; }
-.dial.hit .piece { opacity: 1; transition: none; }
+.dial .piece { fill: var(--c); opacity: .35; }   /* (still: no flash on a hit, 09/11) */
 .col.muted { --c: var(--grey); }
 .col.muted .dial .sig { opacity: .4; }
 .acts { display: grid; gap: 8px; margin-top: 8px; }
@@ -988,24 +982,17 @@ function groupBox(name, first) {
   if (name) fs.innerHTML = `<legend>${name}</legend>`;
   return fs;
 }
-/* the dial: as the FM-1's PLAY screen (alter_ui.c): gold rings and, in the middle, the sextant (09/11): 60°
- * pointing up (Romain, same day) from the pivot where the needle (a divining pendulum) starts, three striped bands, the outer one circle 1's; the dial's
- * own band in its colour (it lights on a hit), the others faint */
+/* the dial: as the FM-1's PLAY screen (alter_ui.c): gold rings, its piece of the centre's triangle (back 09/11, still)
+ * and the needle: a divining pendulum */
+const TRI = [[120, 98], [139.05, 131], [100.95, 131]];
+const PIECE = [[0, 2], [0, 1], [1, 2]];             // circle 1 the left piece, 2 the right, 3 the bottom
 function dialCenter(c) {
-  const S = 1.2, at = (r, d) => [120 + r * S * Math.sin(d * Math.PI / 180), 120 - r * S * Math.cos(d * Math.PI / 180)].map((v) => v.toFixed(1)).join(",");
-  const band = (r0, r1) => `M${at(r0, -30)} L${at(r1, -30)} A${r1 * S} ${r1 * S} 0 0 1 ${at(r1, 30)} L${at(r0, 30)} A${r0 * S} ${r0 * S} 0 0 0 ${at(r0, -30)}Z`;
-  const R = [[19, 25], [13, 19], [7, 13]];
-  let s = `<path class="sx-bg" d="M120,120 L${at(25, -30)} A${25 * S} ${25 * S} 0 0 1 ${at(25, 30)}Z"/>`;
-  R.forEach(([r0, r1], k) => (s += `<path class="${k === c ? "piece" : "sx-off"}" d="${band(r0, r1)}"/>`));
-  for (let y = 3; y <= 24; y += 3) {                // (the stripes: a row in three left out, as on the FM-1)
-    const w = Math.min(y * Math.tan(Math.PI / 6), Math.sqrt(25 * 25 - y * y)) * S, yy = (120 - y * S).toFixed(1);
-    s += `<line class="sx-gap" x1="${(120 - w).toFixed(1)}" x2="${(120 + w).toFixed(1)}" y1="${yy}" y2="${yy}"/>`;
-  }
-  s += `<path class="tri" d="M120,120 L${at(25, -30)} A${25 * S} ${25 * S} 0 0 1 ${at(25, 30)}Z"/>`;
-  for (let d = -30; d <= 30; d += 10) s += `<line class="tri" x1="${at(26.5, d).split(",")[0]}" y1="${at(26.5, d).split(",")[1]}" x2="${at(d % 30 ? 28.5 : 30.5, d).split(",")[0]}" y2="${at(d % 30 ? 28.5 : 30.5, d).split(",")[1]}"/>`;
-  return s;
+  const p = (q) => q.map((v) => v.join(",")).join(" ");
+  const [a, b] = PIECE[c];
+  return `<polygon class="piece" points="${p([[120, 120], TRI[a], TRI[b]])}"/><polygon class="tri" points="${p(TRI)}"/>
+    <line class="tri" x1="120" y1="120" x2="${TRI[0][0]}" y2="${TRI[0][1]}"/><line class="tri" x1="120" y1="120" x2="${TRI[1][0]}" y2="${TRI[1][1]}"/>
+    <line class="tri" x1="120" y1="120" x2="${TRI[2][0]}" y2="${TRI[2][1]}"/>`;
 }
-function dialPivot() { return `<circle class="sx-piv" cx="120" cy="120" r="3.6"/><circle class="sx-dot" cx="120" cy="120" r="1.2"/>`; }
 const COLS = ["var(--c1)", "var(--c2)", "var(--c3)"];
 
 function buildV2() {
@@ -1019,10 +1006,10 @@ function buildV2() {
     col.className = "col tc";
     col.innerHTML = `<div class="rib"><span data-name>&nbsp;</span></div><span class="num">${ROMAN[c]}</span><span class="tag" data-tag></span>
       <div class="colin"><svg class="dial" viewBox="0 0 240 240" role="img" aria-label="Circle ${c + 1}"><circle class="ring" cx="120" cy="120" r="100"/>
-        <circle class="ring2" cx="120" cy="120" r="76"/>${dialCenter(c)}
-        <g data-needle style="display:none"><line class="needle" x1="120" y1="115.5" x2="120" y2="31"/><circle class="gear" cx="120" cy="20" r="11"/>
+        <circle class="ring2" cx="120" cy="120" r="76"/>
+        <g data-needle style="display:none"><line class="needle" x1="120" y1="94" x2="120" y2="31"/><circle class="gear" cx="120" cy="20" r="11"/>
           <path class="pend" d="M120,9 L116.5,7 L120,7Z M116.5,7 L120,7 L120,0.5Z"/><path class="pend lo" d="M120,9 L123.5,7 L120,7Z M123.5,7 L120,7 L120,0.5Z"/></g>
-        ${dialPivot()}<g data-steps></g><g data-pulse></g></svg>
+        <g data-steps></g><g data-pulse></g>${dialCenter(c)}</svg>
       <div class="acts">
         <div class="arow"><button class="act" data-a="MUTE">MUTE</button><button class="act" data-a="TRIG">TRIGGER</button>
           <button class="act" data-a="SELECT" title="Choose it on the synth too">SELECT</button></div>
