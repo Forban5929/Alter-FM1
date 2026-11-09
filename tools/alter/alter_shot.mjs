@@ -20,6 +20,7 @@ for (const a of (script || "").split(/\s+/).filter(Boolean)) {
   else if (op === "K") { const n = parseInt(x); keys = x.endsWith("+") ? keys | 1 << n : keys & ~(1 << n); ex.web_keys(keys); render(60); }
   else if (op === "e") { const n = +y; for (let i = 0; i < Math.abs(n); i++) { ex.web_enc(+x, Math.sign(n)); render(30); } }
   else if (op === "w") render(+x);
+  else if (op === "A") { const [o, p, q] = x.split(","); ex.web_alter(+o, +p, +q); render(60); }   // (web_alter op,a,b)
   else if (op === "s") {
     const fb = new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240), px = Buffer.alloc(240 * 240 * 3);
     for (let i = 0; i < 240 * 240; i++) { const v = fb[i], p = ((v >> 8) | (v << 8)) & 0xFFFF; px[i * 3] = (p >> 11 & 31) * 255 / 31; px[i * 3 + 1] = (p >> 5 & 63) * 255 / 63; px[i * 3 + 2] = (p & 31) * 255 / 31; }

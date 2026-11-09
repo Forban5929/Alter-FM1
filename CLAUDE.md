@@ -224,6 +224,11 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   ni flash ni décalage au coup, rien du centre dans le sig ni dans les rectangles ; OFF 7 → 5 %). Page : `.piece` fixe.
   Gardé de l'après-midi : alter_look.c `alt_aaring16` mémorise l'arc par centre+canevas. Coût navigateur SMOOTH ON
   10-16 % d'une image complète (bruit). **Look validé par Romain : ne plus y toucher sans demande.**
+  Puis (Romain, même soir) **une ligne par cercle** en SMOOTH : couleur du cercle (gris en MUTE), du centre à son cercle + 6 px
+  (`alt_hand_r`, `alt_alid16c`) ; cercle choisi 2 px par-dessus, autres 1 px ; `alt_sm_dang[3]`, `alt_rc_alid(c, turn)`
+  (2 boîtes si > 50 px, sinon 1). Lignes confondues si même LEN (normal). Coût navigateur ≈ +1-2 points (13 → 14-15 %).
+  Page : `.needle` = couleur du cadran (`--c`). Test : op `web_alter` **21** = LEN d'un cercle ; `alter_shot.mjs` « A:op,a,b ».
+  Si la FM-1 perd des images : Romain veut d'**autres idées graphiques** (pas juste couper).
 - [ ] **PROCHAINE SESSION** : « nnF xxMS » de cette version (but : ~30F, < 33 ms ; 28F 24MS avant le triangle fixe). Si encore lent : dessin sur le 2e cœur ?
   alléger le son ? SPI (bsp : pas sans accord). Aussi MIDI LEARN avec le BCR32, CONSOLE de la page branchée, TRS (autre câble).
 - [ ] Idées : un contrôle → plusieurs réglages (macro) ; LEARN dans la page compagnon ; DENSITY/ROT continus.
