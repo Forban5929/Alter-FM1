@@ -223,8 +223,18 @@ static inline int32_t afl_stage(afl_svf_t *s, int32_t v0, const int32_t *a, int3
         s->ic1 = (int32_t)(((int64_t)softclip((int32_t)(((int64_t)clamp(s->ic1, -(1 << 24), 1 << 24) * afl_inv) >> 16)) *
                             afl_lim) >> 15);
     s->ic2 = clamp(s->ic2, -(1 << 26), 1 << 26);
-    hp = v0 - (int32_t)(((int64_t)k * v1) >> 24) - v2;
-    return (int32_t)(((int64_t)v2 * wl + (((int64_t)v1 * kn) >> 24) * wb + (int64_t)hp * wh) >> 15);
+    /* (v0.50: only the bands heard are worked out, each product 32 x 32 bits: one instruction on the FM-1 where a
+     * 64-bit operand took three; the same values: a band at weight 0 added nothing, and v1 * kn >> 24 fits 32 bits) */
+    {
+        int64_t acc = wl ? (int64_t)v2 * wl : 0;
+        if (wb)
+            acc += (int64_t)(int32_t)(((int64_t)v1 * kn) >> 24) * wb;
+        if (wh) {
+            hp = v0 - (int32_t)(((int64_t)k * v1) >> 24) - v2;
+            acc += (int64_t)hp * wh;
+        }
+        return (int32_t)(acc >> 15);
+    }
 }
 
 /* AFL_G at an index Q8 (0 .. AFL_TOP) */
@@ -291,7 +301,7 @@ static __attribute__((noinline)) void afl_side(uint32_t side)
                 h = clamp(u + bias, -32767, 32767) - bias;
                 y += (int32_t)(((int64_t)(h - y) * hard) >> 15);
             }
-            y = (int32_t)(((int64_t)y * 8 * mk) >> 12);
+            y = (int32_t)(((int64_t)y * (8 * mk)) >> 12);
             afs.dcy[side] = y - afs.dcx[side] + (int32_t)(((int64_t)afs.dcy[side] * 32700) >> 15);
             afs.dcx[side] = y;
             y = afs.dcy[side];

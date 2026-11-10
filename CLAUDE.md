@@ -30,7 +30,7 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
    **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v0.49 » (10/11) ; **+0.01 à CHAQUE envoi à Romain** (v0.42, v0.43…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v0.50 » (10/11) ; **+0.01 à CHAQUE envoi à Romain** (v0.42, v0.43…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. Pousser sur `etape-3d` → GitHub Actions construit le vrai firmware + publie https://forban5929.github.io/Alter-FM1/ (version
    dans /version.txt). Le cloud ne télécharge pas les artifacts ni le compilateur JieLi : **rien n'est mesuré sur la FM-1 depuis le cloud.**
@@ -74,10 +74,14 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   liste USER sur la 1re case vide ; **son USB** (Listen, Rec WAV, vumètre) ; taille AUTO d'après la fenêtre ; scroll thémé.
 - Mesures FM-1 connues : écran 28F 24MS (09/11, avant les dernières versions) ; CPU > 60 % avec 3 cercles + effets (09/11).
 
-## Où on en est (10/11 soir, v0.49)
+## Où on en est (10/11 soir, v0.50)
 **Retours de tests FM-1 (10/11, Sheet)** : tests 1-5 OK ; **CPU = problème n° 1** : 67/85 % 27F 31MS avec tous les effets,
 et avec 3 LFO + envois FX sur les pas : 18F 50MS, **CUT 393** (2C était actif). v0.49 : MASTER FILTER coupé en deux (`afl_side`), côté droit sur le 2e cœur, sortie identique au bit
-(vérifié host : 12 presets, dualcore TSAN) ; profil (callgrind, natif) : filtre ~17 %, moteur ALTER ~23 %, rev_hall 6 %. LOCKS refaits en v0.48 (7 verrous
+(vérifié host : 12 presets, dualcore TSAN) ; profil (callgrind, natif, part de l'AUDIO) : MASTER FILTER ~21 % (dont softclip ~25 % du filtre), moteur ALTER ~29 %,
+rev_hall ~9 %, master_out ~5 %. pi32v2 fait 32x32→64 en 1 instruction (+ MAC) : seul un opérande 64 bits coûte 3 mul
+(lu dans le désassemblage CI, étape « Désassemblage » de firmware.yml). v0.50 : ces cas retirés + bandes à poids 0 sautées
+(identique au bit). Pistes qui changent le son (à proposer à Romain, WAV avant/après) : coefficients par bloc de 32 sans FM,
+saturation de résonance seulement si RES haut ; reverb : couper G/D sur le 2e cœur si possible. LOCKS refaits en v0.48 (7 verrous
 = les dés : RHYTHM LENGTH VELOCITY CHANCE PITCH THROWS SOUND ; bits 1 2 32 gardés, anciens 4 8 16 64 relus LEN CHANCE SOUND
 THROWS) ; UPDATE (OCT− + OCT+ 5 s) seulement s'ils sont tenus SEULS (main.c `combo`, pas testable dans l'émulateur).
 Tout ce qui précède est codé et testé **dans l'émulateur / Chrome headless**. Romain a validé sur sa FM-1 : LFO fluide (v0.42),

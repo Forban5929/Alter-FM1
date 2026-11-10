@@ -76,5 +76,6 @@ jobs:
           for f in afl_side afl_stage afl_coef alt_render rev_hall tsvf_lp __divdi3 alt_udivmod64; do
             awk -v F="$f" '/^[A-Za-z_.$][^ ]*:$/{p=($1==F":")} /^[0-9a-f]+ <[^>]+>:$/{p=($2=="<"F">:")} p' build/felucca.dis > /tmp/fn.txt
             echo "== $f : $(grep -cE '^ *[0-9a-f]+:' /tmp/fn.txt) instructions"
-            [ "$f" = afl_side ] || [ "$f" = afl_stage ] && cat /tmp/fn.txt | head -400
+            if [ "$f" = afl_side ]; then head -400 /tmp/fn.txt; fi
           done
+          true
