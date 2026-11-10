@@ -1,49 +1,74 @@
-# Felucca
+# ALTER for the M-VAVE FM-1
 
 [![License: GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-blue.svg)](LICENSE)
 
-## Overview
+ALTER is alternative firmware for the **M-VAVE FM-1** pocket synthesizer. It turns the FM-1 into a single live instrument
+for industrial techno, noise and texture work: **three euclidean circles**, each playing its own sound, driven by
+**dice**, chaos and performance fills instead of a piano keyboard.
 
-Felucca is an open-source synthesizer firmware project that began as custom firmware for the M-VAVE FM-1.
+ALTER is a fork of [Felucca](https://github.com/hugelton/Felucca) by Leo Kuroshita. It keeps Felucca's hardware layer, effects and
+installer, and replaces the groovebox with a new instrument.
 
-Originally developed for a single instrument, Felucca is evolving toward a multi-platform architecture, separating its synthesis engines from hardware-specific implementations. The aim is to make its instruments and sound engines adaptable to different hardware platforms without committing to specific ports or release schedules.
+> **Status: test versions (v0.4x), on the way to 1.0.** Everything below works in the browser emulator; testing on real
+> FM-1s is in progress. The version is shown at power-on and in SYSTEM › ABOUT.
 
-### M-VAVE FM-1
+## What it does
 
-The FM-1 firmware is currently at version 1.7.0. Connect the FM-1 to a computer by USB, open the
-[web installer](https://hugelton.github.io/Felucca/) in Chrome or Edge and press Install; no extra hardware is needed.
-Installing is at your own risk: M-VAVE's updater or the installer's **Return to official V15** takes you back.
-[Try it in your browser](https://hugelton.github.io/Felucca/webapp/try/), no FM-1 needed.
+- **3 circles**, each a euclidean rhythm (or a TURING machine) with its own sound, envelope, effects and mixer channel.
+- **7 sound engines**: ALTER (noise and metal, inspired by the *Basimilus Iteritas Alter* Eurorack module), PHYS, NOISE,
+  RESO, PLATE, CORDE, RING.
+- **Dice**: a new pattern per circle, velocity / chance / length, pitch and throws into the delay and reverb, locks for what
+  must stay; **CHAOS** (the three circles at once) and **CHAOS TOTAL** (everything, undoable within 3 s).
+- **Performance**: mutes, fills while held (DUB DELAY, DUB REVERB, DESTROY, ROLL 1/16 and 1/8), REC of knob moves,
+  scales and chord progressions (PROG).
+- **Mixer**: per circle CONSOLE (DRIVE, 3-band EQ with KILL, compressor, delay and reverb sends), MASTER FILTER, delay with TAPE
+  mode, reverb, 3 LFOs and a modulation matrix.
+- **Song**: three rhythm slots A B C and a chain of up to 16 links.
+- **Memory**: 48 scenes (banks A B C), each with its name; everything comes back, including what the dice drew.
+- **MIDI**: USB and TRS in, a fixed CC map, clock from USB or TRS, and **MIDI learn** for any controller.
+- **Companion page** in Chrome / Edge: every setting on a big screen, the mixer, patch files on your computer, USB audio
+  (listen, record WAV).
 
-- Install: [web installer](https://hugelton.github.io/Felucca/)
-- Edit: [web editor](https://hugelton.github.io/Felucca/webapp/editor/) ([Felucca-WebApp](https://github.com/hugelton/Felucca-WebApp))
-- Read: the manual and the release notes are in the [wiki](https://github.com/hugelton/Felucca/wiki/Home)
-- Build: [BUILDING.md](BUILDING.md)
-- Related: [Felucca-Engines](https://github.com/hugelton/Felucca-Engines) (the ANALOG, LOFI, TRIO, WHEEL, NOISE and PHASE engines, MIT; still maintained) ·
-  [felucca-bsp](https://github.com/hugelton/felucca-bsp) (the FM-1 hardware layer, MPL-2.0; Felucca builds on it from 1.7.0)
+## Try, install, read
 
-## Platform Support
+| | Link |
+| --- | --- |
+| Try it in your browser (no FM-1 needed) | <https://forban5929.github.io/Alter-FM1/> |
+| Install on your FM-1 (Chrome or Edge, USB cable) | <https://forban5929.github.io/Alter-FM1/install/> |
+| Companion page | <https://forban5929.github.io/Alter-FM1/editor/> |
+| Controls guide (one page, with drawings) | <https://forban5929.github.io/Alter-FM1/editor/guide.html> |
+| Manual | [docs/MANUAL.md](docs/MANUAL.md) |
 
-| Platform | Status | Notes |
-| --- | --- | --- |
-| M-VAVE FM-1 | Supported | The original platform; firmware and web installer available. |
-| Other hardware | Not yet supported | Ports are welcome! |
+**Installing is at your own risk.** To go back to M-VAVE's firmware, use *Back to official V15* on
+[The Firmware Hub](https://thefirmwarehub.com/). If an update goes wrong, the FM-1 can always be put in UPDATE mode
+(OCT− + OCT+ held 5 s) and the rescue kit on the install page writes it again (Windows).
 
-Felucca began on the FM-1, but it is not intended to stay there. Contributions and ports to other platforms are very welcome. If you are interested in bringing Felucca to another device, feel free to open an issue or pull request to discuss it. No specific future ports or release dates are promised.
+### Which FM-1s
+
+ALTER, like Felucca, knows the two flash chips found in FM-1s so far: Puya P25Q80 (JEDEC `0x856014`) and UC25HQ80
+(`0xB36014`, newer units). On an FM-1 with another chip, ALTER says **UNKNOWN FLASH** and the chip's ID at power-on and in
+ABOUT: it plays, but saves stay in RAM and the USB update is off. Please
+[open an issue](https://github.com/Forban5929/Alter-FM1/issues) with that ID.
+
+## Building
+
+The firmware is one C file (`firmware/src/felucca.c`), integers only. GitHub Actions builds it on every push, with the
+browser emulator and the install page. To build it yourself see [BUILDING.md](BUILDING.md) (Felucca's instructions: same
+toolchain). The browser build: `sh tools/alter/wasm/build_emu.sh`.
 
 ## AI disclaimer
 
-Felucca is developed with the assistance of AI coding agents (code, tests, documentation, translation, maintenance). The
-design, features, sound design and direction are the maintainer's or the community's, and no generative AI is used for music,
-icons or artwork. See [On AI-Assisted Development and Responsibility](https://github.com/hugelton/Felucca/discussions/166).
+ALTER is developed with the help of an AI coding assistant (code, tests, documentation). The design, the sounds, the
+choices and the direction are the musician's who plays it. No generative AI is used for music or artwork.
 
 ## Credits and licence
 
-Free software: [GPL-3.0-only](LICENSE); the Hügelton Sample Pack is CC0 1.0; the engines in `firmware/engines` are MIT
-([Felucca-Engines](https://github.com/hugelton/Felucca-Engines)); the hardware layer in `firmware/bsp` is MPL-2.0
-([felucca-bsp](https://github.com/hugelton/felucca-bsp)); the bundled fonts and ported DSP keep their own licences
-([LICENSES/](LICENSES/), [LICENSING.md](LICENSING.md)). Thanks to everyone whose work and contributions are in it: [CREDITS.md](CREDITS.md).
-
-M-VAVE and FM-1 are trademarks of their respective owners. Felucca is not affiliated with or endorsed by them.
-
-Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
+- Built on **Felucca** © 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments — thank you. ALTER's additions © 2026 Forban5929.
+- Free software: [GPL-3.0-only](LICENSE). The engines in `firmware/engines` are MIT
+  ([Felucca-Engines](https://github.com/hugelton/Felucca-Engines)); the hardware layer in `firmware/bsp` is MPL-2.0
+  ([felucca-bsp](https://github.com/hugelton/felucca-bsp)); fonts and ported DSP keep their own licences
+  ([LICENSES/](LICENSES/), [LICENSING.md](LICENSING.md), [CREDITS.md](CREDITS.md)).
+- The ALTER engine is *inspired by* Noise Engineering's Basimilus Iteritas Alter. ALTER is not affiliated with or endorsed by
+  Noise Engineering.
+- M-VAVE and FM-1 are trademarks of their respective owners. ALTER is not affiliated with or endorsed by them, nor by
+  Hügelton Instruments.

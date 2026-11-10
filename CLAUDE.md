@@ -91,8 +91,8 @@ fichier patch entier, MIXER de la page, MIDI LEARN (BCR32), TRS MIDI (câble en 
 4. **Sortie GitHub** : rattraper `main` avec `etape-3d` (site publié depuis main), **Release v1.0** (fichier firmware + notes) ;
    vérifier que `build.py --release` garde l'identité USB `FM-1_900` ; page d'installation avec **retour au firmware officiel
    M-VAVE** (vérifier ce qui existe déjà dans web/install).
-5. **Documentation** : README réécrit pour ALTER (il parle encore de Felucca 1.7.0) ; manuel en anglais (pages LFO, CONSOLE,
-   SONG, LEARN, SAVE, page compagnon) à partir de guide.html ; notes de version ; vidéo/audio de jam (Romain).
+5. **Documentation** : README réécrit pour ALTER + `docs/MANUAL.md` (anglais, 17 sections, d'après guide.html + le code)
+   FAITS le 10/11 (v0.47). À tenir à jour avec guide.html. Reste : notes de version ; vidéo/audio de jam (Romain).
 6. **Ménage** : cacher la ligne CPU « nnF xxMS » (outil de test) ; retirer « VERSION TEST » de SMOOTH ; textes écran tous en
    anglais ; page ABOUT à jour.
 7. **Légal / politesse** : GPL + ABOUT déjà OK ; note sur l'aide de l'IA (comme Felucca) ; « inspiré de Basimilus », sans
