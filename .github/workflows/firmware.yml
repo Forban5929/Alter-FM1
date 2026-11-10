@@ -63,3 +63,9 @@ jobs:
             build/felucca.dis
             build-log.txt
           if-no-files-found: warn
+      - name: Essai de construction « release » (identité FM-1_900 gardée, accepté par la page d'installation)
+        run: |
+          ./build.sh --release 1.0-ci | tail -4
+          python3 -c "import re,sys;r=open('build/alter-1.0-ci.fwsc','rb').read();a=open('build/felucca.bin','rb').read();m=re.search(rb'FM-1_\d{3}',r);print('identite',m and m.group(0),'version',b'v1.0-ci' in a);sys.exit(0 if m and m.group(0)==b'FM-1_900' and b'v1.0-ci' in a else 1)"
+          python3 tools/alter/make_install.py build/alter-1.0-ci.fwsc v1.0-ci /tmp/install-ci | tail -1
+          ls build/release-1.0-ci build/release-1.0-ci/LICENSES

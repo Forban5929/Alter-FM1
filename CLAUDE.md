@@ -88,9 +88,10 @@ fichier patch entier, MIXER de la page, MIDI LEARN (BCR32), TRS MIDI (câble en 
 3. ~~Compatibilité des autres FM-1~~ **FAIT v0.47** : Felucca (à jour au 04/11) n'accepte que 0x856014 + 0xB36014, nous pareil.
    Puce inconnue → écran « UNKNOWN FLASH 0x… » 6 s au démarrage, ligne dans ABOUT, « USB UPDATE OFF: UBOOT » au lieu du
    silence, outil de secours qui affiche l'ID (`flash_unknown`/`flash_jedec` dans ui_menu.c). Écran de démarrage pas vu en vrai.
-4. **Sortie GitHub** : rattraper `main` avec `etape-3d` (site publié depuis main), **Release v1.0** (fichier firmware + notes) ;
-   vérifier que `build.py --release` garde l'identité USB `FM-1_900` ; page d'installation avec **retour au firmware officiel
-   M-VAVE** (vérifier ce qui existe déjà dans web/install).
+4. **Sortie GitHub** : FAIT (10/11) : `build.py --release X.Y` garde `FM-1_900` (Felucca mettait FM-1_9XY, refusé par
+   make_install) → `alter-X.Y.fwsc` + dossier release ; essai à chaque push (firmware.yml, `--release 1.0-ci`) ; brouillon
+   `docs/RELEASE-NOTES.md` ; retour M-VAVE = lien The Firmware Hub sur la page d'installation (déjà là).
+   RESTE : rattraper `main` (43+ commits de retard) et créer la Release v1.0 **après** les tests FM-1.
 5. **Documentation** : README réécrit pour ALTER + `docs/MANUAL.md` (anglais, 17 sections, d'après guide.html + le code)
    FAITS le 10/11 (v0.47). À tenir à jour avec guide.html. Reste : notes de version ; vidéo/audio de jam (Romain).
 6. **Ménage** : cacher la ligne CPU « nnF xxMS » (outil de test) ; retirer « VERSION TEST » de SMOOTH ; textes écran tous en
