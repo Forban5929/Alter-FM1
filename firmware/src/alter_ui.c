@@ -2548,20 +2548,13 @@ static uint32_t alt_mat_sig(void)
     } else {
         for (i = 0; i < 4u; i++)
             sg = sg * 31u + (uint32_t)alt_lfo_val(tb, i);
-        sg = sg * 31u + (uint32_t)alt_lfo_acts(tb) * 5u;   /* (the wave's scroll: apart, alt_mat_scroll) */
+        sg = sg * 31u + (uint32_t)alt_lfo_acts(tb) * 5u;
     }
     if (au.dd && fm1_ms - au.dd_ms < ALT_DD_MS)
         sg = sg * 31u + au.dd * 977u;
     return sg;
 }
 
-/* the LFO tabs' wave scrolls a pixel at a time: it alone redraws its band (Romain 10/11: "LFO: low frame rate" -- each
- * pixel of scroll was a whole screen, ~67 a second in the browser: the FM-1's 77 ms a screen could not keep up) */
-static uint32_t alt_mat_scroll(void)
-{
-    uint32_t px = alt_lfo_p * 16u / ALT_WAVE_W;
-    return au.mat_open && au.mtab != ALT_TAB_MTX && px ? alt_gl_n / px : 0u;
-}
 /* a list dropped down at x, y (its rows 15 px): the values around cur, cur lit */
 static void alt_dropdown(int32_t lx, int32_t ly, int32_t cur, int32_t n, uint16_t col, uint32_t tb, uint32_t ki)
 {
@@ -2580,53 +2573,87 @@ static void alt_dropdown(int32_t lx, int32_t ly, int32_t cur, int32_t n, uint16_
     }
 }
 
-/* an LFO tab: its title, one bar of time with its beats and steps, the wave scrolling through it (now at the right
- * edge: it comes in from there), its four settings (KNOB 1-4) */
+/* an LFO tab (Romain 10/11): the wave of the bar ahead scrolls in from the right to a bar at the left, "now"; where they
+ * meet, a dot that rises and falls with the LFO. No beats, no faint shape: only the line through the middle (+ / -).
+ * Each frame only what the wave or the dot left or took is sent again (alt_lw_frame), not the band */
 /* l'horloge des LFO lue UNE fois par image (Romain 03/11) : l'écran se dessine en deux moitiés et la vague du bas était
  * décalée de celle du haut (le son avance entre les deux) : une ligne au milieu */
 static uint32_t alt_draw_gl_n, alt_draw_lfo_p;
+#define ALT_LW_BX 12                             /* the "now" bar: 2 px at x 12-13, the dot's centre at 13 */
+#define ALT_LW_X0 14                             /* the wave: x 14 .. 231, the bar ahead */
+#define ALT_LW_W 218
+#define ALT_LW_Y0 50
+#define ALT_LW_H 112
+#define ALT_LW_R 4                               /* the dot's radius */
+static int16_t alt_lw_y[ALT_LW_W], alt_lw_dot;   /* this frame's wave (its row at each column) and dot */
+static int16_t alt_lw_py[ALT_LW_W], alt_lw_pdot; /* what is on the screen */
+static uint8_t alt_lw_ok, alt_lw_tb;             /* (alt_lw_py holds tab alt_lw_tb's) */
+static void alt_lw_calc(uint32_t tb)
+{
+    uint32_t w, r, seed, p = alt_draw_lfo_p ? alt_draw_lfo_p : 1u, now = alt_draw_gl_n, bar = 16u * p;
+    int32_t x, dep = alt_lfo_val(tb, 2), mid = ALT_LW_Y0 + ALT_LW_H / 2;
+    alt_lfo_def(tb, &w, &r, &seed);
+    for (x = -1; x < ALT_LW_W; x++) {            /* (x -1: now, the dot) */
+        uint32_t ahead = x < 0 ? 0u : (uint32_t)((uint64_t)(uint32_t)x * bar / ALT_LW_W);
+        int32_t v = alt_lfo_at(w, r, seed, now + ahead, p, 0), y;
+        if (!alt_wave_uni(w))
+            v = clamp(v, -32767, 32767);
+        y = mid - (((v * dep / 64) * (ALT_LW_H / 2 - 3)) >> 15);
+        if (x < 0)
+            alt_lw_dot = (int16_t)y;
+        else
+            alt_lw_y[x] = (int16_t)y;
+    }
+}
+/* the wave's band: the middle line, the wave, the bar, the dot (from alt_lw_y; clipped by the canvas) */
+static void alt_lw_draw(uint32_t tb, uint16_t col)
+{
+    int32_t x, py = alt_lw_dot, mid = ALT_LW_Y0 + ALT_LW_H / 2;
+    uint16_t wc = alt_lfo_acts(tb) ? col : ALT_DIM;
+    for (x = 0; x < ALT_WAVE_W; x += 3)
+        cv_pset(ALT_WAVE_X + x, mid, alt_gold_line(35));
+    for (x = 0; x < ALT_LW_W; x++) {
+        int32_t y = alt_lw_y[x];
+        if (y - py > 1 || py - y > 1)
+            cv_rect(ALT_LW_X0 + x, y < py ? y : py, 2, (y < py ? py - y : y - py) + 1, wc);
+        else
+            cv_rect(ALT_LW_X0 + x, y - 1, 1, 3, wc);
+        py = y;
+    }
+    cv_rect(ALT_LW_BX, ALT_LW_Y0, 2, ALT_LW_H, wc);   /* now */
+    alt_disc(ALT_LW_BX + 1, alt_lw_dot, ALT_LW_R + 1, ALT_BG);
+    alt_disc(ALT_LW_BX + 1, alt_lw_dot, ALT_LW_R, wc);
+}
+/* the rows column x of the wave can touch (a step drawn from the column before, 2 px wide; 1 px above and below) */
+static void alt_lw_span(const int16_t *yv, int16_t dot, int32_t x, int32_t *lo, int32_t *hi)
+{
+    int32_t a = yv[x], k;
+    *lo = *hi = a;
+    for (k = x - 2; k < x; k++) {               /* (column x: its step from x-1, and x-1's, 2 px wide, from x-2) */
+        int32_t v = k < 0 ? dot : yv[k];
+        if (v < *lo) *lo = v;
+        if (v > *hi) *hi = v;
+    }
+    *lo -= 1;
+    *hi += 1;
+}
+/* what a whole picture of the LFO tab tb left on the screen (alter_draw, after it) */
+static void alt_lw_seen(uint32_t tb)
+{
+    uint32_t i;
+    for (i = 0; i < ALT_LW_W; i++)
+        alt_lw_py[i] = alt_lw_y[i];
+    alt_lw_pdot = alt_lw_dot;
+    alt_lw_ok = 1;
+    alt_lw_tb = (uint8_t)tb;
+}
 static void alt_lfo_tab(uint32_t tb, uint16_t col)
 {
     char b[8];
-    uint32_t i, w, r, seed, p = alt_draw_lfo_p ? alt_draw_lfo_p : 1u, now = alt_draw_gl_n, bar = 16u * p;
+    uint32_t i;
     int on = alt_lfo_acts(tb);
-    int32_t x, py = 0, y0 = 50, h = 112, mid = y0 + h / 2;
-    uint16_t wc = on ? col : ALT_DIM;
-    alt_lfo_def(tb, &w, &r, &seed);
-    /* the grid: a bar, steps faint, beats brighter, the bar's ends; fixed to the beat as time scrolls past */
-    for (i = 0; i <= 16u; i++) {
-        uint32_t back = (now % p) + (16u - i) * p;     /* samples before now of the step line i */
-        int32_t xx = ALT_WAVE_X + ALT_WAVE_W - (int32_t)((uint64_t)back * ALT_WAVE_W / bar), beat = ((now / p) + i) % 4u == 0u;
-        if (xx >= ALT_WAVE_X && xx <= ALT_WAVE_X + ALT_WAVE_W) {
-            cv_rect(xx, y0, 1, h, beat ? alt_gold_line(45) : alt_gold_line(16));
-            if (beat)                            /* a beat: a gold diamond over its line */
-                alt_diamond(xx, y0 - 4, 3, 3, ALT_GOLD);
-        }
-    }
-    for (x = 0; x < ALT_WAVE_W; x += 3)
-        cv_pset(ALT_WAVE_X + x, mid, alt_gold_line(35));
-    {                                            /* the wave over the last bar, now at the right: as DEPTH scales it
-                                                 * (smaller, upside down below 0), over its full shape faint */
-        int32_t dep = alt_lfo_val(tb, 2), ghost[ALT_WAVE_W];
-        for (x = 0; x < ALT_WAVE_W; x++) {
-            uint32_t back = (uint32_t)((uint64_t)(ALT_WAVE_W - 1 - x) * bar / ALT_WAVE_W);
-            ghost[x] = alt_lfo_at(w, r, seed, now - back, p, 0);
-            if (!alt_wave_uni(w))
-                ghost[x] = clamp(ghost[x], -32767, 32767);
-        }
-        for (x = 0; x < ALT_WAVE_W; x++)         /* the full shape, faint */
-            if (!(x & 1))
-                cv_pset(ALT_WAVE_X + x, mid - ((ghost[x] * (h / 2 - 3)) >> 15), ALT_DIM);
-        for (x = 0; x < ALT_WAVE_W; x++) {       /* the wave as it moves the sound */
-            int32_t y = mid - (((ghost[x] * dep / 64) * (h / 2 - 3)) >> 15);
-            if (x && (y - py > 1 || py - y > 1))
-                cv_rect(ALT_WAVE_X + x, y < py ? y : py, 2, (y < py ? py - y : y - py) + 1, wc);
-            else
-                cv_rect(ALT_WAVE_X + x, y - 1, 1, 3, wc);
-            py = y;
-        }
-    }
-    cv_rect(ALT_WAVE_X + ALT_WAVE_W, y0, 2, h, wc);   /* now */
+    alt_lw_calc(tb);
+    alt_lw_draw(tb, col);
     if (tb < ALT_TAB_GL && alt_lfo_val(tb, 3) && alt_lfo_val(tb, 2) && !on)
         cv_text(8, 176, ALT_FS, "THE GLOBAL LEADS ON THIS DEST", ALT_DIM);
     else if (!on)
@@ -4338,7 +4365,89 @@ static int alt_sm_frame(uint32_t q, uint32_t flash)
     return 1;
 }
 
-static uint32_t alt_mat_seen, alt_mat_ms;          /* (the LFO tabs' wave: its scroll drawn, when) */
+static uint32_t alt_mat_ms;                       /* (the LFO tabs' wave: drawn when) */
+/* the LFO tab's wave shown (the LFO page open, not MTX, nothing over it) */
+static int alt_lw_vis(void)
+{
+    return !au.lockc && !au.scene_open && au.mat_open && au.mtab != ALT_TAB_MTX;
+}
+/* a frame of the LFO tab's wave (Romain 10/11): only the columns whose wave moved, each from the lowest to the highest
+ * row it took or leaves (4 columns a piece: 8 = +25 % pixels, 2 = -15 % for twice the pieces), and the dot; the same pixels as a whole picture. A list dropped down over
+ * it: the band whole, as before. 1 if something was sent */
+static int alt_lw_frame(uint32_t q, uint32_t flash)
+{
+    uint32_t tb = au.mtab, n = 0;
+    int32_t x0, x, lo, hi, a, b;
+    alt_lw_calc(tb);
+    if (!alt_lw_ok || alt_lw_tb != tb || (au.dd && fm1_ms - au.dd_ms < ALT_DD_MS)) {
+        uint32_t y = 42u;                        /* (the band whole: the rows of the wave and the dot) */
+        while (y < 166u) {
+            uint32_t h = 166u - y > 120u ? 120u : 166u - y;
+            cv_begin(240, h, ALT_BG);
+            alt_paper_rows(y, h);
+            cv_oy = -(int32_t)y;
+            alt_scene(q, flash);
+            cv_oy = 0;
+            cv_blit(0, y);
+            y += h;
+        }
+        alt_lw_seen(tb);
+        return 1;
+    }
+    for (x0 = -4; x0 < ALT_LW_W; x0 += 4) {      /* (x0 -4: the dot's piece, round the dot where it was and is) */
+        int32_t rx0, rx1, moved = 0;
+        lo = 999, hi = -999;
+        if (x0 < 0) {
+            rx0 = ALT_LW_BX + 1 - ALT_LW_R - 2, rx1 = ALT_LW_BX + 1 + ALT_LW_R + 2;
+            moved = alt_lw_dot != alt_lw_pdot;
+            lo = (alt_lw_dot < alt_lw_pdot ? alt_lw_dot : alt_lw_pdot) - ALT_LW_R - 2;
+            hi = (alt_lw_dot > alt_lw_pdot ? alt_lw_dot : alt_lw_pdot) + ALT_LW_R + 2;
+        } else {
+            rx0 = ALT_LW_X0 + x0;
+            rx1 = rx0 + 3;
+            if (rx1 > ALT_LW_X0 + ALT_LW_W - 1)
+                rx1 = ALT_LW_X0 + ALT_LW_W - 1;
+        }
+        for (x = rx0 - ALT_LW_X0; x <= rx1 - ALT_LW_X0; x++) {   /* (the wave's columns in the piece) */
+            int32_t k;
+            if (x < 0)
+                continue;
+            for (k = x - 2; k <= x; k++)         /* (a column's rows hang on its own and the two before) */
+                if (k < 0 ? alt_lw_dot != alt_lw_pdot : alt_lw_y[k] != alt_lw_py[k])
+                    moved = 1;
+            alt_lw_span(alt_lw_y, alt_lw_dot, x, &a, &b);
+            lo = a < lo ? a : lo, hi = b > hi ? b : hi;
+            alt_lw_span(alt_lw_py, alt_lw_pdot, x, &a, &b);
+            lo = a < lo ? a : lo, hi = b > hi ? b : hi;
+        }
+        if (!moved)
+            continue;
+        if (x0 < 0 && alt_lw_dot != alt_lw_pdot) {   /* (the dot's piece: the dot where it was and is) */
+            int32_t d0 = (alt_lw_dot < alt_lw_pdot ? alt_lw_dot : alt_lw_pdot) - ALT_LW_R - 2;
+            int32_t d1 = (alt_lw_dot > alt_lw_pdot ? alt_lw_dot : alt_lw_pdot) + ALT_LW_R + 2;
+            lo = d0 < lo ? d0 : lo, hi = d1 > hi ? d1 : hi;
+        }
+        if (lo < ALT_LW_Y0 - ALT_LW_R - 2)
+            lo = ALT_LW_Y0 - ALT_LW_R - 2;
+        if (hi > ALT_LW_Y0 + ALT_LW_H + ALT_LW_R + 1)
+            hi = ALT_LW_Y0 + ALT_LW_H + ALT_LW_R + 1;
+        {
+            uint32_t w = (uint32_t)(rx1 - rx0 + 1), y = (uint32_t)lo, h = (uint32_t)(hi - lo + 1);
+            cv_begin(w, h, ALT_BG);
+            alt_paper_rect((uint32_t)rx0, y, w, h);
+            cv_ox = -rx0;
+            cv_oy = -lo;
+            alt_lw_draw(tb, au.mtab == ALT_TAB_GL ? ALT_INK : ALT_COL[au.sel % AS_NCIRC]);
+            cv_ox = 0;
+            cv_oy = 0;
+            cv_blit((uint32_t)rx0, y);
+            n++;
+        }
+    }
+    alt_lw_seen(tb);
+    return n != 0;
+}
+
 static void alter_draw(void)
 {
     uint32_t sig = 0, sfoot = 0, shead = 0, i, h, flash = 0, q = au.lockc ? 0u : alt_page();
@@ -4453,8 +4562,10 @@ static void alter_draw(void)
         }
         alt_sm_foot = sfoot;
         alt_sm_head = shead;
-        if (!(ALT_SMOOTH && circles))            /* (SMOOTH's circles: the knobs and the CPU line drawn alone when they
-                                                  * change; else a whole frame, 2 a second: the alidade stopped) */
+        if (!(ALT_SMOOTH && circles) && !au.mat_open)   /* (SMOOTH's circles: the knobs and the CPU line drawn alone
+                                                  * when they change; else a whole frame, 2 a second: the alidade stopped.
+                                                  * The LFO page has neither: its own dials, in alt_mat_sig; 10/11: the CPU
+                                                  * line's 2 a second were whole screens there, the wave stopped) */
             sig = (sig * 31u + sfoot) * 31u + shead;
         if (!circles && !au.mat_open && au.mn != QP_EDIT && au.mn != QP_SYS) {   /* (another page: they are part of the
                                                   * picture; not the LFO / MTX menu, DEEP, SYSTEM: a whole screen each step
@@ -4528,31 +4639,17 @@ static void alter_draw(void)
         fl_seen = (uint8_t)flash;
     }
     if (au.drawn && sig == au.sig) {
-        uint32_t sc = alt_mat_scroll();
-        if (sc != alt_mat_seen && alt_now_ms - alt_mat_ms >= alt_sm_cap * 3u / 2u) {   /* (the LFO's wave: its band, half the
-                                                  * screen, ~24 a second: its SPI time ~39 ms on the FM-1) */
-            uint32_t lo = 42u;                   /* (the beats' diamonds from row 43, the wave to 162) */
-            alt_mat_seen = sc;
+        if (alt_lw_vis() && alt_now_ms - alt_mat_ms >= alt_sm_cap) {
             alt_mat_ms = alt_now_ms;
             alt_draw_gl_n = alt_gl_n;
             alt_draw_lfo_p = alt_lfo_p;
-            while (lo < 166u) {
-                uint32_t n = 166u - lo > 120u ? 120u : 166u - lo;
-                cv_begin(240, n, ALT_BG);
-                alt_paper_rows(lo, n);
-                cv_oy = -(int32_t)lo;
-                alt_scene(q, flash);
-                cv_oy = 0;
-                cv_blit(0, lo);
-                lo += n;
-            }
-            alt_fps_tick();
+            if (alt_lw_frame(q, flash))
+                alt_fps_tick();
         }
         return;
     }
     au.sig = sig;
     au.drawn = 1;
-    alt_mat_seen = alt_mat_scroll();
     alt_mat_ms = alt_now_ms;
     alt_draw_gl_n = alt_gl_n;                    /* (une seule heure pour les deux moitiés) */
     alt_draw_lfo_p = alt_lfo_p;
@@ -4565,6 +4662,10 @@ static void alter_draw(void)
         cv_blit(0, i * 120u);
     }
     alt_sm_seen();
+    alt_lw_ok = 0;
+    if (alt_lw_vis())                            /* (the LFO's wave now on the screen: the next frames send only its
+                                                  * changes) */
+        alt_lw_seen(au.mtab);
     alt_fps_tick();
     alt_full_n++;
 }

@@ -25,7 +25,7 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
    **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v0.41 » le 10/11 ; **+0.01 à CHAQUE envoi à Romain** (v0.42, v0.43…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v0.42 » (10/11) ; **+0.01 à CHAQUE envoi à Romain** (v0.42, v0.43…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. Pousser sur `etape-3d` → GitHub Actions construit le vrai firmware + publie https://forban5929.github.io/Alter-FM1/ (version
    dans /version.txt). Le cloud ne télécharge pas les artifacts ni le compilateur JieLi : **rien n'est mesuré sur la FM-1 depuis le cloud.**
@@ -244,6 +244,14 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   (fondu 256 éch. ; même niveau, phase différente). am_master 8 → 3 %. Reste cher : moteurs ~28 %, MASTER FILTER 15 %,
   rev_hall 7 %. **Rien mesuré sur la FM-1.** Le CI avait refusé ce build (constante −(1<<22) prise pour une adresse ROM
   dans am_master : ajoutée à `ROM_CONST_OK` de tools/build.py, comme afl_block) → publié en **v0.41**.
+- [x] 10/11 **v0.42** (Romain : « LFO pas smooth ») : page LFO refaite (choix de Romain) : **plus de grille ni losanges ni
+  forme pâle** ; barre « maintenant » à GAUCHE (x 12) + **point** (r 4) qui monte/descend avec le LFO ; la vague de la mesure
+  À VENIR arrive de la droite (`alt_lw_calc`/`alt_lw_draw`) ; ligne pointillée du milieu gardée. Envoi : seules les colonnes
+  qui bougent, par morceaux de 4 px, de la ligne la plus haute à la plus basse touchée (`alt_lw_frame`, `alt_lw_span`) ;
+  liste DEST ouverte = bande entière comme avant. Émulateur : identique pixel à pixel ; SPI estimé 3-13 ms/image (avant :
+  bande 30 k px ≈ 40 ms), ~33 images/s (cap 28 ms). Aussi : sur la page LFO, ligne CPU et knobs du bas **hors du sig**
+  (ils n'y sont pas dessinés ; sur FM-1 = 2 écrans entiers/s pour rien). `alt_mat_scroll`/`alt_mat_seen` supprimés.
+  **Pas mesuré sur la FM-1.** Page compagnon : LFO pas changé.
 - [ ] **PROCHAINE SESSION** : « nnF xxMS » de cette version (but : ~30F, < 33 ms ; 28F 24MS avant le triangle fixe). Si encore lent : dessin sur le 2e cœur ?
   alléger le son ? SPI (bsp : pas sans accord). Aussi MIDI LEARN avec le BCR32, CONSOLE de la page branchée, TRS (autre câble).
 - [ ] Idées : un contrôle → plusieurs réglages (macro) ; LEARN dans la page compagnon ; DENSITY/ROT continus.
