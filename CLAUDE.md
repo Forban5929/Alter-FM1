@@ -10,7 +10,8 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
 
 ## Démarrer une session (≈ 2 min)
 1. `add_repo Forban5929/alter-fm1` (push) · `git clone --depth 1` · `git fetch --depth 40 origin etape-3d:etape-3d` ·
-   `git checkout etape-3d` · `git submodule update --init --depth 1`. **Travail sur `etape-3d`** (main = étape 2, à rattraper avant la 1.0).
+   `git checkout etape-3d` · `git submodule update --init --depth 1`. **Travail sur `etape-3d`** ; `main` (vitrine GitHub) = même
+   commit depuis le 10/11 : après chaque envoi, `git push origin etape-3d:main` (avance rapide seulement).
 2. Construire + tester :
    - `sh tools/alter/wasm/build_emu.sh` (→ `build/emu/`, ~30 s ; `mkdir -p build/alter build/host` avant les cc)
    - `node tools/alter/alter_emu_test.mjs build/emu/felucca.wasm build/emu/alter_play.wav` · `node tools/alter/alter_fx_test.mjs build/emu/felucca.wasm`
@@ -91,7 +92,7 @@ fichier patch entier, MIXER de la page, MIDI LEARN (BCR32), TRS MIDI (câble en 
 4. **Sortie GitHub** : FAIT (10/11) : `build.py --release X.Y` garde `FM-1_900` (Felucca mettait FM-1_9XY, refusé par
    make_install) → `alter-X.Y.fwsc` + dossier release ; essai à chaque push (firmware.yml, `--release 1.0-ci`) ; brouillon
    `docs/RELEASE-NOTES.md` ; retour M-VAVE = lien The Firmware Hub sur la page d'installation (déjà là).
-   RESTE : rattraper `main` (43+ commits de retard) et créer la Release v1.0 **après** les tests FM-1.
+   `main` rattrapé le 10/11 (avance rapide). RESTE : la Release v1.0 **après** les tests FM-1.
 5. **Documentation** : README réécrit pour ALTER + `docs/MANUAL.md` (anglais, 17 sections, d'après guide.html + le code)
    FAITS le 10/11 (v0.47). À tenir à jour avec guide.html. Reste : notes de version ; vidéo/audio de jam (Romain).
 6. **Ménage** : cacher la ligne CPU « nnF xxMS » (outil de test) ; retirer « VERSION TEST » de SMOOTH ; textes écran tous en
