@@ -924,3 +924,8 @@ La vue DEEP (3c) doit d'abord offrir en ALTER : GLIDE, canal/horloge MIDI, 2e c�
 - LOCKS refaits sur les dés actuels (RHYTHM LENGTH VELOCITY CHANCE PITCH THROWS SOUND) ; GLIDE/FORCE/TIMBRE/ENV regroupés
   dans SOUND. Les anciens bits sauvés changent de sens (4→LEN, 8→CHANCE, 64→THROWS, 16→SOUND), sans effet si non utilisés.
 - Mode UPDATE : plus jamais pendant un combo OCT− + OCT+ + autre touche (la page LOCKS tenue 5 s arrêtait le jeu).
+- v0.49 : 2C était actif pendant les CUT. Profil natif (callgrind sur felucca_web.c compilé en natif, /tmp/prof) : MASTER
+  FILTER ~17 % de l'audio, moteur ALTER ~23 %, rev_hall ~6 %, master ~3 %. Le filtre tourne sur le cœur 0 APRÈS les parties :
+  il est découpé (partagé par tranche d'abord, puis `afl_side(0)` ici et `afl_side(1)` sur le 2e cœur, `afl_side_c1`).
+  Sortie identique au bit (12 presets, ancien/nouveau binaire), dualcore_test TSAN OK. Coefficients pas recalculés quand
+  les deux côtés ont le même g (DETUNE au milieu). stack_c1.py mesure aussi la pile depuis afl_side_c1.

@@ -255,17 +255,76 @@ static void afl_reset(void)
 }
 
 /* the block (fx.c mix_block, before the MASTER): l, r the mix; w the wet bus, folded in and emptied */
+/* (10/11, v0.49, Romain's CUT 393: the filter split in two so the second core can take the right side) what a block's
+ * two sides share, worked out first on this core: per stretch of AFL_SUB the coefficients, the band weights and MIX's
+ * sine / cosine; the follower and the peak run on the input as before (the sides never fed them). Then each side alone
+ * (afl_side: its own SVFs, DC blocker and noise state), the left here, the right on the second core when it answers.
+ * The arithmetic is the same, in the same order: the output is bit for bit the one-loop version's. */
+#define AFL_NST 8u                       /* stretches a block (blocks of 64 at most) */
+typedef struct {
+    int32_t a2[2][3], a1[2][3], wl, wb, wh, ms, mc;
+} afl_st_t;
+static struct {
+    afl_st_t st[AFL_NST];
+    int32_t bias, sb, hard, mk, kn, st1;
+    int32_t *lr[2], *w;
+    uint32_t n;
+} afb;
+static int32_t afl_rng1;                 /* the right side's noise (the left keeps afs.rng; both start at 0 as before) */
+
+static __attribute__((noinline)) void afl_side(uint32_t side)
+{
+    int32_t *o_ = afb.lr[side], *w = afb.w, bias = afb.bias, sb = afb.sb, hard = afb.hard, mk = afb.mk;
+    int32_t *rng = side ? &afl_rng1 : &afs.rng;
+    afl_svf_t *s = afs.s[side];
+    uint32_t i, j, n = afb.n, q;
+    for (j = 0, q = 0; j < n; j += AFL_SUB, q++) {
+        const afl_st_t *t = &afb.st[q];
+        uint32_t e = j + AFL_SUB < n ? j + AFL_SUB : n;
+        for (i = j; i < e; i++) {
+            int32_t x = clamp(o_[i] + w[i], -(1 << 22), 1 << 22), u, y, h, o;
+            /* DRIVE: into tanh units (the mix's full scale ~ 0.5), its bias taken back out */
+            u = (int32_t)(((int64_t)x * afs.drv) >> 15);
+            u = clamp(u, -(1 << 24), 1 << 24);
+            y = softclip(u + bias) - sb;
+            if (hard) {
+                h = clamp(u + bias, -32767, 32767) - bias;
+                y += (int32_t)(((int64_t)(h - y) * hard) >> 15);
+            }
+            y = (int32_t)(((int64_t)y * 8 * mk) >> 12);
+            afs.dcy[side] = y - afs.dcx[side] + (int32_t)(((int64_t)afs.dcy[side] * 32700) >> 15);
+            afs.dcx[side] = y;
+            y = afs.dcy[side];
+            /* the filter: 24 dB's first stage (plain), crossfaded in; the resonant stage */
+            if (afb.st1) {
+                o = afl_stage(&s[0], y, t->a1[side], AFL_K1, AFL_K1, t->wl, t->wb, t->wh, 0);
+                y = y + (int32_t)(((int64_t)(o - y) * afs.w24) >> 15);
+            }
+            if (afs.k < 0)                   /* (a breath of noise: the scream starts on its own) */
+                s[1].ic1 += (int32_t)(noise32(rng) >> 28) - 8;
+            o = afl_stage(&s[1], y, t->a2[side], afs.k, afb.kn, t->wl, t->wb, t->wh, 1);
+            o_[i] = (int32_t)(((int64_t)x * t->mc + (int64_t)o * t->ms) >> 15);
+        }
+    }
+}
+#if FELUCCA_CPU2 && defined(C1_RUN)
+static void afl_side_c1(uint32_t arg) { (void)arg; afl_side(1); }
+static uint32_t afl_c1_blocks;           /* blocks whose right side the second core took (console / tests) */
+#endif
+
 static __attribute__((noinline)) void afl_block(int32_t *l, int32_t *r, int32_t *w, uint32_t n)
 {
-    int32_t mixT = afl_p(AFL_MIX) * 258, kT, tT, w24T, drvT, src, mod, mtyp, fm, det, dv, bias, hard, mk, pk = 0;
-    int32_t m0, dm, beat0 = -1, sb, st1;
-    uint32_t i, j;
+    int32_t mixT = afl_p(AFL_MIX) * 258, kT, tT, w24T, drvT, src, mod, mtyp, fm, det, dv, bias, hard, pk = 0;
+    int32_t m0, dm, beat0 = -1;
+    uint32_t i, j, q;
     if (!afs.run) {
         if (!mixT)
             return;
         afl_reset();
         afs.run = 1;
     }
+    if (n > AFL_NST * AFL_SUB)
+        n = AFL_NST * AFL_SUB;
     kT = (1 << 25) - afl_p(AFL_RES) * 317040;   /* RES 0..127 -> k 2 .. -0.4 */
     tT = afl_p(AFL_TYPE) * 258;
     w24T = afl_p(AFL_SLOPE) ? 32768 : 0;
@@ -292,10 +351,14 @@ static __attribute__((noinline)) void afl_block(int32_t *l, int32_t *r, int32_t 
      * (AFL_MK) */
     bias = dv * dv * 7000 / 16129;       /* (tanh units: up to ~0.2) */
     hard = dv > 64 ? (dv - 64) * 330 : 0;
-    mk = afs.mk;
-    sb = softclip(bias);                 /* (once a block, not twice a sample: 10/11) */
-    st1 = afs.w24 || w24T;               /* (12 dB, settled: the 24 dB's first stage would be crossfaded out at 0:
+    afb.bias = bias;
+    afb.hard = hard;
+    afb.mk = afs.mk;
+    afb.sb = softclip(bias);             /* (once a block, not twice a sample: 10/11) */
+    afb.st1 = afs.w24 || w24T;           /* (12 dB, settled: the 24 dB's first stage would be crossfaded out at 0:
                                           * not run, the output the same; it starts again from where it was) */
+    afb.kn = clamp(afs.k, 5872026, 1 << 25) * 2;   /* the BP brought up: 2 k, k at least 0.35 (+6 dB at its peak:
+                                                 * a band of a full mix keeps some of its level) */
     /* the band state's ceiling: high while the filter is tame (k >= 1: nothing touched), low as it screams (k <= 0:
      * a self-oscillation about 12 dB under a loud mix's peaks: a sine is loud for its peak) */
     afl_lim = 16384 + (int32_t)(((int64_t)clamp(afs.k, 0, 1 << 24) * 114688) >> 24);
@@ -305,9 +368,10 @@ static __attribute__((noinline)) void afl_block(int32_t *l, int32_t *r, int32_t 
         uint32_t kk = DIV[src - AFS_4], s = am_gstep ? am_gstep - 1u : 0u;
         beat0 = (int32_t)((s % kk) * am_p + am_pos);
     }
-    for (j = 0; j < n; j += AFL_SUB) {
+    for (j = 0, q = 0; j < n; j += AFL_SUB, q++) {
         uint32_t e = j + AFL_SUB < n ? j + AFL_SUB : n, side;
-        int32_t envq, sq = 0, p, t, wl, wb, wh, a2[2][3], a1[2][3], kn, ms, mc;
+        int32_t envq, sq = 0, p, t, a, gs[2];
+        afl_st_t *st = &afb.st[q];
         /* the follower's value and the FM's sample for this stretch, Q15 */
         if (src >= AFS_4)
             envq = beat0 >= 0 ? afl_beat((uint32_t)beat0 + j) : 0;
@@ -321,26 +385,27 @@ static __attribute__((noinline)) void afl_block(int32_t *l, int32_t *r, int32_t 
         t = clamp(afs.t + mtyp * envq / 64, 0, 32768);
         afl_now = clamp(p - det, 0, AFL_TOP);
         afl_tnow = t;
-        wl = t < 16384 ? 32768 - 2 * t : 0;
-        wh = t > 16384 ? 2 * t - 32768 : 0;
-        wb = 32768 - wl - wh;
-        kn = clamp(afs.k, 5872026, 1 << 25) * 2;   /* the BP brought up: 2 k, k at least 0.35 (+6 dB at its peak:
-                                                 * a band of a full mix keeps some of its level) */
+        st->wl = t < 16384 ? 32768 - 2 * t : 0;
+        st->wh = t > 16384 ? 2 * t - 32768 : 0;
+        st->wb = 32768 - st->wl - st->wh;
+        for (side = 0; side < 2u; side++)
+            gs[side] = afl_g(clamp(side ? p + det : p - det, 0, AFL_TOP));
         for (side = 0; side < 2u; side++) {
-            int32_t g = afl_g(clamp(side ? p + det : p - det, 0, AFL_TOP));
-            afl_coef(g, afs.k, a2[side]);
-            if (st1)
-                afl_coef(g, AFL_K1, a1[side]);
+            if (side && gs[1] == gs[0]) {    /* (DETUNE at the middle: the same coefficients, not worked out twice) */
+                for (i = 0; i < 3u; i++)
+                    st->a2[1][i] = st->a2[0][i], st->a1[1][i] = st->a1[0][i];
+                break;
+            }
+            afl_coef(gs[side], afs.k, st->a2[side]);
+            if (afb.st1)
+                afl_coef(gs[side], AFL_K1, st->a1[side]);
         }
         /* MIX: equal power, its sine / cosine at this stretch's start */
-        ms = sine_i((uint32_t)(afs.mix > 32767 ? 32767 : m0 + dm * (int32_t)j) << 15);
-        mc = sine_i(((uint32_t)(afs.mix > 32767 ? 32767 : m0 + dm * (int32_t)j) << 15) + 0x40000000u);
-        for (i = j; i < e; i++) {
-            int32_t in[2], a;
-            in[0] = clamp(l[i] + w[i], -(1 << 22), 1 << 22);
-            in[1] = clamp(r[i] + w[i], -(1 << 22), 1 << 22);
-            w[i] = 0;
-            a = ((in[0] < 0 ? -in[0] : in[0]) + (in[1] < 0 ? -in[1] : in[1])) >> 1;
+        st->ms = sine_i((uint32_t)(afs.mix > 32767 ? 32767 : m0 + dm * (int32_t)j) << 15);
+        st->mc = sine_i(((uint32_t)(afs.mix > 32767 ? 32767 : m0 + dm * (int32_t)j) << 15) + 0x40000000u);
+        for (i = j; i < e; i++) {            /* the peak and the follower, on the input */
+            int32_t i0 = clamp(l[i] + w[i], -(1 << 22), 1 << 22), i1 = clamp(r[i] + w[i], -(1 << 22), 1 << 22);
+            a = ((i0 < 0 ? -i0 : i0) + (i1 < 0 ? -i1 : i1)) >> 1;
             if (a > pk)
                 pk = a;
             if (src >= AFS_C1 && src <= AFS_C3) {
@@ -349,37 +414,26 @@ static __attribute__((noinline)) void afl_block(int32_t *l, int32_t *r, int32_t 
             }
             if (src < AFS_4)                 /* the follower: up in ~5 ms, down in ~100 ms */
                 afs.env += (int32_t)(((int64_t)(a - afs.env) * (a > afs.env ? 296 : 15)) >> 16);
-            for (side = 0; side < 2u; side++) {
-                afl_svf_t *s = afs.s[side];
-                int32_t x = in[side], u, y, h, o;
-                /* DRIVE: into tanh units (the mix's full scale ~ 0.5), its bias taken back out */
-                u = (int32_t)(((int64_t)x * afs.drv) >> 15);
-                u = clamp(u, -(1 << 24), 1 << 24);
-                y = softclip(u + bias) - sb;
-                if (hard) {
-                    h = clamp(u + bias, -32767, 32767) - bias;
-                    y += (int32_t)(((int64_t)(h - y) * hard) >> 15);
-                }
-                y = (int32_t)(((int64_t)y * 8 * mk) >> 12);
-                afs.dcy[side] = y - afs.dcx[side] + (int32_t)(((int64_t)afs.dcy[side] * 32700) >> 15);
-                afs.dcx[side] = y;
-                y = afs.dcy[side];
-                /* the filter: 24 dB's first stage (plain), crossfaded in; the resonant stage */
-                if (st1) {
-                    o = afl_stage(&s[0], y, a1[side], AFL_K1, AFL_K1, wl, wb, wh, 0);
-                    y = y + (int32_t)(((int64_t)(o - y) * afs.w24) >> 15);
-                }
-                if (afs.k < 0)               /* (a breath of noise: the scream starts on its own) */
-                    s[1].ic1 += (int32_t)(noise32(&afs.rng) >> 28) - 8;
-                o = afl_stage(&s[1], y, a2[side], afs.k, kn, wl, wb, wh, 1);
-                o = (int32_t)(((int64_t)x * mc + (int64_t)o * ms) >> 15);
-                if (side)
-                    r[i] = o;
-                else
-                    l[i] = o;
-            }
         }
     }
+    afb.lr[0] = l;
+    afb.lr[1] = r;
+    afb.w = w;
+    afb.n = n;
+#if FELUCCA_CPU2 && defined(C1_RUN)
+    if (C1_ON() && C1_RUN(afl_side_c1, 0)) {
+        afl_side(0);
+        if (C1_WAIT())                   /* it stopped answering: the right side here */
+            afl_side(1);
+        afl_c1_blocks++;
+    } else
+#endif
+    {
+        afl_side(0);
+        afl_side(1);
+    }
+    for (i = 0; i < n; i++)
+        w[i] = 0;
     afl_peak = pk;
     if (!mixT && !afs.mix) {             /* off: nothing runs from the next block (the output as without it) */
         afs.run = 0;

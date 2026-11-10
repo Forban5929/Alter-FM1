@@ -115,14 +115,20 @@ def main(path, formes=False):
         path_of[fn] = via
         return memo[fn]
 
-    root = "c1_parts"
-    if root not in fns:
-        sys.exit(f"stack_c1: {root} absent du désassemblage")
-    total = depth(root, [])
-    chain, fn = [], root
-    while fn:
-        chain.append(f"{fn} ({fns[fn]['frame']} o{' +indirect' if fns[fn]['icall'] else ''})")
-        fn = path_of.get(fn)
+    total, chain = 0, []
+    for root in ("c1_parts", "afl_side_c1"):         # (v0.49 : le côté droit du MASTER FILTER aussi)
+        if root not in fns:
+            if root == "c1_parts":
+                sys.exit(f"stack_c1: {root} absent du désassemblage")
+            continue
+        t = depth(root, [])
+        ch, fn = [], root
+        while fn:
+            ch.append(f"{fn} ({fns[fn]['frame']} o{' +indirect' if fns[fn]['icall'] else ''})")
+            fn = path_of.get(fn)
+        print(f"pile 2e cœur depuis {root} : {t} o")
+        if t > total:
+            total, chain = t, ch
     print(f"pile 2e cœur, pire chemin : {total} o sur {LIMIT} ({total * 100 // LIMIT} %)")
     print("  " + "\n  → ".join(chain))
     print(f"  appels indirects résolus vers {len(eng)} fonctions de moteurs")
