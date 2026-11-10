@@ -258,7 +258,8 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   groupe 17 `LV_VOL` alt_mgain) ; la CONSOLE quitte EFFECTS. Détail : LINK.md « 10/11 ». Testé : link (BLOB aller-retour après
   NEW, somme fausse refusée, banque C, PAT muet), C16 après extinction (émulateur), page en démo dans **Chrome headless**
   (`/tmp/cdp.mjs` : google-chrome --remote-debugging-port, site servi par `python3 -m http.server` ; patch ouvert = même scène,
-  MUTE des 2 côtés). **Pas sur la FM-1.** Romain veut aussi (réponse du 10/11) : liste de ce qui manque pour une version
+  MUTE des 2 côtés). CI : un littéral 0x10000u refusé (« register/window address », tools/build.py MMIO_LIT) → éviter
+  les nombres 0x1xxxx/0x4xxxx/0x5xxxx/0x20xxxxx dans firmware/src. **Pas sur la FM-1.** Romain veut aussi (réponse du 10/11) : liste de ce qui manque pour une version
   publique (README ALTER, Release v1.0 sur main, manuel, tests FM-1, puces flash des autres FM-1, retour au firmware officiel).
 - [ ] **PROCHAINE SESSION** : « nnF xxMS » de cette version (but : ~30F, < 33 ms ; 28F 24MS avant le triangle fixe). Si encore lent : dessin sur le 2e cœur ?
   alléger le son ? SPI (bsp : pas sans accord). Aussi MIDI LEARN avec le BCR32, CONSOLE de la page branchée, TRS (autre câble).
