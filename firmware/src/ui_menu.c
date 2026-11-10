@@ -88,13 +88,14 @@ static int32_t menu_document(int32_t y, int draw)
     if (draw) {
         cv_text(6, y + 2, &AF_L, "ALTER", T_THEME);
         cv_text(6, y + 38, &AF_S, "Industrial / noise / texture instrument", T_TEXT);
-        cv_text(6, y + 58, &AF_M, FELUCCA_VERSION, T_THEME);
-        cv_text_r(232, y + 61, &AF_S, __DATE__, T_MID, T_BG);
-        cv_text(6, y + 82, &AF_S, "Built on Felucca", T_TEXT);
-        cv_text(6, y + 100, &AF_S, "(C) 2026 Leo Kuroshita", T_TEXT);
-        cv_text(6, y + 118, &AF_S, "GPL-3.0-only", T_TEXT);
-        cv_text(6, y + 138, &AF_S, "github.com/Forban5929", T_MID);
-        cv_text(6, y + 156, &AF_S, "/alter-fm1", T_MID);
+        cv_text(6, y + 54, &AF_L, FELUCCA_VERSION, T_THEME);         /* (the version, big; built when, at the right) */
+        cv_text_r(232, y + 60, &AF_S, __DATE__, T_MID, T_BG);
+        cv_text_r(232, y + 74, &AF_S, __TIME__, T_MID, T_BG);
+        cv_text(6, y + 94, &AF_S, "Built on Felucca", T_TEXT);
+        cv_text(6, y + 112, &AF_S, "(C) 2026 Leo Kuroshita", T_TEXT);
+        cv_text(6, y + 130, &AF_S, "GPL-3.0-only", T_TEXT);
+        cv_text(6, y + 150, &AF_S, "github.com/Forban5929", T_MID);
+        cv_text(6, y + 168, &AF_S, "/alter-fm1", T_MID);
     }
     y = menu_text("CREDITS", y + 216, T_THEME, draw) + 8;
     for (i = 0; i < NELEM(MENU_CREDITS); i++) {

@@ -41,7 +41,7 @@ LOADER_NAME = b"usb_hid_ota.bin"    # the file name the SPL looks for
 DOCKER_IMAGE = os.environ.get("JIELI_DOCKER_IMAGE", "debian:bookworm-slim")
 # ALTER : constantes qui TOMBENT dans la plage d'adresses de la ROM mais n'en sont pas (vérifié au désassemblage, 03/11) :
 # afl_block (alter_filter.c) : la limite clamp(..., -(1 << 22), 1 << 22) = 0xFFC00000, servie à une comparaison (ifs r1 >= r3).
-ROM_CONST_OK = {"afl_block": {0xFFC00000}}
+ROM_CONST_OK = {"afl_block": {0xFFC00000}, "am_master": {0xFFC00000}}  # (-(1 << 22): a clamp, not an address)
 CFLAGS = ["-Os", "-ffunction-sections", "-fno-builtin", "-Wall", "-Wno-unused-function"]
 LINE = re.compile(r"^\s*([0-9a-f]+):\s+((?:[0-9a-f]{2} )+)\s*\t(.*)$")
 
