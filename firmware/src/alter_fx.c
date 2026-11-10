@@ -272,6 +272,9 @@ static inline void am_svf(am_svf_t *f, int32_t x, int32_t fc, int32_t *lp, int32
 }
 static int32_t am_g[3] = {4096, 4096, 4096};   /* the bands' gains now, Q12 */
 static int32_t am_env, am_cg = 32768;     /* the compressor's detector, its gain now (Q15) */
+static int32_t am_xf;                     /* the EQ's share (10/11): 0 passed by (LOW MID HIGH flat: the COMP or CLIP
+                                           * alone, 12 filters a sample saved) .. 256 the three bands; 256 samples
+                                           * from one to the other (its filters start again from rest) */
 
 static int am_on(void)
 {
@@ -319,7 +322,7 @@ static __attribute__((noinline)) void am_master(int32_t *l, int32_t *r, int32_t 
 {
     uint32_t i, j, ch, comp = amx[AMX_COMP], clip = amx[AMX_CLIP];
     int32_t g0[3], d[3], cg = am_cg, mk = 4096 + (int32_t)comp * 24, cdrv = 4096 + (int32_t)clip * 48;
-    int32_t thr = 32767 - (int32_t)comp * 200, env = am_env, gmin = 32768;
+    int32_t thr = 32767 - (int32_t)comp * 200, env = am_env, gmin = 32768, eqd;
     for (i = 0; i < 3u; i++) {                          /* the bands' gains glide (a quarter of the way a block) */
         int32_t tg = am_band_g(amx[AMX_LOW + i]);
         g0[i] = am_g[i];
@@ -327,6 +330,16 @@ static __attribute__((noinline)) void am_master(int32_t *l, int32_t *r, int32_t 
         if ((tg - am_g[i]) * (tg - am_g[i]) < 16)
             am_g[i] = tg;
         d[i] = (am_g[i] - g0[i]) / (int32_t)n;
+    }
+    {
+        int want = amx[AMX_LOW] != 64 || amx[AMX_MID] != 64 || amx[AMX_HIGH] != 64 || am_g[0] != 4096 || am_g[1] != 4096 ||
+                   am_g[2] != 4096 || g0[0] != 4096 || g0[1] != 4096 || g0[2] != 4096;
+        eqd = want ? 1 : -1;
+        if (!want && !am_xf) {                          /* (passed by: its filters at rest, for when it comes back) */
+            uint32_t k;
+            for (k = 0; k < sizeof am_f / sizeof(int32_t); k++)
+                ((int32_t *)am_f)[k] = 0;
+        }
     }
     for (j = 0; j < n; j += AM_SUB) {
         uint32_t e = j + AM_SUB < n ? j + AM_SUB : n;
@@ -336,6 +349,11 @@ static __attribute__((noinline)) void am_master(int32_t *l, int32_t *r, int32_t 
             x[0] = l[i] + w[i];
             x[1] = r[i] + w[i];
             w[i] = 0;
+            am_xf = clamp(am_xf + eqd, 0, 256);
+            if (!am_xf) {                               /* (no EQ: the mix as it comes, kept in range as the bands do) */
+                x[0] = clamp(x[0], -(1 << 22), 1 << 22);
+                x[1] = clamp(x[1], -(1 << 22), 1 << 22);
+            } else
             for (ch = 0; ch < 2u; ch++) {               /* EQ: the three bands, each by its gain */
                 am_svf_t *f = am_f[ch];
                 int32_t v = clamp(x[ch], -(1 << 22), 1 << 22) * 16, lo, rest, mid, hi, t0, t1;
@@ -346,7 +364,12 @@ static __attribute__((noinline)) void am_master(int32_t *l, int32_t *r, int32_t 
                 am_svf(&f[3], rest, AM_F_HI, &t0, &t1);
                 am_svf(&f[4], t0, AM_F_HI, &mid, &rest);
                 am_svf(&f[5], t1, AM_F_HI, &rest, &hi);
-                x[ch] = (int32_t)(((int64_t)lo * g0[0] + (int64_t)mid * g0[1] + (int64_t)hi * g0[2]) >> 16);
+                v = (int32_t)(((int64_t)lo * g0[0] + (int64_t)mid * g0[1] + (int64_t)hi * g0[2]) >> 16);
+                if (am_xf < 256) {                      /* (coming in or going: crossfaded with the mix itself) */
+                    int32_t dry = clamp(x[ch], -(1 << 22), 1 << 22);
+                    v = dry + (int32_t)(((int64_t)(v - dry) * am_xf) >> 8);
+                }
+                x[ch] = v;
             }
             g0[0] += d[0];
             g0[1] += d[1];

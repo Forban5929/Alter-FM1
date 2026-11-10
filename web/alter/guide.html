@@ -138,7 +138,7 @@ td:first-child { white-space: nowrap; }
 
 <section class="tc" id="save"><div class="t"><span>Save &amp; names</span></div><span class="num">XXI</span>
   <p class="lead">SAVE opens the SAVE page: 4 tabs (ALGORITHM) — SCENES A, SCENES B, PATT. A, PATT. B — of 16 slots each.
-    A <b>scene</b> is everything (sounds, rhythms, effects, REC, ranges); a <b>pattern</b> the rhythms only.</p>
+    A <b>scene</b> is everything (sounds, rhythms, effects, REC, ranges, what the dice, CHAOS and CHAOS TOTAL drew, the chord PROG; a TURING comes back frozen as it was); a <b>pattern</b> the rhythms only.</p>
   <div id="mvSave"></div>
 </section>
 
@@ -266,12 +266,12 @@ function gesture(host, { keys = {}, btns = [], title, words, only }) {
 function dice() {
   const h = document.getElementById("mvDice"), D = [7, 9, 11];
   gesture(h, { keys: { 7: "press" }, only: D, title: "DICE tapped: a new pattern", words: "HITS, ROT, flams and a ratchet, drawn at once for that circle." });
-  gesture(h, { keys: { 7: "press" }, btns: [["OCT−", "hold"]], only: D, title: "OCT− + DICE: velocity and chance", words: "Only the VELO and CHANCE lanes: velocity 100 % mostly (70 %), chance lowered on some hits." });
+  gesture(h, { keys: { 7: "press" }, btns: [["OCT−", "hold"]], only: D, title: "OCT− + DICE: velocity, chance, length", words: "The VELO and CHANCE lanes (velocity 100 % mostly, chance lowered on some hits) and a new LEN, 5 to 16 steps (mostly near 16)." });
   gesture(h, { keys: { 7: "press" }, btns: [["", ""], ["OCT+", "hold"]], only: D, title: "OCT+ + DICE: pitch and throws", words: "The PITCH lane and the hits thrown into the delay and the reverb." });
   gesture(h, { keys: { 7: "hold" }, only: D, title: "DICE held 0.6 s: clean", words: "The circle back to its plain pattern, the draw undone." });
   gesture(h, { keys: { 7: "press" }, btns: [["OCT−", "hold"], ["OCT+", "hold"]], only: D, title: "OCT− + OCT+ + DICE: the locks", words: "The LOCKS page of that circle: what its dice leave alone (lower keys 1-7). HOME: back." });
   gesture(h, { keys: { 7: "press", 9: "press", 11: "press" }, only: D, title: "DICE 1 + 2 + 3: CHAOS", words: "Everything drawn on the three circles at once (timbre, glide and length per hit too)." });
-  gesture(h, { keys: { 1: "press", 3: "press", 5: "press" }, only: [1, 3, 5], title: "CIRCLE 1 + 2 + 3: CHAOS TOTAL", words: "Sounds, engines, modes, rhythms (EUCLID or TURING), all at random. Again within 3 s: undone." });
+  gesture(h, { keys: { 1: "press", 3: "press", 5: "press" }, only: [1, 3, 5], title: "CIRCLE 1 + 2 + 3: CHAOS TOTAL", words: "Sounds, engines, modes, rhythms (EUCLID or TURING, LEN 5 to 16), all at random. Again within 3 s: undone. Save it: everything it drew comes back with the scene." });
 }
 
 function songMoves() {
@@ -313,8 +313,8 @@ function tables() {
     ["ENV", "the envelope's four, by mode (FREE PERC STAB)", "ENVELOPE: the shape drawn"],
     ["FX", "DIST · INSERT · DELAY send · REVERB send", "FX page: DIST, INSERT, DELAY (TIME FEEDBK TAPE SEND), REVERB, MASTER"],
     ["LFO", "LFO 1: WAVE RATE DEPTH DEST", "LFO 1 2 3, GLOBAL, MATRIX"],
-    ["EDIT", "the engine's four other settings", "DEEP: every setting of the circle's sound, as a list (SOUND ENV FX MIX)"],
-    ["SCL", "SCALE · ROOT · CHORD · DOSE", "SCALES"],
+    ["EDIT", "the engine's four other settings", "DEEP: every setting of the circle's sound, as a list (SOUND ENV FX MIX; MIX ends with DICE DOSE: how far the dice reach)"],
+    ["SCL", "SCALE · ROOT · CHORD · PROG (a chord progression, one chord a bar, in the scale from the ROOT; CHORD = which chord)", "SCALES"],
     ["GLO", "BPM · LEVEL · PAN · SWING", "MIXER: tab MIX = KNOB 1 2 3 the circles' levels, KNOB 4 MASTER, the output meter · ALGORITHM: tabs I II III = each circle's CONSOLE (SELECT the row; KNOB 1-4: DRIVE LOW MID HIGH / COMP DELAY REVERB LEVEL; LOW MID HIGH at 0 = KILL)"],
     ["HOME", "back to the circles (closes any page)", "SYSTEM: SETUP (THEME, SMOOTH: the gold hand turns smoothly, the triggers swell as they play, CLOCK, MIDI IN, TRS SEEN / USB SEEN: the MIDI each jack received) · LEARN (MIDI learn) · AUDIO · RANDOM · ABOUT"],
     ["ARP", "SONG chain on / off", "SONG page"],
@@ -339,7 +339,7 @@ function tables() {
     ["GROUP", "What its rows link"],
     ["CIRCLE I · II · III", "a setting of that circle (whichever is chosen): the sound's eight, ATTACK DECAY SUSTAIN RELEASE, the CONSOLE (DRIVE LOW MID HIGH COMP DELAY REVERB LEVEL), PAN, INSERT, CHORUS, RUMBLE, GLIDE, HITS, DICE DOSE — a knob or fader (CC) only"],
     ["GLOBAL", "MASTER, TEMPO, SWING, the MASTER FILTER (FREQ RES DRIVE MIX MORPH), DELAY FEEDBACK / COLOR, REVERB SIZE / DAMP · last row CLEAR ALL (KNOB 1 left): every link cleared"],
-    ["ACTIONS", "a key or button of the FM-1, held as long as the controller's button or pad (a CC or a note): MUTE 1-3, DICE 1-3, CHAOS, CIRCLE 1-3, CHAOS TOTAL, DENSITY, SHIFT, LOCK, the fills, TRIGGER, SONG A B C, PLAY / STOP, REC, OCT− / OCT+ (OCT− on a pad + DICE: velocity and chance), ARP"],
+    ["ACTIONS", "a key or button of the FM-1, held as long as the controller's button or pad (a CC or a note): MUTE 1-3, DICE 1-3, CHAOS, CIRCLE 1-3, CHAOS TOTAL, DENSITY, SHIFT, LOCK, the fills, TRIGGER, SONG A B C, PLAY / STOP, REC, OCT− / OCT+ (OCT− on a pad + DICE: velocity, chance and length), ARP"],
     ["Good to know", "A link listens to its own channel and number only. One control moves one thing: learning it again moves the link. A setting jumps to the controller's value (set your encoders to absolute 0-127, not relative). The links are kept after power-off, for every scene. CCs not linked keep the fixed map (CC7 LEVEL, CC74 timbre, CC91 REVERB…, channels 1 2 3 = circles)."],
   ];
   const fill = (id, rows) => { document.getElementById(id).innerHTML = rows.map((r, i) => `<tr>${r.map((c) => (i ? `<td>${c}</td>` : `<th>${c}</th>`)).join("")}</tr>`).join(""); };

@@ -350,6 +350,7 @@ static void alt_load_scene(uint32_t n)
     sg_detach = 1;                               /* (SONG: the circles are no slot's now) */
     afl_off();                                   /* (the factory scenes: no MASTER FILTER, no added steps) */
     for (c = 0; c < AS_NCIRC; c++) {
+        alt_seq.prog[c] = 0;                     /* (no PROGRESSION) */
         acs_reset(c);                            /* (nor a CONSOLE: flat) */
         alt_add_set(c, 0);
         alt_fxr_put(c, 0);
@@ -413,6 +414,7 @@ static void alt_new_scene(void)
     sg_detach = 1;                               /* (SONG: the circles are no slot's now) */
     afl_off();
     for (c = 0; c < AS_NCIRC; c++) {
+        alt_seq.prog[c] = 0;                     /* (no PROGRESSION) */
         acs_reset(c);                            /* (the CONSOLE flat) */
         alt_add_set(c, 0);
         alt_fxr_put(c, 0);
@@ -629,7 +631,8 @@ typedef struct {
 } alt_up_t;
 static union {
     struct { uint32_t magic; alt_us_t r[ALT_US_PER]; uint8_t nm[ALT_US_PER][4];
-             uint8_t cs[ALT_US_PER][1u + AS_NCIRC * ACS_N]; } s;   /* (nm: the NAMEs, 05/11; cs: the CONSOLE, [0] 1 =
+             uint8_t cs[ALT_US_PER][1u + AS_NCIRC * ACS_N];
+             uint8_t dr[ALT_US_PER][ALT_DR_N]; } s;   /* (dr: the draws, TURING, PROGRESSION, 10/11; [0] 1 = stored) */   /* (nm: the NAMEs, 05/11; cs: the CONSOLE, [0] 1 =
                                                   * stored, then LOW MID HIGH COMP a circle, étape 4; an object stored
                                                   * before them ends before nm, or before cs) */
     struct { uint32_t magic; alt_up_t r[ALT_UP_PER]; } p;
@@ -652,14 +655,18 @@ static void alt_ub_clear(uint32_t magic)
 static int alt_ub_load_s(uint32_t u)             /* scene u's object into alt_ub; 1: it holds ours */
 {
     int n = st_load(ALT_OBJ_US0 + u / ALT_US_PER, &alt_ub.s, sizeof alt_ub.s);
-    int n_cs = (int)(sizeof alt_ub.s - sizeof alt_ub.s.cs), n_nm = (int)(sizeof(uint32_t) + sizeof(alt_us_t) * ALT_US_PER);
-    if ((n == (int)sizeof alt_ub.s || n == n_cs || n == n_nm) && alt_ub.s.magic == ALT_MAGIC_US) {
+    int n_dr = (int)(sizeof alt_ub.s - sizeof alt_ub.s.dr), n_cs = n_dr - (int)sizeof alt_ub.s.cs;
+    int n_nm = (int)(sizeof(uint32_t) + sizeof(alt_us_t) * ALT_US_PER);
+    if ((n == (int)sizeof alt_ub.s || n == n_dr || n == n_cs || n == n_nm) && alt_ub.s.magic == ALT_MAGIC_US) {
         uint32_t j, k;
         if (n == n_nm)                           /* (stored before the NAMEs: none) */
             for (j = 0; j < ALT_US_PER; j++)
                 for (k = 0; k < 4u; k++)
                     alt_ub.s.nm[j][k] = 0;
-        if (n != (int)sizeof alt_ub.s)           /* (stored before the CONSOLE: flat) */
+        if (n != (int)sizeof alt_ub.s)           /* (stored before the draws: none) */
+            for (j = 0; j < ALT_US_PER; j++)
+                alt_ub.s.dr[j][0] = 0;
+        if (n != (int)sizeof alt_ub.s && n != n_dr)   /* (stored before the CONSOLE: flat) */
             for (j = 0; j < ALT_US_PER; j++)
                 for (k = 0; k < sizeof alt_ub.s.cs[0]; k++)
                     alt_ub.s.cs[j][k] = 0;
@@ -871,6 +878,17 @@ static int alt_row_load(uint32_t t, uint32_t i)
         else if (alt_ub_load_s(u) && alt_ub.s.r[u % ALT_US_PER].used) {
             alt_us_put(&alt_ub.s.r[u % ALT_US_PER]);
             alt_cs_put(alt_ub.s.cs[u % ALT_US_PER]);   /* its CONSOLE (or flat: stored before it) */
+            {                                    /* its draws, TURING, PROGRESSION (none: stored before them) */
+                const uint8_t *d = alt_ub.s.dr[u % ALT_US_PER];
+                uint32_t k;
+                for (k = 0; k < ALT_DR_N; k++)
+                    alt_dr_buf[k] = d[0] == 1u ? d[k] : 0u;
+                for (k = 0; k < AS_NCIRC; k++) {
+                    if (d[0] != 1u)
+                        alt_seq.prog[k] = 0;
+                    alt_dr_cnt[k]++;             /* (after alt_rhy_put's clean: the audio does them in order) */
+                }
+            }
         } else
             return 0;
         return 1;
@@ -922,6 +940,9 @@ static int alt_row_save(uint32_t t, uint32_t i)
                 alt_ub.s.nm[u % ALT_US_PER][c] = (uint8_t)alt_nm_new[c];
         alt_ub.s.nm[u % ALT_US_PER][3] = 0;
         alt_cs_get(alt_ub.s.cs[u % ALT_US_PER]);   /* its CONSOLE */
+        fm1_irq_off();
+        alt_dr_pack(alt_ub.s.dr[u % ALT_US_PER]);   /* its draws, TURING, PROGRESSION */
+        fm1_irq_on();
         if (st_save(ALT_OBJ_US0 + u / ALT_US_PER, &alt_ub.s, sizeof alt_ub.s) != 0)
             return -1;
         alt_used_s[u] = 1;

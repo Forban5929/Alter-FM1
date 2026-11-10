@@ -59,6 +59,22 @@ for (const old of [1, 0]) {
 }
 const full = cost(1, 1), sOn = cost(1, 0), sOff = cost(0, 0);
 console.log(`smooth: coût moyen d'une image (navigateur) : complète ${full.toFixed(2)} ms, SMOOTH ON ${sOn.toFixed(2)} ms (${(100 * sOn / full).toFixed(0)} %), OFF ${sOff.toFixed(2)} ms (${(100 * sOff / full).toFixed(0)} %)`);
+// the LFO menu (Romain 10/11 "LFO: low frame rate"): its wave scrolling = its band alone, the same pixels; no whole screens
+{
+  const fb = () => Uint16Array.from(new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240));
+  ex.web_alter(27, 0, 0 | (4 << 3) | (2 << 8) | (40 << 16));   // (circle 1's LFO 1: SIN 1/8 on SHAPE)
+  ex.web_buttons(1 << 3); render(Math.round(44.1 * 800)); ex.web_buttons(0); render(2646);   // LFO held: its menu
+  let bad = 0;
+  for (let k = 0; k < 40; k++) { render(331); ex.web_draw_bench(1, 0); ex.web_alter_matband(); const a = fb(); ex.web_draw_bench(1, 0);
+    const b = fb(); if (a.some((v, i) => v !== b[i])) bad++; }
+  check(`menu LFO : la bande de l'onde = un redessin complet (${bad} différentes sur 40)`, bad === 0);
+  ex.web_alter_smcap(28); ex.web_draw_bench(1, 0); render(4410);
+  const f0 = ex.web_alter_full(), p0 = ex.web_screen_px(); render(44100);
+  const full = ex.web_alter_full() - f0, scr = (ex.web_screen_px() - p0) / 57600;
+  check(`menu LFO : presque plus d'écran entier (${full}/s), ${scr.toFixed(1)} écrans de pixels/s (avant : ~67)`, full <= 3 && scr < 15);
+  ex.web_buttons(1 << 3); render(2646); ex.web_buttons(0); render(2646);   // (closed)
+  ex.web_alter(27, 0, 0);
+}
 ex.web_alter_smcap(28);
 console.log(fails ? `smooth: ${fails} ÉCHEC(S)` : "smooth: tout ok");
 process.exit(fails ? 1 : 0);

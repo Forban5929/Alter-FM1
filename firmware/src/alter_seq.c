@@ -117,6 +117,8 @@ typedef struct {
     uint8_t scale;                  /* AS_SC_*, shared */
     uint32_t rng;                   /* the PROB and CHANCE coins */
     int16_t pmod[AS_NCIRC];         /* added to each circle's PROB (the host's LFOs), 0 = none */
+    uint8_t prog[AS_NCIRC];         /* each circle's chord PROGRESSION (AS_PG_*, 0 = none; Romain 10/11) */
+    uint8_t pbar[AS_NCIRC];         /* .. the bar it is at (its chord: as_pg_deg) */
 } as_seq_t;
 
 typedef struct {
@@ -447,6 +449,28 @@ static void as_clear(as_seq_t *q, uint32_t i)
     }
 }
 
+/* the chord PROGRESSIONs (Romain 10/11: the SCL page's knob 4, where DOSE was): a circle's hits moved by a scale degree
+ * each bar (16 steps), from the ROOT, in its SCALE (a scale of 7 notes as written; another: each degree scaled to its
+ * size). Its CHORD (TRIAD, 7TH ..) is built on the moved degree: CHORD says which chord, the PROGRESSION on which degree */
+#define AS_NPROG 10
+static const char *const AS_PG_NAME[AS_NPROG] = {"OFF", "1-5-6-4", "1-6-4-5", "1-4", "1-6", "1-7-6-7", "1-7-6-5",
+                                                 "6-4-1-5", "1-3-7-4", "1-4-1-5"};
+static const int8_t AS_PG[AS_NPROG][4] = {{0, 0, 0, 0}, {0, 4, 5, 3}, {0, 5, 3, 4}, {0, 3, 0, 3}, {0, 5, 0, 5},
+                                          {0, 6, 5, 6}, {0, 6, 5, 4}, {5, 3, 0, 4}, {0, 2, 6, 3}, {0, 3, 0, 4}};
+static int32_t as_pg_deg(const as_seq_t *q, uint32_t i)   /* circle i's degree this bar */
+{
+    uint32_t p = q->prog[i % AS_NCIRC] % AS_NPROG, n = 0;
+    const int8_t *sc;
+    int32_t d;
+    if (!p)
+        return 0;
+    sc = AS_SCALES[q->scale < AS_NSCALE ? q->scale : AS_SC_CHR];
+    while (sc[n] >= 0)
+        n++;
+    d = AS_PG[p][q->pbar[i % AS_NCIRC] & 3u];
+    return n == 7u ? d : (d * (int32_t)n + 3) / 7;
+}
+
 /* a scale degree above a root as a note, carried into the octaves above */
 static uint32_t as_note(const as_seq_t *q, uint32_t root, int32_t deg)
 {
@@ -641,6 +665,7 @@ static void as_step(as_seq_t *q, as_event_t ev[AS_NCIRC])
                 for (j = 0; j < AS_NTIMB; j++)
                     e->timb[j] = c->timb[k][j];
             }
+            deg += as_pg_deg(q, i);                     /* (the PROGRESSION's degree this bar) */
             e->note = (uint8_t)as_note(q, c->cfg.root, deg);
             switch (c->cfg.chord) {                     /* the chord moves with the hit's degree */
             case AS_CH_OCT:

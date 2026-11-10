@@ -22,7 +22,8 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
    - Syntaxe FM-1 : `clang --target=wasm32 -fsyntax-only -std=gnu99 -w -Werror=implicit-function-declaration -Werror=undefined-internal -nostdlibinc -isystem tools/alter/wasm/include -isystem $(clang -print-resource-dir)/include -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Ifirmware/bsp/chip -Ifirmware/bsp/boards/fm1 firmware/src/felucca.c`
 3. Outils : `alter_render.mjs wasm DIR` (WAV + niveaux de tous les sons), `alter_shot.mjs wasm DIR "w:500 B:GLO+ w:700 B:GLO- s:nom"`
    (captures), `alter_knob_probe.mjs`. Ops de test `web_alter` : liste en tête de `alt_web_cmd` (alter_ui.c) ;
-   **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE.
+   **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
+   Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
 4. Pousser sur `etape-3d` → GitHub Actions construit le vrai firmware + publie https://forban5929.github.io/Alter-FM1/ (version
    dans /version.txt). Le cloud ne télécharge pas les artifacts ni le compilateur JieLi : **rien n'est mesuré sur la FM-1 depuis le cloud.**
@@ -229,6 +230,17 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   (2 boîtes si > 50 px, sinon 1). Lignes confondues si même LEN (normal). Coût navigateur ≈ +1-2 points (13 → 14-15 %).
   Page : `.needle` = couleur du cadran (`--c`). Test : op `web_alter` **21** = LEN d'un cercle ; `alter_shot.mjs` « A:op,a,b ».
   Si la FM-1 perd des images : Romain veut d'**autres idées graphiques** (pas juste couper).
+- [x] 10/11 (jam) : **LFO menu** : le défilement redessine seulement la bande 42..166 (`alt_mat_scroll`), pages hors cercles
+  sans pos/flash dans le sig (avant ~67 écrans/s). **LEN au hasard** 5-16 (max de 2 tirages, `alt_len_draw`/`alt_len_fit`) dans
+  CHAOS TOTAL, TURING et **OCT− + DÉ** (sauf verrou RHYTHM). **Tirages sauvés dans la scène** : `alt_ub.s.dr` (après cs ; dé,
+  dhits/drot, graines, treg TURING, prog + 11 o/pas × 16 ; `alt_dr_pack/unpack` alter_play.c, compteur `alt_dr_cnt`) → un
+  CHAOS sauvé revient pareil, TURING **figé** au rappel ; objets sans `dr` encore lus. **PROG** (knob SCL, ex-DOSE ;
+  `as_seq_t.prog/pbar`, `AS_PG` 10 progressions en degrés de la gamme, 1 mesure/accord, cercle réglé seul ; as_circ_t/as_cfg_t
+  NON changés : slots SONG compatibles) ; **DOSE → DEEP** onglet MIX « DICE DOSE ». DEEP PAN affichait −64 % : corrigé.
+  **CPU** (profil navigateur) : chorus/delay sautés quand vides (bit pour bit), division 64 bits rapide (`alter_divdi.c`, exacte :
+  le plus gros gain attendu sur FM-1, filtres + COMP), MASTER FILTER 1er étage sauté si inutile, EQ MASTER à plat = sautée
+  (fondu 256 éch. ; même niveau, phase différente). am_master 8 → 3 %. Reste cher : moteurs ~28 %, MASTER FILTER 15 %,
+  rev_hall 7 %. **Rien mesuré sur la FM-1.**
 - [ ] **PROCHAINE SESSION** : « nnF xxMS » de cette version (but : ~30F, < 33 ms ; 28F 24MS avant le triangle fixe). Si encore lent : dessin sur le 2e cœur ?
   alléger le son ? SPI (bsp : pas sans accord). Aussi MIDI LEARN avec le BCR32, CONSOLE de la page branchée, TRS (autre câble).
 - [ ] Idées : un contrôle → plusieurs réglages (macro) ; LEARN dans la page compagnon ; DENSITY/ROT continus.

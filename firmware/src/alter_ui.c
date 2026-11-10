@@ -69,7 +69,7 @@ static void alm_poll(void);
  * QK_ENG: the engine's own) */
 enum { QP_NONE, QP_SEQ, QP_ENV, QP_FX, QP_LFO, QP_EDIT, QP_SCL, QP_GLO, QP_N };
 #define QP_SYS 15u                                /* (no button of its own: HOME held 0.5 s, the SYSTEM menu, 04/11) */
-enum { QK_RUMBLE = 199, QK_SCALE = 200, QK_ROOT, QK_DOSE, QK_BPM, QK_SWING, QK_RHY, QK_ENG, QK_ENGX, QK_CHORD, QK_LWAVE, QK_LRATE,
+enum { QK_PROG = 198, QK_RUMBLE = 199, QK_SCALE = 200, QK_ROOT, QK_DOSE, QK_BPM, QK_SWING, QK_RHY, QK_ENG, QK_ENGX, QK_CHORD, QK_LWAVE, QK_LRATE,
        QK_LDEPTH, QK_LDEST, QK_ENV };
 static const uint8_t ALT_QP_BTN[QP_N] = {0, B_SEQ, B_ENV, B_FX, B_LFO, B_EDIT, B_SCL, B_GLO};
 static const char *const ALT_QP_NAME[QP_N] = {"", "RHYTHM", "ENV", "FX", "LFO", "EDIT", "SCALE", "GLOBAL"};
@@ -80,7 +80,7 @@ static const uint8_t ALT_QP_K[QP_N][4] = {
     {P_DIST, P_IA, P_DLY, P_REV},
     {QK_LWAVE, QK_LRATE, QK_LDEPTH, QK_LDEST},
     {QK_ENGX, QK_ENGX, QK_ENGX, QK_ENGX},
-    {QK_SCALE, QK_ROOT, QK_CHORD, QK_DOSE},
+    {QK_SCALE, QK_ROOT, QK_CHORD, QK_PROG},   /* (PROG where DOSE was, Romain 10/11: DOSE in DEEP > MIX) */
     {QK_BPM, P_LEVEL, P_PAN, QK_SWING},
 };
 /* the LOCKS page: white key k (F3..E4) and the lock it toggles */
@@ -656,6 +656,10 @@ static void alt_turn(uint32_t q, uint32_t i, int32_t s)
         c->dose = (uint8_t)clamp((int32_t)c->dose + s * 4, 0, 127);
         alt_post_circle(au.sel);
         return;
+    case QK_PROG:
+        alt_seq.prog[au.sel % AS_NCIRC] = (uint8_t)clamp((int32_t)alt_seq.prog[au.sel % AS_NCIRC] + (s > 0 ? 1 : -1), 0,
+                                                         AS_NPROG - 1);
+        return;
     case QK_CHORD:
         c->chord = as_ch_step(c->chord, s);
         alt_post_circle(au.sel);
@@ -879,10 +883,21 @@ static uint32_t alt_cr(uint32_t n);
  * 48; the chance mostly 127, fewer sure steps the more hits the circle has (25 % at the least) */
 /* a TURING drawn at random (Romain 05/11): LEN 5..16, nearer 16 than 5 (the larger of two draws), DENS 40..60 %,
  * LOCK 50..75 %, RANGE 1..4 (the knobs show LOCK and DENS as % of 127) */
-static void alt_tur_draw(as_cfg_t *cf)
+static uint8_t alt_len_draw(void)               /* a LEN 5..16, nearer 16 (the larger of two draws; Romain 10/11: CHAOS
+                                                  * TOTAL and OCT- + DICE draw one too) */
 {
     uint32_t a = 5u + alt_cr(12u), b = 5u + alt_cr(12u);
-    cf->len = (uint8_t)(a > b ? a : b);
+    return (uint8_t)(a > b ? a : b);
+}
+static void alt_len_fit(as_cfg_t *cf)            /* (HITS, ROT, FROT kept inside a new LEN) */
+{
+    cf->hits = (uint8_t)(cf->hits > cf->len ? cf->len : cf->hits);
+    cf->rot = (uint8_t)(cf->rot % cf->len);
+    cf->frot = (uint8_t)(cf->frot % cf->len);
+}
+static void alt_tur_draw(as_cfg_t *cf)
+{
+    cf->len = alt_len_draw();
     cf->tdens = (uint8_t)(51u + alt_cr(26u));
     cf->tlock = (uint8_t)(64u + alt_cr(32u));
     cf->trange = (uint8_t)(1u + alt_cr(4u));
@@ -1507,7 +1522,7 @@ static void alt_total_chaos(void)
         for (k = 0; k < AE_N; k++)
             alt_envp[c][k] = (uint8_t)alt_cr(128u);
         cf->type = (uint8_t)alt_cr(AS_NTYPE);    /* the rhythm: EUCLID or TURING, anything in it, at once */
-        n = 1u + alt_cr(AS_PLAYLEN);
+        n = alt_len_draw();                      /* (5..16, nearer 16: Romain 10/11) */
         cf->len = (uint8_t)n;
         cf->hits = (uint8_t)(1u + alt_cr(n));
         cf->rot = (uint8_t)alt_cr(n);
@@ -1937,8 +1952,14 @@ static int alter_ui_input(uint32_t pressed)
             }
         } else if (au.die_t0[i2]) {              /* let go: a tap rolls, at once */
             if (!((au.die_clean_done >> i2) & 1u)) {
-                alt_roll_w[i2] = alt_die_w[i2];      /* DICE: the pattern · OCT- + DICE: velocity and chance ·
-                                                  * OCT+ + DICE: pitch, delay and reverb throws */
+                alt_roll_w[i2] = alt_die_w[i2];      /* DICE: the pattern · OCT- + DICE: velocity and chance (and a
+                                                  * LEN, Romain 10/11) · OCT+ + DICE: pitch, delay and reverb throws */
+                if (alt_die_w[i2] == AS_DW_VC && !(alt_seq.c[i2].locks & AS_LK_RHYTHM)) {
+                    au.cfg[i2].len = alt_len_draw();
+                    alt_len_fit(&au.cfg[i2]);
+                    alt_post_now |= (uint8_t)(1u << i2);
+                    alt_post_circle(i2);
+                }
                 alt_roll_cnt[i2]++;
                 if (au.cfg[i2].chord != AS_CH_OFF) {   /* (le hasard : jamais d'accord, Romain 03/11) */
                     au.cfg[i2].chord = AS_CH_OFF;
@@ -1946,7 +1967,7 @@ static int alter_ui_input(uint32_t pressed)
                 }
                 alt_cal(i2);
                 au.tap_ms[k] = fm1_ms | 1u;
-                alt_say(alt_die_w[i2] == AS_DW_VC ? "VELO + CHANCE" : alt_die_w[i2] == AS_DW_PDR ? "PITCH + FX" : "NEW PATTERN");
+                alt_say(alt_die_w[i2] == AS_DW_VC ? "VELO+CHANCE+LEN" : alt_die_w[i2] == AS_DW_PDR ? "PITCH + FX" : "NEW PATTERN");
             }
             au.die_t0[i2] = 0;
         }
@@ -2268,6 +2289,11 @@ static int32_t alt_kv(uint32_t q, uint32_t i, const char **name, char *txt, int3
         v = c->chord % AS_NCHORD;
         { const char *n = AS_CHORD_NAME[v]; int32_t k = 0; while (n[k]) { txt[k] = n[k]; k++; } txt[k] = 0; }
         return v;
+    case QK_PROG:
+        *name = "PROG";
+        v = alt_seq.prog[au.sel % AS_NCIRC] % AS_NPROG;
+        { const char *n = AS_PG_NAME[v]; int32_t k = 0; while (n[k]) { txt[k] = n[k]; k++; } txt[k] = 0; }
+        return v;
     case QK_DOSE:
         *name = "DOSE";
         v = c->dose;
@@ -2520,16 +2546,22 @@ static uint32_t alt_mat_sig(void)
         for (i = 0; i < 3u * NMSLOT; i++)
             sg = sg * 31u + (uint32_t)trk[au.sel % AS_NCIRC].p[P_M1SRC + i];
     } else {
-        uint32_t px = alt_lfo_p * 16u / ALT_WAVE_W;   /* (the wave scrolls a pixel at a time) */
         for (i = 0; i < 4u; i++)
             sg = sg * 31u + (uint32_t)alt_lfo_val(tb, i);
-        sg = sg * 31u + (px ? alt_gl_n / px : 0u) + (uint32_t)alt_lfo_acts(tb) * 5u;
+        sg = sg * 31u + (uint32_t)alt_lfo_acts(tb) * 5u;   /* (the wave's scroll: apart, alt_mat_scroll) */
     }
     if (au.dd && fm1_ms - au.dd_ms < ALT_DD_MS)
         sg = sg * 31u + au.dd * 977u;
     return sg;
 }
 
+/* the LFO tabs' wave scrolls a pixel at a time: it alone redraws its band (Romain 10/11: "LFO: low frame rate" -- each
+ * pixel of scroll was a whole screen, ~67 a second in the browser: the FM-1's 77 ms a screen could not keep up) */
+static uint32_t alt_mat_scroll(void)
+{
+    uint32_t px = alt_lfo_p * 16u / ALT_WAVE_W;
+    return au.mat_open && au.mtab != ALT_TAB_MTX && px ? alt_gl_n / px : 0u;
+}
 /* a list dropped down at x, y (its rows 15 px): the values around cur, cur lit */
 static void alt_dropdown(int32_t lx, int32_t ly, int32_t cur, int32_t n, uint16_t col, uint32_t tb, uint32_t ki)
 {
@@ -3466,25 +3498,26 @@ static void alt_sys_scene(void)
  * list scrolls), KNOB 1 changes it, through the queue as a quick page's knob (REC writes it, the die's offset kept on
  * top). SELECT's circle is the one on the PLAY view: changed there (the black keys) the list follows */
 #define DP_RUMBLE 0xFEu
+#define DP_DOSE 0xFDu                            /* (the dice's DOSE: the SCL page's knob 4 until 10/11) */
 enum { DP_SND, DP_ENV, DP_FX, DP_MIX, DP_NT };
 static const char *const DP_TAB[DP_NT] = {"SOUND", "ENV", "FX", "MIX"};
 static const uint8_t DP_ENVR[] = {P_ATK, P_DEC, P_SUS, P_REL};
 static const uint8_t DP_FXR[] = {P_DIST, P_ITYPE, P_IA, P_IB, P_IC, P_IMIX, P_CHOR, P_DLY, P_REV, DP_RUMBLE};
-static const uint8_t DP_MIXR[] = {P_LEVEL, P_PAN, P_GLIDE};
+static const uint8_t DP_MIXR[] = {P_LEVEL, P_PAN, P_GLIDE, DP_DOSE};
 static const char *const DP_ENVN[] = {"ATTACK", "DECAY", "SUSTAIN", "RELEASE"};
 static const char *const DP_FXN[] = {"DIST", "INSERT", "", "", "", "INSERT MIX", "CHORUS", "DELAY", "REVERB", "RUMBLE"};
-static const char *const DP_MIXN[] = {"LEVEL", "PAN", "GLIDE"};
+static const char *const DP_MIXN[] = {"LEVEL", "PAN", "GLIDE", "DICE DOSE"};
 static uint8_t alt_dp_tab, alt_dp_top;
 static int alt_dp_rumble(void) { return ALT_PRE[au.pre[au.sel % AS_NCIRC] % ALT_NPRE].rumble != 0; }
 static uint32_t alt_dp_rows(void)
 {
-    return alt_dp_tab == DP_SND ? 8u : alt_dp_tab == DP_ENV ? 4u : alt_dp_tab == DP_MIX ? 3u :
+    return alt_dp_tab == DP_SND ? 8u : alt_dp_tab == DP_ENV ? 4u : alt_dp_tab == DP_MIX ? 4u :
            (uint32_t)NELEM(DP_FXR) - (alt_dp_rumble() ? 0u : 1u);
 }
 static uint32_t alt_dp_id(uint32_t r)
 {
     return alt_dp_tab == DP_SND ? P_E0 + r : alt_dp_tab == DP_ENV ? DP_ENVR[r % 4u] :
-           alt_dp_tab == DP_MIX ? DP_MIXR[r % 3u] : DP_FXR[r % NELEM(DP_FXR)];
+           alt_dp_tab == DP_MIX ? DP_MIXR[r % 4u] : DP_FXR[r % NELEM(DP_FXR)];
 }
 /* row r: its name, its value's text (txt), its fill 0..50 (-1: a name, no bar) */
 static const char *alt_dp_row(uint32_t r, char *txt, int32_t *fill)
@@ -3500,6 +3533,12 @@ static const char *alt_dp_row(uint32_t r, char *txt, int32_t *fill)
         alt_num(txt, v, 0);
         return "RUMBLE";
     }
+    if (id == DP_DOSE) {
+        v = au.cfg[au.sel % AS_NCIRC].dose;
+        *fill = v * 50 / 127;
+        alt_num(txt, v, 0);
+        return "DICE DOSE";
+    }
     d = track_desc(t, id);
     v = t->p[id];
     if (alt_slot(id) >= 0)
@@ -3510,14 +3549,14 @@ static const char *alt_dp_row(uint32_t r, char *txt, int32_t *fill)
     } else {
         *fill = d->max > d->min ? (v - d->min) * 50 / (d->max - d->min) : 0;
         if (id == P_PAN)
-            alt_num(txt, v - 64, 1);             /* (the middle: 0) */
+            alt_num(txt, v, 1);                  /* (-64..63, the middle 0: it showed -64 there until 10/11) */
         else
             alt_num(txt, v, 0);
     }
     if (alt_dp_tab == DP_ENV)
         return DP_ENVN[r % 4u];
     if (alt_dp_tab == DP_MIX)
-        return DP_MIXN[r % 3u];
+        return DP_MIXN[r % 4u];
     if (alt_dp_tab == DP_FX && DP_FXN[r % NELEM(DP_FXN)][0])
         return DP_FXN[r % NELEM(DP_FXN)];
     return d->label;                             /* (the engine's own names; the INSERT's A B C by its TYPE) */
@@ -3527,6 +3566,11 @@ static void alt_dp_turn(uint32_t r, int32_t s)
     uint32_t id = alt_dp_id(r), c = au.sel % AS_NCIRC;
     if (id == DP_RUMBLE) {
         alt_rmb[c] = (uint8_t)clamp((int32_t)alt_rmb[c] + s * 2, 0, 127);
+        return;
+    }
+    if (id == DP_DOSE) {
+        au.cfg[c].dose = (uint8_t)clamp((int32_t)au.cfg[c].dose + s * 4, 0, 127);
+        alt_post_circle(c);
         return;
     }
     alt_qpush(c, id, track_desc(&trk[c], id)->fmt == F_ENUM ? (s > 0 ? 1 : -1) : s * 2);
@@ -4294,6 +4338,7 @@ static int alt_sm_frame(uint32_t q, uint32_t flash)
     return 1;
 }
 
+static uint32_t alt_mat_seen, alt_mat_ms;          /* (the LFO tabs' wave: its scroll drawn, when) */
 static void alter_draw(void)
 {
     uint32_t sig = 0, sfoot = 0, shead = 0, i, h, flash = 0, q = au.lockc ? 0u : alt_page();
@@ -4411,7 +4456,9 @@ static void alter_draw(void)
         if (!(ALT_SMOOTH && circles))            /* (SMOOTH's circles: the knobs and the CPU line drawn alone when they
                                                   * change; else a whole frame, 2 a second: the alidade stopped) */
             sig = (sig * 31u + sfoot) * 31u + shead;
-        if (!circles) {                          /* (another page: they are part of the picture) */
+        if (!circles && !au.mat_open && au.mn != QP_EDIT && au.mn != QP_SYS) {   /* (another page: they are part of the
+                                                  * picture; not the LFO / MTX menu, DEEP, SYSTEM: a whole screen each step
+                                                  * for nothing there, Romain 10/11 "LFO: low frame rate") */
             for (i = 0; i < AS_NCIRC; i++)
                 sig = sig * 31u + alt_seq.c[i].pos;
             sig = sig * 31u + flash * 5u;
@@ -4480,10 +4527,33 @@ static void alter_draw(void)
             now_seen[i] = now[i];
         fl_seen = (uint8_t)flash;
     }
-    if (au.drawn && sig == au.sig)
+    if (au.drawn && sig == au.sig) {
+        uint32_t sc = alt_mat_scroll();
+        if (sc != alt_mat_seen && alt_now_ms - alt_mat_ms >= alt_sm_cap * 3u / 2u) {   /* (the LFO's wave: its band, half the
+                                                  * screen, ~24 a second: its SPI time ~39 ms on the FM-1) */
+            uint32_t lo = 42u;                   /* (the beats' diamonds from row 43, the wave to 162) */
+            alt_mat_seen = sc;
+            alt_mat_ms = alt_now_ms;
+            alt_draw_gl_n = alt_gl_n;
+            alt_draw_lfo_p = alt_lfo_p;
+            while (lo < 166u) {
+                uint32_t n = 166u - lo > 120u ? 120u : 166u - lo;
+                cv_begin(240, n, ALT_BG);
+                alt_paper_rows(lo, n);
+                cv_oy = -(int32_t)lo;
+                alt_scene(q, flash);
+                cv_oy = 0;
+                cv_blit(0, lo);
+                lo += n;
+            }
+            alt_fps_tick();
+        }
         return;
+    }
     au.sig = sig;
     au.drawn = 1;
+    alt_mat_seen = alt_mat_scroll();
+    alt_mat_ms = alt_now_ms;
     alt_draw_gl_n = alt_gl_n;                    /* (une seule heure pour les deux moitiés) */
     alt_draw_lfo_p = alt_lfo_p;
     for (i = 0; i < 2u; i++) {                   /* two halves: the canvas holds 240 x 124 */
@@ -4531,6 +4601,7 @@ static uint32_t alt_dump_user(uint32_t u)
 
 /* (les tests, 03/11) : w 0 = moteur du cercle c, 1 = son accord, 2 = son budget d'effets (256 = un effet au plus fort),
  * 3..8 = ses six parts (DIST INSERT DELAY REVERB LFO MTX), 9 TYPE LEN DENS LOCK, 10 RANGE (05/11), 11 CONSOLE */
+static int alt_web_rc;
 static int32_t alt_peek(uint32_t c, uint32_t w)
 {
     c %= AS_NCIRC;
@@ -4545,6 +4616,26 @@ static int32_t alt_peek(uint32_t c, uint32_t w)
         return au.cfg[c].trange;
     if (w == 11u)                                /* (the CONSOLE: LOW MID HIGH COMP, a byte each) */
         return (int32_t)(acs_v[c][0] | acs_v[c][1] << 8 | acs_v[c][2] << 16 | (uint32_t)acs_v[c][3] << 24);
+    if (w == 15u)                                /* (the PROGRESSION's tests: the last hit's note) */
+        return alt_note[c][0];
+    if (w == 13u || w == 14u) {                  /* (the draws' tests, 10/11: 13 a hash of circle c's draw and pattern;
+                                                  * 14 its TURING: treg | frozen << 16 | die << 17 | PROGRESSION << 24) */
+        const as_circ_t *x = &alt_seq.c[c];
+        uint32_t h = 2166136261u, k, j;
+        if (w == 14u)
+            return (int32_t)(x->treg | (uint32_t)x->tfreeze << 16 | (uint32_t)x->die << 17 | (uint32_t)alt_seq.prog[c] << 24);
+        for (k = 0; k < 16u; k++) {
+            uint32_t v[9] = {(uint32_t)x->dforce[k], (uint32_t)x->pitch[k], (uint32_t)x->vel[k], x->ddly[k], x->drev[k],
+                             x->glide[k] | x->flam[k] << 1 | x->rat[k] << 2 | x->gate[k] << 4, x->dchance[k],
+                             (uint32_t)x->env[k], 0};
+            for (j = 0; j < AS_NTIMB; j++)
+                v[8] = v[8] * 257u + (uint8_t)x->timb[k][j];
+            for (j = 0; j < 9u; j++)
+                h = (h ^ (v[j] & 0xFFFFFFFFu)) * 16777619u;
+        }
+        h = (h ^ x->pat) * 16777619u;
+        return (int32_t)(h ^ x->die ^ (uint32_t)(uint8_t)x->dhits << 8 ^ (uint32_t)x->drot << 16);
+    }
     if (w == 12u)                                /* (MIDI LEARN's tests: MUTE, HITS, the chosen circle, playing, REC) */
         return (int32_t)(au.cfg[c].mute | au.cfg[c].hits << 8 | au.sel << 16 | (uint32_t)song.playing << 24 |
                          (uint32_t)ar_on << 25);
@@ -4564,6 +4655,23 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
     case 0: alt_load_sound(a % AS_NCIRC, b); break;
     case 1: alt_load_scene(a); break;
     case 2: au.cfg[a % AS_NCIRC].mute = (uint8_t)(b != 0); alt_post_circle(a % AS_NCIRC); break;
+    case 26: alt_seq.prog[a % AS_NCIRC] = (uint8_t)(b % AS_NPROG); break;   /* (a test: circle a's PROGRESSION) */
+    case 27:                                     /* (a test: circle a & 3's LFO a >> 8: WAVE b & 7, RATE b >> 3 & 31, DEST
+                                                  * b >> 8 & 31, DEPTH (int8) (b >> 16)) */
+        alt_cl[a & 3u][(a >> 8) % CL_N].wave = (uint8_t)((b & 7u) % GW_N);
+        alt_cl[a & 3u][(a >> 8) % CL_N].rate = (uint8_t)((b >> 3 & 31u) % GL_NRATE);
+        alt_cl[a & 3u][(a >> 8) % CL_N].dst = (uint8_t)((b >> 8 & 31u) % GD_N);
+        alt_cl[a & 3u][(a >> 8) % CL_N].depth = (int8_t)clamp((int8_t)(b >> 16), -64, 63);
+        break;
+    case 22: alt_total_chaos(); break;          /* (a test: CHAOS TOTAL, 10/11) */
+    case 23: alt_web_rc = alt_row_save(0, ALT_NFACT + 1u + a % ALT_NUSER); break;   /* (a test: SAVE into USER a) */
+    case 25:                                     /* (a test: USER a stored as before the draws, 10/11: the object cut) */
+        alt_web_rc = alt_row_save(0, ALT_NFACT + 1u + a % ALT_NUSER);
+        alt_ub.s.dr[a % ALT_US_PER][0] = 0;
+        (void)st_save(ALT_OBJ_US0 + (a % ALT_NUSER) / ALT_US_PER, &alt_ub.s, sizeof alt_ub.s - sizeof alt_ub.s.dr);
+        break;
+    case 24: alt_web_rc = alt_row_load(b & 1u, b & 2u ? 0u : ALT_NFACT + 1u + a % ALT_NUSER); break;   /* (a test: LOAD
+                                                  * USER a, b & 1 a pattern; b & 2: NEW) */
     case 21: au.cfg[a % AS_NCIRC].len = (uint8_t)clamp((int32_t)b, 1, 32); alt_post_circle(a % AS_NCIRC); break;   /* (a test: circle a's LEN) */
     case 3: alt_emode[a % AS_NCIRC] = am_ok(b); break;
     case 4: song.g[G_BPM] = (int16_t)clamp((int32_t)a, 40, 240); break;

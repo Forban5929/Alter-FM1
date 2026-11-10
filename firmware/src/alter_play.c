@@ -88,6 +88,80 @@ static int32_t alt_shift_seen[AS_NCIRC], alt_dens_seen[AS_NCIRC];
 static uint8_t alt_par;                          /* the sixteenth just played was an odd one (SWING) */
 static uint32_t alt_gstep;                       /* sixteenths played since PLAY (a scene lands on this grid) */
 static uint32_t alt_roll_seen[AS_NCIRC], alt_clear_seen[AS_NCIRC], alt_preset_seen[AS_NCIRC];
+/* a USER scene's draws (Romain 10/11: "save everything for my sounds to sound the same when I recall them"): what the
+ * dice, CHAOS and CHAOS TOTAL drew for each circle (as_circ_t: the die's per-step values, HITS / ROT moved, its seed),
+ * TURING's pattern (frozen as it loads: it plays as it was stored) and the chord PROGRESSION. Packed by the UI (the
+ * audio stopped), put back by the audio after the scene's clean (alter_store.c bumps alt_dr_cnt after alt_clear_cnt).
+ * Per circle: die, dhits, drot, seed (4), treg (2), TURING, prog, then 16 steps of 11 bytes: force+1 | glide << 2 |
+ * flam << 3 | rat << 4 | (gate - 1) << 6, pitch, vel, ddly, drev, dchance, env, timb x 4 */
+#define ALT_DR_STEPS 16u
+#define ALT_DR_C (11u + ALT_DR_STEPS * 11u)
+#define ALT_DR_N (1u + AS_NCIRC * ALT_DR_C)
+static uint8_t alt_dr_buf[ALT_DR_N] __attribute__((section(".pool")));
+static volatile uint32_t alt_dr_cnt[AS_NCIRC];
+static uint32_t alt_dr_seen[AS_NCIRC];
+static void alt_dr_pack(uint8_t *b)              /* (the UI, interrupts off) */
+{
+    uint32_t c, k, j;
+    b[0] = 1;
+    for (c = 0; c < AS_NCIRC; c++) {
+        const as_circ_t *x = &alt_seq.c[c];
+        uint8_t *o = b + 1u + c * ALT_DR_C;
+        o[0] = x->die, o[1] = (uint8_t)x->dhits, o[2] = x->drot;
+        o[3] = (uint8_t)x->seed, o[4] = (uint8_t)(x->seed >> 8), o[5] = (uint8_t)(x->seed >> 16), o[6] = (uint8_t)(x->seed >> 24);
+        o[7] = (uint8_t)x->treg, o[8] = (uint8_t)(x->treg >> 8), o[9] = (uint8_t)(x->cfg.type == AS_T_TURING);
+        o[10] = alt_seq.prog[c];
+        for (k = 0; k < ALT_DR_STEPS; k++) {
+            uint8_t *e = o + 11u + k * 11u;
+            uint32_t g = x->gate[k] ? x->gate[k] - 1u : 0u;
+            e[0] = (uint8_t)(((uint32_t)(x->dforce[k] + 1) & 3u) | (x->glide[k] & 1u) << 2 | (x->flam[k] & 1u) << 3 |
+                             (x->rat[k] & 3u) << 4 | (g & 3u) << 6);
+            e[1] = (uint8_t)x->pitch[k], e[2] = (uint8_t)x->vel[k], e[3] = x->ddly[k], e[4] = x->drev[k];
+            e[5] = x->dchance[k], e[6] = (uint8_t)x->env[k];
+            for (j = 0; j < AS_NTIMB; j++)
+                e[7u + j] = (uint8_t)x->timb[k][j];
+        }
+    }
+}
+static void alt_dr_unpack(uint32_t c)            /* (the audio: circle c's part of alt_dr_buf back on it) */
+{
+    as_circ_t *x = &alt_seq.c[c];
+    const uint8_t *o = alt_dr_buf + 1u + c * ALT_DR_C;
+    uint32_t k, j;
+    if (alt_dr_buf[0] != 1u)
+        return;
+    for (k = 0; k < AS_MAXLEN; k++) {            /* (the steps past 16: as a clean draw) */
+        const uint8_t *e = o + 11u + (k % ALT_DR_STEPS) * 11u;
+        int32_t on = k < ALT_DR_STEPS;
+        x->dforce[k] = (int8_t)(on ? (int32_t)(e[0] & 3u) - 1 : 0);
+        x->glide[k] = (uint8_t)(on ? (e[0] >> 2) & 1u : 0u);
+        x->flam[k] = (uint8_t)(on ? (e[0] >> 3) & 1u : 0u);
+        x->rat[k] = (uint8_t)(on ? (e[0] >> 4) & 3u : 0u);
+        x->gate[k] = (uint8_t)(on ? 1u + ((e[0] >> 6) & 3u) : 1u);
+        x->pitch[k] = (int8_t)(on ? (int8_t)e[1] : 0);
+        x->vel[k] = (int8_t)(on ? (int8_t)e[2] : 100);
+        x->ddly[k] = on ? e[3] : 0u;
+        x->drev[k] = on ? e[4] : 0u;
+        x->dchance[k] = on ? e[5] : 127u;
+        x->env[k] = (int8_t)(on ? (int8_t)e[6] : 0);
+        for (j = 0; j < AS_NTIMB; j++)
+            x->timb[k][j] = (int8_t)(on ? (int8_t)e[7u + j] : 0);
+    }
+    x->die = (uint8_t)(o[0] != 0u);
+    x->dhits = (int8_t)o[1];
+    x->drot = (uint8_t)(o[2] % AS_MAXLEN);
+    x->seed = (uint32_t)o[3] | (uint32_t)o[4] << 8 | (uint32_t)o[5] << 16 | (uint32_t)o[6] << 24;
+    if (!x->seed)
+        x->seed = 1u;
+    if (o[9]) {                                  /* TURING: its pattern, frozen (Romain: it recalls as it was) */
+        x->treg = (uint16_t)(o[7] | o[8] << 8);
+        x->tfreeze = 1;
+        x->nback = x->nfwd = 0;
+    }
+    alt_seq.prog[c] = o[10];
+    as_repat(x);
+}
+
 static uint16_t alt_prev;                        /* alt_hold at the last block */
 static uint8_t alt_rev_pos;                      /* REVERSE: where the target was at the press .. */
 static uint16_t alt_rev_n;                       /* .. and the steps since */
@@ -349,6 +423,10 @@ static void alt_take(void)
             alt_clear_seen[c] = n;
             as_clear(&alt_seq, c);
         }
+        if ((n = alt_dr_cnt[c]) != alt_dr_seen[c]) {   /* (a USER scene's draws: after its clean) */
+            alt_dr_seen[c] = n;
+            alt_dr_unpack(c);
+        }
     }
     if (e && !alt_prev)                          /* the first fill down: its circle is the target until all are up */
         alt_tgt = (uint8_t)(alt_sel % AS_NCIRC);
@@ -549,6 +627,8 @@ static void alter_step(void)
         alt_seq.pmod[c] = (int16_t)alt_prob_of(c);
     for (c = 0; c < AS_NCIRC; c++)               /* (the step each circle plays: REC) */
         kk[c] = alt_seq.c[c].pos;
+    for (c = 0; c < AS_NCIRC; c++)               /* (the PROGRESSIONs: their bar, from PLAY) */
+        alt_seq.pbar[c] = (uint8_t)(alt_gstep >> 4);
     as_step(&alt_seq, ev);
     alt_gstep++;
     for (c = 0; c < AS_NCIRC; c++)               /* (TRIGGER + REC on the next step: it sounded already) */

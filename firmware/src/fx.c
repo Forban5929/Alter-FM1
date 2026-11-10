@@ -15,6 +15,7 @@ static struct {
     uint32_t dly_w, cho_w, cho_ph;
     int32_t dly_lp;
     uint32_t dl_cur, dl_old, dxf;        /* ALTER: the delay's time now, the one it fades from, samples of fade left */
+    uint32_t cho_zero, dly_zero;         /* ALTER (10/11): samples of silence written into each line, in a row */
     uint8_t rtype;                       /* the reverb model running (G_RTYPE: 0 SHORT, 1 GATED, 2 HALL, 3 CLOUD) */
 } fx;
 
@@ -561,10 +562,41 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
     if (pf.ew1 && fb < THR_FB)
         fb += mulq16(THR_FB - fb, (uint32_t)pf.ew1 << 1);   /* ECHO THROW (perform.c): more feedback while held, 0.7
                                                              * at most (the loop's gain below 1: it never runs away) */
+    /* ALTER (Romain 10/11, CPU cuts): a line silent for its whole length, nothing coming in (and the delay's loop
+     * filter at rest) gives silence: skipped, its clock and write place moved on as if it ran (the same output, bit
+     * for bit) */
+    int cho_idle = fx.cho_zero >= CHO_LEN, dly_idle = fx.dly_zero >= DLY_LEN && fx.dly_lp == 0;
+    for (i = 0; i < n && (cho_idle || dly_idle); i++) {
+        if ((cho_in[i] >> 1) != 0)
+            cho_idle = 0;
+        if ((dly_in[i] >> 1) != 0)
+            dly_idle = 0;
+    }
+    if (cho_idle) {
+        fx.cho_ph += cinc * n;
+        fx.cho_w += n;
+        fx.cho_zero += n;
+    }
+    if (dly_idle) {
+        fx.dly_w += n;
+        fx.dxf = fx.dxf > n ? fx.dxf - n : 0u;
+        fx.dly_zero += n;
+        for (i = 0; i < n; i++)
+            dly_sd[i] = 0;
+    }
     for (i = 0; i < n; i++) {
         int32_t y = 0, x, r;
+        if (cho_idle && dly_idle) {
+            wet[i] = 0;
+            continue;
+        }
+        if (!cho_idle) {
         /* chorus: modulated short delay, 5..15 ms */
-        cho_buf[fx.cho_w & (CHO_LEN - 1u)] = (int16_t)clamp(cho_in[i] >> 1, -32768, 32767);
+        {
+            int16_t cw = (int16_t)clamp(cho_in[i] >> 1, -32768, 32767);
+            cho_buf[fx.cho_w & (CHO_LEN - 1u)] = cw;
+            fx.cho_zero = cw ? 0u : fx.cho_zero + 1u;
+        }
         fx.cho_ph += cinc;
         r = (400 << 8) + ((osc_sine(fx.cho_ph) + 32768) * cdepth >> 8);   /* Q8 delay: read between samples */
         {
@@ -574,8 +606,9 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
             y += (c0 + (((c1 - c0) * f) >> 8)) << 1;
         }
         fx.cho_w++;
+        }
         /* delay with a low-passed feedback (ALTER: its MODE's taps, TAPE in the loop, the time's fade) */
-        {
+        if (!dly_idle) {
             int32_t lp, w, o, s = 0;
             x = dly_tap(1u);
             if (dm == DM_PING) {
@@ -595,6 +628,7 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
             if (tape)
                 w = mulq15(softclip((int32_t)(((int64_t)w * tg) >> 15)), tinv);
             dly_buf[fx.dly_w & (DLY_LEN - 1u)] = (int16_t)clamp(w, -32768, 32767);
+            fx.dly_zero = (int16_t)clamp(w, -32768, 32767) ? 0u : fx.dly_zero + 1u;
             fx.dly_w++;
             if (fx.dxf)
                 fx.dxf--;
