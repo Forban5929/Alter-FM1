@@ -31,8 +31,10 @@
                                           * a scene stored longer is brought back to 16 (as_clean) */
 #define AS_NTIMB 4
 enum { AS_GHOST, AS_NORMAL, AS_ACCENT };
-enum { AS_LK_PITCH = 1, AS_LK_VEL = 2, AS_LK_GLIDE = 4, AS_LK_FORCE = 8, AS_LK_TIMB = 16, AS_LK_RHYTHM = 32,
-       AS_LK_ENV = 64 };
+/* (10/11, v0.48, Romain: the locks follow the dice. Bits kept where the meaning stayed: PITCH 1, VEL 2, RHYTHM 32; old
+ * GLIDE 4 / FORCE 8 / ENV 64 saved in scenes now read as LEN / CHANCE / THROWS, old TIMB 16 as SOUND) */
+enum { AS_LK_PITCH = 1, AS_LK_VEL = 2, AS_LK_LEN = 4, AS_LK_CHANCE = 8, AS_LK_SOUND = 16, AS_LK_RHYTHM = 32,
+       AS_LK_THROW = 64 };
 #define AS_DOSE_DEF 100
 enum { AS_SC_OCT, AS_SC_5TH, AS_SC_MPEN, AS_SC_MIN, AS_SC_PHRY, AS_SC_DOR, AS_SC_CHR, AS_NSCALE };
 static const char *const AS_SCALE_NAME[AS_NSCALE] = {"OCT", "5TH", "MPEN", "MIN", "PHRY", "DOR", "CHR"};
@@ -283,7 +285,7 @@ static void as_draw_w(as_seq_t *q, uint32_t i, uint32_t w)
             if (w & AS_DW_VC) {
                 if (!(lk & AS_LK_VEL))
                     c->vel[k] = (int8_t)as_vpct(as_rand(s));
-                if (!(lk & AS_LK_RHYTHM)) {
+                if (!(lk & AS_LK_CHANCE)) {
                     uint32_t r1 = as_rand(s), r2 = as_rand(s);
                     c->dchance[k] = (uint8_t)(as_cpct(r1, r2, hits) * 127u / 100u);
                 }
@@ -295,9 +297,9 @@ static void as_draw_w(as_seq_t *q, uint32_t i, uint32_t w)
             if (w & AS_DW_PDR) {
                 if (!(lk & AS_LK_PITCH) && as_coin(s, d * 7))   /* up to 3 octaves of degrees, the root less often */
                     c->pitch[k] = (int8_t)(as_rand(s) % (uint32_t)(1 + d * 21 / 127));
-                if (ndly < 3 && as_coin(s, 150))                 /* a few throws (3 at most each): 50..110 */
+                if (!(lk & AS_LK_THROW) && ndly < 3 && as_coin(s, 150))                 /* a few throws (3 at most each): 50..110 */
                     c->ddly[k] = (uint8_t)(50u + as_rand(s) % 61u), ndly++;
-                if (nrev < 3 && as_coin(s, 120))
+                if (!(lk & AS_LK_THROW) && nrev < 3 && as_coin(s, 120))
                     c->drev[k] = (uint8_t)(50u + as_rand(s) % 61u), nrev++;
             }
         }
@@ -308,12 +310,12 @@ static void as_draw_w(as_seq_t *q, uint32_t i, uint32_t w)
             for (j = 0; j < AS_NTIMB; j++)
                 c->timb[k][j] = 0;
             if (w & AS_DW_SND) {
-                if (!(lk & AS_LK_FORCE) && as_coin(s, 120 + d * 6))
+                if (!(lk & AS_LK_SOUND) && as_coin(s, 120 + d * 6))
                     c->dforce[k] = (int8_t)(as_rand(s) & 1u ? 1 : -1);
-                c->glide[k] = (uint8_t)(!(lk & AS_LK_GLIDE) && as_coin(s, d * 3));
+                c->glide[k] = (uint8_t)(!(lk & AS_LK_SOUND) && as_coin(s, d * 3));
                 for (j = 0; j < AS_NTIMB; j++)
-                    c->timb[k][j] = (int8_t)(lk & AS_LK_TIMB ? 0 : as_uni(s, d * 5 / 8));
-                if (!(lk & AS_LK_ENV)) {
+                    c->timb[k][j] = (int8_t)(lk & AS_LK_SOUND ? 0 : as_uni(s, d * 5 / 8));
+                if (!(lk & AS_LK_SOUND)) {
                     if (as_coin(s, d * 3))
                         c->gate[k] = (uint8_t)(2u + as_rand(s) % 3u);
                     c->env[k] = (int8_t)as_uni(s, d * 50 / 127);

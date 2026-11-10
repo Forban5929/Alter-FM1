@@ -85,8 +85,9 @@ static const uint8_t ALT_QP_K[QP_N][4] = {
 };
 /* the LOCKS page: white key k (F3..E4) and the lock it toggles */
 static const uint8_t ALT_LK_KEY[7] = {0, 2, 4, 6, 7, 9, 11};
-static const uint8_t ALT_LK_BIT[7] = {AS_LK_RHYTHM, AS_LK_PITCH, AS_LK_GLIDE, AS_LK_ENV, AS_LK_TIMB, AS_LK_FORCE, AS_LK_VEL};
-static const char *const ALT_LK_NAME[7] = {"RHYTHM", "PITCH", "GLIDE", "ENVELOPE", "TIMBRE", "FORCE", "VELOCITY"};
+/* (10/11, v0.48: in the dice's order; SOUND = what CHAOS changes on the sound: timbre, glide, envelope, force) */
+static const uint8_t ALT_LK_BIT[7] = {AS_LK_RHYTHM, AS_LK_LEN, AS_LK_VEL, AS_LK_CHANCE, AS_LK_PITCH, AS_LK_THROW, AS_LK_SOUND};
+static const char *const ALT_LK_NAME[7] = {"RHYTHM", "LENGTH", "VELOCITY", "CHANCE", "PITCH", "THROWS", "SOUND"};
 
 static struct {
     as_cfg_t cfg[AS_NCIRC];      /* the circles' settings as asked for (alt_post_cfg's source) */
@@ -1955,7 +1956,7 @@ static int alter_ui_input(uint32_t pressed)
             if (!((au.die_clean_done >> i2) & 1u)) {
                 alt_roll_w[i2] = alt_die_w[i2];      /* DICE: the pattern · OCT- + DICE: velocity and chance (and a
                                                   * LEN, Romain 10/11) · OCT+ + DICE: pitch, delay and reverb throws */
-                if (alt_die_w[i2] == AS_DW_VC && !(alt_seq.c[i2].locks & AS_LK_RHYTHM)) {
+                if (alt_die_w[i2] == AS_DW_VC && !(alt_seq.c[i2].locks & AS_LK_LEN)) {
                     au.cfg[i2].len = alt_len_draw();
                     alt_len_fit(&au.cfg[i2]);
                     alt_post_now |= (uint8_t)(1u << i2);

@@ -202,8 +202,14 @@ static void fm1_main(void)
              * shows from 2 s over the whole screen (the menu and the dialogs too: ui_draw), letting
              * go cancels it */
             static uint32_t t0;
+            static uint8_t combo;                       /* ALTER (10/11, v0.48): another key or button joined them */
             uint32_t both = (1u << panel.btn[B_OCTDN]) | (1u << panel.btn[B_OCTUP]);
-            if ((fm1_in.buttons & both) != both) {
+            if ((fm1_in.buttons & both) == both && ((fm1_in.buttons & ~both) || fm1_in.notes))
+                combo = 1;                              /* a combo (LOCKS, NEW SCENE, REC clear...): never UPDATE, until
+                                                         * both are let go (Romain: the LOCKS page held 5 s stopped the jam) */
+            if ((fm1_in.buttons & both) != both || combo) {
+                if ((fm1_in.buttons & both) != both)
+                    combo = 0;
                 if (ui.uboot) {
                     ui.uboot = 0;
                     ui.force = 1;                       /* what the countdown covered */

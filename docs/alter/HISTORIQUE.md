@@ -918,3 +918,9 @@ La vue DEEP (3c) doit d'abord offrir en ALTER : GLIDE, canal/horloge MIDI, 2e c�
   démarrage (main.c), ABOUT remplace la ligne de sous-titre (ui_menu.c), message « USB UPDATE OFF: UBOOT » à la demande M-UPGRADE,
   fm1_recover.py dit l'ID et « rien n'a été écrit ». ABOUT vérifié dans l'émulateur avec un faux ID 0x123456 ; l'écran de
   démarrage (firmware seulement) non vu.
+
+## 10/11 nuit — v0.48 : retours des premiers tests FM-1
+- Mesures Romain : 67/85 % CPU 27F 31MS (tous effets) ; 3 LFO + envois FX par pas : 18F 50MS, CUT 393 → chantier CPU.
+- LOCKS refaits sur les dés actuels (RHYTHM LENGTH VELOCITY CHANCE PITCH THROWS SOUND) ; GLIDE/FORCE/TIMBRE/ENV regroupés
+  dans SOUND. Les anciens bits sauvés changent de sens (4→LEN, 8→CHANCE, 64→THROWS, 16→SOUND), sans effet si non utilisés.
+- Mode UPDATE : plus jamais pendant un combo OCT− + OCT+ + autre touche (la page LOCKS tenue 5 s arrêtait le jeu).

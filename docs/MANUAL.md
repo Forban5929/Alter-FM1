@@ -121,7 +121,7 @@ The three DICE keys each draw for their own circle. What a die draws depends on 
 | OCT− + DICE | the VELO and CHANCE lanes, and a new LEN (5 to 16, mostly near 16) |
 | OCT+ + DICE | the PITCH lane and the throws into the delay and reverb |
 | DICE held 0.6 s | clean: back to the plain pattern, the draw undone |
-| OCT− + OCT+ + DICE | the circle's **LOCKS** page: lower keys 1-7 choose what its dice leave alone; HOME: back |
+| OCT− + OCT+ + DICE | the circle's **LOCKS** page: lower keys 1-7 lock RHYTHM (hits, rotation, flams, ratchet), LENGTH, VELOCITY, CHANCE, PITCH, THROWS (delay / reverb), SOUND (what CHAOS changes on the sound: timbre, glide, envelope, force); a locked part is left alone by the dice and CHAOS; HOME: back |
 | DICE 1 + 2 + 3 | **CHAOS**: everything drawn on the three circles at once (timbre, glide and length per hit too) |
 | CIRCLE 1 + 2 + 3 | **CHAOS TOTAL**: sounds, engines, modes, rhythms (EUCLID or TURING, LEN 5-16), all at random. Again within 3 s: undone |
 
@@ -237,7 +237,7 @@ power-off, for every scene. CCs not linked keep the fixed map.
 | OCT− + OCT+ + REC | every circle's REC moves cleared |
 | REC held + TRIGGER | a hit added to the chosen circle's pattern |
 | MUTE 1 + 2 + 3 | the three mutes (nothing more) |
-| **OCT− + OCT+ held 5 s** | **UPDATE mode** (USB update; the FM-1 stops playing) |
+| **OCT− + OCT+ held 5 s, alone** | **UPDATE mode** (USB update; the FM-1 stops playing). Not while another key or button is held with them |
 | **OCT− + OCT+ held at power-on** | the buttons' calibration |
 
 ## 17. Updating, going back, rescue

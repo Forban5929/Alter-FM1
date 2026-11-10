@@ -151,7 +151,7 @@ int main(void)
     }
     /* 10. locks */
     as_init(&q, 5);
-    q.c[0].locks = AS_LK_PITCH | AS_LK_FORCE | AS_LK_RHYTHM;
+    q.c[0].locks = AS_LK_PITCH | AS_LK_SOUND | AS_LK_RHYTHM | AS_LK_CHANCE;
     q.c[0].next.dose = 127;
     q.c[0].next.hits = 16;
     run(&q, 0, 16, 0);
@@ -161,7 +161,7 @@ int main(void)
         int ok = 1;
         for (s = 0; s < 16; s++)
             ok &= e[s].note == 36 && e[s].force == AS_NORMAL;
-        check("locks PITCH + FORCE + RHYTHM: 16 hits, root, normal force", ok);
+        check("locks PITCH + SOUND + RHYTHM + CHANCE: 16 hits, root, normal force", ok);
     }
     /* 11. SHIFT turns the pattern at once and keeps it */
     as_init(&q, 1);

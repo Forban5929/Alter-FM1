@@ -269,7 +269,7 @@ function dice() {
   gesture(h, { keys: { 7: "press" }, btns: [["OCT−", "hold"]], only: D, title: "OCT− + DICE: velocity, chance, length", words: "The VELO and CHANCE lanes (velocity 100 % mostly, chance lowered on some hits) and a new LEN, 5 to 16 steps (mostly near 16)." });
   gesture(h, { keys: { 7: "press" }, btns: [["", ""], ["OCT+", "hold"]], only: D, title: "OCT+ + DICE: pitch and throws", words: "The PITCH lane and the hits thrown into the delay and the reverb." });
   gesture(h, { keys: { 7: "hold" }, only: D, title: "DICE held 0.6 s: clean", words: "The circle back to its plain pattern, the draw undone." });
-  gesture(h, { keys: { 7: "press" }, btns: [["OCT−", "hold"], ["OCT+", "hold"]], only: D, title: "OCT− + OCT+ + DICE: the locks", words: "The LOCKS page of that circle: what its dice leave alone (lower keys 1-7). HOME: back." });
+  gesture(h, { keys: { 7: "press" }, btns: [["OCT−", "hold"], ["OCT+", "hold"]], only: D, title: "OCT− + OCT+ + DICE: the locks", words: "The LOCKS page of that circle: what its dice leave alone (lower keys 1-7: RHYTHM, LENGTH, VELOCITY, CHANCE, PITCH, THROWS, SOUND). HOME: back." });
   gesture(h, { keys: { 7: "press", 9: "press", 11: "press" }, only: D, title: "DICE 1 + 2 + 3: CHAOS", words: "Everything drawn on the three circles at once (timbre, glide and length per hit too)." });
   gesture(h, { keys: { 1: "press", 3: "press", 5: "press" }, only: [1, 3, 5], title: "CIRCLE 1 + 2 + 3: CHAOS TOTAL", words: "Sounds, engines, modes, rhythms (EUCLID or TURING, LEN 5 to 16), all at random. Again within 3 s: undone. Save it: everything it drew comes back with the scene." });
 }
@@ -332,7 +332,7 @@ function tables() {
     ["REC held + TRIGGER", "a hit added to the chosen circle's pattern"],
     ["MUTE 1 + 2 + 3", "the three mutes (nothing more)"],
     ["Fills (upper keys, held)", "DUB DELAY, DUB REVERB, DESTROY, ROLL 1/16, ROLL 1/8 on the chosen circle while held; with REC on they are written"],
-    ['<span class="warn">OCT− + OCT+ held 5 s</span>', '<span class="warn">UPDATE mode (the USB update; the FM-1 stops playing)</span>'],
+    ['<span class="warn">OCT− + OCT+ held 5 s, alone</span>', '<span class="warn">UPDATE mode (the USB update; the FM-1 stops playing). Not while another key or button is held with them</span>'],
     ['<span class="warn">OCT− + OCT+ held at power-on</span>', '<span class="warn">the buttons\' calibration</span>'],
   ];
   const L = [
