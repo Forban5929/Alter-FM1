@@ -79,7 +79,8 @@ son USB dans la page (v0.44). **Pas encore vérifié sur la FM-1** : économies 
 fichier patch entier, MIXER de la page, MIDI LEARN (BCR32), TRS MIDI (câble en cause, en pause).
 
 ## Feuille de route vers la 1.0 (proposée à Romain le 10/11 ; ordre à confirmer avec lui)
-1. **Tests sur la FM-1** (le plus important) : écrire une liste de vérification fonction par fonction (Romain la coche) ;
+1. **Tests sur la FM-1** (le plus important) : liste FAITE (10/11, 44 tests, Sheet https://claude.ai/artifact/4wMzoCU4XtT5LgPXGqZvES ;
+   la relire avant de coder : ses lignes « Problème » = le travail suivant) ;
    relever « nnF xxMS » et le % CPU avec filtre + comp + dist + delay + reverb ; longues jams sans plantage ni perte de scène
    (extinctions au milieu) ; sauver/charger A B C ; patch entier aller-retour ; MIDI LEARN avec le BCR32.
 2. **CPU si coupures encore** : moteurs ~28 %, MASTER FILTER 15 %, rev_hall 7 % (profil navigateur) ; pistes : reverb sautée
