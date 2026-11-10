@@ -69,3 +69,12 @@ jobs:
           python3 -c "import re,sys;r=open('build/alter-1.0-ci.fwsc','rb').read();a=open('build/felucca.bin','rb').read();m=re.search(rb'FM-1_\d{3}',r);print('identite',m and m.group(0),'version',b'v1.0-ci' in a);sys.exit(0 if m and m.group(0)==b'FM-1_900' and b'v1.0-ci' in a else 1)"
           python3 tools/alter/make_install.py build/alter-1.0-ci.fwsc v1.0-ci /tmp/install-ci | tail -1
           ls build/release-1.0-ci build/release-1.0-ci/LICENSES
+      - name: Désassemblage de fonctions chaudes (pour le profil CPU, lu depuis le journal)
+        if: always()
+        run: |
+          [ -f build/felucca.dis ] || exit 0
+          for f in afl_side afl_stage afl_coef alt_render rev_hall tsvf_lp __divdi3 alt_udivmod64; do
+            awk -v F="$f" '/^[0-9a-f]+ <[^>]+>:$/{p=($2=="<"F">:")} p' build/felucca.dis > /tmp/fn.txt
+            echo "== $f : $(grep -c ':	' /tmp/fn.txt) instructions"
+            [ "$f" = afl_side ] || [ "$f" = afl_stage ] && cat /tmp/fn.txt | head -400
+          done
