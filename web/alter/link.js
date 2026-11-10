@@ -4,7 +4,7 @@
 export const HDR = [0x7d, 0x41, 0x4c];
 export const CMD = { INFO: 1, STATE: 2, DESC: 3, SET: 4, SOUND: 5, SCENE: 6, WATCH: 7, CHANGED: 8, RELOAD: 9, PING: 10,
   VLIST: 11, VDESC: 12, VALL: 13, VSET: 14, LANE: 15, LSET: 16, ACT: 17, PLAY: 18, VCHANGED: 19, LCHANGED: 20,
-  PAT: 21, SONG: 22 };
+  PAT: 21, SONG: 22, BLOB: 23 };
 // the actions (alter_link.c LA_*): a circle's, then CHAOS / TOTAL (any circle number)
 export const ACT = { MUTE: 0, DIE: 1, CLEAN: 2, DENSM: 3, DENSP: 4, SHL: 5, SHR: 6, TRIG: 7, RANDOM: 8, LANES: 9,
   FLATALL: 10, SHUF0: 11, FLAT0: 17, CHAOS: 23, TOTAL: 24, SELECT: 25, PLAY: 26, STOP: 27, REC: 28 };
@@ -44,7 +44,31 @@ export const req = {
   lset: (c, ln, k, v) => frame(CMD.LSET, c, ln, k, ...v14(v)),
   act: (c, a) => frame(CMD.ACT, c, a),
   play: () => frame(CMD.PLAY),
+  // 10/11: a whole scene to and from a file (alter_link.c lk_blob); a value in these requests: its 14 bits as they are
+  blobSnap: () => frame(CMD.BLOB, 0),
+  blobGet: (off) => frame(CMD.BLOB, 1, off & 127, (off >> 7) & 127),
+  blobPut: (off, bytes) => frame(CMD.BLOB, 2, off & 127, (off >> 7) & 127, ...pack7(bytes)),
+  blobPlay: (size, sum) => frame(CMD.BLOB, 3, size & 127, (size >> 7) & 127, sum & 127, (sum >> 7) & 127),
 };
+export const BLOB_PUT = 49;   // (bytes a BLOB put frame carries: the synth reads 64 bytes of a frame)
+// 8-bit bytes 7 at a time in 8 (a byte of their top bits, then their low 7 bits) and back
+export function pack7(bytes) {
+  const out = [];
+  for (let k = 0; k < bytes.length; k += 7) {
+    const g = bytes.slice(k, k + 7);
+    out.push(g.reduce((t, x, j) => t | ((x >> 7) & 1) << j, 0), ...g.map((x) => x & 127));
+  }
+  return out;
+}
+export function unpack7(f, n) {
+  const out = [];
+  for (let i = 0; out.length < n && i < f.length;) {
+    const top = f[i++];
+    for (let j = 0; j < 7 && out.length < n && i < f.length; j++) out.push(f[i++] | (((top >> j) & 1) << 7));
+  }
+  return out;
+}
+export const blobSum = (bytes) => bytes.reduce((sm, x) => (sm * 31 + x) & 0x1fff, 0);
 
 // split a byte stream into frames F0..F7
 export function splitFrames(bytes) {
@@ -94,6 +118,13 @@ export function parse(f) {
         if (op === 3) { const c = [b(), b(), b()]; names.push(c[0] ? String.fromCharCode(...c) : ""); }
       }
       return { cmd, op, slot, rc, used, names };
+    }
+    case CMD.BLOB: {
+      const op = b();
+      if (op === 0) return { cmd, op, size: v(), sum: v() };
+      if (op === 1) { const off = v(), n = v(); return { cmd, op, off, n, bytes: unpack7(f.slice(i), n) }; }
+      if (op === 2) return { cmd, op, off: v(), n: v() };
+      return { cmd, op, ok: b() };
     }
     case CMD.SONG: {
       const op = b(), rc = b(), full = b(), play = b(), asked = b(), on = b(), link = b(), left = b(), n = b(), chain = [];

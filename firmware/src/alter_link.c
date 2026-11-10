@@ -14,8 +14,10 @@
 enum { LKC_INFO = 1, LKC_STATE, LKC_DESC, LKC_SET, LKC_SOUND, LKC_SCENE, LKC_WATCH, LKC_CHANGED, LKC_RELOAD, LKC_PING,
        /* v2 (04/11): the other settings (LK_V), the lanes, the actions, the circles as they play */
        LKC_VLIST, LKC_VDESC, LKC_VALL, LKC_VSET, LKC_LANE, LKC_LSET, LKC_ACT, LKC_PLAY, LKC_VCHANGED, LKC_LCHANGED,
-       /* v3 (05/11): the USER patterns (as SCENE), SONG */
-       LKC_PAT, LKC_SONG };
+       /* v3 (05/11): the USER patterns (as SCENE; gone 10/11, no reply), SONG */
+       LKC_PAT, LKC_SONG,
+       /* 10/11: a whole scene to and from the page's file (lk_blob) */
+       LKC_BLOB };
 
 /* the sound's parameters, in this order (STATE): the engine's eight, then what a USER scene keeps (ALT_SP) */
 static const uint8_t LK_IDS[] = {P_E0, P_E1, P_E2, P_E3, P_E4, P_E5, P_E6, P_E7, P_ATK, P_DEC, P_SUS, P_REL,
@@ -142,16 +144,17 @@ static int32_t lk_set(uint32_t c, uint32_t id, int32_t v)
 
 
 /* ---- v2: the other settings, by number (LK_V): a circle's (scope 1: VALL / VSET with the circle) or shared ------- */
-enum { LV_CFG, LV_MODE, LV_LFO, LV_MTX, LV_SCALE, LV_GL, LV_G, LV_AMX, LV_AFL, LV_MORPH, LV_CONS, LV_PAR, LV_RMB };
+enum { LV_CFG, LV_MODE, LV_LFO, LV_MTX, LV_SCALE, LV_GL, LV_G, LV_AMX, LV_AFL, LV_MORPH, LV_CONS, LV_PAR, LV_RMB, LV_VOL };
 /* (LV_CONS: the CONSOLE's acs_v[c][ref]; LV_PAR: the sound's parameter ref, its base, as SET: the CONSOLE's DRIVE,
- * DELAY, REVERB, LEVEL; LINK 4, 07/11; LV_RMB: the circle's RUMBLE alt_rmb, 08/11) */
+ * DELAY, REVERB, LEVEL; LINK 4, 07/11; LV_RMB: the circle's RUMBLE alt_rmb, 08/11; LV_VOL: the MIXER's MASTER gain,
+ * alt_mgain, 100 = 0 dB, 10/11) */
 enum { LF_TYPE, LF_LEN, LF_HITS, LF_ROT, LF_PROB, LF_FROT, LF_TLOCK, LF_TDENS, LF_TRANGE, LF_MUTE, LF_ROOT, LF_CHORD,
        LF_DOSE };
 static const char *const LK_GRP[] = {"RHYTHM", "SCALE", "ENVELOPE", "LFO 1", "LFO 2", "LFO 3", "MATRIX",
                                      "LFO GLOBAL", "TEMPO", "DELAY", "REVERB", "MASTER", "FILTER A", "FILTER B",
-                                     "MORPH", "CONSOLE", "RUMBLE"};
+                                     "MORPH", "CONSOLE", "RUMBLE", "MIXER"};
 enum { GR_RYT, GR_GAM, GR_ENV, GR_L1, GR_L2, GR_L3, GR_MTX, GR_LGL, GR_TMP, GR_DLY, GR_REV, GR_MST, GR_FA, GR_FB, GR_MRP,
-       GR_CONS, GR_RMB };
+       GR_CONS, GR_RMB, GR_MIX };
 static const char *const LK_OFFON[2] = {"OFF", "ON"};
 static const char *const LK_SLOPE[2] = {"12 DB", "24 DB"};
 typedef struct {
@@ -224,6 +227,8 @@ static const lk_var_t LK_V[] = {
     LKV_C(LV_PAR, P_LEVEL, GR_CONS, "LEVEL", 0, 127, 0),
     /* 08/11: the RUMBLE (the KICK's knob 4; the page shows it for the sounds INFO marks) */
     LKV_C(LV_RMB, 0, GR_RMB, "RUMBLE", 0, 127, 0),
+    /* 10/11: the MIXER's MASTER gain (its knob 4; the page's MIXER tab) */
+    LKV_G(LV_VOL, 0, GR_MIX, "MASTER", 0, 127, 0),
 };
 #define LK_NV (sizeof LK_V / sizeof LK_V[0])
 _Static_assert(LK_NV <= 2u * 48u, "LK_V: lk.vs holds 48 a scope");
@@ -289,6 +294,7 @@ static int32_t lk_vget(const lk_var_t *v, uint32_t c)
     case LV_CONS: return acs_v[c % AS_NCIRC][v->ref % ACS_N];
     case LV_PAR: return clamp(alt_base(c % AS_NCIRC, v->ref), 0, 127);
     case LV_RMB: return alt_rmb[c % AS_NCIRC];
+    case LV_VOL: return alt_mgain;
     default: return afl_morph;
     }
 }
@@ -359,6 +365,10 @@ static int32_t lk_vset(const lk_var_t *v, uint32_t c, int32_t x)
     case LV_CONS: acs_v[c][v->ref % ACS_N] = (uint8_t)x; break;
     case LV_PAR: (void)lk_set(c, v->ref, x); break;
     case LV_RMB: alt_rmb[c] = (uint8_t)x; break;
+    case LV_VOL:
+        alt_mgain = (uint8_t)x;
+        alt_sys[5] = (uint8_t)(x + 1);           /* (kept: SYSTEM's settings, as the MIXER's knob 4) */
+        break;
     default: afl_morph = (uint8_t)x; break;
     }
     return lk_vget(v, c);
@@ -565,8 +575,8 @@ static void lk_user(uint32_t t, uint32_t cmd, const uint8_t *a, uint32_t na)
     lk_b(rc < 0 ? 2u : (uint32_t)rc);
     if (a[0] == 0u || a[0] == 3u)
         for (k = 0; k < ALT_NUSER; k++) {
-            uint32_t u = t ? alt_used_p[k] : alt_used_s[k];
-            const char *nm = t ? alt_nm_p[k] : alt_nm_s[k];
+            uint32_t u = alt_used_s[k];
+            const char *nm = alt_nm_s[k];
             lk_b(u ? 1u : 0u);
             if (a[0] == 3u)
                 for (c = 0; c < 3u; c++)
@@ -576,6 +586,96 @@ static void lk_user(uint32_t t, uint32_t cmd, const uint8_t *a, uint32_t na)
     if (a[0] == 2u && rc > 0)
         for (c = 0; c < AS_NCIRC; c++)
             lk_shadow(c);                            /* (the page re-reads STATE after a load) */
+}
+
+/* BLOB (10/11, Romain: the page's patch file = the whole scene): alt_blob (alter_store.c), 8-bit bytes sent 7 at a time in 8
+ * (a byte of their top bits, then their 7 low bits each). A value in a request: its 14 bits as they are (lo, hi); in a
+ * reply: as lk_v (+ 8192, as everywhere).
+ *   0             what plays now into alt_blob (as SAVE held would store it)  -> 0, size (value), sum (value: of the bytes,
+ *                 13 bits)
+ *   1 off         its bytes from off (value), up to LK_BLOB_OUT             -> 1, off, n (value), n bytes packed
+ *   2 off, data   bytes packed from the page into alt_blob at off           -> 2, off, n written (value)
+ *   3 size, sum   alt_blob played (as a USER scene loads), if size and sum match and it is ours  -> 3, rc (1 played, 0 refused) */
+#define LK_BLOB_OUT 256u
+_Static_assert(sizeof(alt_blob_t) < 8192u, "BLOB: its size and offsets in a value");
+static uint32_t lk_blob_sum(void)
+{
+    uint32_t k, sm = 0;
+    for (k = 0; k < sizeof alt_blob; k++)
+        sm = (sm * 31u + ((const uint8_t *)&alt_blob)[k]) & 0x1FFFu;
+    return sm;
+}
+static void lk_blob(const uint8_t *a, uint32_t na)
+{
+    uint8_t *b = (uint8_t *)&alt_blob;
+    uint32_t off, n, k, j;
+    if (na < 1u || a[0] > 3u)
+        return;
+    if (a[0] == 0u) {
+        for (k = 0; k < sizeof alt_blob; k++)
+            b[k] = 0;
+        alt_us_snap(&alt_blob.r, alt_blob.cs, alt_blob.dr);
+        lk_begin(LKC_BLOB);
+        lk_b(0);
+        lk_v((int32_t)sizeof alt_blob);
+        lk_v((int32_t)lk_blob_sum());
+        lk_send();
+        return;
+    }
+    if (na < 3u)
+        return;
+    off = (uint32_t)(lk_rv(a + 1) + 8192);
+    if (a[0] == 1u) {
+        if (off > sizeof alt_blob)
+            return;
+        n = sizeof alt_blob - off;
+        n = n > LK_BLOB_OUT ? LK_BLOB_OUT : n;
+        lk_begin(LKC_BLOB);
+        lk_b(1);
+        lk_v((int32_t)off);
+        lk_v((int32_t)n);
+        for (k = 0; k < n; k += 7u) {
+            uint32_t top = 0;
+            for (j = 0; j < 7u && k + j < n; j++)
+                top |= (uint32_t)(b[off + k + j] >> 7) << j;
+            lk_b(top);
+            for (j = 0; j < 7u && k + j < n; j++)
+                lk_b(b[off + k + j]);
+        }
+        lk_send();
+        return;
+    }
+    if (a[0] == 2u) {
+        uint32_t i = 3u;
+        n = 0;
+        while (i < na) {                             /* (8 bytes: 7 of ours; the last group may be shorter) */
+            uint32_t top = a[i++];
+            for (j = 0; j < 7u && i < na; j++, i++)
+                if (off + n < sizeof alt_blob)
+                    b[off + n++] = (uint8_t)((a[i] & 0x7Fu) | (((top >> j) & 1u) << 7));
+        }
+        lk_begin(LKC_BLOB);
+        lk_b(2);
+        lk_v((int32_t)off);
+        lk_v((int32_t)n);
+        lk_send();
+        return;
+    }
+    {
+        uint32_t sz = off, sm = na >= 5u ? (uint32_t)(lk_rv(a + 3) + 8192) : 0x10000u, ok;
+        ok = sz == sizeof alt_blob && sm == lk_blob_sum() && alt_blob.r.used == 1u;
+        if (ok) {
+            sg_detach = 1;
+            alt_us_apply(&alt_blob.r, alt_blob.cs, alt_blob.dr);
+        }
+        lk_begin(LKC_BLOB);
+        lk_b(3);
+        lk_b(ok);
+        lk_send();
+        if (ok)
+            for (k = 0; k < AS_NCIRC; k++)
+                lk_shadow(k);                        /* (the page re-reads STATE after a load) */
+    }
 }
 
 /* SONG (v3, alter_ui.c alt_sg_*): op 0 the state; 1 slot: store what plays there (as SAVE held + A B C); 2 slot: it plays
@@ -703,8 +803,8 @@ static void lk_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
     case LKC_SCENE:                                   /* the USER scenes (lk_user) */
         lk_user(0u, LKC_SCENE, a, na);
         return;
-    case LKC_PAT:                                     /* the USER patterns (v3, 05/11): as SCENE */
-        lk_user(1u, LKC_PAT, a, na);
+    case LKC_BLOB:                                    /* a whole scene, to and from a file (10/11): lk_blob */
+        lk_blob(a, na);
         return;
     case LKC_SONG:                                    /* SONG (v3, 05/11): lk_song */
         lk_song(a, na);

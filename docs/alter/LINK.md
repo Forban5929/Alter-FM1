@@ -80,3 +80,19 @@ Toujours « ALTER LINK 4 » (ajouts seulement, à la fin). Groupe 16 **RUMBLE** 
 fin de `LK_V` (`LV_RMB` = `alt_rmb[c]`, 0..127, poussé par VCHANGED). INFO : après les ids, 1 octet par son = il a un RUMBLE (1)
 ou non (0) (`ALT_PRE[k].rumble`). Page : onglet SOUNDS, une ligne RUMBLE en bas du groupe Engine, seulement pour ces sons
 (comme le knob 4 du KICK sur la FM-1). Firmware plus ancien : octets absents = 0 → pas de ligne.
+
+## 10/11 — patterns retirés, banque C, BLOB (fichier = scène entière), MIXER
+
+- **21 PAT** : plus de réponse (les patterns USER sont retirés ; les variations = slots SONG A B C). INFO dit 48 places USER
+  (banques A B C ; C = objets 32..39, 0xCC000..0xDBFFF). Liste SCENE : 48 entrées.
+- **23 BLOB** (`lk_blob`, `alt_blob_t` = `alt_us_t` + NOM + CONSOLE + tirages, 1848 octets au 10/11) : octets 8 bits envoyés
+  7 par 8 (1 octet des bits forts puis 7 octets de 7 bits ; `pack7`/`unpack7` de link.js). Dans une REQUÊTE, une valeur = ses
+  14 bits tels quels ; dans une RÉPONSE, comme partout (+ 8192).
+  `0` = photo de ce qui joue (comme SAVE tenu : alignements repliés dans LEVEL) → 0, taille, somme (13 bits, `blobSum`) ·
+  `1 off` → 1, off, n, n octets (≤ 256) · `2 off data` (≤ 49 octets : la machine lit 64 octets d'une trame) → 2, off, n ·
+  `3 taille somme` → 3, ok (joué comme une scène USER chargée ; refusé si taille / somme / `used` faux).
+  Fichier patch **v2** : les 3 sons (lisibles, et pour un firmware sans BLOB) + `scene` (base64) + `sceneSize` + `name`.
+  À l'ouverture : BLOB si le firmware le prend, sinon les sons ; puis la liste USER va sur la 1re case vide (+ le NOM du fichier).
+  Une scène d'une autre version du firmware (taille différente) = refusée → les sons seuls.
+- **MIXER** (groupe 17 `GR_MIX`, réglage partagé « MASTER » = `alt_mgain`, 100 = 0 dB, gardé dans `alt_sys[5]`) ; page :
+  onglet MIXER = par cercle la CONSOLE + MUTE + fader LEVEL, et le fader MASTER ; la CONSOLE quitte EFFECTS.

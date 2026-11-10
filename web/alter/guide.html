@@ -137,8 +137,8 @@ td:first-child { white-space: nowrap; }
 </section>
 
 <section class="tc" id="save"><div class="t"><span>Save &amp; names</span></div><span class="num">XXI</span>
-  <p class="lead">SAVE opens the SAVE page: 4 tabs (ALGORITHM) — SCENES A, SCENES B, PATT. A, PATT. B — of 16 slots each.
-    A <b>scene</b> is everything (sounds, rhythms, effects, REC, ranges, what the dice, CHAOS and CHAOS TOTAL drew, the chord PROG; a TURING comes back frozen as it was); a <b>pattern</b> the rhythms only.</p>
+  <p class="lead">SAVE opens the SAVE page: 3 tabs (ALGORITHM) — SCENES A, SCENES B, SCENES C — of 16 slots each (48 scenes).
+    A <b>scene</b> is everything (sounds, rhythms, effects, REC, ranges, what the dice, CHAOS and CHAOS TOTAL drew, the chord PROG; a TURING comes back frozen as it was). For variations of the rhythms, use SONG's slots A B C.</p>
   <div id="mvSave"></div>
 </section>
 
@@ -299,8 +299,8 @@ function songMoves() {
 function saveMoves() {
   const h = document.getElementById("mvSave");
   const row = (title, words, btns) => gesture(h, { keys: {}, btns, only: [], title, words });
-  row("SAVE: the SAVE page", "SELECT a row, ALGORITHM a tab (SCENES A, SCENES B, PATT. A, PATT. B). Tab A: NEW, the 4 factory ones (locked), A01..A16; tab B: B01..B16.", [["SAVE", "tap"]]);
-  row("SAVE tapped on a row: load it", "A scene: everything comes back. A pattern: only the rhythms; the sounds stay.", [["SAVE", "tap"]]);
+  row("SAVE: the SAVE page", "SELECT a row, ALGORITHM a tab (SCENES A, B, C). Tab A: NEW, the 4 factory ones (locked), A01..A16; tab B: B01..B16; tab C: C01..C16.", [["SAVE", "tap"]]);
+  row("SAVE tapped on a row: load it", "Everything comes back as it was stored.", [["SAVE", "tap"]]);
   row("SAVE held 1 s on a USER row: NAME", "The NAME page: KNOB 1 2 3 = the 3 characters (A-Z, 0-9, -, a space). SAVE stores; HOME cancels. The list then reads « A05  KCK ».", [["SAVE", "hold"]]);
   row("NEW SCENE", "OCT− + OCT+ + HOME: a blank start (the three engines' first sounds, no hits).", [["OCT−", "hold"], ["OCT+", "hold"], ["HOME", "tap"]]);
 }

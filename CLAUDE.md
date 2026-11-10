@@ -25,7 +25,7 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
    **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v0.42 » (10/11) ; **+0.01 à CHAQUE envoi à Romain** (v0.42, v0.43…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v0.43 » (10/11) ; **+0.01 à CHAQUE envoi à Romain** (v0.42, v0.43…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. Pousser sur `etape-3d` → GitHub Actions construit le vrai firmware + publie https://forban5929.github.io/Alter-FM1/ (version
    dans /version.txt). Le cloud ne télécharge pas les artifacts ni le compilateur JieLi : **rien n'est mesuré sur la FM-1 depuis le cloud.**
@@ -86,13 +86,12 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   liés. Flash : favorites.factory[5..8] (magic 0xA1, 42 liens × 3 o ; **codes à ne jamais réordonner**, détail HISTORIQUE).
 - OCT− + OCT+ + HOME = NEW SCENE · REC tapé/tenu 1 s/OCT−+OCT++REC. **OCT− + OCT+ tenus 5 s = mode UPDATE** (main.c,
   à garder absolument) · OCT− + OCT+ tenus à l'allumage = calibration des boutons (main.c panel_setup).
-- **USER : 32 scènes + 32 patterns (05/11)**, page SAVE à 4 onglets (ALGORITHM) : SCENES A, SCENES B, PATT. A, PATT. B
-  (A = NEW + 4 usine + A01-A16 ; B = B01-B16). **SAVE tenu sur une ligne USER = page NAME** (3 caractères A-Z 0-9 -
+- **USER : 48 scènes (10/11 ; patterns RETIRÉS, choix de Romain : les variations = SONG A B C)**, page SAVE à 3 onglets
+  (ALGORITHM) : SCENES A B C (A = NEW + 4 usine + A01-A16 ; B = B01-B16 ; C = C01-C16 : objets 32-39, 0xCC000-0xDBFFF, `alt_us_obj`). **SAVE tenu sur une ligne USER = page NAME** (3 caractères A-Z 0-9 -
   espace, KNOB 1 2 3 ; départ = nom existant, sinon 3 lettres du son du cercle 1 / HITS des 3 cercles ; SAVE = sauver,
-  HOME = annuler) ; liste « A05  KCK ». Noms : scènes `alt_ub.s.nm` (fin d'objet ; objets sans nm encore lus), patterns
-  `p.rsv[3]` ; RAM `alt_nm_s/p`. Une scène = un enregistrement `alt_us_t` (tout : son, rythmes, FX, filtre,
-  pas ajoutés, fills, REC, PLAGES) lu en flash au chargement : objets 14-29 (2 scènes/objet), patterns 30-31 (16/objet),
-  0xA8000-0xCBFFF. En RAM : seulement les drapeaux `alt_used_s/p`. Anciennes banques (objets 1-7, 9 ; 16 places) = lues
+  HOME = annuler) ; liste « A05  KCK ». Noms : `alt_ub.s.nm` (fin d'objet ; objets sans nm encore lus) ; RAM `alt_nm_s`. Une scène = un enregistrement `alt_us_t` (tout : son, rythmes, FX, filtre,
+  pas ajoutés, fills, REC, PLAGES) lu en flash au chargement : objets 14-29 (2 scènes/objet), objets 30-31 = anciens patterns,
+  plus lus (30 = marqueur de la migration, à garder), 0xA8000-0xCBFFF. En RAM : seulement les drapeaux `alt_used_s`. Anciennes banques (objets 1-7, 9 ; 16 places) = lues
   UNE fois au 1er démarrage et copiées en banque A (`alt_us_migrate`, marqueur = objet 30), puis plus touchées. Objet 8 = mêmes
   secteurs que 7 : NE PAS UTILISER. Mémoire (build CI 07/11) : code 329/568 Ko, **RAM 58/72 Ko
   (≈ 15 Ko libres)**, pool 351/360 Ko (≈ 17,5 Ko libres ; anciennes banques 11 Ko dedans, récupérables).
@@ -252,6 +251,15 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   bande 30 k px ≈ 40 ms), ~33 images/s (cap 28 ms). Aussi : sur la page LFO, ligne CPU et knobs du bas **hors du sig**
   (ils n'y sont pas dessinés ; sur FM-1 = 2 écrans entiers/s pour rien). `alt_mat_scroll`/`alt_mat_seen` supprimés.
   **Pas mesuré sur la FM-1.** Page compagnon : LFO pas changé.
+- [x] 10/11 **v0.43** (Romain : LFO OK « ça défile bien ») : **patterns retirés**, **banque C** (48 scènes) ; **fichier patch
+  de la page = scène ENTIÈRE** (LINK cmd 23 BLOB, `alt_blob_t`/`alt_us_snap`/`alt_us_apply` alter_store.c, `lk_blob` ; patch v2 =
+  sons + `scene` base64 ; ancien fichier/firmware = sons seuls) ; à l'ouverture la liste USER va sur la **1re case vide** (+ NOM
+  du fichier) ; **onglet MIXER** de la page (CONSOLE + MUTE + fader LEVEL par cercle, fader MASTER = nouveau réglage partagé
+  groupe 17 `LV_VOL` alt_mgain) ; la CONSOLE quitte EFFECTS. Détail : LINK.md « 10/11 ». Testé : link (BLOB aller-retour après
+  NEW, somme fausse refusée, banque C, PAT muet), C16 après extinction (émulateur), page en démo dans **Chrome headless**
+  (`/tmp/cdp.mjs` : google-chrome --remote-debugging-port, site servi par `python3 -m http.server` ; patch ouvert = même scène,
+  MUTE des 2 côtés). **Pas sur la FM-1.** Romain veut aussi (réponse du 10/11) : liste de ce qui manque pour une version
+  publique (README ALTER, Release v1.0 sur main, manuel, tests FM-1, puces flash des autres FM-1, retour au firmware officiel).
 - [ ] **PROCHAINE SESSION** : « nnF xxMS » de cette version (but : ~30F, < 33 ms ; 28F 24MS avant le triangle fixe). Si encore lent : dessin sur le 2e cœur ?
   alléger le son ? SPI (bsp : pas sans accord). Aussi MIDI LEARN avec le BCR32, CONSOLE de la page branchée, TRS (autre câble).
 - [ ] Idées : un contrôle → plusieurs réglages (macro) ; LEARN dans la page compagnon ; DENSITY/ROT continus.

@@ -418,14 +418,7 @@ const holdSave = () => { ex.web_buttons(1 << 7); render(FS * 1.2); ex.web_button
     return same(bar().steps, euclid(16, 4, 0));
   })());
 }
-// PATTERNS tab (ALGORITHM): BROKEN = circle 1 5/16, the sound unchanged
-{
-  B(7); enc(1, 2); row(3); B(7);                                // (PATTERNS A: two tabs on, 05/11)
-  ex.web_alter(4, BPM, 0);
-  bar();
-  const ps = bar().steps;
-  check(`PATTERNS, BROKEN: circle 1 = 5 hits ${ps.join(",")}`, same(ps, euclid(16, 5, 0)));
-}
+// (the PATTERNS tabs: gone, 10/11, Romain: SONG's A B C are the variations)
 // the flash keeps USER 01: a fresh instance with this one's flash has it
 {
   const nor = new Uint8Array(mem.buffer, ex.web_nor(), ex.web_nor_size()).slice();

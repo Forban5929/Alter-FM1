@@ -307,6 +307,19 @@ legend { font-size: 13px; }
 .shared.wide { padding: 12px 0 0; }
 .shared.wide fieldset { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 24px; }
 .card { padding: 32px 12px 10px; container-type: inline-size; }
+/* the MIXER (10/11): a strip a circle (its CONSOLE, MUTE, LEVEL fader) and the MASTER */
+.mixer { display: grid; gap: 12px; padding: 12px 0; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(150px, .55fr); }
+@media (max-width: 900px) { .mixer { grid-template-columns: 1fr 1fr; } }
+.mstrip { padding: 32px 12px 12px; display: flex; flex-direction: column; gap: 6px; }
+.mstrip .p.w { grid-template-columns: 70px 1fr 64px; }
+.mstrip .hint { margin: 0; font-size: 13px; color: var(--dim); }
+.mstrip .fz { display: flex; align-items: flex-end; justify-content: center; gap: 18px; margin-top: auto; padding-top: 10px; }
+.mstrip .fader { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.mstrip .fader input { writing-mode: vertical-lr; direction: rtl; width: 34px; height: 190px; }
+.mstrip .fader input::-webkit-slider-runnable-track { width: 3px; height: 100%; }
+.mstrip .fader label { font: 700 13px var(--serif); letter-spacing: .08em; color: var(--goldtx); }
+.mstrip .fader output { font: 13px var(--mono); color: var(--dim); }
+.mstrip .mute { min-width: 80px; min-height: 40px; font: 700 14px/1 var(--serif); letter-spacing: .1em; }
 .fxvis { margin: 0 0 8px; border: 1px solid var(--dark); background: color-mix(in srgb, var(--bg) 85%, var(--dark)); position: relative; }
 .fxvis svg { display: block; width: 100%; height: 86px; }
 .fxvis .ax { stroke: var(--dark); stroke-width: 1; vector-effect: non-scaling-stroke; }
@@ -358,12 +371,6 @@ legend { font-size: 13px; }
       <button class="btn" id="bStore">Store here</button>
       <button class="btn" id="bLoad">Load</button>
     </div>
-    <div class="grp" id="patGrp" hidden><span>Pattern</span>
-      <select id="pslot" aria-label="USER pattern slot"></select>
-      <input class="nm" id="pslotName" maxlength="3" placeholder="NAME" aria-label="The pattern's NAME (3 characters)" title="Its NAME: 3 characters, A-Z 0-9 -">
-      <button class="btn" id="bPStore">Store here</button>
-      <button class="btn" id="bPLoad">Load</button>
-    </div>
   </section>
   <p class="msg" id="msg" role="status"></p>
 </div>
@@ -375,6 +382,7 @@ legend { font-size: 13px; }
     <button class="tab" role="tab" data-tab="sons" aria-selected="true"><i>I</i>Sounds</button>
     <button class="tab" role="tab" data-tab="rythmes" aria-selected="false"><i>X</i>Rhythms</button>
     <button class="tab" role="tab" data-tab="modulation" aria-selected="false"><i>XVIII</i>Modulation</button>
+    <button class="tab" role="tab" data-tab="mixer" aria-selected="false" id="tabMixer" hidden><i>XII</i>Mixer</button>
     <button class="tab" role="tab" data-tab="effets" aria-selected="false"><i>XVI</i>Effects</button>
     <button class="tab" role="tab" data-tab="song" aria-selected="false" id="tabSong" hidden><i>XX</i>Song</button>
   </div>
@@ -391,9 +399,10 @@ legend { font-size: 13px; }
     the page exchange MIDI messages with the synth: allow it.</p>
   <ol>
     <li>What you move here changes the sound on the synth at once, and what you turn on the synth moves here.</li>
-    <li>“Save” keeps the three sounds in a file on your computer, to share with anyone.</li>
-    <li>“Store here” keeps the whole scene (sounds, rhythms, effects) in a USER slot of the synth, with its 3-character
-      NAME, like holding SAVE. The patterns (the rhythms only) have their own slots.</li>
+    <li>“Save” keeps the whole scene playing (sounds, rhythms, effects, CONSOLE, the dice's draws) in a file on your
+      computer, to share with anyone. “Open…” plays a file's scene and points the USER list at the first empty slot.</li>
+    <li>“Store here” keeps the whole scene in a USER slot of the synth (banks A B C, 48 slots), with its 3-character
+      NAME, like holding SAVE.</li>
     <li>SONG: the three slots A B C and the chain that loops them, as on the synth's keys (the “Song” tab).</li>
   </ol>
   <p>No synth at hand? Open the <a href="../" target="_blank" rel="noopener">web emulator</a> in another tab, switch it on, then click
@@ -404,6 +413,7 @@ legend { font-size: 13px; }
 <section class="panel" data-panel="rythmes" role="tabpanel" hidden><div class="shared" data-shared></div><div class="strips" data-cols></div></section>
 <section class="panel" data-panel="modulation" role="tabpanel" hidden><div class="strips" data-cols></div><div class="shared wide" data-wide></div></section>
 <section class="panel" data-panel="song" role="tabpanel" hidden><div class="song" id="song"></div></section>
+<section class="panel" data-panel="mixer" role="tabpanel" hidden><div class="mixer" data-mixer></div></section>
 <section class="panel" data-panel="effets" role="tabpanel" hidden><div class="strips" data-cols></div><div class="shared fxrow" data-shared></div><div class="shared wide" data-wide></div></section>
 <footer class="foot">
   <p>ALTER is free firmware (GPL-3.0) built on Felucca. Code: <a href="https://github.com/Forban5929/Alter-FM1" target="_blank" rel="noopener">github.com/Forban5929/Alter-FM1</a>.
@@ -420,7 +430,7 @@ legend { font-size: 13px; }
 </dialog>
 
 <script type="module">
-import { req, parse, splitFrames, CMD, F_ENUM, show, PATCH_KIND, ACT, SHARED, NAME_CH } from "./link.js";
+import { req, parse, splitFrames, CMD, F_ENUM, show, PATCH_KIND, ACT, SHARED, NAME_CH, BLOB_PUT, blobSum } from "./link.js";
 
 const $ = (id) => document.getElementById(id);
 const MODES = ["FREE", "PERC", "STAB", "DRONE"];
@@ -558,7 +568,6 @@ async function start(p, kind, label) {
   }
   v3 = false;
   await listSlots();
-  $("patGrp").hidden = !v3 || !(await listUser("pat"));   // (v3, 05/11: patterns, NAMEs, SONG)
   $("tabSong").hidden = !v3;
   if (v3) { buildSong(); try { song = await ask(req.song()); drawSong(); } catch {} }
   clearInterval(songT);
@@ -722,10 +731,11 @@ function pushChanged(m) {
 function pushReload(m) { if (circ[m.circ]) refresh(m.circ).catch(soft); }
 function soft() { if (port) say("A reply from the synth got lost. If a column is out of date, change its sound and come back.", true); }
 
-/* ---------- patch files ---------- */
+/* ---------- patch files (10/11: the whole scene, as the synth stores it: BLOB; the three sounds too, readable, and for
+ * a synth that does not know BLOB) ---------- */
 function patchNow() {
   return {
-    kind: PATCH_KIND, version: 1, saved: new Date().toISOString(),
+    kind: PATCH_KIND, version: 2, saved: new Date().toISOString(),
     circles: circ.map((C) => ({
       engine: info.engines[C.state.eng], sound: info.sounds[C.state.sound]?.name,
       values: Object.fromEntries(info.ids.map((id, k) => [id, C.state.values[k]])),
@@ -733,22 +743,63 @@ function patchNow() {
     })),
   };
 }
+async function sceneBytes() {                        // the scene playing, as the synth would store it (null: no BLOB)
+  let sn;
+  try { sn = await ask(req.blobSnap(), 1500, 1); } catch { return null; }
+  const bytes = [];
+  while (bytes.length < sn.size) {
+    const g = await ask(req.blobGet(bytes.length));
+    if (!g.bytes?.length) return null;
+    bytes.push(...g.bytes);
+  }
+  return blobSum(bytes) === sn.sum ? bytes : null;
+}
+const toB64 = (a) => btoa(String.fromCharCode(...a));
+const fromB64 = (t) => Array.from(atob(t), (ch) => ch.charCodeAt(0));
 async function savePatch() {
   const name = await dialogAsk("Patch name", { input: "my-patch", ok: "Save" });
   if (name === null) return;
   const safe = (name.trim() || "patch").replace(/[^\w\- ]+/g, "_");
-  const url = URL.createObjectURL(new Blob([JSON.stringify(patchNow(), null, 1)], { type: "application/json" }));
+  say("Reading the scene from the synth…");
+  const bytes = await sceneBytes();
+  for (let c = 0; c < 3; c++) await refresh(c).catch(() => {});   // (its LEVELs: each circle's alignment folded in)
+  const p = patchNow();
+  if (bytes) { p.scene = toB64(bytes); p.sceneSize = bytes.length; p.name = cleanName(safe); }
+  const url = URL.createObjectURL(new Blob([JSON.stringify(p, null, 1)], { type: "application/json" }));
   const a = Object.assign(document.createElement("a"), { href: url, download: `${safe}.alter.json` });
   a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-  say(`Patch saved: ${safe}.alter.json (in your Downloads).`);
+  say(`Patch saved: ${safe}.alter.json (in your Downloads)${bytes ? ", the whole scene" : ": the three sounds only (update the synth for the whole scene)"}.`);
+}
+async function playBytes(bytes) {                    // a file's whole scene on the synth: 1 played, 0 refused / unknown
+  try {
+    for (let o = 0; o < bytes.length; o += BLOB_PUT) await ask(req.blobPut(o, bytes.slice(o, o + BLOB_PUT)));
+    const r = await ask(req.blobPlay(bytes.length, blobSum(bytes)), 3000);
+    return r.ok === 1;
+  } catch { return false; }
+}
+function toEmptySlot(name) {                         // the USER list on the first empty slot: "Store here" overwrites nothing
+  const U = USER.scene, k = U.used.findIndex((u) => !u);
+  if (k < 0) return "Every USER slot is taken: choose one to replace before “Store here”.";
+  $(U.sel).value = String(k);
+  showName("scene");
+  if (name) $(U.nm).value = cleanName(name);
+  return `The list points at ${slotName(k)}, the first empty slot: “Store here” keeps it there.`;
 }
 async function openPatch(file) {
   let p;
   try { p = JSON.parse(await file.text()); } catch { return say("This file is not a readable ALTER patch.", true); }
   if (p.kind !== PATCH_KIND || !Array.isArray(p.circles)) return say("This file is not an ALTER patch.", true);
   say("Sending the patch to the synth…");
+  let whole = false;
+  if (p.scene) {
+    const bytes = fromB64(p.scene);
+    whole = bytes.length === p.sceneSize && await playBytes(bytes);
+  }
   try {
-    for (let c = 0; c < 3 && c < p.circles.length; c++) {
+    if (whole) {
+      for (let c = 0; c < 3; c++) await refresh(c);
+      if (v2) await readV2();
+    } else for (let c = 0; c < 3 && c < p.circles.length; c++) {
       const pc = p.circles[c], ei = info.engines.indexOf(pc.engine);
       let n = info.sounds.findIndex((s) => s.name === pc.sound && s.eng === ei);
       if (n < 0) n = info.sounds.findIndex((s) => s.eng === ei);
@@ -758,17 +809,18 @@ async function openPatch(file) {
         if (info.ids.includes(+id)) await ask(req.set(c, +id, v));
       await refresh(c);
     }
-    say(`Patch “${file.name}” loaded on the three circles. To keep it in the synth: “Store here”.`);
+    const what = whole ? "The whole scene" : p.scene ? "The three sounds (this synth's firmware does not take this file's scene: update it)" : "The three sounds (an older file)";
+    say(`Patch “${file.name}” loaded. ${what} plays. ${toEmptySlot(p.name || file.name.replace(/\.alter\.json$|\.json$/i, ""))}`);
   } catch { soft(); }
 }
 
-/* ---------- USER scenes and patterns in the FM-1 (05/11: 32 each, banks A B, a 3-character NAME; v3 firmware) ---------- */
-const slotName = (i) => `${"AB"[i >> 4] ?? "?"}${String((i % 16) + 1).padStart(2, "0")}`;   // (bank A B of 16, as on the synth)
+/* ---------- USER scenes in the FM-1 (05/11: banks of 16, a 3-character NAME; v3 firmware; 10/11: banks A B C, the patterns
+ * gone) ---------- */
+const slotName = (i) => `${"ABC"[i >> 4] ?? "?"}${String((i % 16) + 1).padStart(2, "0")}`;   // (banks of 16, as on the synth)
 const USER = {
   scene: { cmd: CMD.SCENE, sel: "slot", nm: "slotName", word: "scene", used: [], names: [] },
-  pat: { cmd: CMD.PAT, sel: "pslot", nm: "pslotName", word: "pattern", used: [], names: [] },
 };
-let v3 = false;                                      // (the firmware knows NAMEs, patterns, SONG)
+let v3 = false;                                      // (the firmware knows NAMEs, SONG)
 const cleanName = (t) => [...String(t).toUpperCase()].filter((ch) => NAME_CH.includes(ch)).join("").slice(0, 3);
 async function listUser(kind) {
   const U = USER[kind];
@@ -805,10 +857,10 @@ async function storeUser(kind) {
 async function loadUser(kind) {
   const U = USER[kind], i = +$(U.sel).value, W = U.word;
   if (!U.used[i]) return say(`USER ${slotName(i)} is empty: nothing to load.`, true);
-  const what = kind === "pat" ? "The rhythms playing will be replaced (the sounds stay)" : "The scene playing will be replaced: store it first if you want to keep it";
+  const what = "The scene playing will be replaced: store it first if you want to keep it";
   if (!(await dialogAsk(`Load ${W} ${slotName(i)}${U.names[i] ? " “" + U.names[i] + "”" : ""}? ${what}.`, { ok: "Load" }))) return;
   try {
-    const r = await ask(kind === "pat" ? req.userLoad(U.cmd, i) : req.sceneLoad(i), 3000);
+    const r = await ask(req.sceneLoad(i), 3000);
     if (r.rc !== 1) return say(`USER ${slotName(i)} could not be loaded.`, true);
     for (let c = 0; c < 3; c++) await refresh(c);
     if (v2) await readV2();
@@ -907,14 +959,14 @@ async function pollSong() {
 
 /* ---------- v2: every other setting (rhythms, lanes, LFO, matrix, shared effects), the circles as they play ---------- */
 // LK_GRP's numbers (alter_link.c)
-const GR = { RYT: 0, GAM: 1, ENV: 2, L1: 3, L2: 4, L3: 5, MTX: 6, LGL: 7, TMP: 8, DLY: 9, REV: 10, MST: 11, FA: 12, FB: 13, MRP: 14, CONS: 15, RMB: 16 };
+const GR = { RYT: 0, GAM: 1, ENV: 2, L1: 3, L2: 4, L3: 5, MTX: 6, LGL: 7, TMP: 8, DLY: 9, REV: 10, MST: 11, FA: 12, FB: 13, MRP: 14, CONS: 15, RMB: 16, MIX: 17 };
 // where each group goes: a circle's column on a tab, or the tab's shared cards
 const PLACE = {
   sons: { cols: [GR.ENV, GR.RMB], shared: [] },
   rythmes: { cols: [GR.RYT, GR.GAM], shared: [GR.GAM, GR.TMP] },
   modulation: { cols: [GR.L1, GR.L2, GR.L3, GR.MTX], shared: [GR.LGL] },
-  effets: { cols: [GR.CONS], shared: [GR.DLY, GR.REV, GR.FA, GR.FB, GR.MRP, GR.MST] },
-};
+  effets: { cols: [], shared: [GR.DLY, GR.REV, GR.FA, GR.FB, GR.MRP, GR.MST] },
+};   // (the CONSOLE: the MIXER tab, 10/11, mixerBuild)
 const LANE_LIM = [[1, 127], [0, 127], [0, 127], [0, 127], [-7, 7], [0, 3]];   // (alter_ui.c alt_lane_lim)
 const LANE_SHORT = ["VELO", "CHNC", "DLY", "REV", "PITCH", "RATCH"];
 const NOTE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -948,7 +1000,7 @@ async function readV2() {
 }
 function showV2() {
   $("live").hidden = !v2;
-  for (const t of ["rythmes", "modulation", "effets"]) {
+  for (const t of ["rythmes", "modulation", "mixer", "effets"]) {
     const p = document.querySelector(`[data-panel="${t}"]`);
     if (!v2) p.innerHTML = `<p class="v2off">This firmware only knows the sounds. Install the latest ALTER to set the rhythms, LFOs and effects here.</p>`;
   }
@@ -1095,6 +1147,68 @@ function buildV2() {
       if (n) { card.append(fs); ((g === GR.MST || g === GR.LGL) && wide ? wide : shared).append(card); }
     }
   }
+  mixerBuild();
+}
+
+/* the MIXER tab (10/11, Romain): each circle's strip (its CONSOLE, its MUTE, its LEVEL as a fader) and the MASTER's gain */
+function fader(d, uid, onSet, label) {
+  const row = document.createElement("div");
+  row.className = "fader";
+  row.innerHTML = `<output></output><input type="range" id="${uid}" min="${d.min}" max="${d.max}" step="1" aria-label="${label}"><label for="${uid}">${label}</label>`;
+  const r = row.querySelector("input"), o = row.querySelector("output");
+  const t = { row, input: r, d, dragging: false, set(v) { if (t.dragging) return; r.value = v; o.textContent = String(v); } };
+  r.oninput = () => { o.textContent = r.value; onSet(+r.value); };
+  r.onpointerdown = () => (t.dragging = true);
+  r.onpointerup = r.onblur = () => (t.dragging = false);
+  return t;
+}
+function mixerBuild() {
+  const { vl, cdesc, sdesc } = v2;
+  let box = document.querySelector("[data-mixer]");
+  if (!box) { box = document.createElement("div"); box.className = "mixer"; box.dataset.mixer = ""; const pn = document.querySelector('[data-panel="mixer"]'); pn.innerHTML = ""; pn.append(box); }
+  box.innerHTML = "";
+  const has = cdesc.some((d) => d.grp === GR.CONS);
+  $("tabMixer").hidden = !has;
+  if (!has) return;
+  for (let c = 0; c < 3; c++) {
+    const st = document.createElement("section");
+    st.className = "strip mstrip tc";
+    st.style.setProperty("--c", COLS[c]);
+    st.innerHTML = `<div class="rib"><span>Circle ${ROMAN[c]}</span></div><span class="num">${ROMAN[c]}</span>`;
+    const fs = groupBox(vl.groups[GR.CONS], true), fz = document.createElement("div");
+    fz.className = "fz";
+    cdesc.forEach((d, i) => {
+      if (d.grp === GR.CONS && d.name !== "LEVEL") {
+        const t = varRow(d, `m${c}_${i}`, (v) => queueVar(c, i, v));
+        vctl[c][i] = t;
+        fs.append(t.row);
+      } else if (d.grp === GR.CONS) {
+        const t = fader(d, `m${c}_${i}`, (v) => queueVar(c, i, v), "LEVEL");
+        vctl[c][i] = t;
+        fz.append(t.row);
+      }
+    });
+    const mi = cdesc.findIndex((d) => d.name === "MUTE"), mb = document.createElement("button");
+    mb.className = "act mute"; mb.textContent = "MUTE"; mb.dataset.mute = String(c);
+    mb.onclick = () => { if (mi >= 0) { const m = v2.cval[c][mi] ? 0 : 1; queueVar(c, mi, m); setVar(c, mi, m); } };   // (setVar: both MUTE buttons)
+    fz.prepend(mb);
+    st.append(fs, fz);
+    box.append(st);
+  }
+  const ms = document.createElement("section");
+  ms.className = "strip mstrip tc";
+  ms.style.setProperty("--c", "var(--gold)");
+  ms.innerHTML = `<div class="rib"><span>Master</span></div><p class="hint">100 = 0 dB. Its EQ, COMP and CLIP: the Effects tab.</p>`;
+  const fz = document.createElement("div");
+  fz.className = "fz";
+  sdesc.forEach((d, i) => {
+    if (d.grp !== GR.MIX) return;
+    const t = fader(d, `ms_${i}`, (v) => queueVar(SHARED, i, v), d.name);
+    vctl[SHARED][i] = t;
+    fz.append(t.row);
+  });
+  ms.append(fz);
+  box.append(ms);
 }
 
 /* a setting's value: kept, shown; a circle's rhythm shows TURING's or EUCLID's knobs */
@@ -1117,7 +1231,10 @@ function setVar(c, i, v, fromDevice) {
       });
     }
     if (d.grp === GR.ENV) { const m = circ[c].el?.querySelector("[data-mode]"); if (m) m.textContent = d.names[v - d.min] ?? ""; }
-    if (d.name === "MUTE") $("cols").children[c]?.querySelector('[data-a="MUTE"]')?.classList.toggle("on", v === 1);
+    if (d.name === "MUTE") {
+      $("cols").children[c]?.querySelector('[data-a="MUTE"]')?.classList.toggle("on", v === 1);
+      document.querySelector(`[data-mute="${c}"]`)?.classList.toggle("on", v === 1);
+    }
     if (d.name === "LEN") drawLane(c);
   }
   modTouch(c, i);
@@ -1604,12 +1721,9 @@ $("bOpen").onclick = () => $("file").click();
 $("file").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) openPatch(f); };
 $("bStore").onclick = store;
 $("bLoad").onclick = load;
-$("bPStore").onclick = () => storeUser("pat");
-$("bPLoad").onclick = () => loadUser("pat");
 $("slot").onchange = () => showName("scene");
-$("pslot").onchange = () => showName("pat");
-for (const id of ["slotName", "pslotName"]) $(id).oninput = (e) => { const v = cleanName(e.target.value); if (v !== e.target.value) e.target.value = v; };
-window.__alter = { circ, get info() { return info; }, get v2() { return v2; } };   // (for the tests)
+for (const id of ["slotName"]) $(id).oninput = (e) => { const v = cleanName(e.target.value); if (v !== e.target.value) e.target.value = v; };
+window.__alter = { circ, get info() { return info; }, get v2() { return v2; }, sceneBytes, patchNow, openPatch, toB64, USER };   // (for the tests)
 if (new URLSearchParams(location.search).has("demo")) connectDemo();   // (editor/?demo: straight to the simulator)
 </script>
 </body>

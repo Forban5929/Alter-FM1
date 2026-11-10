@@ -248,11 +248,12 @@ static void alt_preset_step(uint32_t c, int32_t s)
 
 #include "alter_store.c"
 
-/* the SAVE page's four tabs (05/11): SCENES A, SCENES B, PATTERNS A, PATTERNS B. A: NEW, the factory ones, USER A01..A16;
- * B: USER B01..B16. A tab's row r as a row of alt_row_* */
+/* the SAVE page's tabs (10/11: the patterns gone, Romain): SCENES A, B, C. A: NEW, the factory ones, USER A01..A16;
+ * B: B01..B16; C: C01..C16. A tab's row r as a row of alt_row_* */
 #define ALT_ROWS_A (1u + ALT_NFACT + 16u)
-static uint32_t alt_tab_n(uint32_t tab) { return tab & 1u ? 16u : ALT_ROWS_A; }
-static uint32_t alt_tab_row(uint32_t tab, uint32_t r) { return tab & 1u ? ALT_ROWS_A + r : r; }
+#define ALT_NTAB (ALT_NUSER / 16u)
+static uint32_t alt_tab_n(uint32_t tab) { return tab ? 16u : ALT_ROWS_A; }
+static uint32_t alt_tab_row(uint32_t tab, uint32_t r) { return tab ? ALT_ROWS_A + (tab - 1u) * 16u + r : r; }
 /* the NAME page (Romain 05/11): SAVE held on a USER row opens it; KNOB 1 2 3 the three characters, SAVE stores, HOME
  * leaves (nothing stored) */
 static const char ALT_NM_CH[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-";
@@ -269,8 +270,8 @@ static uint32_t alt_nm_idx(char c)               /* a character's place in ALT_N
 static void alt_nm_open(uint32_t t, uint32_t r)  /* its NAME, or one to start from: the first sound's 3 letters (a
                                                   * scene), the three circles' HITS (a pattern) */
 {
-    uint32_t u = (r - 1u - ALT_NFACT) % ALT_NUSER, k, used = t ? alt_used_p[u] : alt_used_s[u];
-    const char *nm = t ? alt_nm_p[u] : alt_nm_s[u];
+    uint32_t u = (r - 1u - ALT_NFACT) % ALT_NUSER, k, used = alt_used_s[u];
+    const char *nm = alt_nm_s[u];
     anm.open = 1;
     anm.t = (uint8_t)t;
     anm.r = (uint8_t)r;
@@ -1732,7 +1733,7 @@ static int alter_ui_input(uint32_t pressed)
             alt_say(rc > 0 ? "SAVED" : rc == 0 ? "PROTECTED" : "SAVE FAILED");
         }
     } else if (au.scene_open) {                  /* on it: a tap loads, held 1 s stores (a USER row: its NAME first) */
-        uint32_t dn = (ALT_BTNS >> panel.btn[B_SAVE]) & 1u, t = au.tab >> 1, r = alt_tab_row(au.tab, au.row[au.tab]);
+        uint32_t dn = (ALT_BTNS >> panel.btn[B_SAVE]) & 1u, t = 0, r = alt_tab_row(au.tab, au.row[au.tab]);
         if (((pressed >> panel.btn[B_SAVE]) & 1u)) {
             au.save_t0 = fm1_ms | 1u;
             au.save_done = 0;
@@ -1770,7 +1771,7 @@ static int alter_ui_input(uint32_t pressed)
         if ((s = panel_enc(EN_SELECT)) != 0)
             au.row[au.tab] = (uint8_t)clamp((int32_t)au.row[au.tab] + s, 0, (int32_t)alt_tab_n(au.tab) - 1);
         if ((s = panel_enc(EN_ALGO)) != 0)
-            au.tab = (uint8_t)clamp((int32_t)au.tab + (s > 0 ? 1 : -1), 0, 3);   /* (SCENES A B, PATTERNS A B) */
+            au.tab = (uint8_t)clamp((int32_t)au.tab + (s > 0 ? 1 : -1), 0, (int32_t)ALT_NTAB - 1);   /* (SCENES A B C) */
         for (i = 0; i < 4u; i++)
             (void)panel_enc(EN_K1 + i);
         (void)panel_enc(EN_PRESET);
@@ -2427,15 +2428,15 @@ static void alt_locks_scene(void)
 
 static void alt_scenes_scene(void)
 {
-    static const char *const TAB[4] = {"SCENES A", "SCENES B", "PATT. A", "PATT. B"};
-    uint32_t t = au.tab >> 1, r = au.row[au.tab], i, top, n = alt_tab_n(au.tab);
+    static const char *const TAB[ALT_NTAB] = {"SCENES A", "SCENES B", "SCENES C"};
+    uint32_t t = 0, r = au.row[au.tab % ALT_NTAB], i, top, n = alt_tab_n(au.tab);
     char nb[12];
     alt_card("SAVE", "XX");
     if (anm.open) {                              /* the NAME page */
         uint32_t k, u = (anm.r - 1u - ALT_NFACT) % ALT_NUSER;
         char hd[24], one[2] = {0, 0};
         uint32_t j = 0;
-        const char *w = anm.t ? "PATTERN " : "SCENE ";
+        const char *w = "SCENE ";
         while (*w)
             hd[j++] = *w++;
         hd[j++] = (char)('A' + u / 16u);
@@ -2460,7 +2461,7 @@ static void alt_scenes_scene(void)
         cv_text(8, 214, ALT_FS, "SAVE: STORE   HOME: CANCEL", ALT_INK);
         return;
     }
-    alt_tabs(23, TAB, 4, au.tab, ALT_COL[0]);
+    alt_tabs(23, TAB, ALT_NTAB, au.tab, ALT_COL[0]);
     if (au.msg && fm1_ms - au.msg_ms < 1500u)   /* SAVED, PROTECTED, EMPTY .. */
         cv_text(8, 214, ALT_FS, au.msg, ALT_COL[1]);
     else
@@ -4769,7 +4770,7 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
     case 25:                                     /* (a test: USER a stored as before the draws, 10/11: the object cut) */
         alt_web_rc = alt_row_save(0, ALT_NFACT + 1u + a % ALT_NUSER);
         alt_ub.s.dr[a % ALT_US_PER][0] = 0;
-        (void)st_save(ALT_OBJ_US0 + (a % ALT_NUSER) / ALT_US_PER, &alt_ub.s, sizeof alt_ub.s - sizeof alt_ub.s.dr);
+        (void)st_save(alt_us_obj(a % ALT_NUSER), &alt_ub.s, sizeof alt_ub.s - sizeof alt_ub.s.dr);
         break;
     case 24: alt_web_rc = alt_row_load(b & 1u, b & 2u ? 0u : ALT_NFACT + 1u + a % ALT_NUSER); break;   /* (a test: LOAD
                                                   * USER a, b & 1 a pattern; b & 2: NEW) */

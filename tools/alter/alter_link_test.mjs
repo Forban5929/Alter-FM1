@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // ALTER LINK (firmware/src/alter_link.c) against the browser build: node tools/alter/alter_link_test.mjs build/emu/felucca.wasm
 import fs from "node:fs";
-import { req, parse, splitFrames, CMD, F_ENUM, ACT, SHARED } from "../../web/alter/link.js";
+import { req, parse, splitFrames, CMD, F_ENUM, ACT, SHARED, BLOB_PUT, blobSum } from "../../web/alter/link.js";
 
 const wasm = fs.readFileSync(process.argv[2] || "build/emu/felucca.wasm");
 let fails = 0;
@@ -26,7 +26,7 @@ const one = (bytes) => send(bytes)[0];
 const info = one(req.info());
 check(`INFO: ${info?.version}, ${info?.ncirc} cercles, moteurs ${info?.engines?.join(" ")}`,
   info && info.ncirc === 3 && info.engines.length === 7);   // (PLATE CORDE RING: 05/11)
-check(`INFO: ${info.sounds.length} sons, ${info.nuser} places USER, ${info.ids.length} réglages`, info.sounds.length >= 23 && info.nuser === 32 && info.ids.length === 22);
+check(`INFO: ${info.sounds.length} sons, ${info.nuser} places USER, ${info.ids.length} réglages`, info.sounds.length >= 23 && info.nuser === 48 && info.ids.length === 22);
 
 const st = [0, 1, 2].map((c) => one(req.state(c)));
 check(`STATE des 3 cercles : moteurs ${st.map((s) => info.engines[s.eng]).join(" ")}`, st.every((s, c) => s && s.circ === c && s.values.length === 22));
@@ -68,7 +68,7 @@ const ld = one(req.sceneLoad(3));
 const after = one(req.state(1));
 check("SCENE : recharger la place 4 remet le son du cercle 2", ld?.rc === 1 && after.values.join() === before && after.eng === 0);
 const ls = one(req.sceneList());
-check(`SCENE : liste des places USER (${ls?.used?.filter(Boolean).length} occupée)`, ls?.used?.length === 32 && ls.used[3] === 1);
+check(`SCENE : liste des places USER (${ls?.used?.filter(Boolean).length} occupée)`, ls?.used?.length === 48 && ls.used[3] === 1);
 check("SCENE : une place vide se charge pas (rc 0)", one(req.sceneLoad(9))?.rc === 0);
 
 // every engine's descriptions, asked by engine (the page reads them once): sane for all 22 settings
@@ -196,14 +196,11 @@ check(`poussée : PLAY pendant 1 s de jeu (${plays} images, ${moved.size} pas di
 {
   const sv = one(req.userSave(CMD.SCENE, 20, "kc9")), ls = one(req.userList(CMD.SCENE));
   check(`v3 SCENE : ranger B05 avec un NOM (rc ${sv?.rc}) -> liste « ${ls?.names?.[20]} » (${ls?.used?.length} places)`,
-    sv?.rc === 1 && ls?.used?.length === 32 && ls.used[20] === 1 && ls.names[20] === "KC9");
-  ex.web_alter(15, 0, 16 | 6 << 8); render(4000);
-  const ps = one(req.userSave(CMD.PAT, 3, "P-6")); ex.web_alter(15, 0, 16 | 2 << 8); render(4000);
-  const pl = one(req.userLoad(CMD.PAT, 3)); render(4000);
-  const bits = (m) => { let n = 0; for (m >>>= 0; m; m >>>= 1) n += m & 1; return n; };
-  const pls = one(req.userList(CMD.PAT));
-  check(`v3 PAT : ranger A04 « ${pls?.names?.[3]} », le charger (rc ${ps?.rc}/${pl?.rc}) : 6 coups (${bits(ex.web_alter_pat(0))})`,
-    ps?.rc === 1 && pl?.rc === 1 && pls.names[3] === "P-6" && bits(ex.web_alter_pat(0)) === 6);
+    sv?.rc === 1 && ls?.used?.length === 48 && ls.used[20] === 1 && ls.names[20] === "KC9");
+  const cv = one(req.userSave(CMD.SCENE, 40, "C09")), lc = one(req.userList(CMD.SCENE));
+  check(`banque C (10/11) : ranger C09 (rc ${cv?.rc}) -> liste « ${lc?.names?.[40]} »`, cv?.rc === 1 && lc.used[40] === 1 && lc.names[40] === "C09");
+  const pt = send(req.userList(CMD.PAT));
+  check(`les patterns sont partis (10/11) : PAT sans réponse (${pt.length})`, pt.length === 0);
   const g0 = one(req.song()), st = one(req.songStore(1)), g1 = one(req.song());
   check(`v3 SONG : état (slots ${g0?.full}), ranger B (rc ${st?.rc}) -> ${g1?.full}`, g0?.cmd === CMD.SONG && st?.rc === 1 && g1.full[1] === 1);
   const pe = one(req.songPlay(2)), pb = one(req.songPlay(1));
@@ -216,5 +213,23 @@ check(`poussée : PLAY pendant 1 s de jeu (${plays} images, ${moved.size} pas di
 // junk: not ours, or bad lengths -> no reply
 check("trames étrangères ou fausses : aucune réponse", send([0xf0, 0x7d, 0x46, 0x4c, 1, 0xf7]).length === 0 && send(req.state(7)).length === 0 && send([0xf0, 0x7d, 0x41, 0x4c, 4, 0, 0xf7]).length === 0);
 
+// BLOB (10/11): the page's patch file = the whole scene: CHAOS TOTAL, read it out, NEW SCENE, write it back, play it
+{
+  const peekAll = () => [0, 1, 2].map((c) => [ex.web_alter_peek(c, 13) >>> 0, ex.web_alter_peek(c, 14) >>> 0, ex.web_alter_pat(c)].join(":")).join(" ");
+  one(req.act(0, ACT.TOTAL)); render(44100);
+  const sn = one(req.blobSnap()), bytes = [];   // (its LEVELs: each circle's alignment folded in, as SAVE held)
+  const was = peekAll(), stw = [0, 1, 2].map((c) => JSON.stringify(one(req.state(c))?.values));
+  while (sn && bytes.length < sn.size) { const g = one(req.blobGet(bytes.length)); if (!g?.bytes?.length) break; bytes.push(...g.bytes); }
+  check(`BLOB : la scène lue (${bytes.length}/${sn?.size} octets, somme ${blobSum(bytes)} = ${sn?.sum})`, sn?.size > 1000 && bytes.length === sn.size && blobSum(bytes) === sn.sum);
+  ex.web_alter(24, 0, 2); render(44100);
+  const blank = peekAll();
+  let put = 0;
+  for (let o = 0; o < bytes.length; o += BLOB_PUT) { const r = one(req.blobPut(o, bytes.slice(o, o + BLOB_PUT))); put += r?.n ?? 0; }
+  const bad = one(req.blobPlay(bytes.length, (sn.sum + 1) & 0x1fff));
+  const pl = one(req.blobPlay(bytes.length, sn.sum)); render(44100);
+  const now = peekAll(), stn = [0, 1, 2].map((c) => JSON.stringify(one(req.state(c))?.values));
+  check(`BLOB : écrite (${put} octets), mauvaise somme refusée (${bad?.ok}), jouée (${pl?.ok}) : même scène qu'avant NEW (${now === was}, sons ${stn.join() === stw.join() ? true : stw.join() + ' / ' + stn.join()})`,
+    put === bytes.length && bad?.ok === 0 && pl?.ok === 1 && now === was && blank !== was && stn.join() === stw.join());
+}
 console.log(fails ? `link: ${fails} FAIL` : "link: tout ok");
 process.exit(fails ? 1 : 0);

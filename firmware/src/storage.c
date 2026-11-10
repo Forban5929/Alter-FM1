@@ -29,11 +29,12 @@
  * The FM6 voice bank (1.4.1, fm6_vbank.c): 0xE7000, the sector above the autosave, with a commit record of the same
  * kind (type OBJ_FM6VB, not an st_load object); a new bank is first staged in the autosave's older copy (fm6_vbank.c). */
 enum { OBJ_SETTINGS, OBJ_PROJECT0, OBJ_UPRESET0 = OBJ_PROJECT0 + 4, OBJ_FM6BANK = OBJ_UPRESET0 + 2, OBJ_UPFM6,
-       OBJ_AUTOSAVE, OBJ_ALTSONG0, OBJ_ALTUSER0 = OBJ_ALTSONG0 + 4, OBJ_COUNT = OBJ_ALTUSER0 + 18 };
+       OBJ_AUTOSAVE, OBJ_ALTSONG0, OBJ_ALTUSER0 = OBJ_ALTSONG0 + 4, OBJ_COUNT = OBJ_ALTUSER0 + 26 };
 /* ALTER (05/11), in Felucca's old user sample slots (0xA0000.., eng_sample.c: not in ALTER), 8 KiB an object:
  * objects 10..13 SONG's slots A B C and its chain (alter_ui.c ALT_OBJ_SONG), 0xA0000..0xA7FFF; 14..29 the 32 USER
- * scenes, 30 31 the 32 USER patterns (alter_store.c ALT_OBJ_US0, ALT_OBJ_UP0), 0xA8000..0xCBFFF */
-#define OBJ_FM6VB 32u                          /* the voice bank's commit records (fm6_vbank.c; >= OBJ_COUNT: st_load
+ * scenes A B, 30 31 the old USER patterns (10/11: unused but 30, the old banks' moving's mark), 32..39 bank C (10/11),
+ * 0xCC000..0xDBFFF (alter_store.c ALT_OBJ_US0, ALT_OBJ_UP0, ALT_OBJ_UC0) */
+#define OBJ_FM6VB 63u                          /* the voice bank's commit records (fm6_vbank.c; >= OBJ_COUNT: st_load
                                                 * never takes one, no object here takes its sectors) */
 
 typedef struct {

@@ -544,7 +544,7 @@ EXPORT uint32_t web_alter_rng(uint32_t c, uint32_t ln) { const as_circ_t *s = &a
 EXPORT int32_t web_alter_knobp(uint32_t c, uint32_t k) { const track_t *t = &trk[c % 3u]; return t->p[ENGINES[eng_idx(t->eng_req)]->knob[k & 3u]]; }
 EXPORT uint32_t web_alter_pat(uint32_t c) { return alt_seq.c[c % 3u].pat; }   /* (tests: a circle's steps) */
 EXPORT uint32_t web_alter_name(uint32_t t, uint32_t u)   /* (tests: USER slot u's NAME, 3 characters, t 0 scene 1 pattern) */
-{ const char *n = t ? alt_nm_p[u % ALT_NUSER] : alt_nm_s[u % ALT_NUSER]; return (uint32_t)(uint8_t)n[0] | (uint32_t)(uint8_t)n[1] << 8 | (uint32_t)(uint8_t)n[2] << 16; }
+{ const char *n = alt_nm_s[u % ALT_NUSER]; (void)t; return (uint32_t)(uint8_t)n[0] | (uint32_t)(uint8_t)n[1] << 8 | (uint32_t)(uint8_t)n[2] << 16; }
 EXPORT uint32_t web_alter_song(uint32_t w)   /* (tests: SONG, alter_song.c: 0 the slot playing + 1, 1 the link, 2 the links,
                                               * 3 the chain on, 4 the full slots' mask) */
 { return w == 0 ? sg_play : w == 1 ? sg_link : w == 2 ? sg_n : w == 3 ? sg_on : (uint32_t)(sg_slot[0].used | sg_slot[1].used << 1 | sg_slot[2].used << 2); }

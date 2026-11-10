@@ -14,7 +14,7 @@
  * envelope modes' settings (alter_lfo.c AE_*) are kept with the patterns, in object 4 (alt_bank_p.env). Packed small: a
  * step's force in 2 bits, its chance in 4 (16 levels). */
 
-#define ALT_NUSER 32                             /* (05/11: banks A B of 16) */
+#define ALT_NUSER 48                             /* (05/11: banks A B of 16; 10/11: C, the patterns gone) */
 #define ALT_NOLD 16                              /* the old banks' slots (moved into bank A once) */
 #define ALT_NFACT 4
 #define ALT_NLIST (1 + ALT_NFACT + ALT_NUSER)   /* NEW, the factory ones, the USER slots */
@@ -608,7 +608,8 @@ static void alt_old_load(void)                  /* the old banks (16 slots), to 
  * when stored; only the used flags stay in RAM. At the first start with them (object 30 never written), the old
  * banks' 16 scenes and 16 patterns are moved into bank A (the old objects are left as they were). */
 #define ALT_OBJ_US0 14u
-#define ALT_OBJ_UP0 30u
+#define ALT_OBJ_UP0 30u                          /* (the old patterns: only the mark that the old banks were moved, 10/11) */
+#define ALT_OBJ_UC0 32u                          /* (bank C, 10/11: objects 32..39, 0xCC000..0xDBFFF, free in ALTER) */
 #define ALT_US_PER 2u
 #define ALT_UP_PER 16u
 #define ALT_MAGIC_US 0x55544C41u                 /* "ALTU" */
@@ -638,10 +639,13 @@ static union {
     struct { uint32_t magic; alt_up_t r[ALT_UP_PER]; } p;
 } alt_ub __attribute__((section(".pool")));
 _Static_assert(sizeof alt_ub.s <= ST_PAYLOAD_MAX_X && sizeof alt_ub.p <= ST_PAYLOAD_MAX_X, "USER objects fit");
-_Static_assert(ALT_OBJ_US0 + ALT_NUSER / ALT_US_PER == ALT_OBJ_UP0 && ALT_NUSER / ALT_UP_PER == 2u, "the objects' map");
-static uint8_t alt_used_s[ALT_NUSER], alt_used_p[ALT_NUSER];
+_Static_assert(ALT_OBJ_US0 + 32u / ALT_US_PER == ALT_OBJ_UP0 && ALT_OBJ_UC0 + (ALT_NUSER - 32u) / ALT_US_PER == 40u,
+               "the objects' map");
+/* USER scene u's object: A B 14..29, C 32..39 */
+static uint32_t alt_us_obj(uint32_t u) { return u < 32u ? ALT_OBJ_US0 + u / ALT_US_PER : ALT_OBJ_UC0 + (u - 32u) / ALT_US_PER; }
+static uint8_t alt_used_s[ALT_NUSER];
 /* the NAMEs (Romain 05/11): 3 characters (space, A-Z, 0-9, -) a USER slot, 0 = none; kept in RAM for the list */
-static char alt_nm_s[ALT_NUSER][3], alt_nm_p[ALT_NUSER][3];
+static char alt_nm_s[ALT_NUSER][3];
 static char alt_nm_new[3];                       /* the NAME the next store takes (alt_nm_set: the SAVE page's NAME) */
 static uint8_t alt_nm_set;
 
@@ -654,7 +658,7 @@ static void alt_ub_clear(uint32_t magic)
 }
 static int alt_ub_load_s(uint32_t u)             /* scene u's object into alt_ub; 1: it holds ours */
 {
-    int n = st_load(ALT_OBJ_US0 + u / ALT_US_PER, &alt_ub.s, sizeof alt_ub.s);
+    int n = st_load(alt_us_obj(u), &alt_ub.s, sizeof alt_ub.s);
     int n_dr = (int)(sizeof alt_ub.s - sizeof alt_ub.s.dr), n_cs = n_dr - (int)sizeof alt_ub.s.cs;
     int n_nm = (int)(sizeof(uint32_t) + sizeof(alt_us_t) * ALT_US_PER);
     if ((n == (int)sizeof alt_ub.s || n == n_dr || n == n_cs || n == n_nm) && alt_ub.s.magic == ALT_MAGIC_US) {
@@ -675,15 +679,6 @@ static int alt_ub_load_s(uint32_t u)             /* scene u's object into alt_ub
     alt_ub_clear(ALT_MAGIC_US);
     return 0;
 }
-static int alt_ub_load_p(uint32_t u)
-{
-    if (st_load(ALT_OBJ_UP0 + u / ALT_UP_PER, &alt_ub.p, sizeof alt_ub.p) == (int)sizeof alt_ub.p &&
-        alt_ub.p.magic == ALT_MAGIC_UP)
-        return 1;
-    alt_ub_clear(ALT_MAGIC_UP);
-    return 0;
-}
-
 /* the CONSOLE's values (alter_console.c acs_v) into a scene's cs, and back (cs[0] 0: stored before it, flat) */
 static void alt_cs_get(uint8_t *b)
 {
@@ -816,28 +811,19 @@ static void alt_banks_load(void)
                 alt_nm_s[u + j][k] = alt_used_s[u + j] ? (char)alt_ub.s.nm[j][k] : 0;
         }
     }
-    for (u = 0; u < ALT_NUSER; u += ALT_UP_PER) {
-        uint32_t j, ok = (uint32_t)alt_ub_load_p(u);
-        for (j = 0; j < ALT_UP_PER; j++) {
-            uint32_t k;
-            alt_used_p[u + j] = (uint8_t)(ok && alt_ub.p.r[j].p.used);
-            for (k = 0; k < 3u; k++)
-                alt_nm_p[u + j][k] = alt_used_p[u + j] ? (char)alt_ub.p.r[j].p.rsv[k] : 0;
-        }
-    }
 }
 
-/* ---- the list: row i of tab t (0 SCENES, 1 PATTERNS): NEW, the factory ones, then USER A01..A16 B01..B16 -------- */
+/* ---- the list: row i (t: 0, the scenes; the patterns went 10/11): NEW, the factory ones, then USER A01..C16 ------ */
 static const char *alt_row_name(uint32_t t, uint32_t i, char *buf)
 {
-    static const char *const NEW[2] = {"NEW SCENE", "NEW PATTERN"};
+    (void)t;
     if (i == 0)
-        return NEW[t & 1u];
+        return "NEW SCENE";
     if (i <= ALT_NFACT)
-        return t ? ALT_FPAT[i - 1u].name : ALT_SCENE[i - 1u].name;
+        return ALT_SCENE[i - 1u].name;
     {
-        uint32_t u = (i - 1u - ALT_NFACT) % ALT_NUSER, used = t ? alt_used_p[u] : alt_used_s[u], n = 0, k;
-        const char *nm = t ? alt_nm_p[u] : alt_nm_s[u];
+        uint32_t u = (i - 1u - ALT_NFACT) % ALT_NUSER, used = alt_used_s[u], n = 0, k;
+        const char *nm = alt_nm_s[u];
         const char *w = !used ? "EMPTY " : nm[0] ? "" : "USER ";
         while (*w)
             buf[n++] = *w++;
@@ -856,113 +842,96 @@ static const char *alt_row_name(uint32_t t, uint32_t i, char *buf)
 
 static const char *alt_row_about(uint32_t t, uint32_t i)
 {
-    uint32_t u;
+    (void)t;
     if (i == 0)
-        return t ? "NO HITS ON THE THREE CIRCLES" : "A BLANK START. LOAD ONLY";
+        return "A BLANK START. LOAD ONLY";
     if (i <= ALT_NFACT)
-        return t ? ALT_FPAT[i - 1u].about : ALT_SCENE[i - 1u].about;
-    u = (i - 1u - ALT_NFACT) % ALT_NUSER;
-    return (t ? alt_used_p[u] : alt_used_s[u]) ? "YOURS" : "HOLD SAVE: STORE HERE";
+        return ALT_SCENE[i - 1u].about;
+    return alt_used_s[(i - 1u - ALT_NFACT) % ALT_NUSER] ? "YOURS" : "HOLD SAVE: STORE HERE";
 }
 
-/* SAVE tapped: load row i of tab t; 0 = nothing there */
+/* a whole scene as the file of the companion page keeps it (10/11): its record, NAME, CONSOLE, draws, as in an object */
+typedef struct {
+    alt_us_t r;
+    uint8_t nm[4];
+    uint8_t cs[1u + AS_NCIRC * ACS_N];
+    uint8_t dr[ALT_DR_N];
+} alt_blob_t;
+static alt_blob_t alt_blob __attribute__((section(".pool")));
+
+/* scene f (its NAME nm, CONSOLE cs, draws dr) on the circles, as a USER scene loads */
+static void alt_us_apply(const alt_us_t *f, const uint8_t *cs, const uint8_t *d)
+{
+    uint32_t k;
+    alt_us_put(f);
+    alt_cs_put(cs);                              /* its CONSOLE (or flat: stored before it) */
+    for (k = 0; k < ALT_DR_N; k++)               /* its draws, TURING, PROGRESSION (none: stored before them) */
+        alt_dr_buf[k] = d[0] == 1u ? d[k] : 0u;
+    for (k = 0; k < AS_NCIRC; k++) {
+        if (d[0] != 1u)
+            alt_seq.prog[k] = 0;
+        alt_dr_cnt[k]++;                         /* (after alt_rhy_put's clean: the audio does them in order) */
+    }
+}
+/* what plays now into f, cs, dr (a circle's alignment gain folded into its LEVEL first: a scene keeps LEVEL only, it
+ * reloads as loud as it plays) */
+static void alt_us_snap(alt_us_t *f, uint8_t *cs, uint8_t *dr)
+{
+    uint32_t c;
+    for (c = 0; c < AS_NCIRC; c++)
+        if (ac_tg[c] != AC_UNITY) {
+            int32_t want = (int32_t)(((int64_t)LEVEL_Q12[trk[c].p[P_LEVEL] & 127] * ac_tg[c]) >> 15), best = 1, j;
+            for (j = 1; j < 128; j++)
+                if ((LEVEL_Q12[j] > want ? LEVEL_Q12[j] - want : want - LEVEL_Q12[j]) <
+                    (LEVEL_Q12[best] > want ? LEVEL_Q12[best] - want : want - LEVEL_Q12[best]))
+                    best = j;
+            fm1_irq_off();
+            trk[c].p[P_LEVEL] = (int16_t)best;
+            fm1_irq_on();
+            alt_cal_to(c, AC_UNITY);
+        }
+    alt_us_get(f);
+    alt_cs_get(cs);
+    fm1_irq_off();
+    alt_dr_pack(dr);
+    fm1_irq_on();
+}
+
+/* SAVE tapped: load row i; 0 = nothing there */
 static int alt_row_load(uint32_t t, uint32_t i)
 {
-    uint32_t c, u = i > ALT_NFACT ? (i - 1u - ALT_NFACT) % ALT_NUSER : 0u;
-    sg_detach = 1;                               /* (SONG: the circles are no slot's now, alter_song.c sg_keep) */
-    if (t == 0) {
-        if (i == 0)
-            alt_new_scene();
-        else if (i <= ALT_NFACT)
-            alt_load_scene(i - 1u);
-        else if (alt_ub_load_s(u) && alt_ub.s.r[u % ALT_US_PER].used) {
-            alt_us_put(&alt_ub.s.r[u % ALT_US_PER]);
-            alt_cs_put(alt_ub.s.cs[u % ALT_US_PER]);   /* its CONSOLE (or flat: stored before it) */
-            {                                    /* its draws, TURING, PROGRESSION (none: stored before them) */
-                const uint8_t *d = alt_ub.s.dr[u % ALT_US_PER];
-                uint32_t k;
-                for (k = 0; k < ALT_DR_N; k++)
-                    alt_dr_buf[k] = d[0] == 1u ? d[k] : 0u;
-                for (k = 0; k < AS_NCIRC; k++) {
-                    if (d[0] != 1u)
-                        alt_seq.prog[k] = 0;
-                    alt_dr_cnt[k]++;             /* (after alt_rhy_put's clean: the audio does them in order) */
-                }
-            }
-        } else
-            return 0;
-        return 1;
-    }
-    if (i > ALT_NFACT && !(alt_ub_load_p(u) && alt_ub.p.r[u % ALT_UP_PER].p.used))
+    uint32_t u = i > ALT_NFACT ? (i - 1u - ALT_NFACT) % ALT_NUSER : 0u;
+    if (t)
         return 0;
-    for (c = 0; c < AS_NCIRC; c++) {
-        alt_rhy_t r;
-        if (i == 0)
-            alt_rhy_plain(&r, 16, 0, 0, 127);
-        else if (i <= ALT_NFACT)
-            alt_rhy_plain(&r, ALT_FPAT[i - 1u].c[c][0], ALT_FPAT[i - 1u].c[c][1], ALT_FPAT[i - 1u].c[c][2],
-                          ALT_FPAT[i - 1u].c[c][3]);
-        else
-            r = alt_ub.p.r[u % ALT_UP_PER].p.c[c];
-        alt_add_set(c, 0);
-        alt_fxr_put(c, 0);                       /* (a pattern: the added steps and the REC'd fills go) */
-        alt_rhy_put(c, &r);
-        if (i > ALT_NFACT)
-            alt_rat_put(c, alt_ub.p.r[u % ALT_UP_PER].prat[c]);
-    }
+    sg_detach = 1;                               /* (SONG: the circles are no slot's now, alter_song.c sg_keep) */
+    if (i == 0)
+        alt_new_scene();
+    else if (i <= ALT_NFACT)
+        alt_load_scene(i - 1u);
+    else if (alt_ub_load_s(u) && alt_ub.s.r[u % ALT_US_PER].used)
+        alt_us_apply(&alt_ub.s.r[u % ALT_US_PER], alt_ub.s.cs[u % ALT_US_PER], alt_ub.s.dr[u % ALT_US_PER]);
+    else
+        return 0;
     return 1;
 }
 
-/* SAVE held: store into row i of tab t; 1 saved, 0 protected (NEW, factory), -1 the flash failed */
+/* SAVE held: store into row i; 1 saved, 0 protected (NEW, factory), -1 the flash failed */
 static int alt_row_save(uint32_t t, uint32_t i)
 {
     uint32_t u, c;
-    if (i <= ALT_NFACT)
+    if (i <= ALT_NFACT || t)
         return 0;
     u = (i - 1u - ALT_NFACT) % ALT_NUSER;
-    if (t == 0) {
-        for (c = 0; c < AS_NCIRC; c++)           /* a circle's alignment gain folded into its LEVEL (a scene keeps */
-            if (ac_tg[c] != AC_UNITY) {          /* LEVEL only): it reloads as loud as it plays */
-                int32_t want = (int32_t)(((int64_t)LEVEL_Q12[trk[c].p[P_LEVEL] & 127] * ac_tg[c]) >> 15), best = 1, j;
-                for (j = 1; j < 128; j++)
-                    if ((LEVEL_Q12[j] > want ? LEVEL_Q12[j] - want : want - LEVEL_Q12[j]) <
-                        (LEVEL_Q12[best] > want ? LEVEL_Q12[best] - want : want - LEVEL_Q12[best]))
-                        best = j;
-                fm1_irq_off();
-                trk[c].p[P_LEVEL] = (int16_t)best;
-                fm1_irq_on();
-                alt_cal_to(c, AC_UNITY);
-            }
-        (void)alt_ub_load_s(u);                  /* (its neighbour in the object kept) */
-        alt_us_get(&alt_ub.s.r[u % ALT_US_PER]);
-        if (alt_nm_set)                          /* its NAME (else the one it had) */
-            for (c = 0; c < 3u; c++)
-                alt_ub.s.nm[u % ALT_US_PER][c] = (uint8_t)alt_nm_new[c];
-        alt_ub.s.nm[u % ALT_US_PER][3] = 0;
-        alt_cs_get(alt_ub.s.cs[u % ALT_US_PER]);   /* its CONSOLE */
-        fm1_irq_off();
-        alt_dr_pack(alt_ub.s.dr[u % ALT_US_PER]);   /* its draws, TURING, PROGRESSION */
-        fm1_irq_on();
-        if (st_save(ALT_OBJ_US0 + u / ALT_US_PER, &alt_ub.s, sizeof alt_ub.s) != 0)
-            return -1;
-        alt_used_s[u] = 1;
-        for (c = 0; c < 3u; c++)
-            alt_nm_s[u][c] = (char)alt_ub.s.nm[u % ALT_US_PER][c];
-        return 1;
-    }
-    (void)alt_ub_load_p(u);
-    alt_ub.p.r[u % ALT_UP_PER].p.used = 1;
+    (void)alt_ub_load_s(u);                      /* (its neighbour in the object kept) */
+    alt_us_snap(&alt_ub.s.r[u % ALT_US_PER], alt_ub.s.cs[u % ALT_US_PER], alt_ub.s.dr[u % ALT_US_PER]);
     if (alt_nm_set)                              /* its NAME (else the one it had) */
         for (c = 0; c < 3u; c++)
-            alt_ub.p.r[u % ALT_UP_PER].p.rsv[c] = (uint8_t)alt_nm_new[c];
-    for (c = 0; c < AS_NCIRC; c++) {
-        alt_rhy_get(c, &alt_ub.p.r[u % ALT_UP_PER].p.c[c]);
-        alt_rat_get(c, alt_ub.p.r[u % ALT_UP_PER].prat[c]);
-    }
-    if (st_save(ALT_OBJ_UP0 + u / ALT_UP_PER, &alt_ub.p, sizeof alt_ub.p) != 0)
+            alt_ub.s.nm[u % ALT_US_PER][c] = (uint8_t)alt_nm_new[c];
+    alt_ub.s.nm[u % ALT_US_PER][3] = 0;
+    if (st_save(alt_us_obj(u), &alt_ub.s, sizeof alt_ub.s) != 0)
         return -1;
-    alt_used_p[u] = 1;
+    alt_used_s[u] = 1;
     for (c = 0; c < 3u; c++)
-        alt_nm_p[u][c] = (char)alt_ub.p.r[u % ALT_UP_PER].p.rsv[c];
+        alt_nm_s[u][c] = (char)alt_ub.s.nm[u % ALT_US_PER][c];
     return 1;
 }
