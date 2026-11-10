@@ -933,3 +933,8 @@ La vue DEEP (3c) doit d'abord offrir en ALTER : GLIDE, canal/horloge MIDI, 2e c�
   (docs/alter/idees/filtre-sherman, tag idee-filtre-sherman). Règle générale : ce qui est à 0 ne coûte rien → reverb mise
   au repos (lignes vidées) après 3 s sans envoi et traîne silencieuse. Test fx : « RES 127 crie » remplacé par « pic à la
   coupure + stable sur silence ». Coût (natif) : filtre WARM 114 → 73 M instructions / 6 s ; scène sans effet : reverb 112 → 56.
+
+## 11/11 — v0.52 : mesurer sur la FM-1 où part le temps
+- Retour v0.51 : 9F 100MS, 200+ CUT avec CHAOS TOTAL + 16/16 + filtre + envois par pas + DIST x3. Hypothèse « voix qui
+  s'empilent » réfutée (natif : voix constantes, 16 coups ou pas ; une protection qui coupe les traînes ne change rien) : non
+  livrée. Le profil natif ne montre pas d'écart dense/clairsemé : il faut la mesure sur la puce → ligne P W X F M (fx.c apf).

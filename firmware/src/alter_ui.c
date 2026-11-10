@@ -3863,12 +3863,24 @@ static void alt_cpu_line(void)
 #endif
     b[n] = 0;
     cv_text(9, 19, ALT_FS, b, col);
-    if (alt_cpu_cut) {
+    {                                             /* (v0.52 : où va le temps du son, fx.c apf_pct, en % : P parties de ce
+                                                   * cœur, W attente du 2e, X delay/chorus/reverb, F filtre, M master) */
+        static const char L[APF_N] = {'P', 'W', 'X', 'F', 'M'};
+        uint32_t k;
         n = 0;
-        b[n++] = 'C', b[n++] = 'U', b[n++] = 'T', b[n++] = ' ';
-        alt_cpu_num(b, &n, alt_cpu_cut);
+        if (alt_cpu_cut) {
+            b[n++] = 'C', b[n++] = 'U', b[n++] = 'T', b[n++] = ' ';
+            alt_cpu_num(b, &n, alt_cpu_cut);
+            b[n++] = ' ';
+        }
+        for (k = 0; k < APF_N; k++) {
+            b[n++] = L[k];
+            alt_cpu_num(b, &n, apf_pct[k]);
+            if (k + 1u < APF_N)
+                b[n++] = ' ';
+        }
         b[n] = 0;
-        cv_text(9, 33, ALT_FS, b, ALT_RED);
+        cv_text(9, 33, ALT_FS, b, alt_cpu_cut ? ALT_RED : ALT_DIM);
     }
 }
 #endif
@@ -4549,7 +4561,7 @@ static void alter_draw(void)
     alt_fps_poll();
 #if ALTER_CPU_SHOW
     alt_cpu_poll();
-    shead = shead * 31u + alt_fps * 113u + alt_draw_ms * 127u + alt_cpu_avg * 101u + alt_cpu_pk * 103u + alt_cpu_cut * 107u + alt_cpu_c1 * 109u;   /* (version test : la charge CPU) */
+    shead = shead * 31u + apf_pct[0] * 7u + apf_pct[1] * 11u + apf_pct[2] * 13u + apf_pct[3] * 17u + apf_pct[4] * 19u + alt_fps * 113u + alt_draw_ms * 127u + alt_cpu_avg * 101u + alt_cpu_pk * 103u + alt_cpu_cut * 107u + alt_cpu_c1 * 109u;   /* (version test : la charge CPU) */
 #endif
     ui.force = 1;                                /* (whatever comes after this view draws itself whole) */
     {                                            /* the steps playing and the hits' flash: a page that shows them has
@@ -4717,6 +4729,12 @@ static int32_t alt_peek(uint32_t c, uint32_t w)
         return (int32_t)(au.cfg[c].type | au.cfg[c].len << 8 | au.cfg[c].tdens << 16 | (uint32_t)au.cfg[c].tlock << 24);
     if (w == 10u)
         return au.cfg[c].trange;
+    if (w == 16u) {                              /* (v0.52: circle c's voices sounding, those fading out not counted) */
+        uint32_t i, k = 0;
+        for (i = 0; i < NVOICE; i++)
+            k += trk[c].v[i].active && trk[c].v[i].stage != 4u;   /* (fading out: not counted) */
+        return (int32_t)k;
+    }
     if (w == 11u)                                /* (the CONSOLE: LOW MID HIGH COMP, a byte each) */
         return (int32_t)(acs_v[c][0] | acs_v[c][1] << 8 | acs_v[c][2] << 16 | (uint32_t)acs_v[c][3] << 24);
     if (w == 15u)                                /* (the PROGRESSION's tests: the last hit's note) */
@@ -4766,6 +4784,7 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
         alt_cl[a & 3u][(a >> 8) % CL_N].dst = (uint8_t)((b >> 8 & 31u) % GD_N);
         alt_cl[a & 3u][(a >> 8) % CL_N].depth = (int8_t)clamp((int8_t)(b >> 16), -64, 63);
         break;
+    case 29: au.cfg[a % AS_NCIRC].hits = (uint8_t)clamp((int32_t)b, 0, (int32_t)au.cfg[a % AS_NCIRC].len); alt_post_circle(a % AS_NCIRC); break;   /* (a test: HITS) */
     case 22: alt_total_chaos(); break;          /* (a test: CHAOS TOTAL, 10/11) */
     case 23: alt_web_rc = alt_row_save(0, ALT_NFACT + 1u + a % ALT_NUSER); break;   /* (a test: SAVE into USER a) */
     case 25:                                     /* (a test: USER a stored as before the draws, 10/11: the object cut) */

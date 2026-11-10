@@ -1140,6 +1140,36 @@ static uint32_t mix_split(void)
 }
 #endif
 
+/* ALTER (v0.52, a test version's tool: where the audio's time goes on the FM-1 itself) the block's stages, in TIMER4
+ * ticks, added up for ~1 s then as % of the audio's time: P this core's parts (and what is shared before them), W
+ * waiting for the second core's, X the delay / chorus / reverb, F the MASTER FILTER, M the MASTER and the output */
+#if defined(FM1_TICKS_PER_US)
+#define ALT_PT() fm1_ticks()
+#else
+#define ALT_PT() 0u
+#endif
+enum { APF_P, APF_W, APF_X, APF_F, APF_M, APF_N };
+static uint32_t apf_acc[APF_N], apf_smp;
+static volatile uint8_t apf_pct[APF_N];
+static void apf_end(uint32_t n)
+{
+    uint32_t k;
+    apf_smp += n;
+    if (apf_smp < FS)
+        return;
+#if defined(FM1_TICKS_PER_US)
+    for (k = 0; k < APF_N; k++) {           /* (ticks a sample: FM1_TICKS_PER_US x 1e6 / FS) */
+        uint32_t d = apf_smp / 100u * (FM1_TICKS_PER_US * 1000000u / FS);
+        apf_pct[k] = (uint8_t)(d ? (apf_acc[k] / d > 99u ? 99u : apf_acc[k] / d) : 0u);
+        apf_acc[k] = 0;
+    }
+#else
+    for (k = 0; k < APF_N; k++)
+        apf_acc[k] = 0;
+#endif
+    apf_smp = 0;
+}
+
 static void mix_block(int32_t *out, uint32_t n)
 {
     uint32_t i;
@@ -1153,6 +1183,7 @@ static void mix_block(int32_t *out, uint32_t n)
     for (uint32_t ci = 0; ci < AM_NC; ci++)
         ac_poll(ci, n);                                 /* ALTER: the circles' alignment (alter_fx.c) */
     perf = perf_begin(n);                               /* the FX hold layer at work (perform.c) */
+    uint32_t pt0 = ALT_PT(), pt1;
 #if FELUCCA_CPU2
     uint32_t m = C1_ON() ? C1_SPLIT() & ((1u << NPART) - 1u) : 0u;
     if (m && !C1_RUN(c1_parts, m | n << 8))
@@ -1161,10 +1192,15 @@ static void mix_block(int32_t *out, uint32_t n)
     for (i = 0; i < NPART; i++)
         if (!(m >> i & 1u))
             mix_part(&trk[i], n, &mx[0]);
+    pt1 = ALT_PT();
+    apf_acc[APF_P] += pt1 - pt0;
     if (m) {
         const mixsum_t *sm = &mx[1];
         if (C1_WAIT())                                  /* it stopped answering (held from now on): its parts here */
             c1_parts(m | n << 8);
+        pt0 = ALT_PT();
+        apf_acc[APF_W] += pt0 - pt1;
+        pt1 = pt0;
         for (i = 0; i < n; i++) {
             mix_l[i] += sm->l[i];
             mix_r[i] += sm->r[i];
@@ -1178,20 +1214,28 @@ static void mix_block(int32_t *out, uint32_t n)
 #else
     for (i = 0; i < NPART; i++)                         /* (one core: as 1.6) */
         mix_part(&trk[i], n);
+    pt1 = ALT_PT();
+    apf_acc[APF_P] += pt1 - pt0;
 #endif
     if (perf)
         perf_pre(mix_l, mix_r, send_d, send_r, n);
     fx_buses(send_c, send_d, send_r, wet, n);
     if (hl.side)
         rev_side_mix(mix_l, mix_r, n);                  /* HALL: stereo */
+    pt0 = ALT_PT();
+    apf_acc[APF_X] += pt0 - pt1;
     if (afl_p(AFL_MIX) || afs.run)
         afl_block(mix_l, mix_r, wet, n);                /* ALTER's MASTER FILTER (alter_filter.c): wet folded in */
+    pt1 = ALT_PT();
+    apf_acc[APF_F] += pt1 - pt0;
     if (am_on())
         am_master(mix_l, mix_r, wet, n);                /* ALTER's MASTER block (alter_fx.c): wet folded in */
     if (scope_mix)
         scope_take_mix(n);
     if (perf) {
         perf_master(out, n);
+        apf_acc[APF_M] += ALT_PT() - pt1;
+        apf_end(n);
         return;
     }
     for (i = 0; i < n; i++) {
@@ -1201,4 +1245,6 @@ static void mix_block(int32_t *out, uint32_t n)
         out[2u * i] = l;
         out[2u * i + 1u] = r;
     }
+    apf_acc[APF_M] += ALT_PT() - pt1;
+    apf_end(n);
 }
