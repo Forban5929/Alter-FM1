@@ -310,6 +310,14 @@ legend { font-size: 13px; }
 .shared.wide { padding: 12px 0 0; }
 .shared.wide fieldset { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 24px; }
 .card { padding: 32px 12px 10px; container-type: inline-size; }
+/* the scrollbars in the page's colours (10/11, Romain: the system's grey one broke the page): Chromium/Edge/Safari draw
+ * these; Firefox the two colours below */
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-track { background: var(--body); border-left: 1px solid var(--dark); }
+::-webkit-scrollbar-thumb { background: var(--rim); border: 3px solid var(--body); border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+::-webkit-scrollbar-corner { background: var(--body); }
+@supports not selector(::-webkit-scrollbar) { * { scrollbar-color: var(--rim) var(--body); scrollbar-width: thin; } }
 /* the MIXER (10/11, Romain: a mixing desk): a strip a circle, knobs above (DRIVE, HIGH MID LOW, COMP, the sends), its MUTE,
  * its fader; the MASTER's fader */
 .mixer { display: grid; gap: 12px; padding: 12px 0; grid-template-columns: repeat(3, minmax(170px, 230px)) minmax(160px, 190px); justify-content: center; }
@@ -364,7 +372,7 @@ legend { font-size: 13px; }
     <button class="btn main" id="bMidi">Connect the FM-1</button>
     <button class="btn" id="bEmu" title="The web emulator, open in another tab of this browser: its screen, keys and sound">Connect the emulator</button>
     <button class="btn" id="bDemo">Try without a synth</button>
-    <label class="zoom" title="The page's size: AUTO fits it to the window"><span>SIZE</span><select id="zoom" aria-label="Page size">
+    <label class="zoom" title="The page's size: AUTO picks one from the window's size"><span>SIZE</span><select id="zoom" aria-label="Page size">
       <option value="auto">AUTO</option><option value="0.8">S</option><option value="0.9">M</option><option value="1">L</option><option value="1.15">XL</option></select></label>
     <a class="btn" id="bGuide" href="guide.html" target="_blank" rel="noopener" title="Every key and button of ALTER, drawn">Controls guide</a>
     <button class="btn theme" id="bTheme" aria-label="Switch to the DAY theme"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3a9 9 0 1 0 6 15.5A8 8 0 0 1 15 3z" fill="currentColor"/></svg><span>NIGHT</span></button>
@@ -1241,11 +1249,8 @@ function mixerBuild() {
     const kn = (nm, label) => { const i = at(nm); if (i < 0) return null; const t = knob(cdesc[i], `m${c}_${i}`, (v) => queueVar(c, i, v), label ?? nm); vctl[c][i] = t; return t.row; };
     const add = (...els) => st.append(...els.filter(Boolean));
     const sep = () => Object.assign(document.createElement("div"), { className: "sep" });
-    add(kn("DRIVE"), sep(), kn("HIGH"), kn("MID"), kn("LOW"), sep(), kn("COMP"));
-    const pr = document.createElement("div");
-    pr.className = "kpair";
-    pr.append(...[kn("DELAY", "DLY"), kn("REVERB", "REV")].filter(Boolean));
-    add(pr);
+    const pair = (...k) => { const pr = document.createElement("div"); pr.className = "kpair"; pr.append(...k.filter(Boolean)); return pr; };
+    add(pair(kn("DRIVE"), kn("COMP")), sep(), kn("HIGH"), kn("MID"), kn("LOW"), sep(), pair(kn("DELAY", "DLY"), kn("REVERB", "REV")));   // (COMP by DRIVE: Romain)
     for (const [i, d] of cdesc.entries())             // (anything else the CONSOLE gets one day: a knob too)
       if (d.grp === GR.CONS && !["DRIVE", "HIGH", "MID", "LOW", "COMP", "DELAY", "REVERB", "LEVEL"].includes(d.name) && !d.names.length) add(kn(d.name));
     const mi = cdesc.findIndex((d) => d.name === "MUTE"), mb = document.createElement("button");
@@ -1825,7 +1830,6 @@ function selectTab(t) {
   if (t === "song") pollSong();
   document.querySelectorAll(".tab").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === t)));
   document.querySelectorAll("[data-panel]").forEach((p) => (p.hidden = p.dataset.panel !== t));
-  refit();
 }
 document.querySelectorAll(".tab").forEach((b) => (b.onclick = () => selectTab(b.dataset.tab)));
 $("aChaos").onclick = () => doAct(0, ACT.CHAOS);
@@ -1864,15 +1868,13 @@ function applyZoom(z) {
   app.style.height = narrow ? "" : `${innerHeight / z}px`;
   app.style.setProperty("--dial", `${Math.round(Math.max(130, Math.min(230, (innerHeight / z) * 0.22)))}px`);
 }
-// AUTO: the largest size at which the open tab holds in the window (what does not fit then scrolls inside the panel)
+// AUTO (10/11, Romain: no size jump at each tab): a size from the window alone, chosen when the page opens and when the
+// window itself changes size, never from the tab open; what does not fit scrolls inside the panel
 function fit() {
   const sel = $("zoom").value;
   if (sel !== "auto") return applyZoom(+sel);
-  const P = $("panels");
-  for (let z = 1.25; z >= 0.6; z -= 0.05) {
-    applyZoom(z);
-    if (P.scrollHeight <= P.clientHeight + 2) return;
-  }
+  const z = Math.min(innerWidth / 1440, innerHeight / 940);
+  applyZoom(Math.max(0.6, Math.min(1.25, Math.round(z * 20) / 20)));
 }
 let fitT = 0;
 const refit = () => { clearTimeout(fitT); fitT = setTimeout(fit, 120); };

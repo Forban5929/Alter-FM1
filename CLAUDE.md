@@ -25,7 +25,7 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
    **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v0.45 » (10/11) ; **+0.01 à CHAQUE envoi à Romain** (v0.42, v0.43…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v0.46 » (10/11) ; **+0.01 à CHAQUE envoi à Romain** (v0.42, v0.43…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. Pousser sur `etape-3d` → GitHub Actions construit le vrai firmware + publie https://forban5929.github.io/Alter-FM1/ (version
    dans /version.txt). Le cloud ne télécharge pas les artifacts ni le compilateur JieLi : **rien n'est mesuré sur la FM-1 depuis le cloud.**
@@ -271,6 +271,10 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   fader) : par cercle DRIVE | HIGH MID LOW | COMP | DLY REV (knobs SVG `knob()` : arc 270° couleur du cercle, EQ part du
   milieu, glisser haut/bas, molette, flèches, double-clic = milieu/minimum), MUTE, fader LEVEL ; tranche MASTER ; oscilloscope
   retiré. Testé Chrome headless démo (clavier → VSET, double-clic EQ à plat). **Pas avec la FM-1.**
+- [x] 10/11 soir **v0.46** (page) : COMP à côté de DRIVE en haut de la tranche ; **SIZE AUTO = taille choisie d'après la
+  fenêtre seule** (min(largeur/1440, hauteur/940), 0,6..1,25, recalculée seulement si la fenêtre change ; plus d'après l'onglet :
+  Romain, les changements de taille à chaque onglet cassaient la fluidité) → les onglets longs défilent ; **barres de défilement
+  aux couleurs de la page** (::-webkit-scrollbar, Firefox scrollbar-color). Testé Chrome headless (zoom 0,95 sur tous les onglets).
 - [ ] **PROCHAINE SESSION** : « nnF xxMS » de cette version (but : ~30F, < 33 ms ; 28F 24MS avant le triangle fixe). Si encore lent : dessin sur le 2e cœur ?
   alléger le son ? SPI (bsp : pas sans accord). Aussi MIDI LEARN avec le BCR32, CONSOLE de la page branchée, TRS (autre câble).
 - [ ] Idées : un contrôle → plusieurs réglages (macro) ; LEARN dans la page compagnon ; DENSITY/ROT continus.
