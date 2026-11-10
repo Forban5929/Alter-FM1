@@ -78,7 +78,7 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
 **Retours de tests FM-1 (10/11, Sheet)** : tests 1-5 OK ; **CPU = problème n° 1** : 67/85 % 27F 31MS avec tous les effets,
 et avec 3 LFO + envois FX sur les pas : 18F 50MS, **CUT 393** (2C était actif). v0.51 (choix de Romain) : **MASTER FILTER simple façon Felucca** (1 étage TPT, coefficients 1 fois par bloc, sauf FM :
 tous les 8 ; RES max k = 0.12, ne crie plus ; presets SHERMAN → ENV WAH, SCREAM → PEAK ; MORPH A/B et les 11 réglages gardés,
-côté droit sur le 2e cœur). L'ancien filtre « Sherman » archivé : `docs/alter/idees/filtre-sherman/` + tag `idee-filtre-sherman`.
+côté droit sur le 2e cœur). L'ancien filtre « Sherman » archivé : `docs/alter/idees/filtre-sherman/` + branche git `idee-filtre-sherman` (v0.50 complète).
 **Règle de Romain : ce qui est à 0 / éteint ne doit rien coûter** (filtre : DRIVE 0, 12 dB, MOD/MODTYP 64 + FM 0, bandes à 0,
 MIX plein ; reverb : rien envoyé + traîne < 4 pendant 3 s → lignes vidées, plus calculée ; delay/chorus/DIST/CONSOLE déjà).
 Profil natif (callgrind, /tmp/prof : felucca_web.c compilé en natif) : moteur ALTER ~29 % de l'audio, filtre 21 % → ~10 %

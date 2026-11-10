@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * ALTER's MASTER FILTER, simple (v0.51, Romain 10/11: Felucca's kind of filter, the A / B MORPH kept; the first one,
- * after a Sherman Filterbank, is kept as an idea in docs/alter/idees/filtre-sherman, tag idee-filtre-sherman: ~21 % of the
+ * after a Sherman Filterbank, is kept as an idea in docs/alter/idees/filtre-sherman, branch idee-filtre-sherman: ~21 % of the
  * sound's CPU). Included by alter_fx.c; fx.c calls afl_block before the MASTER (EQ, COMP, CLIP, limiter after it). On the
  * whole mix, the echoes too (the wet bus folded in). Stereo. No REC, no random draw ever touches it.
  *

@@ -11,4 +11,4 @@ toutes les 8 échantillons). Remplacé par un filtre simple façon Felucca qui g
 
 **À reprendre** pour un autre synthé plus puissant, ou plus tard sur le 2e cœur. Le fichier est la version v0.50 complète
 (le côté droit déjà séparé dans `afl_side` pour le 2e cœur). Il s'incluait dans `alter_fx.c` ; `fx.c mix_block` appelait
-`afl_block(mix_l, mix_r, wet, n)` avant le MASTER. Tag git : `idee-filtre-sherman`.
+`afl_block(mix_l, mix_r, wet, n)` avant le MASTER. Branche git : `idee-filtre-sherman` (tout le firmware tel qu'il était en v0.50).
