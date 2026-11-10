@@ -681,3 +681,233 @@ La vue DEEP (3c) doit d'abord offrir en ALTER : GLIDE, canal/horloge MIDI, 2e c�
 - Compte **Forban5929**, dépôt public **alter-fm1** (renommé Alter-FM1, liens redirigés). Copies de secours dans le Projet
   (`claude/code/`). Une branche par étape ; issues = retours d'écoute. La session cloud ne peut pas créer de dépôt :
   add_repo puis git push. Avant de pousser depuis un clone superficiel : `git fetch origin <branche>`.
+
+## Archive : CLAUDE.md au 10/11/2026 soir (v0.46), commandes + journal détaillé 04/11 → 10/11
+
+## Les commandes (état au 05/11)
+- Clavier : F G A = MUTE 1 2 3 · C D E = DÉ 1 2 3 · G A = SHIFT −/+ · B = LOCK (TURING) · noires F# G# A# = CERCLE 1 2 3
+  (les 3 = CHAOS TOTAL, re-tapé < 3 s = annulé) · C# D# = DENSITÉ −/+ · F# G# A# hautes = DUB DELAY, DUB REVERB, DESTROY
+  (tenus) · C# D# hautes = ROLL 1/16, **ROLL 1/8** (ex-1/32) · F# haute = TRIGGER. **C D E hautes = SONG A B C** ; F G hautes blanches : libres.
+- **Dés (04/11)** : DÉ = pattern seul (HITS, ROT, flams, 1 ratchet) · **OCT− + DÉ** = vélo + chance seules · **OCT+ + DÉ** =
+  hauteur + jets delay/reverb · DÉ tenu 0,6 s = propre · OCT− + OCT+ + DÉ = verrous · DÉ 1+2+3 = CHAOS (tout).
+  Le timbre/glide/longueur par coup ne sont plus tirés que par CHAOS / CHAOS TOTAL.
+- MUTE 1+2+3 = trois mutes (SHUFFLE retiré le 05/11 ; le tirage reste sur le bouton « Au hasard » de la page compagnon).
+- **Vélo/chance au hasard** (dés, CHAOS, « Au hasard », SHUFFLE du menu SEQ) : vélo 100 % 70 %, 75 % 20 %, 50 % 10 % ; chance 100 % sauf
+  une part qui monte avec le nombre de coups (aucune si ≤ 2 coups, max 45 %) : 75/50/25 % (plancher 25 %). `as_vpct`, `as_cpct`.
+- Boutons de page : tap = page rapide, tenu 0,5 s = menu. Menus : SEQ, FX, LFO, ENV, SCL,
+  **EDIT = DEEP** (liste de tous les réglages du son du cercle choisi : onglets SOUND / ENV / FX / MIX, SELECT = ligne,
+  KNOB 1 = valeur via la file alt_q donc REC l'enregistre, touches noires = cercle ; `alt_deep_*`),
+  **GLO = MIXER**, onglets (ALGORITHM) **MIX / I / II / III** : MIX = knob 1-3 LEVEL des cercles, knob 4 MASTER 100 = 0 dB,
+  vumètre blanc/doré = limiteur/rouge = clip · **I II III = CONSOLE du cercle** (étape 4, 05/11 ; suit les touches noires) :
+  2 rangées, SELECT = rangée, KNOB 1-4 : DRIVE (P_DIST) LOW MID HIGH / COMP DELAY REVERB LEVEL (P_DLY P_REV P_LEVEL via
+  alt_qpush → REC ok). LOW MID HIGH COMP = `acs_v[c][4]` (64 64 64 0 = à plat = code sauté, bit pour bit ; 0 = KILL, 32 = −12,
+  127 = +12 dB ; coupures 250 Hz / 2,5 kHz) ; COMP 1 knob : seuil −4..−22 dB, ratio 2..8, rattrapage auto (crêtes remises
+  à leur niveau, max +12 dB), barre dorée = réduction. **Pas dans REC** (choix de Romain 07/11), gardé dans les scènes USER (`alt_ub.s.cs`, après
+  `nm` ; objets plus courts = à plat), usine/NEW = à plat. **Page compagnon (LINK 4)** : onglet EFFECTS, colonnes CONSOLE. Delay/reverb = envois vers les bus
+  communs (pas de delay par cercle : RAM). Tests : op `web_alter` **20** (a = cercle | valeur<<8, b), peek **11**.
+  **HOME tenu = SYSTEM** (batterie en haut ; onglets SETUP, **LEARN** (voir MIDI LEARN), AUDIO, RANDOM, ABOUT ; SETUP : THEME, **SMOOTH** ON/OFF (alt_sys[8], 0 = ON), CLOCK INT/USB/TRS, MIDI IN, **TRS SEEN / USB SEEN**
+  (lecture seule : messages MIDI reçus par prise depuis l'allumage, « CLK » si des F8 arrivent ; `alt_midi_n`, compté dans seq.c) · AUDIO : lignes Felucca
+  CLICK (OFF/ON), CLICK LEVEL, SPEAKER EQ, USB LEVEL, TUNE, 2ND CORE · RANDOM : les 7 moteurs et modes FREE PERC
+  STAB permis au hasard (la liste défile) · ABOUT : document GPL de Felucca, défile). Gardé en flash : `alt_sys` = favorites.factory[13]
+  ([3] CLOCK, [4] MIDI IN, [5] MASTER, [6] TUNE ; le reste dans les réglages Felucca).
+- **MIDI LEARN (07/11, `alter_learn.c`)** : SYSTEM > LEARN. Ligne GROUP (KNOB 1) = CIRCLE I/II/III (réglage d'UN cercle fixe :
+  8 du son, ADSR, CONSOLE, PAN, INSERT, CHORUS, RUMBLE, GLIDE, HITS, DOSE ; CC seulement) / GLOBAL (MASTER, TEMPO, SWING, MASTER
+  FILTER, DELAY, REVERB ; dernière ligne CLEAR ALL) / ACTIONS (touches + PLAY REC OCT± ARP ; CC ≥ 64 ou note). SELECT = ligne,
+  KNOB 1 → = WAITING puis le 1er CC/note = lié ; KNOB 1 ← = effacé. Lien = canal + numéro exacts, avant le filtre MIDI IN ;
+  un contrôle = une chose. Valeur absolue 0..127 (encodeurs en ABSOLU). Réglage du son par la file (REC l'écrit), CONSOLE et
+  GLOBAL en direct. Actions = touches/boutons virtuels (`ALT_NOTES`/`ALT_BTNS`). Carte CC fixe Felucca gardée pour les CC non
+  liés. Flash : favorites.factory[5..8] (magic 0xA1, 42 liens × 3 o ; **codes à ne jamais réordonner**, détail HISTORIQUE).
+- OCT− + OCT+ + HOME = NEW SCENE · REC tapé/tenu 1 s/OCT−+OCT++REC. **OCT− + OCT+ tenus 5 s = mode UPDATE** (main.c,
+  à garder absolument) · OCT− + OCT+ tenus à l'allumage = calibration des boutons (main.c panel_setup).
+- **USER : 48 scènes (10/11 ; patterns RETIRÉS, choix de Romain : les variations = SONG A B C)**, page SAVE à 3 onglets
+  (ALGORITHM) : SCENES A B C (A = NEW + 4 usine + A01-A16 ; B = B01-B16 ; C = C01-C16 : objets 32-39, 0xCC000-0xDBFFF, `alt_us_obj`). **SAVE tenu sur une ligne USER = page NAME** (3 caractères A-Z 0-9 -
+  espace, KNOB 1 2 3 ; départ = nom existant, sinon 3 lettres du son du cercle 1 / HITS des 3 cercles ; SAVE = sauver,
+  HOME = annuler) ; liste « A05  KCK ». Noms : `alt_ub.s.nm` (fin d'objet ; objets sans nm encore lus) ; RAM `alt_nm_s`. Une scène = un enregistrement `alt_us_t` (tout : son, rythmes, FX, filtre,
+  pas ajoutés, fills, REC, PLAGES) lu en flash au chargement : objets 14-29 (2 scènes/objet), objets 30-31 = anciens patterns,
+  plus lus (30 = marqueur de la migration, à garder), 0xA8000-0xCBFFF. En RAM : seulement les drapeaux `alt_used_s`. Anciennes banques (objets 1-7, 9 ; 16 places) = lues
+  UNE fois au 1er démarrage et copiées en banque A (`alt_us_migrate`, marqueur = objet 30), puis plus touchées. Objet 8 = mêmes
+  secteurs que 7 : NE PAS UTILISER. Mémoire (build CI 07/11) : code 329/568 Ko, **RAM 58/72 Ko
+  (≈ 15 Ko libres)**, pool 351/360 Ko (≈ 17,5 Ko libres ; anciennes banques 11 Ko dedans, récupérables).
+- Page FX DELAY : TIME (1/16 1/8 1/8D 1/4 seulement) FEEDBK **TAPE** SEND. Presets : ECHO, DUB, DUB LONG (1/4 au lieu de
+  1/4D), PING-PONG, GHOST, TAPE (SLAP, SPACE, TRIPLET, 16TH DOT retirés). MODE/TAPE dans G_DRLVL/G_DRREV (inertes chez
+  Felucca) et octets 28-29 de l'enregistrement FX des scènes.
+- **SONG (05/11, simplifié le jour même ; `alter_song.c` côté audio + `alt_sg_*` dans alter_ui.c)** : C D E hautes = slots
+  A B C (les 3 blanches avant les 2 dernières à droite). Tapée = ce slot joue à la mesure suivante (la chaîne s'arrête) ·
+  **SAVE tenu + A/B/C** = sauver ce qui joue (la page SAVE se referme) · **tenir A + taper C puis B** = chaîne A>C>B
+  (4 mesures par maillon), elle boucle · bord droit de l'écran PLAY, vertical, **seulement si une chaîne de ≥ 2 tourne** :
+  ses maillons (celui qui joue plein) · ARP tapé = chaîne ON/OFF (repart du maillon 1) · ARP tenu = page SONG (liste
+  seule + 4 knobs nommés en bas : SLOT, BARS 1/2/4/8, LINKS max 16, CHAIN ON/OFF ; SELECT = maillon).
+  **Modifs live gardées dans le slot qui joue** (`sg_keep` avant chaque changement, RAM ; `sg_detach` quand une scène /
+  un pattern / NEW SCENE est chargé : plus de slot). Slot = rythmes seuls
+  (as_circ_t entier : pas, couloirs, PLAGES, tirage du dé, pas ajoutés, fills REC, mouvements REC, mutes ; PAS les sons ni
+  root/chord/dose). Changement à la barre (alt_gstep % 16), chaque cercle repart du pas 1. Flash : objets 10-12 (slots) + 13
+  (chaîne) à 0xA0000 (ex-samples Felucca, inutilisés). Indépendant des scènes. Chaîne OFF à l'allumage. Test : `web_alter_song`.
+- **TURING tiré au hasard** (CHAOS TOTAL, « Au hasard ») : `alt_tur_draw` = LEN 5-16 (max de 2 tirages : plus près de 16),
+  DENS 40-60 %, LOCK 50-75 %, RANGE 1-4.
+- Écran PLAY : cercle choisi = anneau épais + halo de sa couleur ; lignes des triggers et points avec un contour couleur du fond.
+- **LEDs du clavier (vue PLAY, 05/11)** : toute touche avec une fonction = pleine ; un état actif (mute, cercle, slot,
+  TURING figé) bat : creux au niveau `nm` (mid ~12 %) 170 ms par seconde ; touche momentanée appuyée = creux ; sans
+  fonction = éteinte (les LEDs n'ont pas de niveau entre ~60 % et plein, bsp).
+- **Niveleur (alter_fx.c ac_*)** : après un tirage, le gain suit dès la 1re fenêtre sonore (plus 4-8 s), plage −18..+24 dB.
+  Écart des 3 cercles dans les 2 premières s après CHAOS : 15,5 → 8,1 dB (moyenne, émulateur).
+- **Horloge externe** : seq.c convertit seq_n (unités MIDI_CLOCK_GRID) en échantillons pour ALTER (`midi_alt_grid`) — avant,
+  les cercles tournaient à GRID/beat × le tempo. Test emu : `web_midi_rt`, `web_clock_mode`, `web_gstep`.
+- **Écran plus rapide (05/11, « laggy »)** : grain de papier précalculé (tuile 128×64 en .pool, ~5× moins cher) ; vue des
+  cercles : si seuls les pas joués / flashs bougent, seules les **lignes touchées** sont redessinées et envoyées (étoiles
+  ±11 px, alidade ; `alter_draw`), vérifié identique pixel à pixel à un redessin complet (émulateur). La page compagnon
+  reçoit PLAY ≤ 30/s depuis la boucle principale : un écran plus rapide l'aide aussi. FPS réel FM-1 **non mesuré**.
+- Sons cachés : `alt_pre_t.hide` (WIRE, = SITAR) hors PRESETS et hasard, gardé pour les scènes qui l'utilisent.
+- **KICK** : knob 4 = RUMBLE (réverb sombre distordue, ducker par le kick, suit le niveau du kick ; 70 par défaut ; sauvé dans
+  la scène, octet `rsv`). Seuls les sons avec `rumble` ≠ 0 dans ALT_PRE l'ont.
+
+### État d'avancement
+- [x] Étapes 1, 2 (main) · étape 3 complète sur `etape-3d` (vues, scènes, LFO, FX, MASTER FILTER, page compagnon, réverbs).
+- [x] **v4 (04/11, retours jam v3)** : clics des dubs (envois qui glissent ~3 ms, TIME en fondu 46 ms), delays revus + TAPE,
+  ROLL 1/8, MIXER, SYSTEM, dés séparés, vélo/chance, KICK gras + RUMBLE, BARS/BUZZ/HAT/ARCADE refaits (réglés aux
+  mesures, **pas écoutés** : Romain juge). Tests : emu + fx + seq (3 nouveaux) + link OK. **À essayer sur la FM-1.**
+- [x] 05/11 : SHUFFLE (3 MUTE) retiré ; SYSTEM complet (AUDIO + ABOUT). Le « pop » à l'extinction existe aussi sur le firmware
+  officiel : matériel, on laisse. BCR32 : TRS MIDI IN
+  type A (câble DIN → mini-jack type A) + carte CC fixe de Felucca (CC7 LEVEL, 10 PAN, 73/75/72 ATK/DEC/REL, 74/71 =
+  timbre du moteur, 91 REV, 94 DLY, 5 GLIDE ; canaux 1-3 = cercles 1-3) ; un MIDI LEARN ALTER = à faire si besoin.
+- [x] 3c (05/11) : REC + PLAGES sauvés · vue DEEP · **interface Felucca retirée** (trappe OCT−+OCT++bouton supprimée, ui_input
+  ne fait plus qu'appeler ALTER, ui_draw_page = UBOOT ou ALTER ; −8 300 lignes de code mort, wasm 767 → 500 Ko). Gardé exprès :
+  seq.c (transport + horloge MIDI des cercles), menu_items.c (lignes de SYSTEM), ui_menu.c menu_document (ABOUT), main.c
+  (UPDATE, calibration), midi_*.c. MIDI LEARN de Felucca parti avec ses pages (un learn ALTER = à faire pour le BCR32).
+  Méthode : `/tmp`-script « prune » = compiler avec -Wunused-function et supprimer ce qui est signalé, en boucle, HORS sous-modules.
+- [x] 05/11 : PLATE, CORDE, RING + 4 sons chacun (GONG TOLE SCRAPE CRACKED · WIRE SITAR BOW BROKEN · RADIO RING BELL LASER
+  SIREN, niveaux ≈ −31 dBFS sauf BROKEN −36) ; SYSTEM RANDOM : 7 moteurs (défilent), nouveaux ON (alt_sys[7]). CPU navigateur ≈ ALTER/RESO.
+  **Réglés aux mesures, pas écoutés** : Romain juge.
+- [x] 05/11 : **MODE SONG** (voir plus haut). Testé dans l'émulateur (8 tests), **pas sur la FM-1**. Test RUMBLE rendu
+  insensible à la phase (il échouait selon le moment où il démarrait).
+- [x] 05/11 : **32 + 32 USER** (voir plus haut). Migration testée avec l'ancien firmware dans l'émulateur (A01 + PLAGES,
+  A16, pattern A03 retrouvés) ; banque B testée après extinction. **Pas sur la FM-1** : 1er démarrage = migration.
+- [x] 05/11 (jam) : TURING au hasard borné, sélection du cercle plus visible + contours, NOMS des USER. Testé émulateur
+  (+ compatibilité avec les scènes de la version 32+32 sans noms), **pas sur la FM-1**.
+- [x] 05/11 : **page compagnon v3** (LINK 3) : NOMS des scènes, patterns USER, onglet SONG ; **guide des touches**
+  `web/alter/guide.html` (`/editor/guide.html`, dessins dans le style du synthé, en anglais comme la page). Testé : link_test +
+  navigateur (mode démo). **Garder le guide à jour** à chaque changement de commande.
+- [x] **Étape 4 (05/11) : CONSOLE par cercle** (voir MIXER). Testé émulateur : 6 tests fx (LOW/HIGH KILL, MID +12, COMP
+  crest ↓ sans saut de volume, retour à plat, scène USER), 2 cœurs (scène « + CONSOLE »), syntaxe FM-1. CPU navigateur :
+  pas de différence mesurable. **Pas sur la FM-1, pas écouté** : Romain juge (surtout le COMP). (Faite dans une autre
+  session en parallèle ; fusionnée.)
+- [x] 05/11 soir, retours tests FM-1 (1-19 OK sauf) : SONG modifs live gardées, page SONG 4 knobs, chaîne à droite,
+  LEDs, niveleur plus rapide, **bug horloge externe corrigé**, PLATE −1,8 dB, CORDE MATR plafonné (×90/127) + BROKEN refait
+  (−37,7 dBFS), RING RDIO ×70/127 + RADIO RDIO 13 + SIREN refait. Pas écoutés.
+- [x] 05/11 nuit : écran plus rapide (voir plus haut) ; WIRE caché ; WIND +13,5 dB, PAD +13,5, LARSEN −4, CRACKED −6.
+- [x] 05/11 : Romain « en TRS rien n'est détecté » → lignes TRS SEEN / USB SEEN dans SYSTEM pour voir si un octet arrive.
+  La prise TRS de la FM-1 est **type A** (matrixsynth, 10/2026). Firmware : entrée TRS compilée (FELUCCA_UART=1), testée émulateur.
+  Retour Romain : TRS NOTHING avec du MIDI branché (USB NOTHING = normal : la page compagnon = SysEx du lien, pas compté).
+  Ajout : « RAW n » si des octets arrivent (um.bytes) sans message valide. Pistes : câble type B / Ableton Sync ; essayer
+  l'horloge par USB (CLOCK USB, Ableton → port FM-1).
+- [x] 07/11 : Romain : sons refaits + CONSOLE OK à l'écoute ; TRS MIDI **en pause** (sans doute son câble). **CONSOLE dans la
+  page compagnon (LINK 4)** + **MIDI LEARN** (page LEARN de SYSTEM). Testés émulateur (link 5 tests, learn 17 tests, captures,
+  page en mode démo dans Chrome), syntaxe FM-1, 2 cœurs. **Pas sur la FM-1.**
+- [x] 08/11 : **RUMBLE dans la page compagnon** (groupe 16 `LV_RMB` + drapeau par son dans INFO, LINK.md « v4 + RUMBLE ») :
+  ligne RUMBLE en bas du groupe Engine, seulement pour les sons qui en ont un (KICK). **Page plus fluide** (editor.html
+  `follow`/`animLoop`) : étoile + aiguille avancent en continu entre deux PLAY, vitesse = temps moyen entre pas mesuré,
+  jamais plus d'1 pas d'avance (attend le pas suivant), saut = direct ; coup = anneau qui grandit et s'efface (`pulse`) ;
+  rien de tout ça si « réduire les animations » est demandé par le système. Testé : link (3 tests RUMBLE), Chrome démo. **Pas avec la FM-1.**
+- [x] 08/11 : **écran FM-1 fluide (VERSION TEST)**, SYSTEM > SETUP > SMOOTH (ON par défaut). 1er essai (étoiles qui
+  glissent) : **6F** sur la FM-1 + Romain « étoiles trop présentes ». **Refait** : pas d'étoile ; l'alidade (cercle choisi)
+  tourne en continu depuis `alt_msrc[c][0]` (POS : pas + temps dedans, horloge de l'audio) ; un trigger qui joue grossit
+  de 2 px plus clair puis revient en 130 ms (`alt_hit_step`, `alt_sm_g`). Dessin : **petits rectangles** (`alt_sm_frame`,
+  `alt_rc_add` : alidade en 6 boîtes ancienne + nouvelle place, trigger ±11, triangle du centre quand il brille ; fusion
+  seulement si ça n'agrandit pas) ; gfx.c **`cv_ox`** (décalage x) ; la scène saute ce qui est hors du rectangle
+  (`alt_miss` dans alt_disc/alt_tri/alt_aaline16, test d'anneau dans alt_aaring16, tête/carte et knobs sautés hors
+  zone) ; heure de l'image `alt_now_ms`. Le triangle du centre (`alt_glow`) n'est plus dans le sig : avant, **chaque coup
+  = image complète** (aussi en OFF : 25 → 11 écrans/s). Émulateur : identique pixel à pixel (ON/OFF, 300 images) ;
+  ON = 4,5 écrans de pixels/s, coût ≈ 25 % d'une image complète. **« nnF »** = images/s sur la ligne CPU. Page compagnon
+  au même style (aiguille sur chaque cercle, trigger qui gonfle `pop`). **FPS FM-1 de cette version non mesuré.**
+- [x] 08/11 (3e retour : « plus smooth », triggers OK, mais ligne qui saute/accélère, peu visible) : **FM-1** : position de
+  l'alidade = `alt_disp[c]` (alter_play.c alt_pos_src) à **vitesse constante sur chaque paire de doubles-croches** (le
+  POS `alt_msrc` attendait sur les pas longs du SWING puis sautait ; mesuré SWING 60 : avant 0..852/image, maintenant
+  237..286) ; tracée au 1/16 px (`alt_alid16`), 2 px, or 95 % ; **ligne CPU et knobs du bas hors du sig** en SMOOTH
+  (`alt_sm_head`/`alt_sm_foot` → leurs rectangles) : avant, 2 images complètes/s (CPU) + chaque mouvement de LFO sur un
+  knob = alidade figée puis rattrapage. **Page** : vitesse mesurée sur 16 pas (pas pas à pas), écart rattrapé sur 2 pas
+  (`A.err`), plus de butée « 1 pas d'avance » ; mesuré en démo : avant 0..5,9 rad/s, maintenant 3,1..3,7. **Pas sur la FM-1.**
+- [x] 08/11 soir : **Romain : « smooth sur les deux, même en swing »**. Mesuré FM-1 (« nnF ») : 10-15 images/s avec 3
+  cercles qui jouent, 15-20 avec 2, 30 avec 1 (chaque coup = rectangle du trigger + rectangle du triangle du centre
+  62×58 pendant 240 ms : le plus cher). Piste si besoin : triangle du centre moins cher / sans lueur en SMOOTH.
+- [x] 08/11 nuit (Romain : « 30 images stables ») : en SMOOTH, triangle du centre = **flash 80 ms sans décalage**
+  (`alt_glow` 3 ou 0, `push` 0) et **rectangle du seul morceau** qui change (`PB`) ; **SMOOTH limité à ~30 images/s**
+  (`alt_sm_cap` 28 ms : 1 image toutes les 2 boucles de 15 ms ; 0 dans les tests d'identité, `web_alter_smcap`).
+  Émulateur : pixels envoyés 4,9 → 2,0 écrans/s, identique pixel à pixel. **Pas mesuré sur la FM-1.**
+- [x] 08/11 nuit : Romain « la ligne est coupée par endroits » : l'alidade était tracée SOUS les anneaux et les lignes
+  des motifs (et leurs contours couleur du fond). alt_scene en 3 passes (`pass`) : 0 anneaux + motifs (alidade OFF ici,
+  comme avant), 1 alidade SMOOTH, 2 triggers par-dessus. Vérifié en capture émulateur.
+- [x] 09/11 : Romain « 10F en jouant, CPU > 60 % ». **JIANT** (juanjiant-bit/JIANT, fork Felucca) comparé : même LCD (SPI
+  12 MHz DMA, écran entier ≈ 77 ms), même CPU (360 MHz ; leur option 320 = plus lent) ; eux = dessin plat pas cher redessiné
+  entier + **cellules 8×4 hashées** (gfx.c cv_blit_cells : seules les cellules changées partent). Nous = dessin cher (AA),
+  envoi déjà minimal → optimisé le **calcul** (pixel pour pixel identique) : `alt_plot` mélange par décalages (plus de
+  divisions), `alt_aaring16` ne parcourt que les cordes de l'arc vu (`alt_turnof` = atan par table ; ordre des cordes gardé),
+  rayons et places des pas précalculés (`alt_step_xy`), `alt_disc` couverture en table (.pool 2,3 Ko), knobs du bas un par
+  un (`alt_sm_footk`). Image fluide navigateur 0,11 → 0,083 ms. **Ligne CPU : « nnF xxMS »** = temps de dessin moyen d'une
+  image (`alt_draw_ms`) : beaucoup de ms = dessin lent ; peu de ms mais peu de F = boucle tenue ailleurs (audio).
+- [x] 09/11 midi : Romain **« 18F 60MS 2C »** → c'est le dessin qui freine (60 ms > 33). Le coût = surtout le **nombre de
+  rectangles** (chaque rectangle reparcourt toute la scène pour savoir quoi sauter). Alidade en **2 boîtes** (`alt_sm_seg`,
+  mesuré : 6 → 73 µs, 3 → 61, 2 → 60, 1 → 68) ; **bandes de distance au centre** (`alt_band_set`/`alt_band` : rayons
+  44-100 px, anneau ± halo r±10, pas r-12..r+22, triangle 0-32 sautés d'un bloc). Image fluide navigateur 0,083 → 0,06 ms,
+  identique pixel à pixel (ON/OFF, avec et sans ligne CPU). Stats tests : `web_alter_smstat`. **Pas mesuré sur la FM-1.**
+- [x] 09/11 13h : Romain **« 21F 46MS »** ; choix : dessin un peu simplifié en SMOOTH. **Halo du cercle choisi : 6 anneaux au
+  lieu de 10** (un sur deux, +6 % d'opacité ; `alt_sm_simple_on`, 0 = comme avant via `web_alter_smstat(4,0)`) : −10 %.
+  **`alt_aaline16` ne parcourt que le bout de ligne au-dessus du canevas** (axe principal + axe secondaire ; chaque pixel
+  calculé seul → mêmes pixels) : −20 %. Image fluide navigateur 59 → 43 µs (≈ −27 % ; estimation FM-1 ~34 ms ≈ 28-30F,
+  **pas mesuré**). Identique pixel à pixel (le halo allégé : comparé ON contre ON).
+- [x] 09/11 13h40 : Romain **« 28F 24MS »** ✔. Puis essais de look l'après-midi (3 anneaux sur la ligne e927cc5, sextant
+  31c6660/b148407, pendule, engrenage de montre 49bd767 : tout dans l'historique git) → **Romain 09/11 soir : retour à la
+  version 28F (eae3f5c : ligne simple, triggers qui grossissent de 2 px) + triangle du centre FIXE** (plus de `alt_glow` :
+  ni flash ni décalage au coup, rien du centre dans le sig ni dans les rectangles ; OFF 7 → 5 %). Page : `.piece` fixe.
+  Gardé de l'après-midi : alter_look.c `alt_aaring16` mémorise l'arc par centre+canevas. Coût navigateur SMOOTH ON
+  10-16 % d'une image complète (bruit). **Look validé par Romain : ne plus y toucher sans demande.**
+  Puis (Romain, même soir) **une ligne par cercle** en SMOOTH : couleur du cercle (gris en MUTE), du centre à son cercle + 6 px
+  (`alt_hand_r`, `alt_alid16c`) ; cercle choisi 2 px par-dessus, autres 1 px ; `alt_sm_dang[3]`, `alt_rc_alid(c, turn)`
+  (2 boîtes si > 50 px, sinon 1). Lignes confondues si même LEN (normal). Coût navigateur ≈ +1-2 points (13 → 14-15 %).
+  Page : `.needle` = couleur du cadran (`--c`). Test : op `web_alter` **21** = LEN d'un cercle ; `alter_shot.mjs` « A:op,a,b ».
+  Si la FM-1 perd des images : Romain veut d'**autres idées graphiques** (pas juste couper).
+- [x] 10/11 (jam) : **LFO menu** : le défilement redessine seulement la bande 42..166 (`alt_mat_scroll`), pages hors cercles
+  sans pos/flash dans le sig (avant ~67 écrans/s). **LEN au hasard** 5-16 (max de 2 tirages, `alt_len_draw`/`alt_len_fit`) dans
+  CHAOS TOTAL, TURING et **OCT− + DÉ** (sauf verrou RHYTHM). **Tirages sauvés dans la scène** : `alt_ub.s.dr` (après cs ; dé,
+  dhits/drot, graines, treg TURING, prog + 11 o/pas × 16 ; `alt_dr_pack/unpack` alter_play.c, compteur `alt_dr_cnt`) → un
+  CHAOS sauvé revient pareil, TURING **figé** au rappel ; objets sans `dr` encore lus. **PROG** (knob SCL, ex-DOSE ;
+  `as_seq_t.prog/pbar`, `AS_PG` 10 progressions en degrés de la gamme, 1 mesure/accord, cercle réglé seul ; as_circ_t/as_cfg_t
+  NON changés : slots SONG compatibles) ; **DOSE → DEEP** onglet MIX « DICE DOSE ». DEEP PAN affichait −64 % : corrigé.
+  **CPU** (profil navigateur) : chorus/delay sautés quand vides (bit pour bit), division 64 bits rapide (`alter_divdi.c`, exacte :
+  le plus gros gain attendu sur FM-1, filtres + COMP), MASTER FILTER 1er étage sauté si inutile, EQ MASTER à plat = sautée
+  (fondu 256 éch. ; même niveau, phase différente). am_master 8 → 3 %. Reste cher : moteurs ~28 %, MASTER FILTER 15 %,
+  rev_hall 7 %. **Rien mesuré sur la FM-1.** Le CI avait refusé ce build (constante −(1<<22) prise pour une adresse ROM
+  dans am_master : ajoutée à `ROM_CONST_OK` de tools/build.py, comme afl_block) → publié en **v0.41**.
+- [x] 10/11 **v0.42** (Romain : « LFO pas smooth ») : page LFO refaite (choix de Romain) : **plus de grille ni losanges ni
+  forme pâle** ; barre « maintenant » à GAUCHE (x 12) + **point** (r 4) qui monte/descend avec le LFO ; la vague de la mesure
+  À VENIR arrive de la droite (`alt_lw_calc`/`alt_lw_draw`) ; ligne pointillée du milieu gardée. Envoi : seules les colonnes
+  qui bougent, par morceaux de 4 px, de la ligne la plus haute à la plus basse touchée (`alt_lw_frame`, `alt_lw_span`) ;
+  liste DEST ouverte = bande entière comme avant. Émulateur : identique pixel à pixel ; SPI estimé 3-13 ms/image (avant :
+  bande 30 k px ≈ 40 ms), ~33 images/s (cap 28 ms). Aussi : sur la page LFO, ligne CPU et knobs du bas **hors du sig**
+  (ils n'y sont pas dessinés ; sur FM-1 = 2 écrans entiers/s pour rien). `alt_mat_scroll`/`alt_mat_seen` supprimés.
+  **Pas mesuré sur la FM-1.** Page compagnon : LFO pas changé.
+- [x] 10/11 **v0.43** (Romain : LFO OK « ça défile bien ») : **patterns retirés**, **banque C** (48 scènes) ; **fichier patch
+  de la page = scène ENTIÈRE** (LINK cmd 23 BLOB, `alt_blob_t`/`alt_us_snap`/`alt_us_apply` alter_store.c, `lk_blob` ; patch v2 =
+  sons + `scene` base64 ; ancien fichier/firmware = sons seuls) ; à l'ouverture la liste USER va sur la **1re case vide** (+ NOM
+  du fichier) ; **onglet MIXER** de la page (CONSOLE + MUTE + fader LEVEL par cercle, fader MASTER = nouveau réglage partagé
+  groupe 17 `LV_VOL` alt_mgain) ; la CONSOLE quitte EFFECTS. Détail : LINK.md « 10/11 ». Testé : link (BLOB aller-retour après
+  NEW, somme fausse refusée, banque C, PAT muet), C16 après extinction (émulateur), page en démo dans **Chrome headless**
+  (`/tmp/cdp.mjs` : google-chrome --remote-debugging-port, site servi par `python3 -m http.server` ; patch ouvert = même scène,
+  MUTE des 2 côtés). CI : un littéral 0x10000u refusé (« register/window address », tools/build.py MMIO_LIT) → éviter
+  les nombres 0x1xxxx/0x4xxxx/0x5xxxx/0x20xxxxx dans firmware/src. **Pas sur la FM-1.** Romain veut aussi (réponse du 10/11) : liste de ce qui manque pour une version
+  publique (README ALTER, Release v1.0 sur main, manuel, tests FM-1, puces flash des autres FM-1, retour au firmware officiel).
+- [x] 10/11 **v0.44** : **son USB dans la page compagnon** (la FM-1 = carte son UAC, `FELUCCA_UAC`) : groupe « Sound (USB) »
+  (choix de l'entrée, « FM-1 » trouvée par son nom ; Listen ; Rec WAV 16 bits stéréo par AudioWorklet `AUD_WORK` + `wavFile` ;
+  vumètre L/R) ; SCOPE retiré en v0.45 (Romain). getUserMedia sans traitement voix. Couper le haut-parleur : impossible par
+  le firmware (pas de ligne d'ampli connue, menu_items.c) → SYSTEM > AUDIO > USB LEVEL FIXED + volume au minimum (l'USB reste
+  à fond). Testé : Chrome headless (faux micro par oscillateur, enregistreur + WAV en OfflineAudioContext : 1 s, 44,1 kHz,
+  crête juste) ; le headless n'a pas de sortie son (AudioContext suspendu) → écoute/scope **pas vus en vrai**, **pas avec la FM-1**.
+- [x] 10/11 soir **v0.45** (Romain : son USB « top ») : onglet MIXER façon **table de mixage** (choix de Romain : knobs AU-DESSUS du
+  fader) : par cercle DRIVE | HIGH MID LOW | COMP | DLY REV (knobs SVG `knob()` : arc 270° couleur du cercle, EQ part du
+  milieu, glisser haut/bas, molette, flèches, double-clic = milieu/minimum), MUTE, fader LEVEL ; tranche MASTER ; oscilloscope
+  retiré. Testé Chrome headless démo (clavier → VSET, double-clic EQ à plat). **Pas avec la FM-1.**
+- [x] 10/11 soir **v0.46** (page) : COMP à côté de DRIVE en haut de la tranche ; **SIZE AUTO = taille choisie d'après la
+  fenêtre seule** (min(largeur/1440, hauteur/940), 0,6..1,25, recalculée seulement si la fenêtre change ; plus d'après l'onglet :
+  Romain, les changements de taille à chaque onglet cassaient la fluidité) → les onglets longs défilent ; **barres de défilement
+  aux couleurs de la page** (::-webkit-scrollbar, Firefox scrollbar-color). Testé Chrome headless (zoom 0,95 sur tous les onglets).
+- [ ] **PROCHAINE SESSION** : « nnF xxMS » de cette version (but : ~30F, < 33 ms ; 28F 24MS avant le triangle fixe). Si encore lent : dessin sur le 2e cœur ?
+  alléger le son ? SPI (bsp : pas sans accord). Aussi MIDI LEARN avec le BCR32, CONSOLE de la page branchée, TRS (autre câble).
+- [ ] Idées : un contrôle → plusieurs réglages (macro) ; LEARN dans la page compagnon ; DENSITY/ROT continus.
