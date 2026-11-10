@@ -662,7 +662,7 @@ static void lk_blob(const uint8_t *a, uint32_t na)
         return;
     }
     {
-        uint32_t sz = off, sm = na >= 5u ? (uint32_t)(lk_rv(a + 3) + 8192) : 0x10000u, ok;
+        uint32_t sz = off, sm = na >= 5u ? (uint32_t)(lk_rv(a + 3) + 8192) : 0xFFFFFFFFu, ok;   /* (no sum: never matches) */
         ok = sz == sizeof alt_blob && sm == lk_blob_sum() && alt_blob.r.used == 1u;
         if (ok) {
             sg_detach = 1;
