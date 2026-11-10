@@ -247,7 +247,8 @@ class Link:
         # ALTER (Forban5929, 03/11/2026) : aussi la UC25HQ80 (0xB36014) des FM-1 récentes (Felucca issue #320), 1 MiB comme
         # la Puya P25Q80 (0x856014). Rien d'autre n'est changé dans cet outil.
         require(info[0] == 3 and flash_id in (0x856014, 0xB36014),
-                "Unexpected flash type or capacity; refusing recovery")
+                f"Unknown flash chip (JEDEC {flash_id:#08x}, type {info[0]}): refusing recovery to protect your FM-1. "
+                "Nothing was written. Please report this ID at github.com/Forban5929/alter-fm1/issues")
         return key
 
     def read_flash(self, address, length):

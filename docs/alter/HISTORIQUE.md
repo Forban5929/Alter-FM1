@@ -911,3 +911,10 @@ La vue DEEP (3c) doit d'abord offrir en ALTER : GLIDE, canal/horloge MIDI, 2e c�
 - [ ] **PROCHAINE SESSION** : « nnF xxMS » de cette version (but : ~30F, < 33 ms ; 28F 24MS avant le triangle fixe). Si encore lent : dessin sur le 2e cœur ?
   alléger le son ? SPI (bsp : pas sans accord). Aussi MIDI LEARN avec le BCR32, CONSOLE de la page branchée, TRS (autre câble).
 - [ ] Idées : un contrôle → plusieurs réglages (macro) ; LEARN dans la page compagnon ; DENSITY/ROT continus.
+
+## 10/11 soir — v0.47 : puces flash inconnues
+- Vérifié : Felucca amont (commit a4f007c, 04/11) n'accepte que Puya 0x856014 et UC25HQ80 0xB36014 (issues #319/#320) ; ALTER pareil.
+- Choix de Romain : prévenir clairement, sans accepter d'autres puces (risque d'écriture ratée). Puce inconnue : écran 6 s au
+  démarrage (main.c), ABOUT remplace la ligne de sous-titre (ui_menu.c), message « USB UPDATE OFF: UBOOT » à la demande M-UPGRADE,
+  fm1_recover.py dit l'ID et « rien n'a été écrit ». ABOUT vérifié dans l'émulateur avec un faux ID 0x123456 ; l'écran de
+  démarrage (firmware seulement) non vu.

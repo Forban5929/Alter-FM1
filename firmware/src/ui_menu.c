@@ -82,12 +82,31 @@ static int32_t menu_text(const char *s, int32_t y, uint16_t col, int draw)
     return y;
 }
 
+/* ALTER (10/11): a flash part neither Felucca nor ALTER knows (alter_persist.c persist_boot sets these): no saves, no USB
+ * update. Said at power-on (main.c) and here, with its JEDEC id, so the owner can report it. */
+static uint8_t flash_unknown;
+static uint32_t flash_jedec;
+static void flash_id_text(char *b)                 /* "0xXXXXXX" (9 bytes) */
+{
+    uint32_t i;
+    b[0] = '0'; b[1] = 'x';
+    for (i = 0; i < 6u; i++)
+        b[2 + i] = "0123456789ABCDEF"[(flash_jedec >> (20u - 4u * i)) & 15u];
+    b[8] = 0;
+}
+
 static int32_t menu_document(int32_t y, int draw)
 {
     uint32_t i;
     if (draw) {
         cv_text(6, y + 2, &AF_L, "ALTER", T_THEME);
-        cv_text(6, y + 38, &AF_S, "Industrial / noise / texture instrument", T_TEXT);
+        if (flash_unknown) {                                             /* (in place of the subtitle: seen at once) */
+            char b[9];
+            flash_id_text(b);
+            cv_text(6, y + 38, &AF_S, "UNKNOWN FLASH, NO SAVE:", T_THEME);
+            cv_text_r(232, y + 38, &AF_S, b, T_THEME, T_BG);
+        } else
+            cv_text(6, y + 38, &AF_S, "Industrial / noise / texture instrument", T_TEXT);
         cv_text(6, y + 54, &AF_L, FELUCCA_VERSION, T_THEME);         /* (the version, big; built when, at the right) */
         cv_text_r(232, y + 60, &AF_S, __DATE__, T_MID, T_BG);
         cv_text_r(232, y + 74, &AF_S, __TIME__, T_MID, T_BG);

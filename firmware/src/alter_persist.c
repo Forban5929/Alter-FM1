@@ -22,6 +22,8 @@ static void persist_boot(void)                    /* before settings_init / pane
                                                     * refusée en silence — la FM-1 de Romain, 03/11) */
         uint32_t id = FL_FAR(fl_jedec_ram)();
         flash_ok = id == 0x856014u || id == 0xB36014u;
+        flash_jedec = id & 0xFFFFFFu;
+        flash_unknown = !flash_ok;                 /* (said at power-on and in ABOUT: ui_menu.c, main.c) */
     }
     irq_restore(f);
     if (!flash_ok)

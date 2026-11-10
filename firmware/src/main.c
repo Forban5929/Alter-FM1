@@ -152,8 +152,21 @@ static void fm1_main(void)
         panel_setup();                        /* OCT- + OCT+ held at power-on */
         settings_save();
     }
-    for (ms = 0; ms < 400u; ms += 10u) {      /* the splash; the pot followed (MIDI IN plays under it) */
+    if (flash_unknown) {                      /* ALTER (10/11): a flash part we do not know, said clearly, 6 s */
+        char b[9];
+        flash_id_text(b);
+        lcd_fill(0, 0, 240, 240, T_BG);
+        draw_text_box(0, 40, 240, &AF_M, "UNKNOWN FLASH", T_THEME, 1);
+        draw_text_box(0, 76, 240, &AF_M, b, T_TEXT, 1);
+        draw_text_box(0, 120, 240, &AF_S, "SAVES STAY IN RAM", T_TEXT, 1);
+        draw_text_box(0, 140, 240, &AF_S, "USB UPDATE OFF", T_TEXT, 1);
+        draw_text_box(0, 172, 240, &AF_S, "UPDATE: OCT- + OCT+ 5 S", T_DIM, 1);
+        draw_text_box(0, 192, 240, &AF_S, "PLEASE REPORT THIS ID", T_DIM, 1);
+        lcd_sync();
+    }
+    for (ms = 0; ms < (flash_unknown ? 6000u : 400u); ms += 10u) {   /* the splash; the pot followed (MIDI IN under it) */
         fm1_delay_ms(10);
+        fm1_wdt_feed();
         master_poll();
     }
     kb_boot_hold = 0;
@@ -223,6 +236,8 @@ static void fm1_main(void)
             scr_wake_now();                             /* (its progress on the screen) */
             if (flash_ok)
                 ota_session();                          /* returns only if nothing was committed */
+            else
+                ui_message("USB UPDATE OFF: UBOOT");    /* ALTER (10/11): no longer silent (unknown flash part) */
             lcd_fill(0, 0, 240, 240, T_BG);
             ui.force = 1;
         }

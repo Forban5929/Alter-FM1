@@ -29,7 +29,7 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
    **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v0.46 » (10/11) ; **+0.01 à CHAQUE envoi à Romain** (v0.42, v0.43…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v0.47 » (10/11) ; **+0.01 à CHAQUE envoi à Romain** (v0.42, v0.43…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. Pousser sur `etape-3d` → GitHub Actions construit le vrai firmware + publie https://forban5929.github.io/Alter-FM1/ (version
    dans /version.txt). Le cloud ne télécharge pas les artifacts ni le compilateur JieLi : **rien n'est mesuré sur la FM-1 depuis le cloud.**
@@ -73,7 +73,7 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   liste USER sur la 1re case vide ; **son USB** (Listen, Rec WAV, vumètre) ; taille AUTO d'après la fenêtre ; scroll thémé.
 - Mesures FM-1 connues : écran 28F 24MS (09/11, avant les dernières versions) ; CPU > 60 % avec 3 cercles + effets (09/11).
 
-## Où on en est (10/11 soir, v0.46)
+## Où on en est (10/11 soir, v0.47)
 Tout ce qui précède est codé et testé **dans l'émulateur / Chrome headless**. Romain a validé sur sa FM-1 : LFO fluide (v0.42),
 son USB dans la page (v0.44). **Pas encore vérifié sur la FM-1** : économies CPU (v0.41), tirages sauvés + PROG + LEN, banque C,
 fichier patch entier, MIXER de la page, MIDI LEARN (BCR32), TRS MIDI (câble en cause, en pause).
@@ -84,8 +84,9 @@ fichier patch entier, MIXER de la page, MIDI LEARN (BCR32), TRS MIDI (câble en 
    (extinctions au milieu) ; sauver/charger A B C ; patch entier aller-retour ; MIDI LEARN avec le BCR32.
 2. **CPU si coupures encore** : moteurs ~28 %, MASTER FILTER 15 %, rev_hall 7 % (profil navigateur) ; pistes : reverb sautée
    quand vide, filtre moins cher à son identique, dessin sur le 2e cœur.
-3. **Compatibilité des autres FM-1** : vérifier quelles puces flash Felucca accepte (la nôtre 0xB36014) et faire pareil ;
-   seul vrai risque de rendre un appareil inutilisable.
+3. ~~Compatibilité des autres FM-1~~ **FAIT v0.47** : Felucca (à jour au 04/11) n'accepte que 0x856014 + 0xB36014, nous pareil.
+   Puce inconnue → écran « UNKNOWN FLASH 0x… » 6 s au démarrage, ligne dans ABOUT, « USB UPDATE OFF: UBOOT » au lieu du
+   silence, outil de secours qui affiche l'ID (`flash_unknown`/`flash_jedec` dans ui_menu.c). Écran de démarrage pas vu en vrai.
 4. **Sortie GitHub** : rattraper `main` avec `etape-3d` (site publié depuis main), **Release v1.0** (fichier firmware + notes) ;
    vérifier que `build.py --release` garde l'identité USB `FM-1_900` ; page d'installation avec **retour au firmware officiel
    M-VAVE** (vérifier ce qui existe déjà dans web/install).
