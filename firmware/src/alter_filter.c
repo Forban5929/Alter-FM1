@@ -1,29 +1,23 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * ALTER's MASTER FILTER, after a Sherman Filterbank as the Rodec Restyler / Ministyler (included by alter_fx.c; fx.c
- * calls afl_block before the MASTER, so the EQ, COMP, CLIP and the limiter come after it: a screaming resonance
- * stays caught). On the whole mix, the echoes too (the wet bus folded in). Stereo. A mastering tool, set and left:
- * no REC, and no random draw (DIE, CHAOS, CHAOS TOTAL) ever touches it.
+ * ALTER's MASTER FILTER, simple (v0.51, Romain 10/11: Felucca's kind of filter, the A / B MORPH kept; the first one,
+ * after a Sherman Filterbank, is kept as an idea in docs/alter/idees/filtre-sherman, tag idee-filtre-sherman: ~21 % of the
+ * sound's CPU). Included by alter_fx.c; fx.c calls afl_block before the MASTER (EQ, COMP, CLIP, limiter after it). On the
+ * whole mix, the echoes too (the wet bus folded in). Stereo. No REC, no random draw ever touches it.
  *
  *   in -> DRIVE -> the filter (FREQ, RES, TYPE, SLOPE; MOD, FM and MODTYP move it) -> MIX (dry / wet) -> the MASTER
  *
- * DRIVE   0..+30 dB into a tanh, a little asymmetric (warm: even harmonics), the gain coming back as it rises (the
- *         loudness kept); past the middle more asymmetry and a hard clip mixed in (dirty). A DC blocker after it.
- * FREQ    20 Hz .. 18 kHz, exponential (AFL_G: tan(pi f / FS), Q24, 257 points over 9.8 octaves, interpolated)
- * RES     0..1.2 (k = 2 .. -0.4 of a TPT state-variable filter, A. Simper's): past 1 it oscillates by itself; the
- *         resonant stage's band state goes through a tanh whose ceiling falls as RES rises: the scream stays
- *         about as loud as the mix
- * TYPE    LP (0) -> BP (64) -> HP (127), a continuous crossfade of the same filter's three outputs (the BP scaled up
- *         so it does not dip in the middle)
- * SLOPE   12 dB (one stage) / 24 dB (a plain Butterworth stage first, then the resonant one; crossfaded: no click)
- * MOD     the cutoff moved by an envelope follower (attack 5 ms, release 100 ms), up to +-3 octaves
- * SRC     what the follower hears: MIX (the whole mix), CIRC 1..3 (one circle: a sidechain), 1/4 1/8 (the beat on the
- *         grid: the Analog Rytm's kick through the MIDI clock). FM listens to the same source.
- * FM      the cutoff shaken by the source's audio itself (every 8 samples), up to +-2 octaves: grit, metal
- * MIX     dry / wet, equal power (sine / cosine); 0 = off: nothing runs, the output bit for bit as without it
- * DETUNE  the left cutoff down, the right up (to an octave each): a wide stereo scream
- * MODTYP  the follower moves TYPE too (LP -> HP as it hits)
- * Two snapshots A and B of the eleven; MORPH (0 A .. 127 B) blends them (SRC and SLOPE switch at the middle).
- * The UI writes afl[][] and afl_morph (bytes); the audio side reads them. Every setting glides (MIX over ~10 ms). */
+ * One TPT state-variable stage (A. Simper's), as Felucca's voices have, worked out once a block (32 samples): a few
+ * multiply-adds a sample and a side. What is off costs nothing: DRIVE 0 (no tanh, no DC blocker), SLOPE 12 dB (one
+ * stage), MOD / MODTYP at 64 and FM 0 (no follower), the bands TYPE leaves at 0, MIX full (no dry blend), MIX 0 (nothing).
+ * DRIVE   0..+30 dB into a tanh, a little asymmetric, the loudness kept; past the middle a hard clip mixed in. A DC blocker.
+ * FREQ    20 Hz .. 18 kHz, exponential (AFL_G: tan(pi f / FS), Q24)
+ * RES     k = 2 .. 0.12: a strong peak, never oscillating by itself (no saturation to hold it: a simple filter)
+ * TYPE    LP (0) -> BP (64) -> HP (127), a crossfade of the three outputs
+ * SLOPE   12 dB / 24 dB (a plain Butterworth stage first, crossfaded in)
+ * MOD     the cutoff moved by an envelope follower (one value a block), up to +-3 octaves; SRC what it hears
+ * FM      the cutoff shaken by the source (every 8 samples while FM is up: the only per-8 work), up to +-2 octaves
+ * MIX     dry / wet, equal power; DETUNE: the left cutoff down, the right up; MODTYP: the follower moves TYPE too
+ * Two snapshots A and B of the eleven; MORPH (0 A .. 127 B) blends them (SRC and SLOPE switch at the middle). */
 
 enum { AFL_FREQ, AFL_RES, AFL_TYPE, AFL_DRIVE, AFL_MOD, AFL_SRC, AFL_FM, AFL_MIX, AFL_SLOPE, AFL_DET, AFL_MTYP, AFL_N };
 enum { AFS_MIX, AFS_C1, AFS_C2, AFS_C3, AFS_4, AFS_8, AFS_N };
@@ -44,8 +38,8 @@ static const afl_pre_t AFL_PRE[] = {
     {"GRIT",         {108, 25,  0,  92, 64, AFS_MIX, 0, 127, 0, 64, 64}},
     {"RADIO",        {81,  40, 64,  80, 64, AFS_MIX, 0, 127, 1, 64, 64}},
     {"DARK PUMP",    {81,  45,  0,  25, 104, AFS_4,  0, 127, 1, 64, 64}},
-    {"SHERMAN",      {76, 104, 22,  70, 98, AFS_MIX, 20, 127, 1, 64, 64}},
-    {"SCREAM",       {60, 127,  0, 100, 80, AFS_MIX, 0, 110, 0, 84, 64}},
+    {"ENV WAH",      {76, 104, 22,  70, 98, AFS_MIX, 20, 127, 1, 64, 64}},
+    {"PEAK",         {60, 127,  0, 100, 80, AFS_MIX, 0, 110, 0, 84, 64}},
 };
 #define AFL_NPRE (sizeof AFL_PRE / sizeof AFL_PRE[0])
 
@@ -209,33 +203,26 @@ static void afl_coef(int32_t g, int32_t k, int32_t *a)
     a[2] = (int32_t)(((int64_t)g * a[1]) >> 24);
 }
 
-/* one stage, one sample: LP, BP and HP crossfaded by wl wb wh (Q15); kn scales the BP (Q24); sat: the band state held */
-static int32_t afl_lim, afl_inv;         /* the band state's ceiling (mix units) and 32768 / it (Q16), a block */
-static inline int32_t afl_stage(afl_svf_t *s, int32_t v0, const int32_t *a, int32_t k, int32_t kn, int32_t wl,
-                                int32_t wb, int32_t wh, int sat)
-{
-    int32_t v3 = v0 - s->ic2, v1, v2, hp;
-    v1 = (int32_t)(((int64_t)a[0] * s->ic1 + (int64_t)a[1] * v3) >> 24);
-    v2 = s->ic2 + (int32_t)(((int64_t)a[1] * s->ic1 + (int64_t)a[2] * v3) >> 24);
-    s->ic1 = 2 * v1 - s->ic1;
-    s->ic2 = 2 * v2 - s->ic2;
-    if (sat)                             /* the scream held: tanh at afl_lim */
-        s->ic1 = (int32_t)(((int64_t)softclip((int32_t)(((int64_t)clamp(s->ic1, -(1 << 24), 1 << 24) * afl_inv) >> 16)) *
-                            afl_lim) >> 15);
-    s->ic2 = clamp(s->ic2, -(1 << 26), 1 << 26);
-    /* (v0.50: only the bands heard are worked out, each product 32 x 32 bits: one instruction on the FM-1 where a
-     * 64-bit operand took three; the same values: a band at weight 0 added nothing, and v1 * kn >> 24 fits 32 bits) */
-    {
-        int64_t acc = wl ? (int64_t)v2 * wl : 0;
-        if (wb)
-            acc += (int64_t)(int32_t)(((int64_t)v1 * kn) >> 24) * wb;
-        if (wh) {
-            hp = v0 - (int32_t)(((int64_t)k * v1) >> 24) - v2;
-            acc += (int64_t)hp * wh;
-        }
-        return (int32_t)(acc >> 15);
-    }
-}
+/* RES 0..127 -> k (Q24): 2 .. 0.12 (the old filter went to -0.4: it screamed; this one stays stable) */
+#define AFL_KMIN 2013266
+static int32_t afl_k_of(int32_t res) { return (1 << 25) - res * (((1 << 25) - AFL_KMIN) / 127); }
+
+/* one stage, one sample (its state in locals: the loop keeps it in registers): LP, BP and HP crossfaded by wl wb wh
+ * (Q15), only the bands heard; kn scales the BP (Q24) */
+#define AFL_STAGE(OUT, V0, IC1, IC2, A0, A1, A2, K, KN, WL, WB, WH) do {                                          \
+        int32_t v3_ = (V0) - IC2, v1_, v2_;                                                                          \
+        int64_t acc_;                                                                                                \
+        v1_ = (int32_t)(((int64_t)(A0) * IC1 + (int64_t)(A1) * v3_) >> 24);                                          \
+        v2_ = IC2 + (int32_t)(((int64_t)(A1) * IC1 + (int64_t)(A2) * v3_) >> 24);                                    \
+        IC1 = clamp(2 * v1_ - IC1, -(1 << 26), 1 << 26);                                                             \
+        IC2 = clamp(2 * v2_ - IC2, -(1 << 26), 1 << 26);                                                             \
+        acc_ = (WL) ? (int64_t)v2_ * (WL) : 0;                                                                       \
+        if (WB)                                                                                                      \
+            acc_ += (int64_t)(int32_t)(((int64_t)v1_ * (KN)) >> 24) * (WB);                                          \
+        if (WH)                                                                                                      \
+            acc_ += (int64_t)((V0) - (int32_t)(((int64_t)(K) * v1_) >> 24) - v2_) * (WH);                            \
+        OUT = (int32_t)(acc_ >> 15);                                                                                 \
+    } while (0)
 
 /* AFL_G at an index Q8 (0 .. AFL_TOP) */
 static int32_t afl_g(int32_t p)
@@ -257,7 +244,7 @@ static void afl_reset(void)
     afs.env = 0;
     afs.mix = 0;
     afs.f = afl_p(AFL_FREQ) * (AFL_TOP / 127);
-    afs.k = (1 << 25) - afl_p(AFL_RES) * 317040;
+    afs.k = afl_k_of(afl_p(AFL_RES));
     afs.t = afl_p(AFL_TYPE) * 258;
     afs.w24 = afl_p(AFL_SLOPE) ? 32768 : 0;
     afs.drv = (int32_t)AFL_DRV[afl_p(AFL_DRIVE) & 127];
@@ -265,67 +252,65 @@ static void afl_reset(void)
 }
 
 /* the block (fx.c mix_block, before the MASTER): l, r the mix; w the wet bus, folded in and emptied */
-/* (10/11, v0.49, Romain's CUT 393: the filter split in two so the second core can take the right side) what a block's
- * two sides share, worked out first on this core: per stretch of AFL_SUB the coefficients, the band weights and MIX's
- * sine / cosine; the follower and the peak run on the input as before (the sides never fed them). Then each side alone
- * (afl_side: its own SVFs, DC blocker and noise state), the left here, the right on the second core when it answers.
- * The arithmetic is the same, in the same order: the output is bit for bit the one-loop version's. */
+/* the block: what both sides share, worked out once (a stretch = the block, or 8 samples while FM is up), then each
+ * side alone (afl_side), the right one on the second core when it answers */
 #define AFL_NST 8u                       /* stretches a block (blocks of 64 at most) */
 typedef struct {
     int32_t a2[2][3], a1[2][3], wl, wb, wh, ms, mc;
 } afl_st_t;
 static struct {
     afl_st_t st[AFL_NST];
-    int32_t bias, sb, hard, mk, kn, st1;
+    int32_t bias, sb, hard, mk, kn, st1, sub, drive, wet;
     int32_t *lr[2], *w;
     uint32_t n;
 } afb;
-static int32_t afl_rng1;                 /* the right side's noise (the left keeps afs.rng; both start at 0 as before) */
 
 static __attribute__((noinline)) void afl_side(uint32_t side)
 {
-    int32_t *o_ = afb.lr[side], *w = afb.w, bias = afb.bias, sb = afb.sb, hard = afb.hard, mk = afb.mk;
-    int32_t *rng = side ? &afl_rng1 : &afs.rng;
-    afl_svf_t *s = afs.s[side];
-    uint32_t i, j, n = afb.n, q;
-    for (j = 0, q = 0; j < n; j += AFL_SUB, q++) {
+    int32_t *o_ = afb.lr[side], *w = afb.w, bias = afb.bias, sb = afb.sb, hard = afb.hard, mk8 = afb.mk * 8;
+    int32_t drv = afs.drv, k = afs.k, kn = afb.kn, w24 = afs.w24, drive = afb.drive, st1 = afb.st1, wet = afb.wet;
+    int32_t a1c = afs.s[side][0].ic1, a2c = afs.s[side][0].ic2, b1c = afs.s[side][1].ic1, b2c = afs.s[side][1].ic2;
+    int32_t dcx = afs.dcx[side], dcy = afs.dcy[side];
+    uint32_t i, j, n = afb.n, q, sub = (uint32_t)afb.sub;
+    for (j = 0, q = 0; j < n; j += sub, q++) {
         const afl_st_t *t = &afb.st[q];
-        uint32_t e = j + AFL_SUB < n ? j + AFL_SUB : n;
+        const int32_t *c2 = t->a2[side], *c1 = t->a1[side];
+        int32_t p0 = c2[0], p1 = c2[1], p2 = c2[2], f0 = c1[0], f1 = c1[1], f2 = c1[2];
+        int32_t wl = t->wl, wb = t->wb, wh = t->wh, ms = t->ms, mc = t->mc;
+        uint32_t e = j + sub < n ? j + sub : n;
         for (i = j; i < e; i++) {
-            int32_t x = clamp(o_[i] + w[i], -(1 << 22), 1 << 22), u, y, h, o;
-            /* DRIVE: into tanh units (the mix's full scale ~ 0.5), its bias taken back out */
-            u = (int32_t)(((int64_t)x * afs.drv) >> 15);
-            u = clamp(u, -(1 << 24), 1 << 24);
-            y = softclip(u + bias) - sb;
-            if (hard) {
-                h = clamp(u + bias, -32767, 32767) - bias;
-                y += (int32_t)(((int64_t)(h - y) * hard) >> 15);
+            int32_t x = clamp(o_[i] + w[i], -(1 << 22), 1 << 22), y = x, o;
+            if (drive) {                     /* DRIVE: into tanh units, its bias taken back out; a DC blocker after */
+                int32_t u = clamp((int32_t)(((int64_t)x * drv) >> 15), -(1 << 24), 1 << 24);
+                y = softclip(u + bias) - sb;
+                if (hard) {
+                    int32_t h = clamp(u + bias, -32767, 32767) - bias;
+                    y += (int32_t)(((int64_t)(h - y) * hard) >> 15);
+                }
+                y = (int32_t)(((int64_t)y * mk8) >> 12);
+                dcy = y - dcx + (int32_t)(((int64_t)dcy * 32700) >> 15);
+                dcx = y;
+                y = dcy;
             }
-            y = (int32_t)(((int64_t)y * (8 * mk)) >> 12);
-            afs.dcy[side] = y - afs.dcx[side] + (int32_t)(((int64_t)afs.dcy[side] * 32700) >> 15);
-            afs.dcx[side] = y;
-            y = afs.dcy[side];
-            /* the filter: 24 dB's first stage (plain), crossfaded in; the resonant stage */
-            if (afb.st1) {
-                o = afl_stage(&s[0], y, t->a1[side], AFL_K1, AFL_K1, t->wl, t->wb, t->wh, 0);
-                y = y + (int32_t)(((int64_t)(o - y) * afs.w24) >> 15);
+            if (st1) {                       /* 24 dB: the plain stage first, crossfaded in */
+                AFL_STAGE(o, y, a1c, a2c, f0, f1, f2, AFL_K1, AFL_K1, wl, wb, wh);
+                y = y + (int32_t)(((int64_t)(o - y) * w24) >> 15);
             }
-            if (afs.k < 0)                   /* (a breath of noise: the scream starts on its own) */
-                s[1].ic1 += (int32_t)(noise32(rng) >> 28) - 8;
-            o = afl_stage(&s[1], y, t->a2[side], afs.k, afb.kn, t->wl, t->wb, t->wh, 1);
-            o_[i] = (int32_t)(((int64_t)x * t->mc + (int64_t)o * t->ms) >> 15);
+            AFL_STAGE(o, y, b1c, b2c, p0, p1, p2, k, kn, wl, wb, wh);
+            o_[i] = wet ? o : (int32_t)(((int64_t)x * mc + (int64_t)o * ms) >> 15);
         }
     }
+    afs.s[side][0].ic1 = a1c, afs.s[side][0].ic2 = a2c, afs.s[side][1].ic1 = b1c, afs.s[side][1].ic2 = b2c;
+    afs.dcx[side] = dcx, afs.dcy[side] = dcy;
 }
 #if FELUCCA_CPU2 && defined(C1_RUN)
 static void afl_side_c1(uint32_t arg) { (void)arg; afl_side(1); }
-static uint32_t afl_c1_blocks;           /* blocks whose right side the second core took (console / tests) */
 #endif
 
 static __attribute__((noinline)) void afl_block(int32_t *l, int32_t *r, int32_t *w, uint32_t n)
 {
-    int32_t mixT = afl_p(AFL_MIX) * 258, kT, tT, w24T, drvT, src, mod, mtyp, fm, det, dv, bias, hard, pk = 0;
-    int32_t m0, dm, beat0 = -1;
+    int32_t mixT = afl_p(AFL_MIX) * 258, kT, tT, w24T, drvT, src, mod, mtyp, fm, det, dv, pk = 0, envq = 0, foll;
+    int32_t m0, dm, beat0 = -1, sub;
     uint32_t i, j, q;
     if (!afs.run) {
         if (!mixT)
@@ -335,7 +320,7 @@ static __attribute__((noinline)) void afl_block(int32_t *l, int32_t *r, int32_t 
     }
     if (n > AFL_NST * AFL_SUB)
         n = AFL_NST * AFL_SUB;
-    kT = (1 << 25) - afl_p(AFL_RES) * 317040;   /* RES 0..127 -> k 2 .. -0.4 */
+    kT = afl_k_of(afl_p(AFL_RES));
     tT = afl_p(AFL_TYPE) * 258;
     w24T = afl_p(AFL_SLOPE) ? 32768 : 0;
     dv = afl_p(AFL_DRIVE);
@@ -357,35 +342,43 @@ static __attribute__((noinline)) void afl_block(int32_t *l, int32_t *r, int32_t 
     afs.mix = mixT > afs.mix ? (afs.mix + 2400 < mixT ? afs.mix + 2400 : mixT)
                              : (afs.mix - 2400 > mixT ? afs.mix - 2400 : mixT);
     dm = (afs.mix - m0) / (int32_t)n;
-    /* DRIVE: soft and a little asymmetric at first, then more asymmetry and a hard clip mixed in; the loudness kept
-     * (AFL_MK) */
-    bias = dv * dv * 7000 / 16129;       /* (tanh units: up to ~0.2) */
-    hard = dv > 64 ? (dv - 64) * 330 : 0;
-    afb.bias = bias;
-    afb.hard = hard;
+    afb.bias = dv * dv * 7000 / 16129;   /* (tanh units: up to ~0.2) */
+    afb.hard = dv > 64 ? (dv - 64) * 330 : 0;
     afb.mk = afs.mk;
-    afb.sb = softclip(bias);             /* (once a block, not twice a sample: 10/11) */
-    afb.st1 = afs.w24 || w24T;           /* (12 dB, settled: the 24 dB's first stage would be crossfaded out at 0:
-                                          * not run, the output the same; it starts again from where it was) */
-    afb.kn = clamp(afs.k, 5872026, 1 << 25) * 2;   /* the BP brought up: 2 k, k at least 0.35 (+6 dB at its peak:
-                                                 * a band of a full mix keeps some of its level) */
-    /* the band state's ceiling: high while the filter is tame (k >= 1: nothing touched), low as it screams (k <= 0:
-     * a self-oscillation about 12 dB under a loud mix's peaks: a sine is loud for its peak) */
-    afl_lim = 16384 + (int32_t)(((int64_t)clamp(afs.k, 0, 1 << 24) * 114688) >> 24);
-    afl_inv = (int32_t)((32768ll << 16) / afl_lim);
+    afb.sb = softclip(afb.bias);
+    afb.drive = dv || afs.drv != (int32_t)AFL_DRV[0] || afs.mk != AFL_MK[0];   /* (0, settled: no tanh at all) */
+    afb.st1 = afs.w24 || w24T;           /* (12 dB, settled: one stage) */
+    afb.kn = clamp(afs.k, 5872026, 1 << 25) * 2;   /* the BP brought up: 2 k, k at least 0.35 */
+    afb.wet = m0 >= 32766 && afs.mix >= 32766;     /* (MIX full, 127 x 258: no dry blend) */
     if (src >= AFS_4 && am_play) {
         static const uint8_t DIV[2] = {4, 2};
         uint32_t kk = DIV[src - AFS_4], s = am_gstep ? am_gstep - 1u : 0u;
         beat0 = (int32_t)((s % kk) * am_p + am_pos);
     }
-    for (j = 0, q = 0; j < n; j += AFL_SUB, q++) {
-        uint32_t e = j + AFL_SUB < n ? j + AFL_SUB : n, side;
-        int32_t envq, sq = 0, p, t, a, gs[2];
+    /* the follower: only when something listens to it (MOD, MODTYP off at 64; FM 0), one value a block */
+    foll = (mod || mtyp || fm) && src < AFS_4;
+    if (foll) {
+        for (i = 0; i < n; i++) {
+            int32_t a;
+            if (src >= AFS_C1 && src <= AFS_C3)
+                a = i < afl_scn ? afl_scb[i] : 0;
+            else
+                a = ((l[i] + w[i]) >> 1) + ((r[i] + w[i]) >> 1);
+            a = a < 0 ? -a : a;
+            if (a > pk)
+                pk = a;
+        }
+        afs.env += (int32_t)(((int64_t)(pk - afs.env) * (pk > afs.env ? 8850 : 475)) >> 16);   /* ~5 ms up, ~100 down (a block: 0.73 ms) */
+    }
+    sub = fm ? (int32_t)AFL_SUB : (int32_t)(AFL_NST * AFL_SUB);
+    afb.sub = sub;
+    for (j = 0, q = 0; j < n; j += (uint32_t)sub, q++) {
+        uint32_t side;
+        int32_t sq = 0, p, t, gs[2];
         afl_st_t *st = &afb.st[q];
-        /* the follower's value and the FM's sample for this stretch, Q15 */
         if (src >= AFS_4)
             envq = beat0 >= 0 ? afl_beat((uint32_t)beat0 + j) : 0;
-        else
+        else if (foll)
             envq = (int32_t)clamp((int32_t)(((int64_t)afs.env * 32767) / AFL_EREF), 0, 32767);
         if (fm) {
             int32_t x = src >= AFS_C1 && src <= AFS_C3 ? (j < afl_scn ? afl_scb[j] : 0) : (l[j] + r[j] + 2 * w[j]) >> 1;
@@ -401,7 +394,7 @@ static __attribute__((noinline)) void afl_block(int32_t *l, int32_t *r, int32_t 
         for (side = 0; side < 2u; side++)
             gs[side] = afl_g(clamp(side ? p + det : p - det, 0, AFL_TOP));
         for (side = 0; side < 2u; side++) {
-            if (side && gs[1] == gs[0]) {    /* (DETUNE at the middle: the same coefficients, not worked out twice) */
+            if (side && gs[1] == gs[0]) {    /* (DETUNE at the middle: the same coefficients) */
                 for (i = 0; i < 3u; i++)
                     st->a2[1][i] = st->a2[0][i], st->a1[1][i] = st->a1[0][i];
                 break;
@@ -410,20 +403,9 @@ static __attribute__((noinline)) void afl_block(int32_t *l, int32_t *r, int32_t 
             if (afb.st1)
                 afl_coef(gs[side], AFL_K1, st->a1[side]);
         }
-        /* MIX: equal power, its sine / cosine at this stretch's start */
-        st->ms = sine_i((uint32_t)(afs.mix > 32767 ? 32767 : m0 + dm * (int32_t)j) << 15);
-        st->mc = sine_i(((uint32_t)(afs.mix > 32767 ? 32767 : m0 + dm * (int32_t)j) << 15) + 0x40000000u);
-        for (i = j; i < e; i++) {            /* the peak and the follower, on the input */
-            int32_t i0 = clamp(l[i] + w[i], -(1 << 22), 1 << 22), i1 = clamp(r[i] + w[i], -(1 << 22), 1 << 22);
-            a = ((i0 < 0 ? -i0 : i0) + (i1 < 0 ? -i1 : i1)) >> 1;
-            if (a > pk)
-                pk = a;
-            if (src >= AFS_C1 && src <= AFS_C3) {
-                a = i < afl_scn ? afl_scb[i] : 0;
-                a = a < 0 ? -a : a;
-            }
-            if (src < AFS_4)                 /* the follower: up in ~5 ms, down in ~100 ms */
-                afs.env += (int32_t)(((int64_t)(a - afs.env) * (a > afs.env ? 296 : 15)) >> 16);
+        if (!afb.wet) {                      /* MIX: equal power, its sine / cosine at this stretch's start */
+            st->ms = sine_i((uint32_t)(afs.mix > 32767 ? 32767 : m0 + dm * (int32_t)j) << 15);
+            st->mc = sine_i(((uint32_t)(afs.mix > 32767 ? 32767 : m0 + dm * (int32_t)j) << 15) + 0x40000000u);
         }
     }
     afb.lr[0] = l;
@@ -435,7 +417,6 @@ static __attribute__((noinline)) void afl_block(int32_t *l, int32_t *r, int32_t 
         afl_side(0);
         if (C1_WAIT())                   /* it stopped answering: the right side here */
             afl_side(1);
-        afl_c1_blocks++;
     } else
 #endif
     {

@@ -929,3 +929,7 @@ La vue DEEP (3c) doit d'abord offrir en ALTER : GLIDE, canal/horloge MIDI, 2e c�
   il est découpé (partagé par tranche d'abord, puis `afl_side(0)` ici et `afl_side(1)` sur le 2e cœur, `afl_side_c1`).
   Sortie identique au bit (12 presets, ancien/nouveau binaire), dualcore_test TSAN OK. Coefficients pas recalculés quand
   les deux côtés ont le même g (DETUNE au milieu). stack_c1.py mesure aussi la pile depuis afl_side_c1.
+- v0.51 : Romain choisit un MASTER FILTER simple façon Felucca avec MORPH A/B ; l'ancien gardé comme idée
+  (docs/alter/idees/filtre-sherman, tag idee-filtre-sherman). Règle générale : ce qui est à 0 ne coûte rien → reverb mise
+  au repos (lignes vidées) après 3 s sans envoi et traîne silencieuse. Test fx : « RES 127 crie » remplacé par « pic à la
+  coupure + stable sur silence ». Coût (natif) : filtre WARM 114 → 73 M instructions / 6 s ; scène sans effet : reverb 112 → 56.

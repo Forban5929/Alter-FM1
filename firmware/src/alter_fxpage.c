@@ -302,7 +302,7 @@ static void afl_pic(int32_t y0, int32_t h, uint16_t col)
 {
     static const uint8_t GRID[3] = {61, 148, 235};   /* AFL_G's index of 100 Hz, 1 kHz, 10 kHz */
     int32_t on = afs.run && afl_now >= 0, pc = on ? afl_now : afl_p(AFL_FREQ) * (AFL_TOP / 127);
-    int32_t k = (1 << 25) - afl_p(AFL_RES) * 317040, t = on ? afl_tnow : afl_p(AFL_TYPE) * 258;
+    int32_t k = afl_k_of(afl_p(AFL_RES)), t = on ? afl_tnow : afl_p(AFL_TYPE) * 258;
     int32_t x, py = 0, y0db = y0 + h * 18 / 54, w24 = afl_p(AFL_SLOPE) ? 32768 : 0;
     uint16_t c = afl_p(AFL_MIX) ? col : ALT_DIM;
     for (x = 0; x < 3; x++)

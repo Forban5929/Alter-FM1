@@ -131,7 +131,8 @@ const dip = () => {
         Math.abs(back - ref) < 0.06 && flat - back > 0.08);
 }
 // the MASTER FILTER (alter_filter.c): off = untouched; LP takes the highs, HP the lows; DRIVE keeps the loudness;
-// RES past 1 screams on silence at the cutoff, held to about the mix's level; a USER scene keeps it, a factory one has none
+// RES at 127: a strong peak at the cutoff, but stable (v0.51: the simple filter never screams on silence); a USER scene
+// keeps it, a factory one has none
 {
   const F = (k, v) => W(12, k, v), FA = (a) => a.forEach((v, k) => F(k, v));
   const lp = (a, f) => { const k = 1 - Math.exp(-2 * Math.PI * f / FS); let y = 0; return a.map((x) => (y += (x - y) * k)); };
@@ -159,12 +160,15 @@ const dip = () => {
   check(`FILTER MORPH A -> B: from closed to open (highs ${db(highs(ma)).toFixed(1)} -> ${db(highs(mb)).toFixed(1)} dB)`,
         db(highs(mb)) - db(highs(ma)) > 20);
   [127, 0, 0, 0, 64, 0, 0, 0, 0, 64, 64].forEach((v, k) => F(11 + k, v));    // (B off again)
+  FA([73, 0, 0, 0, 64, 0, 0, 127, 0, 64, 64]); const r0 = take();   // LP 1 kHz, RES 0 ..
+  F(1, 127); const r1 = take();                                  // .. RES 127: the band at the cutoff comes up
+  const band = (a) => rms(hp(hp(lp(lp(a, 1300), 1300), 800), 800));
+  check(`FILTER RES 127: a peak at the cutoff (${db(band(r0)).toFixed(1)} -> ${db(band(r1)).toFixed(1)} dB)`,
+        db(band(r1)) - db(band(r0)) > 6);
   for (let c = 0; c < 3; c++) W(2, c, 1);                        // silence
-  FA([73, 127, 0, 0, 64, 0, 0, 127, 0, 64, 64]); render(FS * 2);
-  const osc = render(FS, true); let zc = 0;
-  for (let i = 1; i < osc.length; i++) if (osc[i - 1] < 0 && osc[i] >= 0) zc++;
-  check(`FILTER RES 127 on silence: it screams at the cutoff (${zc} Hz, ${db(rms(osc)).toFixed(1)} dB)`,
-        zc > 850 && zc < 1150 && db(rms(osc)) > -40 && db(rms(osc)) < db(rms(open)) + 6);
+  render(FS * 2);
+  const osc = render(FS, true);
+  check(`FILTER RES 127 on silence: stable, it does not oscillate (${db(rms(osc)).toFixed(1)} dB)`, db(rms(osc)) < -80);
   solo(-1);
   W(13, 0, 2); F(22, 0); render(FS);                             // TAPE into A (B too: it was off)
   const row = (n) => { enc(0, -25); enc(0, n); };

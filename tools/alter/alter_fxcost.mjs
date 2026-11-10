@@ -25,8 +25,8 @@ async function run(setup) {
 const all3 = (ex, p, v) => { for (let c = 0; c < 3; c++) ex.web_alter(17, c | p << 8, v); };
 const cfg = {
   "rien": () => {},
-  "MASTER FILTER (SHERMAN)": (ex) => { ex.web_alter(13, 0, 7); },
-  "MASTER FILTER (SCREAM)": (ex) => { ex.web_alter(13, 0, 8); },
+  "MASTER FILTER (ENV WAH)": (ex) => { ex.web_alter(13, 0, 7); },
+  "MASTER FILTER (PEAK)": (ex) => { ex.web_alter(13, 0, 8); },
   "MASTER COMP 100": (ex) => { ex.web_alter(8, 3, 100); },
   "DIST 80 x3": (ex) => all3(ex, P.DIST, 80),
   "DELAY envoi 60 x3": (ex) => all3(ex, P.DLY, 60),

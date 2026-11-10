@@ -456,6 +456,8 @@ static __attribute__((noinline)) void rev_hall(const int32_t *rev_in, int32_t *o
     hl.side = 1;
 }
 
+static uint32_t rev_quiet;              /* ALTER: samples with nothing sent and a silent tail */
+static uint8_t rev_off;                 /* ALTER: the reverb idle (not run) */
 /* the reverb's buffers and states to silence (the model changed) */
 static void rev_clear(void)
 {
@@ -641,10 +643,35 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
     rt = song.g[G_RTYPE];
     rt = rt >= 0 && rt < RV_N ? rt : RV_HALL;
     hl.side = 0;
-    if (rt != fx.rtype)
+    if (rt != fx.rtype) {
         rev_switch(rev_in, wet, n, rt);
-    else
-        rev_hall(rev_in, wet, n, (uint32_t)rt);
+        rev_quiet = 0;
+        rev_off = 0;
+    } else {
+        /* ALTER (v0.51, Romain: what is at 0 costs nothing): nothing sent and the tail under a step for 3 s: the
+         * reverb's lines cleared once and the reverb not run at all, until something is sent again */
+        int in0 = 1;
+        for (i = 0; i < n; i++)
+            if (rev_in[i]) {
+                in0 = 0;
+                break;
+            }
+        if (rev_off && in0) {
+        } else {
+            int32_t pk = 0;
+            rev_off = 0;
+            rev_hall(rev_in, wet, n, (uint32_t)rt);
+            for (i = 0; i < HL_NC; i++) {
+                int32_t a = hl.l[i] < 0 ? -hl.l[i] : hl.l[i], b2 = hl.r[i] < 0 ? -hl.r[i] : hl.r[i];
+                pk |= a | b2;
+            }
+            rev_quiet = in0 && pk < 4 ? rev_quiet + n : 0u;
+            if (rev_quiet >= 3u * FS) {
+                rev_clear();
+                rev_off = 1;
+            }
+        }
+    }
     if (sd) {                                    /* the delay's stereo (PING-PONG, GHOST) into the side */
         if (!hl.side)
             for (i = 0; i < n; i++)
