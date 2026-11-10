@@ -25,7 +25,7 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
    **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v0.43 » (10/11) ; **+0.01 à CHAQUE envoi à Romain** (v0.42, v0.43…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v0.44 » (10/11) ; **+0.01 à CHAQUE envoi à Romain** (v0.42, v0.43…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. Pousser sur `etape-3d` → GitHub Actions construit le vrai firmware + publie https://forban5929.github.io/Alter-FM1/ (version
    dans /version.txt). Le cloud ne télécharge pas les artifacts ni le compilateur JieLi : **rien n'est mesuré sur la FM-1 depuis le cloud.**
@@ -261,6 +261,12 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   MUTE des 2 côtés). CI : un littéral 0x10000u refusé (« register/window address », tools/build.py MMIO_LIT) → éviter
   les nombres 0x1xxxx/0x4xxxx/0x5xxxx/0x20xxxxx dans firmware/src. **Pas sur la FM-1.** Romain veut aussi (réponse du 10/11) : liste de ce qui manque pour une version
   publique (README ALTER, Release v1.0 sur main, manuel, tests FM-1, puces flash des autres FM-1, retour au firmware officiel).
+- [x] 10/11 **v0.44** : **son USB dans la page compagnon** (la FM-1 = carte son UAC, `FELUCCA_UAC`) : groupe « Sound (USB) »
+  (choix de l'entrée, « FM-1 » trouvée par son nom ; Listen ; Rec WAV 16 bits stéréo par AudioWorklet `AUD_WORK` + `wavFile` ;
+  vumètre L/R) + carte SCOPE dans l'onglet MIXER. getUserMedia sans traitement voix. Couper le haut-parleur : impossible par
+  le firmware (pas de ligne d'ampli connue, menu_items.c) → SYSTEM > AUDIO > USB LEVEL FIXED + volume au minimum (l'USB reste
+  à fond). Testé : Chrome headless (faux micro par oscillateur, enregistreur + WAV en OfflineAudioContext : 1 s, 44,1 kHz,
+  crête juste) ; le headless n'a pas de sortie son (AudioContext suspendu) → écoute/scope **pas vus en vrai**, **pas avec la FM-1**.
 - [ ] **PROCHAINE SESSION** : « nnF xxMS » de cette version (but : ~30F, < 33 ms ; 28F 24MS avant le triangle fixe). Si encore lent : dessin sur le 2e cœur ?
   alléger le son ? SPI (bsp : pas sans accord). Aussi MIDI LEARN avec le BCR32, CONSOLE de la page branchée, TRS (autre câble).
 - [ ] Idées : un contrôle → plusieurs réglages (macro) ; LEARN dans la page compagnon ; DENSITY/ROT continus.

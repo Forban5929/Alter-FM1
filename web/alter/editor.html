@@ -80,6 +80,12 @@ button, select, input { font: inherit; color: inherit; }
 .bar { max-width: 1180px; margin: 12px auto 0; padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 12px 32px; align-items: center;
   border-top: 1px solid var(--rim); border-bottom: 1px solid var(--rim); }
 .bar .grp { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.bar .vu { width: 90px; height: 22px; border: 1px solid var(--dark); background: color-mix(in srgb, var(--bg) 85%, var(--dark)); }
+#bRecWav[aria-pressed="true"] { background: var(--warn); border-color: var(--warn); color: var(--ontx); }
+#bListen[aria-pressed="true"] { background: var(--gold); border-color: var(--gold); color: var(--ontx); }
+.scope { grid-column: 1 / -1; padding: 32px 12px 12px; }
+.scope canvas { display: block; width: 100%; height: 150px; border: 1px solid var(--dark); background: color-mix(in srgb, var(--bg) 85%, var(--dark)); }
+.scope p { margin: 6px 0 0; font-size: 13px; color: var(--dim); }
 .bar .grp > span { color: var(--goldtx); font-family: var(--serif); font-weight: 700; letter-spacing: .04em; }
 select { background: var(--bg); border: 1px solid var(--rim); padding: 7px 10px; border-radius: 0; }
 select:hover { border-color: var(--gold); }
@@ -371,6 +377,12 @@ legend { font-size: 13px; }
       <button class="btn" id="bStore">Store here</button>
       <button class="btn" id="bLoad">Load</button>
     </div>
+    <div class="grp" id="audGrp"><span>Sound (USB)</span>
+      <select id="audDev" aria-label="The FM-1's USB audio input" title="The FM-1 as a sound card on this computer"><option value="">FM-1 audio…</option></select>
+      <button class="btn" id="bListen" aria-pressed="false" title="Hear the FM-1 through this computer">Listen</button>
+      <button class="btn" id="bRecWav" aria-pressed="false" title="Record what the FM-1 plays into a WAV file">● Rec WAV</button>
+      <canvas class="vu" id="audVu" width="90" height="22" aria-label="Level, left and right"></canvas>
+    </div>
   </section>
   <p class="msg" id="msg" role="status"></p>
 </div>
@@ -404,6 +416,9 @@ legend { font-size: 13px; }
     <li>“Store here” keeps the whole scene in a USER slot of the synth (banks A B C, 48 slots), with its 3-character
       NAME, like holding SAVE.</li>
     <li>SONG: the three slots A B C and the chain that loops them, as on the synth's keys (the “Song” tab).</li>
+    <li>Sound (USB): the FM-1 is also a sound card. Choose it, then “Listen” to hear it through this computer, “Rec WAV” to
+      record a jam into a file; its level is next to them, its shape in the Mixer tab. Its own speaker: SYSTEM > AUDIO >
+      USB LEVEL FIXED, then its volume knob down (the USB sound stays at full level).</li>
   </ol>
   <p>No synth at hand? Open the <a href="../" target="_blank" rel="noopener">web emulator</a> in another tab, switch it on, then click
     “Connect the emulator”: you hear it, and its screen and this page follow each other. “Try without a synth” runs ALTER
@@ -1209,6 +1224,11 @@ function mixerBuild() {
   });
   ms.append(fz);
   box.append(ms);
+  const sc = document.createElement("section");   // (the sound from the FM-1's USB: its shape, 10/11)
+  sc.className = "card scope tc";
+  sc.innerHTML = `<div class="rib"><span>Scope</span></div><canvas id="audScope" width="1200" height="150" aria-label="The FM-1's output, left gold, right grey"></canvas>
+    <p>The FM-1's own output, from its USB sound card: choose it in “Sound (USB)” above. Left gold, right grey.</p>`;
+  box.append(sc);
 }
 
 /* a setting's value: kept, shown; a circle's rhythm shows TURING's or EUCLID's knobs */
@@ -1635,6 +1655,145 @@ function drawPlay(m) {
   });
 }
 
+/* ---------- the FM-1's sound over USB (10/11, Romain): the FM-1 is a sound card (USB audio, the master output): listen
+ * to it here, see its level and shape, record it into a WAV. The browser's voice processing is off (it would change the
+ * sound); a little delay from the browser (not measured) */
+const AUD = { ctx: null, stream: null, src: null, gain: null, an: [null, null], rec: null, chunks: [], recN: 0, recT0: 0, raf: 0 };
+const AUD_WORK = `registerProcessor("alter-rec", class extends AudioWorkletProcessor {
+  process(inp) { const i = inp[0]; if (i && i.length) { const l = i[0], r = i[1] || i[0], b = new Int16Array(l.length * 2);
+    for (let k = 0; k < l.length; k++) { b[2 * k] = Math.max(-32768, Math.min(32767, Math.round(l[k] * 32767)));
+      b[2 * k + 1] = Math.max(-32768, Math.min(32767, Math.round(r[k] * 32767))); } this.port.postMessage(b, [b.buffer]); } return true; } });`;
+async function audList(pick) {
+  const sel = $("audDev"), keep = sel.value;
+  const devs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audioinput");
+  sel.innerHTML = '<option value="">FM-1 audio…</option>';
+  for (const d of devs) sel.append(new Option(d.label || "Audio input", d.deviceId));
+  const fm = devs.find((d) => /fm-?1|m-?vave|alter/i.test(d.label));
+  sel.value = pick ? (fm?.deviceId ?? devs[0]?.deviceId ?? "") : keep;
+  return sel.value;
+}
+let audBusy = null;
+function audOpen() { return (audBusy ??= audOpen1().finally(() => (audBusy = null))); }   // (one opening at a time)
+async function audOpen1() {                          // the input chosen (asked for once: the browser's permission)
+  if (!navigator.mediaDevices?.getUserMedia) { say("This browser cannot take a sound input: use Chrome or Edge.", true); return false; }
+  const want = { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2 };
+  try {
+    if (!$("audDev").value) {                        // (the first time: the permission, then the names, then the FM-1)
+      const s0 = await navigator.mediaDevices.getUserMedia({ audio: want });
+      s0.getTracks().forEach((t) => t.stop());
+      if (!(await audList(true))) { say("No sound input found. Is the FM-1 plugged in over USB?", true); return false; }
+    }
+    if (AUD.stream && AUD.dev === $("audDev").value) return true;
+    audClose();
+    AUD.dev = $("audDev").value;
+    AUD.stream = await navigator.mediaDevices.getUserMedia({ audio: { ...want, deviceId: { exact: AUD.dev } } });
+  } catch { say("The sound input was refused or is busy (allow the microphone for this page, close other apps using the FM-1).", true); return false; }
+  const ctx = AUD.ctx ??= new AudioContext({ latencyHint: "interactive" });
+  ctx.resume().catch(() => {});                       // (not awaited: a page without sound output never answers)
+  AUD.src = ctx.createMediaStreamSource(AUD.stream);
+  AUD.gain = ctx.createGain();
+  AUD.gain.gain.value = $("bListen").getAttribute("aria-pressed") === "true" ? 1 : 0;
+  AUD.src.connect(AUD.gain).connect(ctx.destination);
+  const sp = ctx.createChannelSplitter(2);
+  AUD.src.connect(sp);
+  AUD.an = [0, 1].map((k) => { const a = ctx.createAnalyser(); a.fftSize = 2048; sp.connect(a, k); return a; });
+  cancelAnimationFrame(AUD.raf);
+  AUD.raf = requestAnimationFrame(audDraw);
+  const name = $("audDev").selectedOptions[0]?.text ?? "";
+  if (!/fm-?1|m-?vave|alter/i.test(name)) say(`Sound from “${name}”: if it is not the FM-1, choose it in the list.`);
+  return true;
+}
+function audClose() {
+  AUD.stream?.getTracks().forEach((t) => t.stop());
+  try { AUD.src?.disconnect(); } catch {}
+  AUD.stream = AUD.src = null;
+}
+const AUD_PK = [0, 0];
+function audDraw() {
+  AUD.raf = requestAnimationFrame(audDraw);
+  if (!AUD.an[0]) return;
+  const buf = new Float32Array(AUD.an[0].fftSize), wave = [];
+  for (let k = 0; k < 2; k++) {
+    AUD.an[k].getFloatTimeDomainData(buf);
+    let pk = 0;
+    for (const x of buf) pk = Math.max(pk, Math.abs(x));
+    AUD_PK[k] = Math.max(pk, AUD_PK[k] * 0.9);
+    wave.push(Float32Array.from(buf));
+  }
+  const cs = getComputedStyle(document.documentElement), gold = cs.getPropertyValue("--gold") || "#c9a24a", dim = cs.getPropertyValue("--dim") || "#888";
+  const vu = $("audVu"), g = vu.getContext("2d");
+  g.clearRect(0, 0, vu.width, vu.height);
+  for (let k = 0; k < 2; k++) {                      // (a bar a side, dB from -48; red from -1 dB)
+    const db = 20 * Math.log10(AUD_PK[k] + 1e-9), w = Math.max(0, Math.min(1, (db + 48) / 48)) * vu.width;
+    g.fillStyle = db > -1 ? "#d0453a" : db > -9 ? gold : dim;
+    g.fillRect(0, k * 12 + 1, w, 9);
+  }
+  const sc = $("audScope");
+  if (!sc || sc.offsetParent === null) return;       // (the MIXER tab hidden: no scope to draw)
+  const h = sc.getContext("2d"), W = sc.width, H = sc.height;
+  h.clearRect(0, 0, W, H);
+  h.strokeStyle = dim; h.globalAlpha = .4; h.beginPath(); h.moveTo(0, H / 2); h.lineTo(W, H / 2); h.stroke(); h.globalAlpha = 1;
+  let z = 0;                                         // (the first rise through 0: the shape holds still)
+  for (let i = 1; i < wave[0].length / 2; i++) if (wave[0][i - 1] < 0 && wave[0][i] >= 0) { z = i; break; }
+  [[wave[1], dim], [wave[0], gold]].forEach(([w, col]) => {
+    h.strokeStyle = col; h.lineWidth = 1.5; h.beginPath();
+    for (let x = 0; x < W; x++) { const v = w[z + Math.floor(x * (w.length / 2) / W)] ?? 0; const y = H / 2 - v * (H / 2 - 4); x ? h.lineTo(x, y) : h.moveTo(x, y); }
+    h.stroke();
+  });
+}
+async function audListen() {
+  const on = $("bListen").getAttribute("aria-pressed") !== "true";
+  if (on && !(await audOpen())) return;
+  $("bListen").setAttribute("aria-pressed", String(on));
+  if (AUD.gain) AUD.gain.gain.setTargetAtTime(on ? 1 : 0, AUD.ctx.currentTime, 0.02);
+  say(on ? "Listening to the FM-1 here. To silence its own speaker: SYSTEM > AUDIO > USB LEVEL FIXED, then its volume knob down." : "Not listening here any more.");
+}
+function wavFile(chunks, n, rate) {                  // 16-bit stereo PCM
+  const data = n * 4, b = new DataView(new ArrayBuffer(44));
+  const w = (o, t) => [...t].forEach((ch, i) => b.setUint8(o + i, ch.charCodeAt(0)));
+  w(0, "RIFF"); b.setUint32(4, 36 + data, true); w(8, "WAVE"); w(12, "fmt "); b.setUint32(16, 16, true); b.setUint16(20, 1, true);
+  b.setUint16(22, 2, true); b.setUint32(24, rate, true); b.setUint32(28, rate * 4, true); b.setUint16(32, 4, true); b.setUint16(34, 16, true);
+  w(36, "data"); b.setUint32(40, data, true);
+  return new Blob([b, ...chunks], { type: "audio/wav" });
+}
+let audTick = 0;
+async function audRec() {
+  const btn = $("bRecWav");
+  if (AUD.rec) {                                     // stop: the file
+    AUD.rec.port.onmessage = null;
+    try { AUD.src.disconnect(AUD.rec); } catch {}
+    AUD.rec = null;
+    clearInterval(audTick);
+    btn.setAttribute("aria-pressed", "false"); btn.textContent = "● Rec WAV";
+    const d = new Date(), p2 = (x) => String(x).padStart(2, "0");
+    const nm = `alter-${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}.wav`;
+    const url = URL.createObjectURL(wavFile(AUD.chunks, AUD.recN, AUD.ctx.sampleRate));
+    Object.assign(document.createElement("a"), { href: url, download: nm }).click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    say(`Recording saved: ${nm} (${(AUD.recN / AUD.ctx.sampleRate).toFixed(1)} s, in your Downloads).`);
+    window.__alterLastWav = { n: AUD.recN, rate: AUD.ctx.sampleRate };
+    AUD.chunks = [];
+    return;
+  }
+  if (!(await audOpen())) return;
+  if (!AUD.workOk) {
+    await AUD.ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([AUD_WORK], { type: "text/javascript" })));
+    AUD.workOk = true;
+  }
+  AUD.chunks = []; AUD.recN = 0; AUD.recT0 = performance.now();
+  AUD.rec = new AudioWorkletNode(AUD.ctx, "alter-rec", { numberOfInputs: 1, numberOfOutputs: 0, channelCount: 2, channelCountMode: "explicit" });
+  AUD.rec.port.onmessage = (e) => { AUD.chunks.push(e.data); AUD.recN += e.data.length / 2; };
+  AUD.src.connect(AUD.rec);
+  btn.setAttribute("aria-pressed", "true");
+  const show = () => { const t = Math.floor((performance.now() - AUD.recT0) / 1000); btn.textContent = `■ Stop ${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
+  show(); audTick = setInterval(show, 500);
+  say(`Recording the FM-1 (${AUD.ctx.sampleRate} Hz, 16-bit stereo; about 10 MB a minute). Click again to stop and save the WAV.`);
+}
+$("bListen").onclick = audListen;
+$("bRecWav").onclick = audRec;
+$("audDev").onchange = () => { if ($("audDev").value && (AUD.stream || AUD.rec)) { if (AUD.rec) audRec(); audOpen(); } };
+navigator.mediaDevices?.addEventListener?.("devicechange", () => { if (AUD.dev) audList(false).catch(() => {}); });
+
 /* ---------- the tabs ---------- */
 function selectTab(t) {
   currentTab = t;
@@ -1723,7 +1882,7 @@ $("bStore").onclick = store;
 $("bLoad").onclick = load;
 $("slot").onchange = () => showName("scene");
 for (const id of ["slotName"]) $(id).oninput = (e) => { const v = cleanName(e.target.value); if (v !== e.target.value) e.target.value = v; };
-window.__alter = { circ, get info() { return info; }, get v2() { return v2; }, sceneBytes, patchNow, openPatch, toB64, USER };   // (for the tests)
+window.__alter = { circ, get info() { return info; }, get v2() { return v2; }, sceneBytes, patchNow, openPatch, toB64, USER, AUD_WORK, wavFile };   // (for the tests)
 if (new URLSearchParams(location.search).has("demo")) connectDemo();   // (editor/?demo: straight to the simulator)
 </script>
 </body>
