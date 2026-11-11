@@ -58,7 +58,7 @@ static const int16_t RING_SPR[8] = {12, 300, 2397, 4096, 5984, 7453, 9834, 11660
 static void ring_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
-    int32_t mt, sp, seg, frac, ob, q, fq, dirt, bias, radio, blnd, rng, i, lo, bd;
+    int32_t mt, sp, seg, frac, ob, q, fq, dirt, bias, sbias, dd, radio, blnd, rng, i, lo, bd;
     uint32_t inca, incb, incf, pw;
     mt = clamp((p[P_E0] << 8) + m->shape - (64 << 8), 0, (127 << 8) - 1);   /* MATR (+ SHP) */
     sp = p[P_E1] * 7 * 256 / 127;                /* SPRD: between two of the eight ratios, Q8 */
@@ -91,6 +91,8 @@ static void ring_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         q = 1600;
     dirt = p[P_E3];
     bias = dirt * 60;                            /* (the valve's bias: asymmetric, even harmonics) */
+    sbias = softclip(bias);                      /* (v0.59: once a block) */
+    dd = 4096 + dirt * 40;
     blnd = p[P_E6];
     lo = v->s[0];
     bd = v->s[1];
@@ -113,8 +115,8 @@ static void ring_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         x = (lo + bd + (y >> 2)) >> 1;           /* (the low and the band: a resonant low-pass with some edge) */
         if (dirt) {                              /* the valve: driven, biased, its own bias taken off */
             int32_t d = 4096 + dirt * 120;
-            x = softclip(clamp((int32_t)(((int64_t)x * d) >> 12) + bias, -65535, 65535)) - softclip(bias);
-            x = (int32_t)(((int64_t)x << 12) / (4096 + dirt * 40));
+            x = softclip(clamp((int32_t)(((int64_t)x * d) >> 12) + bias, -65535, 65535)) - sbias;
+            x = (x << 12) / dd;                  /* (v0.59: 32 bits, |x| <= 65534: the same, no 64-bit division a sample) */
         }
         if (radio) {                             /* static and fading */
             int32_t r = (int32_t)(noise32(&rng) >> 16);

@@ -147,7 +147,7 @@ static void corde_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
         if (dirt) {                               /* DIRT: a tanh (the small-signal gain kept), then a fold */
             z = (int32_t)(((int64_t)z * drv) >> 12);
             z = softclip(clamp(z, -65535, 65535));
-            z = (int32_t)(((int64_t)z << 12) / drv);
+            z = (z << 12) / drv;                 /* (v0.59: 32 bits, |z| <= 32767: the same, no 64-bit division a sample) */
             if (fold) {
                 int32_t cl = 32767 - fold, a = z < 0 ? -z : z;
                 if (a > cl)

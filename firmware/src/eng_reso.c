@@ -158,7 +158,7 @@ static void reso_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
             }
             nz = (int32_t)(((int64_t)((int32_t)(noise32(&rng) >> 16) - 32768) * e) >> 15);
             if (mt < 43)
-                x = imp + (int32_t)(((int64_t)(nz - imp) * mt) / 86);   /* (half way to the noise at 42) */
+                x = imp + (nz - imp) * mt / 86;  /* (half way to the noise at 42; v0.59: 32 bits, the same) */
             else
                 x = nz + (imp - nz) * (84 - clamp(mt, 43, 84)) / 82;
             env -= env / rate + 1;
@@ -180,9 +180,10 @@ static void reso_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
                 continue;
             }
             /* this filter's input: the exciter (if struck), itself (0.6) and the one before it (0.4) through the tanh */
-            in = (int32_t)(((int64_t)(S->o[k] * 3 + ring * 2) / 5 * drv) >> 12);   /* (harder, the small-signal gain kept) */
+            in = (int32_t)(((int64_t)((S->o[k] * 3 + ring * 2) / 5) * drv) >> 12);   /* (harder, the small-signal gain kept;
+                                                 * v0.59: the / 5 in 32 bits, the same) */
             in = softclip(clamp(in, -(1 << 20), 1 << 20));
-            in = (int32_t)(((int64_t)in * fb) / drv);
+            in = in * fb / drv;                  /* (v0.59: |in| <= 32767, fb <= 13000: 32 bits, the same) */
             v0 = ((S->mask >> k) & 1u ? x * 4 : 0) + in;   /* (the exciter x 4: a resonator takes a hard hit) */
             v3 = v0 - *c2;
             v1 = (int32_t)(((int64_t)a[k][0] * *c1 + (int64_t)a[k][1] * v3) >> 24);
