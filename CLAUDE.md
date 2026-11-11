@@ -92,6 +92,9 @@ Mesure FM-1 (v0.52, « un peu tout ») : P39 W0 X12 F8 M8 (= 67 %), CUT 999. Les
 (audio.c shed : rendu + TIMER5 > 85 % deux demi-blocs de suite → une voix effacée), pas des trous. v0.53 : seuil à 95 %, la
 2e ligne dit S (voix effacées) L (vrais trous, DMA en retard) P W X F M et T (TIMER5 imbriqué, %). W0 = le 2e cœur attend :
 il a de la marge (piste : lui donner plus). tests/audio_test.c (Felucca, hors CI) : 8 échecs déjà là avant.
+Mesure v0.53 : S et L > 500, T5. **Plan de refonte « robuste en live » : `docs/alter/REFONTE.md`** (à lire en premier ;
+cause principale trouvée : `mix_split` ignore le travail fixe du cœur 0 et compte PLATE/CORDE/RING à 0 ; pics = ×1,5 la moyenne).
+Références de Romain : Felucca et JIANT (github.com/juanjiant-bit/JIANT : prof.c, cpu_safe.c, FELUCCA_HOTRAM).
 Test ops ajoutés : web_alter 29 = HITS d'un cercle ; peek 16 = voix qui sonnent d'un cercle.
 LOCKS refaits en v0.48 (7 verrous
 = les dés : RHYTHM LENGTH VELOCITY CHANCE PITCH THROWS SOUND ; bits 1 2 32 gardés, anciens 4 8 16 64 relus LEN CHANCE SOUND
