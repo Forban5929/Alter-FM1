@@ -4333,14 +4333,27 @@ static void alt_rc_step(uint32_t i, uint32_t j)  /* circle i's step j, its mark 
     alt_at((uint32_t)(((uint64_t)j << 32) / len), ALT_R[i], &x, &y);
     alt_rc_add(x - 11, y - 11, x + 11, y + 11);
 }
-static uint32_t alt_sm_cap = 28u;                /* (ms between two frames at least: ~30 a second, even; 0: none, tests) */
+static uint32_t alt_sm_cap = 33u;                /* (ms a frame: ~30 a second; 0: none, tests) */
+/* (v0.64, REFONTE 4, measured on Romain's FM-1: the main loop comes every 15 to 20 ms under load; "28 ms since the last
+ * frame" then meant a frame every other turn, 40 ms, 25 a second. Now a frame falls due every 33 ms: whatever the loop's
+ * pace, 30 a second on average; late by a whole frame, it starts again from now) */
+static int alt_frame_due(uint32_t *due)
+{
+    if (!alt_sm_cap)
+        return 1;
+    if ((int32_t)(alt_now_ms - *due) < 0)
+        return 0;
+    if (alt_now_ms - *due >= alt_sm_cap)
+        *due = alt_now_ms;
+    *due += alt_sm_cap;
+    return 1;
+}
 static int alt_sm_frame(uint32_t q, uint32_t flash)
 {
-    static uint32_t last_ms;
+    static uint32_t due;
     uint32_t i, k, ang[AS_NCIRC], keep[AS_NCIRC];
-    if (alt_now_ms - last_ms < alt_sm_cap)       /* (the main loop comes every 15 ms: a frame every other one) */
+    if (!alt_frame_due(&due))
         return 0;
-    last_ms = alt_now_ms;
     alt_nrc = 0;
     for (i = 0; i < AS_NCIRC; i++) {
         ang[i] = alt_sm_ang[i];
@@ -4679,8 +4692,7 @@ static void alter_draw(void)
         fl_seen = (uint8_t)flash;
     }
     if (au.drawn && sig == au.sig) {
-        if (alt_lw_vis() && alt_now_ms - alt_mat_ms >= alt_sm_cap) {
-            alt_mat_ms = alt_now_ms;
+        if (alt_lw_vis() && alt_frame_due(&alt_mat_ms)) {
             alt_draw_gl_n = alt_gl_n;
             alt_draw_lfo_p = alt_lfo_p;
             if (alt_lw_frame(q, flash))
@@ -4690,7 +4702,7 @@ static void alter_draw(void)
     }
     au.sig = sig;
     au.drawn = 1;
-    alt_mat_ms = alt_now_ms;
+    alt_mat_ms = alt_now_ms + alt_sm_cap;           /* (the wave's next frame due then) */
     alt_draw_gl_n = alt_gl_n;                    /* (une seule heure pour les deux moitiés) */
     alt_draw_lfo_p = alt_lfo_p;
     for (i = 0; i < 2u; i++) {                   /* two halves: the canvas holds 240 x 124 */
