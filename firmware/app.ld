@@ -21,7 +21,10 @@ MEMORY
 }
 SECTIONS
 {
-    .text : { KEEP(*(.text.crt0)) *(.text*) *(.rodata*) . = ALIGN(4); _etext = .; } > XIP
+    /* ALTER (v0.60, after JIANT 0.9.12): what an interrupt reaches first, together, in name order (tools/build.py
+     * audio_sections): the UI cannot scatter the sound's code through the flash cache */
+    .text : { KEEP(*(.text.crt0)) *(SORT_BY_NAME(.text.a.*)) *(SORT_BY_NAME(.rodata.a.*)) *(.text*) *(.rodata*)
+              . = ALIGN(4); _etext = .; } > XIP
     .ram_text : { _rt_start = .; KEEP(*(.ram_text*)) . = ALIGN(4);
                   _c1_start = .; KEEP(*(.c1_text*)) . = ALIGN(4); _c1_end = .; _rt_end = .; } > RAMTEXT AT > XIP
     _rt_load = LOADADDR(.ram_text);

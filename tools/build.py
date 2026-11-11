@@ -206,6 +206,35 @@ def ld_regions():
     return regs
 
 
+# ALTER (v0.60, after JIANT 0.9.12, Romain: "marge son d'abord"): the flash layout of the sound. What an interrupt
+# reaches (tools/size_fns.py isr_reach: the audio ISR, TIMER5, the second core's job, the engines through their table,
+# the tables they read) goes first in the image, in name order (app.ld .text.a.* / .rodata.a.*), ahead of the UI. The
+# code runs from the XIP flash through a small cache both cores share: scattered among the UI, the sound's code
+# fights it for the cache (JIANT: +6 KB of UI moved the engines and took the owner's FM-1 from fine to 94 %; the host
+# counts were the same). ALTER_LAYOUT=0: as before
+def audio_sections(ir, reach):
+    """reach's definitions and constants in the optimised IR given sections .text.a.<name> / .rodata.a.<name> (those
+    with a section of their own, the RAM code, keep it); (the IR, functions, constants)"""
+    nf = nc = 0
+
+    def fn(m):
+        nonlocal nf
+        if m.group(2) not in reach or ' section "' in m.group(1):
+            return m.group(0)
+        nf += 1
+        return f'{m.group(1)} section ".text.a.{m.group(2)}" {{'
+
+    def const(m):
+        nonlocal nc
+        if m.group(2) not in reach or m.group(2).startswith(".") or ' section "' in m.group(0):
+            return m.group(0)                           # (a string literal stays merged with the others)
+        nc += 1
+        return f'{m.group(1)}, section ".rodata.a.{m.group(2)}"{m.group(3)}'
+    ir = re.sub(r'^(define [^\n]*?@"?([\w.]+)"?\([^\n]*?)\s*\{$', fn, ir, flags=re.M)
+    ir = re.sub(r'^(@"?([\w.]+)"? = [^\n]*? constant [^\n]*?)(, align \d+)$', const, ir, flags=re.M)
+    return ir, nf, nc
+
+
 def build_app():
     flags = [*CFLAGS, *HAL_INC, "-Ifirmware/src", "-Ibuild/gen"]
     for flag in ("FELUCCA_FLASH", "FELUCCA_OTA", "FELUCCA_OTA_DRYRUN", "FELUCCA_OTA_RAMONLY", "FELUCCA_CDC",
@@ -235,8 +264,23 @@ def build_app():
     if size:
         subprocess.run([sys.executable, SRC / "tools" / "size_fns.py", OUT / "felucca.ll", OUT / "felucca_size.ll"],
                        check=True)
-        tc("cc", *[f for f in flags if not f.startswith(("-I", "-D", "-W"))], "-c",
-           OUT / "felucca_size.ll", "-o", OUT / "felucca.o")
+        cf = [f for f in flags if not f.startswith(("-I", "-D", "-W"))]
+        if os.environ.get("ALTER_LAYOUT") != "0":
+            # ALTER (v0.60, after JIANT 0.9.12): optimised first, then the sound's code and tables named .text.a.* /
+            # .rodata.a.* (app.ld puts them first, together), then only the code generator (a section given before
+            # the optimiser would stop it inlining across it)
+            sys.path.insert(0, str(SRC / "tools"))
+            import size_fns  # noqa: E402
+            tc("cc", *cf, "-S", "-emit-llvm", "-c", OUT / "felucca_size.ll", "-o", OUT / "felucca_opt.ll")
+            ir, nf, nc = audio_sections((OUT / "felucca_opt.ll").read_text(),
+                                        size_fns.isr_reach((OUT / "felucca_size.ll").read_text(), True))
+            print(f"layout: {nf} functions and {nc} constant tables an interrupt reaches first in the image")
+            if nf < 50:
+                raise SystemExit(f"layout: only {nf} sound functions found in the IR")
+            (OUT / "felucca_lay.ll").write_text(ir)
+            tc("cc", *cf, "-Xclang", "-disable-llvm-optzns", "-c", OUT / "felucca_lay.ll", "-o", OUT / "felucca.o")
+        else:
+            tc("cc", *cf, "-c", OUT / "felucca_size.ll", "-o", OUT / "felucca.o")
     elf = OUT / "felucca.elf"
     tc("pi32v2/bin/ld", "-T", FW / "app.ld", OUT / "crt0.o", OUT / "fm1_vec.o", OUT / "fm1_isr.o",
        *([OUT / "fm1_cpu1.o"] if CPU2 else []), OUT / "felucca.o", "-o", elf)
