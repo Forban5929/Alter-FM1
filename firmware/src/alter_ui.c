@@ -1217,6 +1217,7 @@ static int alt_fx_budget1(uint32_t c)
 }
 
 /* CHAOS: the three circles drawn to the extreme */
+static void alt_chaos_req(uint32_t kind);      /* (below alter_draw: CHAOS / CHAOS TOTAL with the glitch) */
 static void alt_chaos(void)
 {
     static const uint8_t FXP[6] = {P_DIST, P_ITYPE, P_IA, P_IMIX, P_DLY, P_REV};
@@ -1876,7 +1877,7 @@ static int alter_ui_input(uint32_t pressed)
         if (au.sel != au.sel_was)
             alt_select(au.sel_was);
         au.tc_combo = 1;
-        alt_total_chaos();
+        alt_chaos_req(2u);                       /* (11/11: on the 1 after a whole bar, with a glitch) */
     }
     /* the keys */
     for (k = 0; k < 27u; k++) {
@@ -1911,7 +1912,7 @@ static int alter_ui_input(uint32_t pressed)
                 au.die_clean_done &= (uint8_t)~(1u << i2);
                 if ((keys & ALT_DICE_KEYS) == ALT_DICE_KEYS) {   /* the three dice at once: CHAOS (no roll, no clean) */
                     au.die_clean_done = 7u;
-                    alt_chaos();
+                    alt_chaos_req(1u);           /* (11/11: on the 1 after a whole bar, with a glitch) */
                 }
             } else if (a->kind == AK_DENS) {
                 int32_t d = i2 ? 1 : -1;
@@ -4498,6 +4499,146 @@ static int alt_lw_frame(uint32_t q, uint32_t flash)
     return n != 0;
 }
 
+/* CHAOS / CHAOS TOTAL, with a glitch (Romain 11/11, chosen on a mock-up: "glitch, après une mesure entière"). The draw
+ * waits for a bar line: the one after the next (one bar at least, two at most), done while the last sixteenth before it
+ * plays, so the new scene starts on the 1; meanwhile the whole screen glitches, harder as the 1 comes, and a short burst
+ * on the new scene after. Stopped: at once, a short glitch. Pressed again while it waits: cancelled (nothing changed);
+ * CHAOS TOTAL again within 3 s of its draw: undone, as before. The companion page's buttons stay at once (alter_link.c) */
+static struct {
+    uint8_t kind;                                /* waiting: 1 CHAOS, 2 CHAOS TOTAL (0: none) */
+    uint32_t at;                                 /* .. done when alt_gstep reaches it (the 1's step's index) */
+    uint32_t t0, done_ms;                        /* the glitch's start; when the draw was done (0: not yet) */
+    uint32_t due, frame;                         /* (its frames) */
+    uint8_t on;
+} acx;
+#define ACX_TAIL_MS 320u                         /* the burst on the new scene */
+static void acx_do(uint32_t kind)
+{
+    if (kind == 2u)
+        alt_total_chaos();
+    else {
+        alt_chaos();
+        alt_say("CHAOS");
+    }
+    acx.done_ms = fm1_ms | 1u;
+}
+static void alt_chaos_req(uint32_t kind)
+{
+    if (acx.kind) {                              /* (again while it waits: nothing happens after all) */
+        acx.kind = 0;
+        acx.on = 0;
+        au.drawn = 0;
+        alt_say("CANCEL");
+        return;
+    }
+    if (kind == 2u && au.tc_ms && alt_tcu.ok && (int32_t)(fm1_ms - au.tc_ms) < (int32_t)ALT_TC_UNDO_MS) {
+        alt_total_chaos();                       /* (the undo: at once, no glitch) */
+        return;
+    }
+    acx.on = 1;
+    acx.t0 = fm1_ms;
+    acx.done_ms = 0;
+    acx.due = fm1_ms;
+    if (!song.playing) {
+        acx_do(kind);
+        return;
+    }
+    acx.kind = (uint8_t)kind;
+    acx.at = ((alt_gstep ? alt_gstep - 1u : 0u) / 16u + 2u) * 16u;   /* (the 1 after the next) */
+    alt_say(kind == 2u ? "TOTAL CHAOS ..." : "CHAOS ...");
+}
+static void acx_poll(void)                       /* (the main loop, each frame) */
+{
+    if (acx.kind && (!song.playing || alt_gstep >= acx.at)) {   /* (the last sixteenth before the 1 plays; or stopped) */
+        uint32_t k = acx.kind;
+        acx.kind = 0;
+        acx_do(k);
+    }
+    if (acx.on && acx.done_ms && fm1_ms - acx.done_ms >= ACX_TAIL_MS) {
+        acx.on = 0;
+        au.drawn = 0;                            /* (the new scene drawn whole) */
+    }
+}
+static uint32_t acx_rng;
+static uint32_t acx_r(uint32_t n)
+{
+    acx_rng ^= acx_rng << 13;
+    acx_rng ^= acx_rng >> 17;
+    acx_rng ^= acx_rng << 5;
+    return n ? acx_rng % n : 0u;
+}
+/* the glitch on the canvas (a half of the screen, cv_px, bytes swapped): bands of rows shifted sideways, some posterised
+ * to their brightest colours, and blocks of the circles' colours, dithered; amp 0..256 */
+static void acx_glitch(uint32_t amp)
+{
+    static uint16_t row[240];
+    uint32_t y = 0, w = cv_w, h = cv_h, k;
+    while (y < h) {
+        uint32_t bh = 2u + acx_r(14u), yy, x;
+        int32_t sh = (int32_t)(((int32_t)acx_r(91u) - 45) * (int32_t)amp) >> 8;
+        int q = acx_r(1024u) < amp;              /* (a quarter of the bands at full) */
+        for (yy = y; yy < y + bh && yy < h; yy++) {
+            uint16_t *r = &cv_px[yy * w];
+            if (sh) {
+                for (x = 0; x < w; x++)
+                    row[x] = r[(uint32_t)((int32_t)x - sh + (int32_t)w * 2) % w];
+                for (x = 0; x < w; x++)
+                    r[x] = row[x];
+            }
+            if (q)
+                for (x = 0; x < w; x++) {
+                    uint32_t c = swap16(r[x]), R = c >> 11, G = (c >> 5) & 63u, B = c & 31u;
+                    c = (R > 13u ? 31u << 11 : 2u << 11) | (G > 27u ? 55u << 5 : 3u << 5) | (B > 13u ? 20u : 2u);
+                    r[x] = swap16(c);
+                }
+        }
+        y += bh;
+    }
+    for (k = (amp * 10u) >> 8; k; k--) {        /* the blocks */
+        uint32_t bx = acx_r(w), by = acx_r(h), bw = 6u + acx_r(40u), bh = 3u + acx_r(16u), x, yy, ci = acx_r(4u);
+        uint16_t c = swap16(ci < 3u ? ALT_COL[ci] : ALT_INK);
+        for (yy = by; yy < by + bh && yy < h; yy++)
+            for (x = bx; x < bx + bw && x < w; x++)
+                if ((x ^ yy ^ k) & 1u)
+                    cv_px[yy * w + x] = c;
+    }
+}
+/* a glitch frame (the whole screen); 1 = drawn, the frame is the glitch's */
+static int acx_frame(uint32_t q, uint32_t flash)
+{
+    uint32_t i, amp, now = fm1_ms;
+    if (!acx.on)
+        return 0;
+    {                                            /* (its own pace: ~18 a second, a whole screen each) */
+        uint32_t cap = alt_sm_cap;
+        alt_sm_cap = cap ? 55u : 0u;
+        i = (uint32_t)alt_frame_due(&acx.due);
+        alt_sm_cap = cap;
+        if (!i)
+            return 1;
+    }
+    if (acx.done_ms)                             /* the burst after: from full to nothing */
+        amp = (now - acx.done_ms) >= ACX_TAIL_MS ? 0u : 256u - (now - acx.done_ms) * 256u / ACX_TAIL_MS;
+    else if (acx.kind && song.playing) {         /* waiting: from a third to full as the 1 comes */
+        uint32_t left = acx.at > alt_gstep ? acx.at - alt_gstep : 0u, span = 32u;
+        amp = 256u - (left > span ? span : left) * 170u / span;
+    } else
+        amp = 256u;
+    acx_rng = (now / 55u) * 2654435761u | 1u;
+    acx.frame++;
+    for (i = 0; i < 2u; i++) {
+        cv_begin(240, 120, ALT_BG);
+        alt_paper(i);
+        cv_oy = -(int32_t)i * 120;
+        alt_scene(q, flash);
+        cv_oy = 0;
+        acx_glitch(amp);
+        cv_blit(0, i * 120u);
+    }
+    alt_fps_tick();
+    return 1;
+}
+
 static void alter_draw(void)
 {
     uint32_t sig = 0, sfoot = 0, shead = 0, i, h, flash = 0, q = au.lockc ? 0u : alt_page();
@@ -4506,6 +4647,12 @@ static void alter_draw(void)
     alt_dr_isr0 = alt_isr_tk;
     alt_dr_lcd0 = lcd_wait_tk;
     alt_dr_px0 = lcd_px;
+    acx_poll();
+    if (acx.on) {                                /* (CHAOS's glitch: the whole screen, nothing else) */
+        alt_fps_poll();
+        acx_frame(au.lockc ? 0u : alt_page(), 0u);
+        return;
+    }
     for (i = 0; i < AS_NCIRC; i++) {
         if ((h = alt_hits[i]) != au.hits_seen[i]) {
             uint32_t len = alt_seq.c[i].cfg.len ? alt_seq.c[i].cfg.len : 1u;
@@ -4822,6 +4969,7 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
         alt_cl[a & 3u][(a >> 8) % CL_N].dst = (uint8_t)((b >> 8 & 31u) % GD_N);
         alt_cl[a & 3u][(a >> 8) % CL_N].depth = (int8_t)clamp((int8_t)(b >> 16), -64, 63);
         break;
+    case 31: alt_chaos_req(b ? 2u : 1u); break;  /* (a test, v0.65: CHAOS (b 0) / CHAOS TOTAL (b 1) as the keys do: glitch, bar) */
     case 30:                                     /* (a test, v0.63: the screen's SPI divider, 2..8: lsb / (b + 1)) */
 #if !defined(FELUCCA_WEB) && !defined(HOSTSIM)
         if (b >= 2u && b <= 8u) {

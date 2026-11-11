@@ -545,6 +545,7 @@ play();
   let reso = 0, chords = 0, worst = 0, n = 0;
   for (let r = 0; r < 24; r++) {
     if (r & 1) { combo([1, 3, 5]); render(FS * 3); } else combo([7, 9, 11]);   // CHAOS TOTAL (3 s : pas l'annulation) / CHAOS
+    render(FS * 4);                                             // (v0.65: playing, the draw lands on the 1 after a whole bar)
     for (let c = 0; c < 3; c++, n++) {
       reso += ex.web_alter_peek(c, 0) === 10; chords += ex.web_alter_peek(c, 1) !== 0;
       worst = Math.max(worst, ex.web_alter_peek(c, 2));
@@ -552,6 +553,21 @@ play();
   }
   check(`CHAOS / CHAOS TOTAL x24 : ${n} sons tirés, RESO ${reso}, accords ${chords}, budget d'effets max ${worst} (≤ 392)`,
         reso === 0 && chords === 0 && worst <= 392);
+}
+{                                                               // v0.65 (Romain 11/11): CHAOS TOTAL playing = a glitch, the draw on the 1 after a whole bar
+  ex.web_nor_erase(); ex.web_boot(); render(FS * 2); ex.web_alter(1, 0, 0); render(FS / 2);
+  if (peak(render(FS / 2, true)) < 0.001) play();
+  const eng = () => [0, 1, 2].map((c) => ex.web_alter_peek(c, 0)).join();   // (the engines: no LFO moves them)
+  const e0 = eng();
+  ex.web_alter(31, 0, 1); render(FS / 4);
+  const e1 = eng();
+  render(FS * 4);
+  const e2 = eng();
+  render(FS * 3);                                               // (past the 3 s of the undo)
+  ex.web_alter(31, 0, 1); render(FS / 4); ex.web_alter(31, 0, 1); render(FS * 4);   // (pressed twice: cancelled)
+  const e3 = eng();
+  check(`CHAOS TOTAL playing: nothing at once (${e0} = ${e1}), the new scene within two bars (${e2}); pressed twice: cancelled (${e3})`,
+        e0 === e1 && e2 !== e0 && e3 === e2);
 }
 {                                                               // REC (Romain 01/11): the knob moves on the steps, in a loop
   ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
