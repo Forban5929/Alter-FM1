@@ -49,11 +49,43 @@ const alt = window.alt = {
   cmd: (op, a = 0, b = 0) => ask(TEST, op, ...w32(a), ...w32(b)),
   async peek(c, w) { const a = await ask(PEEK, ...w32(c), ...w32(w)); return (a[0] | a[1] << 7 | a[2] << 14 | a[3] << 21 | a[4] << 28) >>> 0; },
   act: (c, a) => ask(ACT, c, a),
-  // the worst scene of Romain's report: CHAOS TOTAL, 16 hits on 16 steps, DIST / DELAY / REVERB up, a MASTER FILTER preset
-  async worst(preset = 7) {
+  // the worst scene (Romain 11/11: every effect, a different one each time, the filter's A and B morphing): CHAOS TOTAL,
+  // 16 hits on 16 steps, a DIST preset on each circle, a DELAY and a REVERB preset, MASTER FILTER A and B two presets
+  // with MORPH sweeping between them; seed: the same choices again (null: a new draw). Returns what it chose
+  async worst(seed = null) {
+    let x = (seed ?? Math.floor(Math.random() * 1e9)) >>> 0 || 1;
+    const rnd = (n) => { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; return x % n; };
+    const pick = { seed: seed ?? null, dist: [], dly: rnd(6), rev: rnd(8), fa: 1 + rnd(8), fb: 1 + rnd(8) };
+    alt.morph(false);
     await alt.cmd(22);
-    for (let c = 0; c < 3; c++) { await alt.cmd(21, c, 16); await alt.cmd(29, c, 16); await alt.cmd(17, c | 33 << 8, 80); await alt.cmd(17, c | 35 << 8, 60); await alt.cmd(17, c | 36 << 8, 60); }
-    await alt.cmd(13, 0, preset);
+    for (let c = 0; c < 3; c++) {
+      pick.dist.push(1 + rnd(7));
+      await alt.cmd(21, c, 16); await alt.cmd(29, c, 16); await alt.cmd(7, c, pick.dist[c]);
+      await alt.cmd(17, c | 34 << 8, 40); await alt.cmd(17, c | 35 << 8, 60); await alt.cmd(17, c | 36 << 8, 60);
+    }
+    await alt.cmd(7, 3, pick.dly); await alt.cmd(7, 4, pick.rev);
+    await alt.cmd(13, 0, pick.fa); await alt.cmd(13, 1, pick.fb);
+    alt.morph(true);
+    return pick;
+  },
+  // MORPH swept 0 -> 127 -> 0 over 4 s while on (the filter's coefficients moving all the time)
+  morph(on) {
+    clearInterval(alt._mt); if (!on) return;
+    let m = 0, d = 8; alt._mt = setInterval(() => { m += d; if (m >= 127 || m <= 0) { d = -d; m = Math.max(0, Math.min(127, m)); } alt.cmd(12, 22, m).catch(() => {}); }, 250);
+  },
+  // n worst scenes, secs each: one line per scene (its choices, CPU mean / peak, frames, new gaps L and voices cut S)
+  async bench(n = 6, secs = 8, seed0 = 1) {
+    const out = [];
+    for (let k = 0; k < n; k++) {
+      const pick = await alt.worst(seed0 + k), h0 = alt.hist.length, L0 = alt.last?.L ?? 0, S0 = alt.last?.S ?? 0;
+      await new Promise((ok) => setTimeout(ok, secs * 1000 + 500));
+      const h = alt.hist.slice(h0).filter((d) => d.avg != null); if (!h.length) continue;
+      const av = (f) => Math.round(h.reduce((s, d) => s + d[f], 0) / h.length);
+      out.push({ ...pick, eng: h.at(-1).eng.join("/"), avg: av("avg"), pk: Math.max(...h.map((d) => d.pk)), fps: av("fps"),
+        P: av("P"), X: av("X"), F: av("F"), dL: h.at(-1).L - L0, dS: h.at(-1).S - S0 });
+    }
+    alt.morph(false);
+    return out;
   },
   // n samples, one a second: [{...}] and their summary
   async watch(n = 10) { const r = []; for (let k = 0; k < n; k++) { r.push(await alt.diag()); await new Promise((ok) => setTimeout(ok, 1000)); } return r; },
@@ -89,6 +121,6 @@ $("bDemo").onclick = async () => {
   send = (b) => { new Uint8Array(ex.memory.buffer, ex.web_link_in_buf(), b.length).set(b); ex.web_link_in(b.length); setTimeout(drain, 0); };
   started("simulator (its CPU numbers are 0)");
 };
-$("bWorst").onclick = () => alt.worst().then(() => say("Worst scene set."), (e) => say(e.message, true));
+$("bWorst").onclick = () => alt.worst().then((p) => say("Worst scene set: " + JSON.stringify(p)), (e) => say(e.message, true));
 $("bClear").onclick = () => { $("log").textContent = ""; alt.hist.length = 0; };
 </script></body></html>
