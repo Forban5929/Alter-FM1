@@ -1080,6 +1080,10 @@ static int16_t alt_crange(const param_desc_t *d, int32_t div)   /* anywhere in d
  * CORDE RING (05/11) known */
 #define alt_sys (favorites.factory[13])
 #define ALT_SYS_OK 0xA7u
+/* [9] (v0.66, Romain 11/11) the effects CHAOS TOTAL leaves alone, a bit each (0, the default: it draws them all; CHAOS
+ * never draws effects): DIST + INSERT (each circle's), DELAY (the sends, the steps' DELAY lane, its settings), REVERB
+ * (the same) */
+enum { ALT_RFX_DIST = 1, ALT_RFX_DLY = 2, ALT_RFX_REV = 4, ALT_RFX_ALL = 7 };
 static void alt_sys_init(void)
 {
     if (alt_sys[0] != ALT_SYS_OK) {
@@ -1218,6 +1222,50 @@ static int alt_fx_budget1(uint32_t c)
 
 /* CHAOS: the three circles drawn to the extreme */
 static void alt_chaos_req(uint32_t kind);      /* (below alter_draw: CHAOS / CHAOS TOTAL with the glitch) */
+/* (v0.66, Romain 11/11) a circle's effects kept across a random draw, put back for those it must leave alone: CHAOS all of
+ * them (it never draws effects), CHAOS TOTAL those SYSTEM > RANDOM turned off (alt_sys[9]) */
+#define ALT_RFX_CHO 8u                           /* (the chorus send: CHAOS keeps it too) */
+typedef struct {
+    int16_t p[9];
+    uint8_t sdly[AS_NLANE], srev[AS_NLANE], sel, edit;
+} alt_fxk_t;
+static const uint8_t ALT_FXK_P[9] = {P_DIST, P_ITYPE, P_IA, P_IB, P_IC, P_IMIX, P_DLY, P_REV, P_CHOR};
+static void alt_fx_keep(uint32_t c, alt_fxk_t *k)
+{
+    uint32_t i;
+    for (i = 0; i < 9u; i++)
+        k->p[i] = trk[c].p[ALT_FXK_P[i]];
+    for (i = 0; i < AS_NLANE; i++) {
+        k->sdly[i] = alt_seq.c[c].sdly[i];
+        k->srev[i] = alt_seq.c[c].srev[i];
+    }
+    k->sel = afx_sel[c];
+    k->edit = (uint8_t)((afx_edit >> c) & 1u);
+}
+static void alt_fx_back(uint32_t c, const alt_fxk_t *k, uint32_t mask)
+{
+    uint32_t i;
+    fm1_irq_off();
+    if (mask & ALT_RFX_DIST) {
+        for (i = 0; i < 6u; i++)
+            trk[c].p[ALT_FXK_P[i]] = k->p[i];
+        afx_sel[c] = k->sel;
+        afx_edit = (uint8_t)((afx_edit & ~(1u << c)) | (uint32_t)k->edit << c);
+    }
+    if (mask & ALT_RFX_DLY) {
+        trk[c].p[P_DLY] = k->p[6];
+        for (i = 0; i < AS_NLANE; i++)
+            alt_seq.c[c].sdly[i] = k->sdly[i];
+    }
+    if (mask & ALT_RFX_REV) {
+        trk[c].p[P_REV] = k->p[7];
+        for (i = 0; i < AS_NLANE; i++)
+            alt_seq.c[c].srev[i] = k->srev[i];
+    }
+    if (mask & ALT_RFX_CHO)
+        trk[c].p[P_CHOR] = k->p[8];
+    fm1_irq_on();
+}
 static void alt_chaos(void)
 {
     static const uint8_t FXP[6] = {P_DIST, P_ITYPE, P_IA, P_IMIX, P_DLY, P_REV};
@@ -1232,14 +1280,13 @@ static void alt_chaos(void)
         uint32_t pi = alt_rand_pre(), e = ALT_ENGS[ALT_PRE[pi].eng % ALT_NENG], ei;
         const engine_t *en = ENGINES[e];
         as_cfg_t *cf = &au.cfg[c];
+        alt_fxk_t fk;
+        alt_fx_keep(c, &fk);                     /* (v0.66: CHAOS draws no effect, Romain 11/11) */
         alt_load_sound(c, pi);                   /* a sound of ours, then everything in it drawn */
         fm1_irq_off();
         for (k = 0; k < 8u; k++)                 /* the engine's eight, anywhere */
             t->p[P_E0 + k] = alt_crange(&en->edit[k], 1);
-        for (k = 0; k < sizeof FXP; k++)         /* the effects, kept low (Romain: DIST and INSERT 10 % at most, */
-            t->p[FXP[k]] = FXP[k] == P_ITYPE ? (int16_t)alt_cr(IT_CRUSH + 1u)   /* the sends 33 %) */
-                         : (int16_t)alt_cr(FXP[k] == P_DLY || FXP[k] == P_REV ? 43u : 14u);
-        afx_edit |= (uint8_t)(1u << c);          /* (the FX page shows its DIST changed: SOUND *) */
+        (void)FXP;                               /* (v0.66: no effect drawn: they stay as they were, below) */
         alt_cl[c][0].wave = (uint8_t)alt_cr(GW_N);   /* its LFO 1: any wave and rate, a DEST of the timbre or the mix */
         alt_cl[c][0].rate = (uint8_t)alt_cr(GL_NRATE);
         alt_cl[c][0].dst = LDST[alt_cr(6u)];
@@ -1291,9 +1338,7 @@ static void alt_chaos(void)
             }
             alt_rat_draw(sc, pick & 32u ? 50u : 0u);   /* (RATCH: one step at most, a fifth of the circles) */
         }
-        fm1_irq_off();
-        alt_fx_budget(c);                        /* (le budget d'effets du hasard) */
-        fm1_irq_on();
+        alt_fx_back(c, &fk, ALT_RFX_ALL | ALT_RFX_CHO);   /* (the effects as they were, the steps' sends too) */
         alt_post_now |= (uint8_t)(1u << c);
         alt_post_circle(c);
         alt_roll_w[c] = AS_DW_ALL;
@@ -1468,22 +1513,36 @@ static void alt_total_chaos(void)
     au.tc_ms = fm1_ms | 1u;
     alt_crng ^= fm1_ms * 0x9E3779B9u;
     alt_seq.scale = (uint8_t)alt_cr(AS_NSCALE);
-    song.g[G_DTIME] = ALT_DT[alt_cr(sizeof ALT_DT)];   /* the shared delay and reverb, anywhere (FEEDBACK under the */
-    song.g[G_DFDBK] = (int16_t)alt_cr(101u);            /* howl: 0..100 of 120) */
-    song.g[G_DCOLOR] = (int16_t)alt_cr(128u);
-    song.g[G_DMIX] = (int16_t)(40u + alt_cr(88u));
-    song.g[G_DMODE] = (int16_t)alt_cr(3u);              /* ECHO PING-PONG GHOST, TAPE (04/11) */
-    song.g[G_DTAPE] = (int16_t)alt_cr(100u);
-    song.g[G_RTYPE] = (int16_t)alt_cr(4u);   /* SHORT GATED HALL CLOUD */
-    song.g[G_RSIZE] = (int16_t)alt_cr(128u);
-    song.g[G_RDAMP] = (int16_t)alt_cr(128u);
-    afx_edit |= 1u << AFX_S_DLY | 1u << AFX_S_REV;
+    {                                            /* the shared delay and reverb, anywhere (FEEDBACK under the howl: 0..100 of
+                                                  * 120); drawn the same, put back if SYSTEM > RANDOM leaves them alone
+                                                  * (the same draws either way: the rest of the scene does not change) */
+        int16_t dt = ALT_DT[alt_cr(sizeof ALT_DT)], fb = (int16_t)alt_cr(101u), col = (int16_t)alt_cr(128u);
+        int16_t mx = (int16_t)(40u + alt_cr(88u)), md = (int16_t)alt_cr(3u), tp = (int16_t)alt_cr(100u);
+        int16_t rt = (int16_t)alt_cr(4u), rs = (int16_t)alt_cr(128u), rd = (int16_t)alt_cr(128u);
+        if (!(alt_sys[9] & ALT_RFX_DLY)) {
+            song.g[G_DTIME] = dt;
+            song.g[G_DFDBK] = fb;
+            song.g[G_DCOLOR] = col;
+            song.g[G_DMIX] = mx;
+            song.g[G_DMODE] = md;                /* ECHO PING-PONG GHOST, TAPE (04/11) */
+            song.g[G_DTAPE] = tp;
+            afx_edit |= 1u << AFX_S_DLY;
+        }
+        if (!(alt_sys[9] & ALT_RFX_REV)) {
+            song.g[G_RTYPE] = rt;                /* SHORT GATED HALL CLOUD */
+            song.g[G_RSIZE] = rs;
+            song.g[G_RDAMP] = rd;
+            afx_edit |= 1u << AFX_S_REV;
+        }
+    }
     for (c = 0; c < AS_NCIRC; c++) {
         track_t *t = &trk[c];
         uint32_t pi = alt_rand_pre(), e = ALT_ENGS[ALT_PRE[pi].eng % ALT_NENG], n;
         const engine_t *en = ENGINES[e];
         as_cfg_t *cf = &au.cfg[c];
         as_circ_t *sc = &alt_seq.c[c];
+        alt_fxk_t fk;
+        alt_fx_keep(c, &fk);                     /* (v0.66: the effects SYSTEM > RANDOM leaves alone, put back below) */
         alt_load_sound(c, pi);                   /* any engine, any sound, then everything in it drawn */
         fm1_irq_off();
         for (k = 0; k < 8u; k++)
@@ -1552,6 +1611,7 @@ static void alt_total_chaos(void)
         fm1_irq_off();
         alt_fx_budget(c);                        /* (le budget d'effets du hasard) */
         fm1_irq_on();
+        alt_fx_back(c, &fk, alt_sys[9] & ALT_RFX_ALL);   /* (those left alone: as they were) */
         alt_post_now |= (uint8_t)(1u << c);
         alt_post_circle(c);
         alt_roll_w[c] = AS_DW_ALL;
@@ -1600,15 +1660,29 @@ static void alt_deep_input(void);                /* DEEP (with the screens below
 static void alt_mix_turn(uint32_t i, int32_t s);  /* the MIXER */
 static void alt_mx_nav(void);                    /* the MIXER's tabs (the CONSOLE) */
 static void alt_sys_input(void);                  /* SYSTEM (HOME held) */
+static void alt_sys_open_rand(void);              /* (v0.66: OCT- + HOME, SYSTEM's RANDOM tab) */
+static void acx_reset(void);                      /* (CHAOS's wait and glitch: none) */
+static void acx_poll(void);                       /* (CHAOS waiting: done on its bar line) */
 static int alter_ui_input(uint32_t pressed)
 {
     uint32_t keys, down, k, i, ours = alt_ours(), q, octs, both;
     int32_t s;
+    acx_poll();                                  /* (CHAOS waiting for its bar line: each turn, whatever the screen does) */
     alm_poll();                                  /* MIDI LEARN: the settings moved, the keys and buttons held */
     pressed |= alm_bdown;
     keys = ALT_NOTES;
     both = (1u << panel.btn[B_OCTDN]) | (1u << panel.btn[B_OCTUP]);
     octs = (ALT_BTNS & both) == both;
+    if (!octs && ((ALT_BTNS >> panel.btn[B_OCTDN]) & 1u) && alter_view() && !au.handed &&
+        ((pressed >> panel.btn[B_HOME]) & 1u)) {   /* OCT- + HOME (v0.66, Romain 11/11): straight to RANDOM (what the random may
+                                                  * draw: the engines, the modes, the effects of CHAOS TOTAL) */
+        anm.open = 0;
+        au.qp = QP_NONE;
+        au.lockc = 0;
+        au.scene_open = 0;
+        alt_sys_open_rand();
+        pressed &= ~(1u << panel.btn[B_HOME]);
+    }
     if (octs && alter_view() && !au.handed && ((pressed >> panel.btn[B_HOME]) & 1u)) {   /* OCT- + OCT+ + HOME: NEW
                                                   * SCENE at once (Romain 01/11), every page closed */
         alt_row_load(0, 0);
@@ -1639,6 +1713,7 @@ static int alter_ui_input(uint32_t pressed)
             au.cfg[i] = alt_seq.c[i].next;
         au.ready = 1;
         alt_sys_init();                          /* (SYSTEM's settings: CLOCK, MIDI IN, MASTER, the random's choices) */
+        acx_reset();                             /* (no CHAOS waiting: the browser's machine keeps its memory) */
         alt_select(song.sel < AS_NCIRC ? song.sel : 0u);
         alt_banks_load();                        /* the USER slots, from the flash */
         alt_sg_boot();                           /* SONG's slots and chain, from the flash */
@@ -3330,15 +3405,26 @@ static const uint8_t SYS_AROW[] = {MI_CLICK, MI_CLKLVL, MI_LOWCUT, MI_USB, MI_TU
 };
 #define SYS_NAUD ((uint32_t)NELEM(SYS_AROW))
 #define SYS_NRE ALT_NENG                         /* (RANDOM: the engines' rows, then the three modes') */
-static const char *const SYS_RROW[ALT_NENG + 3u] = {"ALTER", "PHYS", "NOISE", "RESO", "PLATE", "CORDE", "RING",
-                                                    "FREE", "PERC", "STAB"};
+static const char *const SYS_RROW[ALT_NENG + 3u + 4u] = {"ALTER", "PHYS", "NOISE", "RESO", "PLATE", "CORDE", "RING",
+                                                    "FREE", "PERC", "STAB",
+                                                    "ALL FX", "DIST INSERT", "DELAY", "REVERB"};   /* (v0.66, Romain 11/11:
+                                                  * the effects CHAOS TOTAL may draw; CHAOS never draws them) */
+#define SYS_NRFX (SYS_NRE + 3u)                  /* (RANDOM: the effects' rows: ALL, then each of ALT_RFX_*) */
 static uint8_t alt_sys_top;                      /* (the first row shown: RANDOM's ten scroll)  */
 static uint8_t alt_sys_tab;
 static int16_t alt_sys_scroll;                   /* (ABOUT: pixels scrolled) */
 #include "alter_learn.c"                         /* LEARN: MIDI LEARN (07/11) */
+static void alt_sys_open_rand(void)
+{
+    alt_menu_set(QP_SYS);
+    alt_sys_tab = SYS_TRAND;
+    au.set_row = 0;
+    alt_sys_top = 0;
+    alt_say("RANDOM");
+}
 static uint32_t alt_sys_rows(void)
 {
-    return alt_sys_tab == SYS_TLEARN ? alm_rows() : alt_sys_tab == SYS_TMIDI ? SYS_NMIDI : alt_sys_tab == SYS_TAUD ? SYS_NAUD : alt_sys_tab == SYS_TRAND ? SYS_NRE + 3u : 0u;
+    return alt_sys_tab == SYS_TLEARN ? alm_rows() : alt_sys_tab == SYS_TMIDI ? SYS_NMIDI : alt_sys_tab == SYS_TAUD ? SYS_NAUD : alt_sys_tab == SYS_TRAND ? SYS_NRE + 3u + 4u : 0u;
 }
 static const char *alt_sys_name(uint32_t r)
 {
@@ -3350,7 +3436,12 @@ static const char *alt_sys_text(uint32_t r)
     if (alt_sys_tab == SYS_TLEARN)
         return alm_text(r);
     if (alt_sys_tab == SYS_TRAND) {
-        uint32_t m = r < SYS_NRE ? alt_sys[1] >> r : alt_sys[2] >> (r - SYS_NRE);
+        uint32_t m;
+        if (r == SYS_NRFX)                       /* (ALL FX: ON all, OFF none, else SOME) */
+            return !(alt_sys[9] & ALT_RFX_ALL) ? "ON" : (alt_sys[9] & ALT_RFX_ALL) == ALT_RFX_ALL ? "OFF" : "SOME";
+        if (r > SYS_NRFX)
+            return (alt_sys[9] >> (r - SYS_NRFX - 1u)) & 1u ? "OFF" : "ON";
+        m = r < SYS_NRE ? alt_sys[1] >> r : alt_sys[2] >> (r - SYS_NRE);
         return (m & 1u) ? "ON" : "OFF";
     }
     if (alt_sys_tab == SYS_TAUD) {
@@ -3400,7 +3491,10 @@ static void alt_sys_turn(uint32_t r, int32_t s)
         alm_turn(r, s);
         return;                                  /* (it saves itself) */
     }
-    if (alt_sys_tab == SYS_TRAND) {
+    if (alt_sys_tab == SYS_TRAND && r >= SYS_NRFX) {   /* (the effects: a bit set = left alone by CHAOS TOTAL) */
+        uint32_t bit = r == SYS_NRFX ? ALT_RFX_ALL : 1u << (r - SYS_NRFX - 1u);
+        alt_sys[9] = (uint8_t)(d > 0 ? alt_sys[9] & ~bit : alt_sys[9] | bit);
+    } else if (alt_sys_tab == SYS_TRAND) {
         uint8_t *b = &alt_sys[r < SYS_NRE ? 1 : 2];
         uint32_t bit = 1u << (r < SYS_NRE ? r : r - SYS_NRE), all = r < SYS_NRE ? 127u : 7u, v = d > 0 ? *b | bit : *b & ~bit;
         if (v & all)                             /* (one stays on) */
@@ -3519,7 +3613,8 @@ static void alt_sys_scene(void)
     cv_text(8, 202, ALT_FS, alt_sys_tab == SYS_TLEARN && alm_msg && fm1_ms - alm_msg_ms < 2000u ? alm_msg :
                             FOOT[alt_sys_tab % SYS_NT][0], alt_sys_tab == SYS_TLEARN && alm_msg && fm1_ms - alm_msg_ms < 2000u ?
                             ALT_GOLD : ALT_DIM);
-    cv_text(8, 216, ALT_FS, FOOT[alt_sys_tab % SYS_NT][1], ALT_DIM);
+    cv_text(8, 216, ALT_FS, alt_sys_tab == SYS_TRAND && au.set_row >= SYS_NRFX ? "EFFECTS: CHAOS TOTAL ONLY" :
+                            FOOT[alt_sys_tab % SYS_NT][1], ALT_DIM);
 }
 
 /* DEEP (XVII, the Star; EDIT held, Romain 05/11): every setting of the chosen circle's sound, as a list. Four tabs
@@ -4512,6 +4607,11 @@ static struct {
     uint8_t on;
 } acx;
 #define ACX_TAIL_MS 320u                         /* the burst on the new scene */
+static void acx_reset(void)
+{
+    acx.kind = 0;
+    acx.on = 0;
+}
 static void acx_do(uint32_t kind)
 {
     if (kind == 2u)
@@ -4547,7 +4647,7 @@ static void alt_chaos_req(uint32_t kind)
     acx.at = ((alt_gstep ? alt_gstep - 1u : 0u) / 16u + 2u) * 16u;   /* (the 1 after the next) */
     alt_say(kind == 2u ? "TOTAL CHAOS ..." : "CHAOS ...");
 }
-static void acx_poll(void)                       /* (the main loop, each frame) */
+static void acx_poll(void)                       /* (the main loop, each turn: alter_ui_input) */
 {
     if (acx.kind && (!song.playing || alt_gstep >= acx.at)) {   /* (the last sixteenth before the 1 plays; or stopped) */
         uint32_t k = acx.kind;
@@ -4647,7 +4747,6 @@ static void alter_draw(void)
     alt_dr_isr0 = alt_isr_tk;
     alt_dr_lcd0 = lcd_wait_tk;
     alt_dr_px0 = lcd_px;
-    acx_poll();
     if (acx.on) {                                /* (CHAOS's glitch: the whole screen, nothing else) */
         alt_fps_poll();
         acx_frame(au.lockc ? 0u : alt_page(), 0u);
@@ -4914,6 +5013,8 @@ static int32_t alt_peek(uint32_t c, uint32_t w)
         return (int32_t)(au.cfg[c].type | au.cfg[c].len << 8 | au.cfg[c].tdens << 16 | (uint32_t)au.cfg[c].tlock << 24);
     if (w == 10u)
         return au.cfg[c].trange;
+    if (w == 17u)                                /* (v0.66: CHAOS waiting: its kind | glitch on << 8 | playing << 9) */
+        return (int32_t)(acx.kind | (uint32_t)acx.on << 8 | (uint32_t)song.playing << 9);
     if (w == 16u) {                              /* (v0.52: circle c's voices sounding, those fading out not counted) */
         uint32_t i, k = 0;
         for (i = 0; i < NVOICE; i++)
@@ -4969,7 +5070,14 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
         alt_cl[a & 3u][(a >> 8) % CL_N].dst = (uint8_t)((b >> 8 & 31u) % GD_N);
         alt_cl[a & 3u][(a >> 8) % CL_N].depth = (int8_t)clamp((int8_t)(b >> 16), -64, 63);
         break;
-    case 31: alt_chaos_req(b ? 2u : 1u); break;  /* (a test, v0.65: CHAOS (b 0) / CHAOS TOTAL (b 1) as the keys do: glitch, bar) */
+    case 31:                                     /* (a test, v0.65: CHAOS (b 0) / CHAOS TOTAL (b 1) as the keys do: glitch, bar;
+                                                  * v0.66: b 2 CHAOS at once) */
+        if (b == 2u)
+            acx_do(1u);
+        else
+            alt_chaos_req(b ? 2u : 1u);
+        break;
+    case 32: alt_sys[9] = (uint8_t)(b & ALT_RFX_ALL); break;   /* (a test, v0.66: the effects CHAOS TOTAL leaves alone) */
     case 30:                                     /* (a test, v0.63: the screen's SPI divider, 2..8: lsb / (b + 1)) */
 #if !defined(FELUCCA_WEB) && !defined(HOSTSIM)
         if (b >= 2u && b <= 8u) {

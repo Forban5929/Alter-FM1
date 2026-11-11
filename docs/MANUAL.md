@@ -125,8 +125,9 @@ The three DICE keys each draw for their own circle. What a die draws depends on 
 | DICE 1 + 2 + 3 | **CHAOS**: everything drawn on the three circles (timbre, glide and length per hit too). Playing: the screen glitches and it lands on the 1 after a whole bar; again while it waits: cancelled |
 | CIRCLE 1 + 2 + 3 | **CHAOS TOTAL**: sounds, engines, modes, rhythms (EUCLID or TURING, LEN 5-16), all at random. Playing, the draw waits: the screen glitches and the new scene lands on the 1 after a whole bar (press again while it waits: cancelled). Stopped: at once. Again within 3 s of the draw: undone |
 
-What the dice drew is kept: save the scene and it comes back. SYSTEM › RANDOM chooses which engines and envelope modes the
-random may use.
+What the dice drew is kept: save the scene and it comes back. SYSTEM › RANDOM (or **OCT− + HOME**, straight there) chooses
+which engines and envelope modes the random may use, and which effects CHAOS TOTAL may draw (ALL FX, DIST INSERT, DELAY,
+REVERB; all on by default). CHAOS never draws effects: they stay as they were.
 
 ## 7. Performance
 
@@ -213,7 +214,7 @@ power-off, for every scene. CCs not linked keep the fixed map.
 - **LEARN**: MIDI learn (above).
 - **AUDIO**: CLICK, CLICK LEVEL, SPEAKER EQ, USB LEVEL, TUNE, 2ND CORE (uses the FM-1's second processor core for more
   headroom; from the next power-on).
-- **RANDOM**: which engines and envelope modes the random may use (at least one stays on).
+- **RANDOM** (OCT− + HOME): which engines and envelope modes the random may use (at least one stays on); which effects CHAOS TOTAL may draw (ALL FX, DIST INSERT, DELAY, REVERB). CHAOS never draws effects.
 - **ABOUT**: the version, the build date, the credits and licences.
 
 ## 15. The companion page
@@ -234,6 +235,7 @@ power-off, for every scene. CCs not linked keep the fixed map.
 | DICE 1 + 2 + 3 | CHAOS (playing: a glitch, then on the 1 after a whole bar) |
 | OCT− + OCT+ + DICE n | circle n's LOCKS |
 | OCT− + OCT+ + HOME | NEW SCENE (blank start) |
+| OCT− + HOME | SYSTEM › RANDOM (what the random may draw: engines, modes, CHAOS TOTAL's effects) |
 | OCT− + OCT+ + REC | every circle's REC moves cleared |
 | REC held + TRIGGER | a hit added to the chosen circle's pattern |
 | MUTE 1 + 2 + 3 | the three mutes (nothing more) |

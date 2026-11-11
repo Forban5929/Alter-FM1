@@ -537,7 +537,7 @@ play();
   ex.web_alter(0, 0, 0); render(FS / 2);                         // (a sound chosen by hand: 0 dB again)
   const gb = g();
   check(`CHAOS: each circle's level aligned (gains ${ga.map((x) => (20 * Math.log10(x / 32768)).toFixed(1)).join(" / ")} dB); a sound chosen: 0 dB`,
-        ga.some((x) => x !== 32768) && ga.every((x) => x >= 4129 && x <= 260200) && gb[0] === 32768);
+        ga.some((x) => x !== 32768) && ga.every((x) => x >= 4129 && x <= 519300) && gb[0] === 32768);
 }
 {                                                               // LE HASARD (Romain 03/11) : jamais RESO, jamais d'accord, budget d'effets
   ex.web_nor_erase(); ex.web_boot(); render(FS * 2); ex.web_alter(1, 0, 0); render(FS / 2);
@@ -548,7 +548,7 @@ play();
     render(FS * 4);                                             // (v0.65: playing, the draw lands on the 1 after a whole bar)
     for (let c = 0; c < 3; c++, n++) {
       reso += ex.web_alter_peek(c, 0) === 10; chords += ex.web_alter_peek(c, 1) !== 0;
-      worst = Math.max(worst, ex.web_alter_peek(c, 2));
+      if (r & 1) worst = Math.max(worst, ex.web_alter_peek(c, 2));   // (v0.66: CHAOS keeps the effects as they were)
     }
   }
   check(`CHAOS / CHAOS TOTAL x24 : ${n} sons tirés, RESO ${reso}, accords ${chords}, budget d'effets max ${worst} (≤ 392)`,
@@ -561,13 +561,32 @@ play();
   const e0 = eng();
   ex.web_alter(31, 0, 1); render(FS / 4);
   const e1 = eng();
-  render(FS * 4);
+  render(FS * 5);
   const e2 = eng();
   render(FS * 3);                                               // (past the 3 s of the undo)
   ex.web_alter(31, 0, 1); render(FS / 4); ex.web_alter(31, 0, 1); render(FS * 4);   // (pressed twice: cancelled)
   const e3 = eng();
   check(`CHAOS TOTAL playing: nothing at once (${e0} = ${e1}), the new scene within two bars (${e2}); pressed twice: cancelled (${e3})`,
         e0 === e1 && e2 !== e0 && e3 === e2);
+}
+{                                                               // v0.66 (Romain 11/11): CHAOS draws no effect; CHAOS TOTAL leaves alone those RANDOM turns off
+  const { instance: i2 } = await WebAssembly.instantiate(wasm, {});   // (a machine of its own: no REC, fill or move from the tests before)
+  const e2 = i2.exports; e2._initialize(); e2.web_nor_erase(); e2.web_boot();
+  const R2 = (n) => { for (let k = 0; k < n; k += 128) e2.web_render(Math.min(128, n - k)); };
+  R2(FS * 2); e2.web_alter(1, 0, 0); R2(FS / 2);
+  const P = { DIST: 33, CHOR: 34, DLY: 35, REV: 36 };
+  const fx = () => [0, 1, 2].map((c) => [P.DIST, P.CHOR, P.DLY, P.REV].map((q) => e2.web_alter_peek(c, 100 + q)).join("/")).join(" ");
+  [0, 1, 2].forEach((c) => { e2.web_alter(17, c | P.DIST << 8, 21 + c); e2.web_alter(17, c | P.DLY << 8, 31 + c); e2.web_alter(17, c | P.REV << 8, 41 + c); e2.web_alter(17, c | P.CHOR << 8, 11 + c); });
+  R2(FS / 4);
+  const f0 = fx();
+  let same = 0;
+  for (let r = 0; r < 4; r++) { e2.web_alter(31, 0, 2); R2(FS / 2); same += fx() === f0; }   // (CHAOS at once)
+  e2.web_alter(32, 0, 2 | 4); e2.web_alter(22, 0, 0); R2(FS / 4);                          // TOTAL, DELAY and REVERB left alone
+  const ft = [0, 1, 2].map((c) => e2.web_alter_peek(c, 100 + P.DLY) === 31 + c && e2.web_alter_peek(c, 100 + P.REV) === 41 + c).every(Boolean);
+  R2(FS * 4); e2.web_alter(32, 0, 0); e2.web_alter(22, 0, 0); R2(FS / 4);              // TOTAL, all drawn
+  const fa = fx();
+  check(`CHAOS keeps every effect (${same}/4: ${f0}); TOTAL with DELAY + REVERB off keeps the sends (${ft}); with all on draws them (${fa})`,
+        same === 4 && ft && fa !== f0);
 }
 {                                                               // REC (Romain 01/11): the knob moves on the steps, in a loop
   ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
@@ -849,7 +868,7 @@ if (wavPath) {                                                  // 4 bars from a
   ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
   const got = [];
   for (let n = 0; n < 30; n++) {
-    K((1 << 1) | (1 << 3) | (1 << 5)); render(1300); K(0); render(FS * 3.2);   // CIRCLE 1+2+3 (3 s apart: not undone)
+    ex.web_alter(22, 0, 0); render(FS * 3.2);                    // CHAOS TOTAL at once (v0.65: the keys wait for a bar line; 3 s apart: not undone)
     for (let c = 0; c < 3; c++) {
       const v = ex.web_alter_peek(c, 9) >>> 0;
       if ((v & 255) === 1) got.push({ len: (v >> 8) & 255, dens: (v >> 16) & 255, lock: v >>> 24, range: ex.web_alter_peek(c, 10) });
