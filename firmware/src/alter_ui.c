@@ -1281,7 +1281,9 @@ static void alt_chaos(void)
 {
     static const uint8_t FXP[6] = {P_DIST, P_ITYPE, P_IA, P_IMIX, P_DLY, P_REV};
     static const uint8_t LDST[6] = {GD_SHAPE, GD_FILT, GD_LEVEL, GD_PAN, GD_SHAPE, GD_FILT};   /* (not DIST nor the sends) */
-    uint32_t c, k;
+    uint32_t c, k, ntur = 0;
+    for (c = 0; c < AS_NCIRC; c++)               /* (the TURINGs a LOCK keeps count: one at most in all, v0.70) */
+        ntur += (alt_seq.c[c].locks & AS_LK_RHYTHM) && au.cfg[c].type == AS_T_TURING;
     alt_crng ^= fm1_ms * 0x9E3779B9u;
     alt_seq.scale = (uint8_t)alt_cr(AS_NSCALE);
     for (k = 0; k < NELEM(alt_gl.amt); k++)      /* the GLOBAL off (one LFO per circle, no more) */
@@ -1338,8 +1340,12 @@ static void alt_chaos(void)
         cf->frot = (uint8_t)alt_cr(ei);
         cf->prob = (uint8_t)(80u + alt_cr(48u));
         cf->type = (uint8_t)alt_cr(AS_NTYPE);    /* (v0.68, Romain: EUCLID or TURING too, as CHAOS TOTAL) */
-        if (cf->type == AS_T_TURING)
+        if (cf->type == AS_T_TURING && !(lk & AS_LK_RHYTHM) && ntur)
+            cf->type = AS_T_EUCLID;              /* (v0.70, Romain: one TURING at most in a draw) */
+        if (cf->type == AS_T_TURING) {
+            ntur += !(lk & AS_LK_RHYTHM);
             alt_tur_draw(cf);
+        }
         cf->dose = 127;
         cf->chord = AS_CH_OFF;                   /* (le hasard : jamais d'accord, Romain 03/11) */
         cf->root = (uint8_t)(24u + alt_cr(37u)); /* C1 .. C4 */
@@ -1560,7 +1566,7 @@ static void alt_tc_undo(void)
 
 static void alt_total_chaos(void)
 {
-    uint32_t c, k;
+    uint32_t c, k, ntur = 0;
     if (au.tc_ms && alt_tcu.ok && (int32_t)(fm1_ms - au.tc_ms) < (int32_t)ALT_TC_UNDO_MS) {
         au.tc_ms = 0;
         alt_tc_undo();
@@ -1641,6 +1647,8 @@ static void alt_total_chaos(void)
         for (k = 0; k < AE_N; k++)
             alt_envp[c][k] = (uint8_t)alt_cr(128u);
         cf->type = (uint8_t)alt_cr(AS_NTYPE);    /* the rhythm: EUCLID or TURING, anything in it, at once */
+        if (cf->type == AS_T_TURING && ntur++)
+            cf->type = AS_T_EUCLID;              /* (v0.70, Romain: one TURING at most in a draw) */
         n = alt_len_draw();                      /* (5..16, nearer 16: Romain 10/11) */
         cf->len = (uint8_t)n;
         cf->hits = (uint8_t)(1u + alt_cr(n));
@@ -3932,6 +3940,8 @@ static uint32_t alt_dr_isr0, alt_dr_lcd0, alt_dr_px0, alt_dr_isr, alt_dr_lcd, al
 static uint32_t alt_dr_w10, alt_dr_i10, alt_dr_l10, alt_dr_kpx, alt_loops;
 static void alt_fps_tick(void)
 {
+    if (!alt_prof)                               /* (v0.70: the CPU METER off, nothing counted) */
+        return;
     alt_fps_n++;
     alt_draw_us += (fm1_ticks() - alt_draw_t0) / FM1_TICKS_PER_US;
     alt_dr_isr += alt_isr_tk - alt_dr_isr0;
@@ -4907,7 +4917,16 @@ static void alter_draw(void)
           (uint32_t)song.g[G_BPM] * 13u + (au.msg && fm1_ms - au.msg_ms < 1500u ? (uint32_t)(uintptr_t)au.msg + (fm1_ms - au.msg_ms < 900u) : 1u);
     alt_fps_poll();
 #if ALTER_CPU_SHOW
-    alt_cpu_poll();                              /* (measured whatever: the bench reads it) */
+    if (alt_prof != (alt_sys[10] != 0u)) {      /* (v0.70, Romain: nothing measured until CPU METER is on; off: the
+                                                  * numbers cleared, the bench reads 0) */
+        uint32_t k;
+        alt_prof = (uint8_t)(alt_sys[10] != 0u);
+        for (k = 0; k < APF_N; k++)
+            apf_pct[k] = 0;
+        alt_cpu_avg = alt_cpu_pk = 0;
+    }
+    if (alt_prof)
+        alt_cpu_poll();
     if (alt_sys[10])
     shead = shead * 31u + alt_t5_pct * 5u + apf_pct[0] * 7u + apf_pct[1] * 11u + apf_pct[2] * 13u + apf_pct[3] * 17u + apf_pct[4] * 19u + apf_pct[5] * 23u + alt_fps * 113u + alt_draw_ms * 127u + alt_cpu_avg * 101u + alt_cpu_pk * 103u + alt_cpu_cut * 107u + alt_cpu_c1 * 109u;   /* (version test : la charge CPU) */
 #endif

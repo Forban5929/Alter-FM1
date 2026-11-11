@@ -1233,6 +1233,9 @@ static uint32_t mix_split(void)
  * waiting for the second core's, X the delay / chorus / reverb, F the MASTER FILTER, M the MASTER and the output */
 enum { APF_P, APF_W, APF_X, APF_F, APF_M, APF_C, APF_N };   /* (v0.54: C the second core's work) */
 static uint32_t apf_acc[APF_N], apf_smp;
+/* (v0.70, Romain: the CPU meter costs nothing until it is turned on, SYSTEM > SETUP > CPU METER) */
+static volatile uint8_t alt_prof;
+#define APF_ADD(k, v) do { if (alt_prof) apf_acc[k] += (v); } while (0)
 static volatile uint8_t apf_pct[APF_N];
 static void apf_end(uint32_t n)
 {
@@ -1279,19 +1282,19 @@ static __attribute__((noinline)) void mix_block(int32_t *out, uint32_t n)
         if (!(m >> i & 1u))
             MIX_PART_T0(i, n, &mx[0]);
     pt1 = ALT_PT();
-    apf_acc[APF_P] += pt1 - pt0;
+    APF_ADD(APF_P, pt1 - pt0);
     tk_own = pt1 - pt0;
     if (c1) {
         const mixsum_t *sm = &mx[1];
         if (C1_WAIT())                                  /* it stopped answering (held from now on): its work here */
             c1_job(m | n << 8);
         pt0 = ALT_PT();
-        apf_acc[APF_W] += pt0 - pt1;
+        APF_ADD(APF_W, pt0 - pt1);
         tk_wait = pt0 - pt1;
         pt1 = pt0;
         for (i = 0; i < NPART; i++)
             if (m >> i & 1u)
-                apf_acc[APF_C] += part_tk[i];           /* (its parts' recent worst: a little high) */
+                APF_ADD(APF_C, part_tk[i]);           /* (its parts' recent worst: a little high) */
         for (i = 0; i < n; i++) {
             mix_l[i] += sm->l[i];
             mix_r[i] += sm->r[i];
@@ -1307,7 +1310,7 @@ static __attribute__((noinline)) void mix_block(int32_t *out, uint32_t n)
     for (i = 0; i < NPART; i++)                         /* (one core: as 1.6) */
         mix_part0(&trk[i], n);
     pt1 = ALT_PT();
-    apf_acc[APF_P] += pt1 - pt0;
+    APF_ADD(APF_P, pt1 - pt0);
 #endif
     if (perf)
         perf_pre(mix_l, mix_r, send_d, send_r, n);
@@ -1318,27 +1321,28 @@ static __attribute__((noinline)) void mix_block(int32_t *out, uint32_t n)
         wet[i] = fx_wet[i];
     }
     fx_pn = n;
-    apf_acc[APF_X] += apf_bus;
+    APF_ADD(APF_X, apf_bus);
     if (hl.side)
         rev_side_mix(mix_l, mix_r, n);                  /* HALL: stereo */
     pt0 = ALT_PT();
-    apf_acc[APF_X] += pt0 - pt1;
+    APF_ADD(APF_X, pt0 - pt1);
     afl_c1_tk = 0;
     if (afl_p(AFL_MIX) || afs.run)
         afl_block(mix_l, mix_r, wet, n);                /* ALTER's MASTER FILTER (alter_filter.c): wet folded in */
     tk_peak(&fix_tk[1], afl_c1_tk);
-    apf_acc[APF_C] += afl_c1_tk;
+    APF_ADD(APF_C, afl_c1_tk);
     pt1 = ALT_PT();
-    apf_acc[APF_F] += pt1 - pt0;
+    APF_ADD(APF_F, pt1 - pt0);
     if (am_on())
         am_master(mix_l, mix_r, wet, n);                /* ALTER's MASTER block (alter_fx.c): wet folded in */
     if (scope_mix)
         scope_take_mix(n);
     if (perf) {
         perf_master(out, n);
-        apf_acc[APF_M] += ALT_PT() - pt1;
+        APF_ADD(APF_M, ALT_PT() - pt1);
         tk_peak(&fix_tk[0], ALT_PT() - tb - tk_own - tk_wait);
-        apf_end(n);
+        if (alt_prof)
+            apf_end(n);
         return;
     }
     for (i = 0; i < n; i++) {
@@ -1348,7 +1352,8 @@ static __attribute__((noinline)) void mix_block(int32_t *out, uint32_t n)
         out[2u * i] = l;
         out[2u * i + 1u] = r;
     }
-    apf_acc[APF_M] += ALT_PT() - pt1;
+    APF_ADD(APF_M, ALT_PT() - pt1);
     tk_peak(&fix_tk[0], ALT_PT() - tb - tk_own - tk_wait);   /* core 0's work besides the parts (the split) */
-    apf_end(n);
+    if (alt_prof)
+        apf_end(n);
 }

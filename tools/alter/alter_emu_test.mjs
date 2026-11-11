@@ -590,11 +590,14 @@ play();
   const fa = fx();
   // v0.68 (Romain 11/11): CHAOS keeps what the LOCKS keep, and switches EUCLID / TURING
   const rh = (c) => [e2.web_alter_peek(c, 9) & 0xFFFF, (e2.web_alter_peek(c, 12) >> 8) & 255].join("/");   // TYPE | LEN, HITS
+  for (let r = 0; r < 30 && (e2.web_alter_peek(0, 9) & 255) !== 0; r++) { e2.web_alter(31, 0, 2); R2(FS / 8); }   // (circle 1 an EUCLID first)
   e2.web_alter(33, 0, 32 | 4); e2.web_alter(33, 1, 0); e2.web_alter(33, 2, 0);   // circle 1: RHYTHM + LENGTH locked
   const r0 = rh(0); let kept = 0, types = new Set();
-  for (let r = 0; r < 12; r++) { e2.web_alter(31, 0, 2); R2(FS / 4); kept += rh(0) === r0; types.add(e2.web_alter_peek(1, 9) & 255); types.add(e2.web_alter_peek(2, 9) & 255); }
+  let mt = 0;
+  for (let r = 0; r < 12; r++) { e2.web_alter(31, 0, 2); R2(FS / 4); kept += rh(0) === r0; types.add(e2.web_alter_peek(1, 9) & 255); types.add(e2.web_alter_peek(2, 9) & 255);
+    mt = Math.max(mt, [0, 1, 2].filter((c) => (e2.web_alter_peek(c, 9) & 255) === 1).length); }
   e2.web_alter(33, 0, 0);
-  check(`CHAOS keeps a locked rhythm (${kept}/12 ${r0}) and draws EUCLID and TURING (${[...types].join(",")})`, kept === 12 && types.size === 2);
+  check(`CHAOS keeps a locked rhythm (${kept}/12 ${r0}) and draws EUCLID and TURING (${[...types].join(",")}), one TURING at most (${mt})`, kept === 12 && types.size === 2 && mt <= 1);
   check(`CHAOS clears every effect (${same}/4); TOTAL with DELAY + REVERB off keeps the sends (${ft}); with all on draws them (${fa})`,
         same === 4 && ft && fa !== f0);
 }
@@ -877,8 +880,12 @@ if (wavPath) {                                                  // 4 bars from a
 {
   ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
   const got = [];
+  let maxTur = 0;                                              // (v0.70, Romain: one TURING at most in a draw)
   for (let n = 0; n < 30; n++) {
     ex.web_alter(22, 0, 0); render(FS * 3.2);                    // CHAOS TOTAL at once (v0.65: the keys wait for a bar line; 3 s apart: not undone)
+    let nt = 0;
+    for (let c = 0; c < 3; c++) nt += (ex.web_alter_peek(c, 9) & 255) === 1;
+    maxTur = Math.max(maxTur, nt);
     for (let c = 0; c < 3; c++) {
       const v = ex.web_alter_peek(c, 9) >>> 0;
       if ((v & 255) === 1) got.push({ len: (v >> 8) & 255, dens: (v >> 16) & 255, lock: v >>> 24, range: ex.web_alter_peek(c, 10) });
@@ -887,7 +894,7 @@ if (wavPath) {                                                  // 4 bars from a
   const pct = (x) => Math.round(x * 100 / 127), ok = got.every((g) => g.len >= 5 && g.len <= 16 && pct(g.dens) >= 40 && pct(g.dens) <= 60 &&
     pct(g.lock) >= 50 && pct(g.lock) <= 75 && g.range >= 1 && g.range <= 4);
   const mean = got.reduce((a, g) => a + g.len, 0) / (got.length || 1);
-  check(`TURING drawn: ${got.length} of 90 circles, all in range: ${ok}, mean LEN ${mean.toFixed(1)} (> 10.5: nearer 16)`, got.length >= 15 && ok && mean > 10.5);
+  check(`TURING drawn: ${got.length} of 90 circles, ${maxTur} at most in a draw (1), all in range: ${ok}, mean LEN ${mean.toFixed(1)} (> 10.5: nearer 16)`, got.length >= 15 && maxTur === 1 && ok && mean > 10.5);
 }
 // an external clock (Romain 05/11: TRS from Ableton): START, 24 clocks a quarter, STOP; the circles on its tempo
 {
