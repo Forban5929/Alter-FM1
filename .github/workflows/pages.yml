@@ -54,7 +54,15 @@ jobs:
           submodules: true
       - name: Outils (clang, wasm-ld)
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq clang lld
+          # (11/11: Ubuntu's mirror down) the runner's own clang / wasm-ld first; apt only if missing, 3 tries
+          if ! command -v wasm-ld >/dev/null; then
+            for v in 18 17 16 19; do [ -x /usr/bin/wasm-ld-$v ] && sudo ln -sf /usr/bin/wasm-ld-$v /usr/local/bin/wasm-ld && break; done
+            [ -x /usr/lib/llvm-18/bin/wasm-ld ] && ! command -v wasm-ld >/dev/null && sudo ln -sf /usr/lib/llvm-18/bin/wasm-ld /usr/local/bin/wasm-ld || true
+          fi
+          if ! command -v clang >/dev/null || ! command -v wasm-ld >/dev/null; then
+            for t in 1 2 3; do sudo apt-get update -qq && sudo apt-get install -y -qq clang lld && break; sleep 20; done
+          fi
+          clang --version | head -1; wasm-ld --version
           pip install --quiet pillow fonttools numpy
       - name: Construire la version navigateur
         run: sh tools/alter/wasm/build_emu.sh
