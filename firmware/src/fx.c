@@ -1007,7 +1007,7 @@ static const uint16_t ENG_VCOST[NENGINES] = {0, 0, 330, 330, 0, 0, 0, 0, 0, 309,
 
 /* one synth part into the dry mix and the sends of sm (mx[0]; mx[1] on the second core); a part with no voice sounding costs
  * the LFO tick and a cleared buffer only (after the DIST tail has run out) */
-static void mix_part(track_t *t, uint32_t n SM_DECL)
+static inline __attribute__((always_inline)) void mix_part_b(track_t *t, uint32_t n SM_DECL)
 {
     int32_t *b = SM(b);
     uint32_t i;
@@ -1127,6 +1127,15 @@ static __attribute__((noinline)) void perf_master(int32_t *out, uint32_t n)
  * shared generator, part by part: voice.c track_lfo_end). tests/dualcore_test.c checks it, under ThreadSanitizer too.
  * Without a second core (the host, the browser, MENU > 2ND CORE OFF, one that did not answer or stopped) C1_RUN takes
  * nothing and this core renders them all */
+/* ALTER (v0.61, after JIANT 0.6.78): a part's mix twice: mix_part from the flash (the second core, and one core's
+ * fallback), mix_part0 core 0's own, run from RAM (tools/build.py HOT_FNS; ALTER_HOTRAM 0: one copy) */
+static __attribute__((noinline)) void mix_part(track_t *t, uint32_t n SM_DECL) { mix_part_b(t, n SM_ARG(sm)); }
+#if ALTER_HOTRAM
+static __attribute__((noinline)) void mix_part0(track_t *t, uint32_t n SM_DECL) { mix_part_b(t, n SM_ARG(sm)); }
+#else
+#define mix_part0 mix_part
+#endif
+
 #if FELUCCA_CPU2
 #ifndef C1_RUN
 #define C1_ON() 0                                       /* a second core is answering */
@@ -1139,6 +1148,7 @@ static __attribute__((noinline)) void perf_master(int32_t *out, uint32_t n)
 static uint32_t c1_blocks;                              /* blocks the second core took parts of (console) */
 
 #define MIX_PART_T(I, N, SM) do { uint32_t t_ = ALT_PT(); mix_part(&trk[I], N, SM); tk_peak(&part_tk[I], ALT_PT() - t_); } while (0)
+#define MIX_PART_T0(I, N, SM) do { uint32_t t_ = ALT_PT(); mix_part0(&trk[I], N, SM); tk_peak(&part_tk[I], ALT_PT() - t_); } while (0)
 
 static void c1_parts(uint32_t arg);
 static void c1_job(uint32_t arg)                        /* the buses, then the parts */
@@ -1238,7 +1248,7 @@ static void apf_end(uint32_t n)
     apf_smp = 0;
 }
 
-static void mix_block(int32_t *out, uint32_t n)
+static __attribute__((noinline)) void mix_block(int32_t *out, uint32_t n)
 {
     uint32_t i;
     int perf;
@@ -1262,7 +1272,7 @@ static void mix_block(int32_t *out, uint32_t n)
     c1_blocks += c1;
     for (i = 0; i < NPART; i++)
         if (!(m >> i & 1u))
-            MIX_PART_T(i, n, &mx[0]);
+            MIX_PART_T0(i, n, &mx[0]);
     pt1 = ALT_PT();
     apf_acc[APF_P] += pt1 - pt0;
     tk_own = pt1 - pt0;
@@ -1290,7 +1300,7 @@ static void mix_block(int32_t *out, uint32_t n)
 #else
     bus_block();
     for (i = 0; i < NPART; i++)                         /* (one core: as 1.6) */
-        mix_part(&trk[i], n);
+        mix_part0(&trk[i], n);
     pt1 = ALT_PT();
     apf_acc[APF_P] += pt1 - pt0;
 #endif

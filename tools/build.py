@@ -41,7 +41,7 @@ LOADER_NAME = b"usb_hid_ota.bin"    # the file name the SPL looks for
 DOCKER_IMAGE = os.environ.get("JIELI_DOCKER_IMAGE", "debian:bookworm-slim")
 # ALTER : constantes qui TOMBENT dans la plage d'adresses de la ROM mais n'en sont pas (vérifié au désassemblage, 03/11) :
 # afl_block (alter_filter.c) : la limite clamp(..., -(1 << 22), 1 << 22) = 0xFFC00000, servie à une comparaison (ifs r1 >= r3).
-ROM_CONST_OK = {"afl_block": {0xFFC00000}, "afl_side": {0xFFC00000}, "am_master": {0xFFC00000}}  # (-(1 << 22): a clamp, not an address)
+ROM_CONST_OK = {"afl_block": {0xFFC00000}, "afl_side": {0xFFC00000}, "afl_side0": {0xFFC00000}, "am_master": {0xFFC00000}}  # (-(1 << 22): a clamp, not an address)
 CFLAGS = ["-Os", "-ffunction-sections", "-fno-builtin", "-Wall", "-Wno-unused-function"]
 LINE = re.compile(r"^\s*([0-9a-f]+):\s+((?:[0-9a-f]{2} )+)\s*\t(.*)$")
 
@@ -212,6 +212,25 @@ def ld_regions():
 # code runs from the XIP flash through a small cache both cores share: scattered among the UI, the sound's code
 # fights it for the cache (JIANT: +6 KB of UI moved the engines and took the owner's FM-1 from fine to 94 %; the host
 # counts were the same). ALTER_LAYOUT=0: as before
+# ALTER (v0.61, after JIANT 0.6.78, Romain: the MASTER FILTER slowed every other part down: the flash cache): core 0's
+# hottest audio code runs from RAM (app.ld .hot_text, in the RAM code window after .c1_text): the mix, a part's mix
+# (core 0's copy: fx.c mix_part0), the MASTER FILTER (its block and core 0's side, alter_filter.c afl_side0), the MASTER.
+# Core 1 keeps the flash copies (on some FM-1s it now and then reads a word of RAM wrong). Named in the optimised IR (a
+# section given before the optimiser would stop it inlining into them). ALTER_HOTRAM=0: all in the flash, as before
+HOT_FNS = ("mix_block", "mix_part0", "afl_block", "afl_side0", "am_master")
+
+
+def hot_sections(ir):
+    """HOT_FNS' definitions in the optimised IR given section ".hot_text.<name>"; (the IR, the names found)"""
+    found = []
+
+    def put(m):
+        found.append(m.group(2))
+        return f'{m.group(1)} section ".hot_text.{m.group(2)}" {{'
+    ir = re.sub(r'^(define [^\n]*?@"?(' + "|".join(HOT_FNS) + r')"?\([^\n]*?)\s*\{$', put, ir, flags=re.M)
+    return ir, found
+
+
 def audio_sections(ir, reach):
     """reach's definitions and constants in the optimised IR given sections .text.a.<name> / .rodata.a.<name> (those
     with a section of their own, the RAM code, keep it); (the IR, functions, constants)"""
@@ -247,6 +266,9 @@ def build_app():
     if v in ("0", "1", "2", "3"):
         flags.append(f"-DFELUCCA_USB_LAYOUT={v}")
     flags.append(f'-DFELUCCA_ID="{PRODUCT}"')
+    hot = os.environ.get("FELUCCA_SIZE") != "0" and os.environ.get("ALTER_LAYOUT") != "0" \
+        and os.environ.get("ALTER_HOTRAM") != "0"   # ALTER v0.61: core 0's hottest audio code in RAM (HOT_FNS)
+    flags.append(f"-DALTER_HOTRAM={int(hot)}")
     if VERSION:
         flags.append(f'-DFELUCCA_VERSION="{VERSION}"')
     # felucca.c goes to LLVM IR without the optimizer, the main-loop functions (UI, stores, editor) are
@@ -272,7 +294,14 @@ def build_app():
             sys.path.insert(0, str(SRC / "tools"))
             import size_fns  # noqa: E402
             tc("cc", *cf, "-S", "-emit-llvm", "-c", OUT / "felucca_size.ll", "-o", OUT / "felucca_opt.ll")
-            ir, nf, nc = audio_sections((OUT / "felucca_opt.ll").read_text(),
+            ir = (OUT / "felucca_opt.ll").read_text()
+            if hot:
+                ir, found = hot_sections(ir)
+                miss = [f for f in HOT_FNS if f not in found]
+                if miss:
+                    raise SystemExit(f"hot RAM code: {miss} not found in the IR (inlined?)")
+                print(f"hot RAM code: {', '.join(found)}")
+            ir, nf, nc = audio_sections(ir,
                                         size_fns.isr_reach((OUT / "felucca_size.ll").read_text(), True))
             print(f"layout: {nf} functions and {nc} constant tables an interrupt reaches first in the image")
             if nf < 50:
@@ -331,9 +360,14 @@ def check(img, syms, dis, rt):
     rt_calls, c1_calls, c1_insns, rt_insns = [], [], 0, 0
     c1_lo = symv_in(syms, "_c1_start")
     c1_hi = symv_in(syms, "_c1_end")
+    hot_lo, hot_hi, hot_insns = symv_in(syms, "_hot_start"), symv_in(syms, "_hot_end"), 0   # (ALTER v0.61: core 0's
+    # hot audio code, after .c1_text: it calls the flash freely, it never runs with the flash off)
     for ln in rt.splitlines():
         mm = LINE.match(ln)
         if not mm:
+            continue
+        if hot_lo <= int(mm.group(1), 16) < hot_hi:
+            hot_insns += 1
             continue
         if c1_lo <= int(mm.group(1), 16) < c1_hi:
             c1_insns += 1
@@ -343,6 +377,14 @@ def check(img, syms, dis, rt):
             rt_insns += 1
             if re.search(r"\bcall\b", ln):
                 rt_calls.append(ln.strip())
+    if hot_hi > hot_lo:
+        notes.append(f".hot_text: {hot_hi - hot_lo} B of core 0's audio code in RAM ({hot_insns} insns)")
+    # (ALTER v0.61) a call reaches +-4 MiB: the RAM code must reach the whole image, the image it
+    far = max(abs(symv_in(syms, "_etext") - symv_in(syms, "_rt_start")), abs(symv_in(syms, "_rt_end") - APP_XIP))
+    if far >= (1 << 22) - 4096:
+        errors.append(f"RAM code {far:#x} B from the far end of the image: a call reaches 4 MiB (app.ld RAMTEXT)")
+    else:
+        notes.append(f"RAM code to the image's far end {far:#x} B (calls reach 0x400000)")
     if rt_calls:
         errors.append(f".ram_text contains calls: {rt_calls[:3]}")
     else:

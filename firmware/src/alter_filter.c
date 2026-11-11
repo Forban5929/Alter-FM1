@@ -265,7 +265,7 @@ static struct {
     uint32_t n;
 } afb;
 
-static __attribute__((noinline)) void afl_side(uint32_t side)
+static inline __attribute__((always_inline)) void afl_side_b(uint32_t side)
 {
     int32_t *o_ = afb.lr[side], *w = afb.w, bias = afb.bias, sb = afb.sb, hard = afb.hard, mk8 = afb.mk * 8;
     int32_t drv = afs.drv, k = afs.k, kn = afb.kn, w24 = afs.w24, drive = afb.drive, st1 = afb.st1, wet = afb.wet;
@@ -303,6 +303,15 @@ static __attribute__((noinline)) void afl_side(uint32_t side)
     afs.s[side][0].ic1 = a1c, afs.s[side][0].ic2 = a2c, afs.s[side][1].ic1 = b1c, afs.s[side][1].ic2 = b2c;
     afs.dcx[side] = dcx, afs.dcy[side] = dcy;
 }
+/* ALTER (v0.61, after JIANT 0.6.78): the same side twice: afl_side from the flash (the second core), afl_side0 core 0's
+ * own, run from RAM (tools/build.py HOT_FNS; ALTER_HOTRAM 0: one copy). Core 1 never runs RAM code but its loop: on
+ * some FM-1s it now and then reads a word of RAM wrong (JIANT, Melodee, fm1-x0x) */
+static __attribute__((noinline)) void afl_side(uint32_t side) { afl_side_b(side); }
+#if ALTER_HOTRAM
+static __attribute__((noinline)) void afl_side0(uint32_t side) { afl_side_b(side); }
+#else
+#define afl_side0 afl_side
+#endif
 static volatile uint32_t afl_c1_tk;
 #if FELUCCA_CPU2 && defined(C1_RUN)
 /* (afl_c1_tk, v0.54: the right side's time on the second core, TIMER4 ticks (fx.c's split) */
@@ -427,14 +436,14 @@ static __attribute__((noinline)) void afl_block(int32_t *l, int32_t *r, int32_t 
     afb.n = n;
 #if FELUCCA_CPU2 && defined(C1_RUN)
     if (C1_ON() && C1_RUN(afl_side_c1, 0)) {
-        afl_side(0);
+        afl_side0(0);
         if (C1_WAIT())                   /* it stopped answering: the right side here */
-            afl_side(1);
+            afl_side0(1);
     } else
 #endif
     {
-        afl_side(0);
-        afl_side(1);
+        afl_side0(0);
+        afl_side0(1);
     }
     for (i = 0; i < n; i++)
         w[i] = 0;
