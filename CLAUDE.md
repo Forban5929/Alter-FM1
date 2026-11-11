@@ -118,6 +118,9 @@ Mesure v0.57 (banc, 4 tirages CHAOS TOTAL) : une scène légère 35-55 % sans tr
 L +2..+11 en 8 s, 5-20F. Un cercle seul monte à 45-54 % d'un bloc → **le moteur ALTER** (3 voix × 6 osc × 2 formes).
 v0.58 : `alt_render` saute les osc à niveau 0 (hors METAL) et la 2e forme quand frac = 0 : identique au bit (10 tirages),
 coût du moteur ÷ 2 (natif). À faire si besoin : même chose pour RING/CORDE/PLATE ; puis JIANT HOTRAM (code chaud en RAM).
+**Mesure v0.58 (banc, 6 tirages CHAOS TOTAL + 16/16 + tous effets + filtre) : 0 trou (L), 0 voix effacée (S)** ;
+CPU moy. max 56-74 %, pics 82-91 %, 8-24F ; un cercle jusqu'à 37-50 %. Le plus lourd : CORDE ×2 + ALTER (74 %, 8F).
+Reste : marge faible (pics ~90) → même nettoyage CORDE/RING/PLATE ; écran (8-24F sous charge) → REFONTE 4.
 Banc : si le panneau latéral est fermé, ouvrir son propre onglet test.html (tabs_context createIfEmpty) et cliquer Connect
 par javascript (permission MIDI déjà accordée au site).
 Test ops ajoutés : web_alter 29 = HITS d'un cercle ; peek 16 = voix qui sonnent d'un cercle.

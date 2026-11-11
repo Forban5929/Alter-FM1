@@ -33,3 +33,5 @@
 
 ## Journal
 - 11/11 v0.54 : points 1 + 2 codés (répartition mesurée). Dualcore TSAN identique, y compris tout sur le cœur 1. En attente de la mesure FM-1.
+- 11/11 v0.55 banc de test ; v0.56 partage = parties seules ; v0.57 bus FX en pipeline sur le 2e cœur ; v0.58 moteur ALTER ÷ 2.
+  Mesure v0.58 sur la FM-1 (6 tirages lourds) : 0 trou, 0 voix effacée, pics 82-91 %, écran 8-24 images/s.
