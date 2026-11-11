@@ -1139,15 +1139,17 @@ static void c1_parts(uint32_t arg)                      /* arg: the parts (bit k
  * when that saves less than handing them over costs (C1_HAND) */
 #define C1_HAND 40u
 #define C1_HAND_TK (20u * 24u)                           /* handing parts over: ~20 us */
-static uint32_t split_load(uint32_t m, uint32_t all)    /* the busier core's ticks with the parts m on core 1 */
+/* the parts' phase with the parts m on core 1: both cores at once, the longer one counts. (v0.55 measured on Romain's FM-1:
+ * W 22..29 %. The buses, the filter and the MASTER run AFTER the parts, they need their sum: they do not overlap core 1's
+ * parts, so they are no reason to give core 1 more; v0.54 counted them and sent nearly every part over, core 0 waiting) */
+static uint32_t split_load(uint32_t m, uint32_t all)
 {
-    uint32_t a = 0, i, c0, c1;
+    uint32_t a = 0, i, c0;
     for (i = 0; i < NPART; i++)
         if (m >> i & 1u)
             a += part_tk[i];
-    c0 = fix_tk[0] + all - a + (m ? C1_HAND_TK : 0u);
-    c1 = fix_tk[1] + a;
-    return c0 > c1 ? c0 : c1;
+    c0 = all - a + (m ? C1_HAND_TK : 0u);
+    return c0 > a ? c0 : a;
 }
 static uint32_t mix_split(void)
 {
