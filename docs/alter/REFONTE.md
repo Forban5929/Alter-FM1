@@ -30,3 +30,6 @@
 ## Ordre
 - v0.54 : points 1 + début du 2 (répartition mesurée) — le plus gros gain, son identique. Mesure FM-1 par Romain.
 - v0.55 : point 3 (paliers) + point 6. v0.56 : point 4 (écran). Puis 5 et 7, puis ménage et 1.0.
+
+## Journal
+- 11/11 v0.54 : points 1 + 2 codés (répartition mesurée). Dualcore TSAN identique, y compris tout sur le cœur 1. En attente de la mesure FM-1.

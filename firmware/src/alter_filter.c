@@ -303,8 +303,21 @@ static __attribute__((noinline)) void afl_side(uint32_t side)
     afs.s[side][0].ic1 = a1c, afs.s[side][0].ic2 = a2c, afs.s[side][1].ic1 = b1c, afs.s[side][1].ic2 = b2c;
     afs.dcx[side] = dcx, afs.dcy[side] = dcy;
 }
+static volatile uint32_t afl_c1_tk;
 #if FELUCCA_CPU2 && defined(C1_RUN)
-static void afl_side_c1(uint32_t arg) { (void)arg; afl_side(1); }
+/* (afl_c1_tk, v0.54: the right side's time on the second core, TIMER4 ticks (fx.c's split) */
+static void afl_side_c1(uint32_t arg)
+{
+#if defined(FM1_TICKS_PER_US)
+    uint32_t t0 = fm1_ticks();
+    (void)arg;
+    afl_side(1);
+    afl_c1_tk = fm1_ticks() - t0;
+#else
+    (void)arg;
+    afl_side(1);
+#endif
+}
 #endif
 
 static __attribute__((noinline)) void afl_block(int32_t *l, int32_t *r, int32_t *w, uint32_t n)

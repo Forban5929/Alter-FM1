@@ -3865,16 +3865,19 @@ static void alt_cpu_line(void)
     cv_text(9, 19, ALT_FS, b, col);
     {                                             /* (v0.52 : où va le temps du son, fx.c apf_pct, en % : P parties de ce
                                                    * cœur, W attente du 2e, X delay/chorus/reverb, F filtre, M master) */
-        static const char L[APF_N] = {'P', 'W', 'X', 'F', 'M'};
+        static const char L[APF_N] = {'P', 'W', 'X', 'F', 'M', 'C'};   /* (v0.54 : C = le travail du 2e cœur) */
         uint32_t k;
-        n = 0;
-        if (alt_cpu_cut) {                        /* (v0.53 : S voix effacées par la protection, L vrais trous) */
+        if (alt_cpu_cut) {                        /* (v0.53 : S voix effacées par la protection, L vrais trous ;
+                                                   * v0.54 : sur leur ligne) */
+            n = 0;
             b[n++] = 'S';
             alt_cpu_num(b, &n, shed_count > 999u ? 999u : shed_count);
             b[n++] = ' ', b[n++] = 'L';
             alt_cpu_num(b, &n, alt_cpu_late > 999u ? 999u : alt_cpu_late);
-            b[n++] = ' ';
+            b[n] = 0;
+            cv_text(9, 47, ALT_FS, b, ALT_RED);
         }
+        n = 0;
         for (k = 0; k < APF_N; k++) {
             b[n++] = L[k];
             alt_cpu_num(b, &n, apf_pct[k]);
@@ -4564,7 +4567,7 @@ static void alter_draw(void)
     alt_fps_poll();
 #if ALTER_CPU_SHOW
     alt_cpu_poll();
-    shead = shead * 31u + alt_t5_pct * 5u + apf_pct[0] * 7u + apf_pct[1] * 11u + apf_pct[2] * 13u + apf_pct[3] * 17u + apf_pct[4] * 19u + alt_fps * 113u + alt_draw_ms * 127u + alt_cpu_avg * 101u + alt_cpu_pk * 103u + alt_cpu_cut * 107u + alt_cpu_c1 * 109u;   /* (version test : la charge CPU) */
+    shead = shead * 31u + alt_t5_pct * 5u + apf_pct[0] * 7u + apf_pct[1] * 11u + apf_pct[2] * 13u + apf_pct[3] * 17u + apf_pct[4] * 19u + apf_pct[5] * 23u + alt_fps * 113u + alt_draw_ms * 127u + alt_cpu_avg * 101u + alt_cpu_pk * 103u + alt_cpu_cut * 107u + alt_cpu_c1 * 109u;   /* (version test : la charge CPU) */
 #endif
     ui.force = 1;                                /* (whatever comes after this view draws itself whole) */
     {                                            /* the steps playing and the hits' flash: a page that shows them has

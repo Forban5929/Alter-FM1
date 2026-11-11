@@ -966,9 +966,26 @@ static __attribute__((noinline)) void mix_spread(track_t *t, int32_t *b, uint32_
  * voice (ENG_VCOST: the host's instructions per sample, tests/regress.c CPU at 8 notes held less the idle mix, over the
  * engine's voices), and the DIST, INSERT and sends while it sounds or its tail runs. ENGINES[] order; DIGITAL as FM6
  * when built, nothing when retired. An estimate: it only steers the split, the sound does not depend on it */
+/* ALTER (v0.54, REFONTE.md 1): the split goes by what each part really took, TIMER4 ticks on the core that ran it (a peak
+ * that decays: the worst recent block, so a hit's first block is planned for), and by what each core does besides the
+ * parts: core 0 the buses, the filter's left side, the MASTER, the events (fix_tk[0]); core 1 the filter's right side
+ * (fix_tk[1]). Before: the parts alone were balanced, by a table that had PLATE, CORDE and RING at 0, and core 0 kept
+ * ~33 % of fixed work on top of its half */
+#if defined(FM1_TICKS_PER_US)
+#define ALT_PT() fm1_ticks()
+#else
+#define ALT_PT() 0u
+#endif
+static uint32_t part_tk[NPART], fix_tk[2];
+static uint8_t split_last;
+static void tk_peak(uint32_t *p, uint32_t d)
+{
+    uint32_t c = *p - (*p >> 4);
+    *p = d > c ? d : c;
+}
 #if FELUCCA_CPU2
 static uint16_t part_cost[NTRK];                        /* the last block's, per part */
-static const uint16_t ENG_VCOST[NENGINES] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 309, 360, 134, 0, 0, 330};   /* PHYS RESO NOISE ALTER
+static const uint16_t ENG_VCOST[NENGINES] = {0, 0, 330, 330, 0, 0, 0, 0, 0, 309, 360, 134, 330, 0, 330};   /* (v0.54: CORDE RING PLATE were 0) */   /* PHYS RESO NOISE ALTER
  * (RESO 03/11 : mesuré au navigateur ≈ 1,2 × ALTER, 1,13 × PHYS par son ; avant 0 = compté gratuit) */
 #endif
 
@@ -1105,6 +1122,8 @@ static __attribute__((noinline)) void perf_master(int32_t *out, uint32_t n)
 #endif
 static uint32_t c1_blocks;                              /* blocks the second core took parts of (console) */
 
+#define MIX_PART_T(I, N, SM) do { uint32_t t_ = ALT_PT(); mix_part(&trk[I], N, SM); tk_peak(&part_tk[I], ALT_PT() - t_); } while (0)
+
 static void c1_parts(uint32_t arg)                      /* arg: the parts (bit k = part k) | n << 8 */
 {
     uint32_t i, n = arg >> 8;
@@ -1113,15 +1132,45 @@ static void c1_parts(uint32_t arg)                      /* arg: the parts (bit k
         sm->l[i] = sm->r[i] = sm->c[i] = sm->d[i] = sm->v[i] = 0;
     for (i = 0; i < NPART; i++)
         if (arg >> i & 1u)
-            mix_part(&trk[i], n, sm);
+            MIX_PART_T(i, n, sm);
 }
 
 /* which parts go to the second core: the split of the last block's costs that leaves the busier core the least; none
  * when that saves less than handing them over costs (C1_HAND) */
 #define C1_HAND 40u
+#define C1_HAND_TK (20u * 24u)                           /* handing parts over: ~20 us */
+static uint32_t split_load(uint32_t m, uint32_t all)    /* the busier core's ticks with the parts m on core 1 */
+{
+    uint32_t a = 0, i, c0, c1;
+    for (i = 0; i < NPART; i++)
+        if (m >> i & 1u)
+            a += part_tk[i];
+    c0 = fix_tk[0] + all - a + (m ? C1_HAND_TK : 0u);
+    c1 = fix_tk[1] + a;
+    return c0 > c1 ? c0 : c1;
+}
 static uint32_t mix_split(void)
 {
     uint32_t m, i, best = 0, all = 0, lo;
+    for (i = 0; i < NPART; i++)
+        all += part_tk[i];
+    if (all) {                                          /* measured (the FM-1): any set of parts, all of them too */
+        uint32_t cur;
+        lo = split_load(0, all);
+        for (m = 1; m < (1u << NPART); m++) {
+            uint32_t w = split_load(m, all);
+            if (w < lo) {
+                lo = w;
+                best = m;
+            }
+        }
+        cur = split_load(split_last, all);              /* (kept unless the best is 1/16 better: no flapping) */
+        if (lo + (cur >> 4) >= cur)
+            best = split_last;
+        split_last = (uint8_t)best;
+        return best;
+    }
+    all = 0;                                            /* no timer (the host's tests): the table's estimate, as before */
     for (i = 0; i < NPART; i++)
         all += part_cost[i];
     lo = all;
@@ -1143,12 +1192,7 @@ static uint32_t mix_split(void)
 /* ALTER (v0.52, a test version's tool: where the audio's time goes on the FM-1 itself) the block's stages, in TIMER4
  * ticks, added up for ~1 s then as % of the audio's time: P this core's parts (and what is shared before them), W
  * waiting for the second core's, X the delay / chorus / reverb, F the MASTER FILTER, M the MASTER and the output */
-#if defined(FM1_TICKS_PER_US)
-#define ALT_PT() fm1_ticks()
-#else
-#define ALT_PT() 0u
-#endif
-enum { APF_P, APF_W, APF_X, APF_F, APF_M, APF_N };
+enum { APF_P, APF_W, APF_X, APF_F, APF_M, APF_C, APF_N };   /* (v0.54: C the second core's work) */
 static uint32_t apf_acc[APF_N], apf_smp;
 static volatile uint8_t apf_pct[APF_N];
 static void apf_end(uint32_t n)
@@ -1174,6 +1218,7 @@ static void mix_block(int32_t *out, uint32_t n)
 {
     uint32_t i;
     int perf;
+    uint32_t tb = ALT_PT();
     int32_t mg = alt_mg_block(fx_usb_fixed ? MASTER_FULL : (int32_t)song.master_q12);   /* (USB LEVEL FIXED: MASTER after;
                                                          * ALTER's MIXER gain) */
     for (i = 0; i < n; i++)
@@ -1183,7 +1228,7 @@ static void mix_block(int32_t *out, uint32_t n)
     for (uint32_t ci = 0; ci < AM_NC; ci++)
         ac_poll(ci, n);                                 /* ALTER: the circles' alignment (alter_fx.c) */
     perf = perf_begin(n);                               /* the FX hold layer at work (perform.c) */
-    uint32_t pt0 = ALT_PT(), pt1;
+    uint32_t pt0 = ALT_PT(), pt1, tk_own = 0, tk_wait = 0;
 #if FELUCCA_CPU2
     uint32_t m = C1_ON() ? C1_SPLIT() & ((1u << NPART) - 1u) : 0u;
     if (m && !C1_RUN(c1_parts, m | n << 8))
@@ -1191,16 +1236,21 @@ static void mix_block(int32_t *out, uint32_t n)
     c1_blocks += m != 0;
     for (i = 0; i < NPART; i++)
         if (!(m >> i & 1u))
-            mix_part(&trk[i], n, &mx[0]);
+            MIX_PART_T(i, n, &mx[0]);
     pt1 = ALT_PT();
     apf_acc[APF_P] += pt1 - pt0;
+    tk_own = pt1 - pt0;
     if (m) {
         const mixsum_t *sm = &mx[1];
         if (C1_WAIT())                                  /* it stopped answering (held from now on): its parts here */
             c1_parts(m | n << 8);
         pt0 = ALT_PT();
         apf_acc[APF_W] += pt0 - pt1;
+        tk_wait = pt0 - pt1;
         pt1 = pt0;
+        for (i = 0; i < NPART; i++)
+            if (m >> i & 1u)
+                apf_acc[APF_C] += part_tk[i];           /* (its parts' recent worst: a little high) */
         for (i = 0; i < n; i++) {
             mix_l[i] += sm->l[i];
             mix_r[i] += sm->r[i];
@@ -1224,8 +1274,11 @@ static void mix_block(int32_t *out, uint32_t n)
         rev_side_mix(mix_l, mix_r, n);                  /* HALL: stereo */
     pt0 = ALT_PT();
     apf_acc[APF_X] += pt0 - pt1;
+    afl_c1_tk = 0;
     if (afl_p(AFL_MIX) || afs.run)
         afl_block(mix_l, mix_r, wet, n);                /* ALTER's MASTER FILTER (alter_filter.c): wet folded in */
+    tk_peak(&fix_tk[1], afl_c1_tk);
+    apf_acc[APF_C] += afl_c1_tk;
     pt1 = ALT_PT();
     apf_acc[APF_F] += pt1 - pt0;
     if (am_on())
@@ -1235,6 +1288,7 @@ static void mix_block(int32_t *out, uint32_t n)
     if (perf) {
         perf_master(out, n);
         apf_acc[APF_M] += ALT_PT() - pt1;
+        tk_peak(&fix_tk[0], ALT_PT() - tb - tk_own - tk_wait);
         apf_end(n);
         return;
     }
@@ -1246,5 +1300,6 @@ static void mix_block(int32_t *out, uint32_t n)
         out[2u * i + 1u] = r;
     }
     apf_acc[APF_M] += ALT_PT() - pt1;
+    tk_peak(&fix_tk[0], ALT_PT() - tb - tk_own - tk_wait);   /* core 0's work besides the parts (the split) */
     apf_end(n);
 }
