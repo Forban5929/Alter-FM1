@@ -138,9 +138,11 @@ static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
             web_fb[(y + j) * 240u + x + i] = sw;
     web_draws++;
 }
+static uint32_t lcd_wait_tk, lcd_px;            /* (lcd.c: the bench's screen numbers) */
 static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p)
 {
     uint32_t i, j;
+    lcd_px += w * h;
     for (j = 0; j < h && y + j < 240u; j++)
         for (i = 0; i < w && x + i < 240u; i++)
             web_fb[(y + j) * 240u + x + i] = p[j * w + i];

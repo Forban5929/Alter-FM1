@@ -20,11 +20,17 @@ static void lcd_spin(uint32_t n)
         ;
 }
 
+/* ALTER (v0.63, the bench: where a frame's time goes) the time spent waiting for the screen's transfers, the pixels sent */
+static uint32_t lcd_wait_tk, lcd_px;
+
 static void lcd_sync(void)          /* finish the running transfer (before touching its buffer) */
 {
+    uint32_t t;
     if (!lcd_busy)
         return;
+    t = fm1_ticks();
     fm1_lcd_wait();
+    lcd_wait_tk += fm1_ticks() - t;
     fm1_lcd_deselect();
     lcd_busy = 0;
 }
@@ -93,6 +99,7 @@ static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
         return;
     lcd_window(x, y, x + w - 1u, y + h - 1u);
     lcd_data(px, w * h * 2u);
+    lcd_px += w * h;
 }
 
 /* ST7789V init: reset, then 16-bit colour, scan direction and IPS inversion;

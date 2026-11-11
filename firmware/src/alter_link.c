@@ -983,6 +983,11 @@ static void lk_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         lk_b(alt_gov);                               /* (v0.62: the safety net's level, times up, notes ended sooner) */
         lk_v((int32_t)(alt_gov_ups > 8000u ? 8000u : alt_gov_ups));
         lk_v((int32_t)(alt_gov_tails > 8000u ? 8000u : alt_gov_tails));
+        lk_v((int32_t)(alt_dr_w10 > 8000u ? 8000u : alt_dr_w10));   /* (v0.63: a frame's drawing, 0.1 ms: all, audio in it, */
+        lk_v((int32_t)(alt_dr_i10 > 8000u ? 8000u : alt_dr_i10));   /* the screen's transfers; pixels / 100; loop turns /s) */
+        lk_v((int32_t)(alt_dr_l10 > 8000u ? 8000u : alt_dr_l10));
+        lk_v((int32_t)(alt_dr_kpx > 8000u ? 8000u : alt_dr_kpx));
+        lk_v((int32_t)(alt_loops > 8000u ? 8000u : alt_loops));
         lk_send();
         return;
     case LKC_TEST:                                   /* op, a, b (5 x 7 bits each): alter_ui.c alt_web_cmd, the tests'

@@ -45,6 +45,7 @@ const alt = window.alt = {
     const d = { t: Date.now(), ver, avg: v(), pk: v(), fps: v(), ms: v(), S: v(), L: v(), c2: b(),
       P: b(), W: b(), X: b(), F: b(), M: b(), C: b(), T: b(), split: b(), parts: [b(), b(), b(), b()], fix0: b(), fix1: b(), eng: [b(), b(), b()] };
     if (i < a.length) { d.G = b(); d.Gup = v(); d.Gtail = v(); }   // (v0.62: the safety net)
+    if (i < a.length - 1) { d.dw = v() / 10; d.di = v() / 10; d.dl = v() / 10; d.kpx = v() / 10; d.loops = v(); }   // (v0.63: a frame: ms all, ms audio, ms screen wait, kpx, loop turns/s)
     return d;
   },
   cmd: (op, a = 0, b = 0) => ask(TEST, op, ...w32(a), ...w32(b)),
@@ -94,7 +95,7 @@ const alt = window.alt = {
 };
 const COLS = ["ver", "avg", "pk", "fps", "ms", "S", "L", "P", "W", "X", "F", "M", "C", "T", "split", "parts", "fix0", "fix1", "eng", "c2"];
 function draw(d) {
-  $("big").textContent = `${d.ver}   CPU ${d.avg}/${d.pk}%   ${d.fps}F ${d.ms}MS ${d.c2 ? "2C" : "1C"}\nP${d.P} W${d.W} X${d.X} F${d.F} M${d.M} C${d.C} T${d.T}   S${d.S} L${d.L}${d.G != null ? `   NET G${d.G} up${d.Gup} tails${d.Gtail}` : ""}\nsplit ${d.split.toString(2).padStart(4, "0")}   parts ${d.parts.join(" ")} %   fixed ${d.fix0} / ${d.fix1} %   engines ${d.eng.join(" ")}`;
+  $("big").textContent = `${d.ver}   CPU ${d.avg}/${d.pk}%   ${d.fps}F ${d.ms}MS ${d.c2 ? "2C" : "1C"}\nP${d.P} W${d.W} X${d.X} F${d.F} M${d.M} C${d.C} T${d.T}   S${d.S} L${d.L}${d.G != null ? `   NET G${d.G} up${d.Gup} tails${d.Gtail}` : ""}${d.dw != null ? `\nframe ${d.dw} ms (audio ${d.di}, screen wait ${d.dl})  ${d.kpx} kpx  loop ${d.loops}/s` : ""}\nsplit ${d.split.toString(2).padStart(4, "0")}   parts ${d.parts.join(" ")} %   fixed ${d.fix0} / ${d.fix1} %   engines ${d.eng.join(" ")}`;
   $("log").textContent = new Date(d.t).toLocaleTimeString() + "  " + COLS.map((k) => k + "=" + (Array.isArray(d[k]) ? d[k].join("/") : d[k])).join(" ") + "\n" + $("log").textContent.slice(0, 20000);
 }
 let timer = null;

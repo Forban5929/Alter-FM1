@@ -24,6 +24,7 @@ static volatile uint32_t audio_halves, audio_max_us;
 /* ALTER (version test) : le pic de charge de la seconde passée (1/256) et le nombre de demi-blocs en retard (= trous dans
  * le son), lus par l'écran PLAY (alter_ui.c alt_cpu_line) */
 static volatile uint32_t alt_cpu_pk_q8, alt_cpu_late;
+static volatile uint32_t alt_isr_tk;             /* ALTER (v0.63): the audio ISR's ticks, all told */
 static volatile uint32_t alt_t5_pct;              /* ALTER (v0.53): TIMER5 nested in the audio, % of its time, ~1 s */
 static uint32_t alt_t5_acc;
 static uint32_t alt_cpu_win, alt_cpu_n;
@@ -230,6 +231,7 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (bsp/chip/fm1_is
             felucca_dbg.max_us = us;
         felucca_dbg.cpu_q8 = song.cpu_q8;
     }
+    alt_isr_tk += fm1_ticks() - t0;             /* (v0.63: the bench, the audio's share of a frame's drawing) */
     felucca_dbg.in_audio = 0;
 }
 extern void isr_alnk0(void);

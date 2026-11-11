@@ -3769,14 +3769,29 @@ static uint32_t alt_fps, alt_fps_n, alt_fps_ms, alt_full_n;   /* (alt_full_n: wh
 /* (09/11) and how long a frame takes to draw, ms (the time from alter_draw's start to its last blit, the audio's
  * interrupts in it): "28F 9MS". Many ms: the drawing is slow; few ms but few F: something else holds the loop */
 static uint32_t alt_draw_t0, alt_draw_us, alt_draw_ms;
+/* (v0.63, the bench, REFONTE 4: where a frame's time goes, per frame drawn, 0.1 ms: all of it, the audio's interrupts in
+ * it, the wait for the screen's transfers; the pixels sent; the main loop's turns a second) */
+static uint32_t alt_dr_isr0, alt_dr_lcd0, alt_dr_px0, alt_dr_isr, alt_dr_lcd, alt_dr_px, alt_loop_n0;
+static uint32_t alt_dr_w10, alt_dr_i10, alt_dr_l10, alt_dr_kpx, alt_loops;
 static void alt_fps_tick(void)
 {
     alt_fps_n++;
     alt_draw_us += (fm1_ticks() - alt_draw_t0) / FM1_TICKS_PER_US;
+    alt_dr_isr += alt_isr_tk - alt_dr_isr0;
+    alt_dr_lcd += lcd_wait_tk - alt_dr_lcd0;
+    alt_dr_px += lcd_px - alt_dr_px0;
 }
 static void alt_fps_poll(void)                   /* (once a second: a still screen counts 0) */
 {
     if (fm1_ms - alt_fps_ms >= 1000u) {
+        uint32_t f = alt_fps_n ? alt_fps_n : 1u;
+        alt_dr_w10 = alt_draw_us / f / 100u;
+        alt_dr_i10 = alt_dr_isr / f / (FM1_TICKS_PER_US * 100u);
+        alt_dr_l10 = alt_dr_lcd / f / (FM1_TICKS_PER_US * 100u);
+        alt_dr_kpx = alt_dr_px / f / 100u;
+        alt_loops = felucca_dbg.ui_frames - alt_loop_n0;
+        alt_loop_n0 = felucca_dbg.ui_frames;
+        alt_dr_isr = alt_dr_lcd = alt_dr_px = 0;
         alt_fps = alt_fps_n;
         alt_draw_ms = alt_fps_n ? (alt_draw_us / alt_fps_n + 500u) / 1000u : 0u;
         alt_fps_n = 0;
@@ -4475,6 +4490,9 @@ static void alter_draw(void)
     uint32_t sig = 0, sfoot = 0, shead = 0, i, h, flash = 0, q = au.lockc ? 0u : alt_page();
     alt_now_ms = fm1_ms;
     alt_draw_t0 = fm1_ticks();
+    alt_dr_isr0 = alt_isr_tk;
+    alt_dr_lcd0 = lcd_wait_tk;
+    alt_dr_px0 = lcd_px;
     for (i = 0; i < AS_NCIRC; i++) {
         if ((h = alt_hits[i]) != au.hits_seen[i]) {
             uint32_t len = alt_seq.c[i].cfg.len ? alt_seq.c[i].cfg.len : 1u;
@@ -4791,6 +4809,14 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
         alt_cl[a & 3u][(a >> 8) % CL_N].rate = (uint8_t)((b >> 3 & 31u) % GL_NRATE);
         alt_cl[a & 3u][(a >> 8) % CL_N].dst = (uint8_t)((b >> 8 & 31u) % GD_N);
         alt_cl[a & 3u][(a >> 8) % CL_N].depth = (int8_t)clamp((int8_t)(b >> 16), -64, 63);
+        break;
+    case 30:                                     /* (a test, v0.63: the screen's SPI divider, 2..8: lsb / (b + 1)) */
+#if !defined(FELUCCA_WEB) && !defined(HOSTSIM)
+        if (b >= 2u && b <= 8u) {
+            lcd_sync();
+            fm1_lcd_baud(b);
+        }
+#endif
         break;
     case 29: au.cfg[a % AS_NCIRC].hits = (uint8_t)clamp((int32_t)b, 0, (int32_t)au.cfg[a % AS_NCIRC].len); alt_post_circle(a % AS_NCIRC); break;   /* (a test: HITS) */
     case 22: alt_total_chaos(); break;          /* (a test: CHAOS TOTAL, 10/11) */
