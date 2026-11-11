@@ -1242,13 +1242,13 @@ static void alt_fx_keep(uint32_t c, alt_fxk_t *k)
     k->sel = afx_sel[c];
     k->edit = (uint8_t)((afx_edit >> c) & 1u);
 }
-static void alt_fx_zero(uint32_t c)               /* (v0.67) circle c dry: DIST, INSERT, CHORUS DELAY REVERB sends, the steps' sends */
+static void alt_fx_zero(uint32_t c, int lanes)    /* (v0.67) circle c dry: DIST, INSERT, CHORUS DELAY REVERB sends, the steps' sends */
 {
     uint32_t i;
     fm1_irq_off();
     for (i = 0; i < 9u; i++)
         trk[c].p[ALT_FXK_P[i]] = 0;
-    for (i = 0; i < AS_NLANE; i++)
+    for (i = 0; i < AS_NLANE && lanes; i++)
         alt_seq.c[c].sdly[i] = alt_seq.c[c].srev[i] = 0;
     fm1_irq_on();
     afx_edit |= (uint8_t)(1u << c);              /* (the FX page: its DIST changed, SOUND *) */
@@ -1291,6 +1291,18 @@ static void alt_chaos(void)
         uint32_t pi = alt_rand_pre(), e = ALT_ENGS[ALT_PRE[pi].eng % ALT_NENG], ei;
         const engine_t *en = ENGINES[e];
         as_cfg_t *cf = &au.cfg[c];
+        as_circ_t *oc = &alt_seq.c[c];
+        uint32_t lk = oc->locks;                 /* (v0.68, Romain 11/11: CHAOS leaves alone what the circle's LOCKS keep) */
+        as_cfg_t old = *cf;
+        uint8_t ovel[AS_NLANE], och[2u * AS_NLANE], opit[AS_NLANE], orat[AS_NLANE];
+        for (k = 0; k < AS_NLANE; k++) {
+            ovel[k] = oc->svel[k];
+            och[k] = oc->chance[k];
+            och[k + AS_NLANE] = oc->chance[k + AS_NLANE];
+            opit[k] = (uint8_t)oc->spitch[k];
+            orat[k] = oc->srat[k];
+        }
+        if (!(lk & AS_LK_SOUND)) {
         alt_load_sound(c, pi);                   /* a sound of ours, then everything in it drawn */
         fm1_irq_off();
         for (k = 0; k < 8u; k++)                 /* the engine's eight, anywhere */
@@ -1318,12 +1330,16 @@ static void alt_chaos(void)
         alt_gate_left[c] = 0;
         fm1_irq_on();
         alt_preset_cnt[c]++;
+        }                                        /* (SOUND locked: the sound as it was) */
         ei = 5u + alt_cr(12u);                   /* the rhythm: LEN 5..16, anything in it, at once */
         cf->len = (uint8_t)ei;
         cf->hits = (uint8_t)(1u + alt_cr(ei));
         cf->rot = (uint8_t)alt_cr(ei);
         cf->frot = (uint8_t)alt_cr(ei);
         cf->prob = (uint8_t)(80u + alt_cr(48u));
+        cf->type = (uint8_t)alt_cr(AS_NTYPE);    /* (v0.68, Romain: EUCLID or TURING too, as CHAOS TOTAL) */
+        if (cf->type == AS_T_TURING)
+            alt_tur_draw(cf);
         cf->dose = 127;
         cf->chord = AS_CH_OFF;                   /* (le hasard : jamais d'accord, Romain 03/11) */
         cf->root = (uint8_t)(24u + alt_cr(37u)); /* C1 .. C4 */
@@ -1347,8 +1363,39 @@ static void alt_chaos(void)
             }
             alt_rat_draw(sc, pick & 32u ? 50u : 0u);   /* (RATCH: one step at most, a fifth of the circles) */
         }
-        alt_fx_zero(c);                          /* (v0.67, Romain 11/11: CHAOS clears every effect: DIST, INSERT, the sends,
-                                                  * the steps' DELAY and REVERB) */
+        if (lk & AS_LK_RHYTHM) {                 /* the LOCKS (v0.68): the rhythm, its kind (EUCLID / TURING) */
+            cf->type = old.type;
+            cf->hits = old.hits;
+            cf->rot = old.rot;
+            cf->frot = old.frot;
+            cf->prob = old.prob;
+            cf->tlock = old.tlock;
+            cf->tdens = old.tdens;
+            cf->trange = old.trange;
+        }
+        if (lk & AS_LK_LEN)
+            cf->len = old.len;
+        if (lk & (AS_LK_RHYTHM | AS_LK_LEN)) {   /* (a kept rhythm in a new length, or the other way: in range) */
+            cf->hits = (uint8_t)(cf->hits > cf->len ? cf->len : cf->hits);
+            cf->rot = (uint8_t)(cf->rot % (cf->len ? cf->len : 1u));
+            cf->frot = (uint8_t)(cf->frot % (cf->len ? cf->len : 1u));
+        }
+        if (lk & AS_LK_PITCH)
+            cf->root = old.root;
+        for (k = 0; k < AS_NLANE; k++) {
+            if (lk & AS_LK_VEL)
+                oc->svel[k] = ovel[k];
+            if (lk & AS_LK_CHANCE) {
+                oc->chance[k] = och[k];
+                oc->chance[k + AS_NLANE] = och[k + AS_NLANE];
+            }
+            if (lk & AS_LK_PITCH)
+                oc->spitch[k] = (int8_t)opit[k];
+            if (lk & AS_LK_RHYTHM)               /* (RATCH: the rhythm's, as the die has it) */
+                oc->srat[k] = orat[k];
+        }
+        alt_fx_zero(c, !(lk & AS_LK_THROW));     /* (v0.67, Romain 11/11: CHAOS clears every effect: DIST, INSERT, the sends,
+                                                  * the steps' DELAY and REVERB; v0.68: those throws kept if THROWS is locked) */
         alt_post_now |= (uint8_t)(1u << c);
         alt_post_circle(c);
         alt_roll_w[c] = AS_DW_ALL;
@@ -5088,6 +5135,7 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
             alt_chaos_req(b ? 2u : 1u);
         break;
     case 32: alt_sys[9] = (uint8_t)(b & ALT_RFX_ALL); break;   /* (a test, v0.66: the effects CHAOS TOTAL leaves alone) */
+    case 33: alt_seq.c[a % AS_NCIRC].locks = (uint8_t)b; break;   /* (a test, v0.68: circle a's LOCKS) */
     case 30:                                     /* (a test, v0.63: the screen's SPI divider, 2..8: lsb / (b + 1)) */
 #if !defined(FELUCCA_WEB) && !defined(HOSTSIM)
         if (b >= 2u && b <= 8u) {

@@ -215,7 +215,8 @@ check("trames étrangères ou fausses : aucune réponse", send([0xf0, 0x7d, 0x46
 
 // BLOB (10/11): the page's patch file = the whole scene: CHAOS TOTAL, read it out, NEW SCENE, write it back, play it
 {
-  const peekAll = () => [0, 1, 2].map((c) => [ex.web_alter_peek(c, 13) >>> 0, ex.web_alter_peek(c, 14) >>> 0, ex.web_alter_pat(c)].join(":")).join(" ");
+  const peekAll = () => [0, 1, 2].map((c) => (ex.web_alter_peek(c, 9) & 255) === 1 ? "TURING" :   // (a TURING moves on as it plays: its type only)
+    [ex.web_alter_peek(c, 13) >>> 0, ex.web_alter_peek(c, 14) >>> 0, ex.web_alter_pat(c)].join(":")).join(" ");
   one(req.act(0, ACT.TOTAL)); render(44100);
   const sn = one(req.blobSnap()), bytes = [];   // (its LEVELs: each circle's alignment folded in, as SAVE held)
   const was = peekAll(), stw = [0, 1, 2].map((c) => JSON.stringify(one(req.state(c))?.values));

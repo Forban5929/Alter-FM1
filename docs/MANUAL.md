@@ -121,8 +121,8 @@ The three DICE keys each draw for their own circle. What a die draws depends on 
 | OCT− + DICE | the VELO and CHANCE lanes, and a new LEN (5 to 16, mostly near 16) |
 | OCT+ + DICE | the PITCH lane and the throws into the delay and reverb |
 | DICE held 0.6 s | clean: back to the plain pattern, the draw undone |
-| OCT− + OCT+ + DICE | the circle's **LOCKS** page: lower keys 1-7 lock RHYTHM (hits, rotation, flams, ratchet), LENGTH, VELOCITY, CHANCE, PITCH, THROWS (delay / reverb), SOUND (what CHAOS changes on the sound: timbre, glide, envelope, force); a locked part is left alone by the dice and CHAOS; HOME: back |
-| DICE 1 + 2 + 3 | **CHAOS**: everything drawn on the three circles (timbre, glide and length per hit too), every effect switched off. Playing: the screen glitches and it lands on the 1 after a whole bar; again while it waits: cancelled |
+| OCT− + OCT+ + DICE | the circle's **LOCKS** page: lower keys 1-7 lock RHYTHM (hits, rotation, flams, ratchet), LENGTH, VELOCITY, CHANCE, PITCH, THROWS (delay / reverb), SOUND (what CHAOS changes on the sound: timbre, glide, envelope, force); a locked part is left alone by the dice and CHAOS (CHAOS TOTAL changes everything); HOME: back |
+| DICE 1 + 2 + 3 | **CHAOS**: everything drawn on the three circles (timbre, glide and length per hit too), every effect switched off, EUCLID or TURING drawn too; what the circle's LOCKS keep stays. Playing: the screen glitches and it lands on the 1 after a whole bar; again while it waits: cancelled |
 | CIRCLE 1 + 2 + 3 | **CHAOS TOTAL**: sounds, engines, modes, rhythms (EUCLID or TURING, LEN 5-16), all at random. Playing, the draw waits: the screen glitches and the new scene lands on the 1 after a whole bar (press again while it waits: cancelled). Stopped: at once. Again within 3 s of the draw: undone |
 
 What the dice drew is kept: save the scene and it comes back. SYSTEM › RANDOM (or **OCT− + HOME**, straight there) chooses

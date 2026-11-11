@@ -588,6 +588,13 @@ play();
   const ft = [0, 1, 2].map((c) => e2.web_alter_peek(c, 100 + P.DLY) === 31 + c && e2.web_alter_peek(c, 100 + P.REV) === 41 + c).every(Boolean);
   R2(FS * 4); e2.web_alter(32, 0, 0); e2.web_alter(22, 0, 0); R2(FS / 4);              // TOTAL, all drawn
   const fa = fx();
+  // v0.68 (Romain 11/11): CHAOS keeps what the LOCKS keep, and switches EUCLID / TURING
+  const rh = (c) => [e2.web_alter_peek(c, 9) & 0xFFFF, (e2.web_alter_peek(c, 12) >> 8) & 255].join("/");   // TYPE | LEN, HITS
+  e2.web_alter(33, 0, 32 | 4); e2.web_alter(33, 1, 0); e2.web_alter(33, 2, 0);   // circle 1: RHYTHM + LENGTH locked
+  const r0 = rh(0); let kept = 0, types = new Set();
+  for (let r = 0; r < 12; r++) { e2.web_alter(31, 0, 2); R2(FS / 4); kept += rh(0) === r0; types.add(e2.web_alter_peek(1, 9) & 255); types.add(e2.web_alter_peek(2, 9) & 255); }
+  e2.web_alter(33, 0, 0);
+  check(`CHAOS keeps a locked rhythm (${kept}/12 ${r0}) and draws EUCLID and TURING (${[...types].join(",")})`, kept === 12 && types.size === 2);
   check(`CHAOS clears every effect (${same}/4); TOTAL with DELAY + REVERB off keeps the sends (${ft}); with all on draws them (${fa})`,
         same === 4 && ft && fa !== f0);
 }
