@@ -272,7 +272,8 @@ static void fm1_main(void)
         ui_leds();
         ui_draw();
         felucca_dbg.stage = 9;
-        while (fm1_ms - m < 15u) {                               /* ~60 UI frames/s at most */
+        while (fm1_ms - m < (alt_gov ? 40u : 15u)) {             /* ~60 UI frames/s at most; ALTER v0.62: 25 when the
+                                                                  * sound is short of time (the safety net, fx.c alt_gov) */
             ui_input();
 #if FELUCCA_OTA
             lk_usb_service(0);                  /* the page's replies without waiting for the next frame */

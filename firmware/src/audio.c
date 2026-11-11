@@ -77,8 +77,60 @@ static uint32_t shed_count;
 
 /* end of a half: all = its ticks, TIMER5 nested in it included -> the render alone in us. The deadline sees
  * both; shed after 2 overloaded halves in a row (out of line: keeps the ISR's render loops as they were) */
+/* ALTER (v0.62, REFONTE 3, Romain: "l'écran puis les traînes"): the safety net, before a voice is cut or a half is late.
+ * Each half's load (the render and TIMER5 in it): above 80 % / 88 % / 93 % two halves in a row, one level up (fx.c alt_gov:
+ * 1 the screen slower, 2 the notes fading out end sooner, 3 the MASTER FILTER plain); a level kept 2 s, then one down
+ * if the load allows it. Felucca's shed (95 %) stays behind it, the last resort */
+#define GOV_HALF ((HALF_FRAMES * 1000000u / FS) * FM1_TICKS_PER_US)   /* a half, TIMER4 ticks */
+#define GOV_HOLD (2u * FS / HALF_FRAMES)                                /* 2 s of halves */
+static uint8_t gov_over;
+static uint16_t gov_hold, gov_tail;
+static __attribute__((noinline)) void alt_gov_half(uint32_t all)
+{
+    uint32_t want = all > GOV_HALF / 100u * 93u ? 3u : all > GOV_HALF / 100u * 88u ? 2u : all > GOV_HALF / 100u * 80u ? 1u : 0u;
+    uint32_t g = alt_gov;
+    if (want > g) {
+        if (++gov_over >= 2u) {
+            alt_gov = (uint8_t)(g + 1u);
+            alt_gov_ups++;
+            gov_over = 0;
+            gov_hold = GOV_HOLD;
+        }
+        return;
+    }
+    gov_over = 0;
+    if (want == g)
+        gov_hold = GOV_HOLD;
+    else if (gov_hold)
+        gov_hold--;
+    else {
+        alt_gov = (uint8_t)(g - 1u);
+        gov_hold = GOV_HOLD;
+    }
+}
+/* level 2: one note already released (its key up, fading out) ends over the next block, the quietest; one every 4 halves */
+static __attribute__((noinline)) void alt_gov_tail(void)
+{
+    uint32_t p, i;
+    voice_t *best = 0;
+    if (++gov_tail < 4u)
+        return;
+    gov_tail = 0;
+    for (p = 0; p < NPART; p++)
+        for (i = 0; i < NVOICE; i++) {
+            voice_t *v = &trk[p].v[i];
+            if (v->active && !v->gate && v->stage != 4u && (!best || v->env < best->env))
+                best = v;
+        }
+    if (best) {
+        voice_kill(best);
+        alt_gov_tails++;
+    }
+}
+
 static __attribute__((noinline)) uint32_t shed_check(uint32_t all)
 {
+    alt_gov_half(all);
     shed_over = (uint8_t)(shed_over << 1 | (all > SHED_TICKS));
     if ((shed_over & 3u) == 3u)
         shed_req = 1;
@@ -134,6 +186,8 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (bsp/chip/fm1_is
             shed_req = 0;
             shed_voice();
         }
+        else if (alt_gov >= 2u)
+            alt_gov_tail();                     /* (v0.62: the safety net's level 2) */
 #if FELUCCA_UAC
         uac_render_start();
 #endif

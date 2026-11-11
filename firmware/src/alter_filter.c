@@ -344,8 +344,8 @@ static __attribute__((noinline)) void afl_block(int32_t *l, int32_t *r, int32_t 
         n = AFL_NST * AFL_SUB;
     kT = afl_k_of(afl_p(AFL_RES));
     tT = afl_p(AFL_TYPE) * 258;
-    w24T = afl_p(AFL_SLOPE) ? 32768 : 0;
-    dv = afl_p(AFL_DRIVE);
+    w24T = afl_p(AFL_SLOPE) && alt_gov < 3u ? 32768 : 0;   /* (v0.62, the safety net's level 3: plain, 12 dB, */
+    dv = alt_gov < 3u ? afl_p(AFL_DRIVE) : 0;               /* no DRIVE; both glide there and back) */
     drvT = (int32_t)AFL_DRV[dv & 127];
     src = afl_p(AFL_SRC);
     mod = afl_p(AFL_MOD) - 64;

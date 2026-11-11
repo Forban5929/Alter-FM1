@@ -3867,13 +3867,15 @@ static void alt_cpu_line(void)
                                                    * cœur, W attente du 2e, X delay/chorus/reverb, F filtre, M master) */
         static const char L[APF_N] = {'P', 'W', 'X', 'F', 'M', 'C'};   /* (v0.54 : C = le travail du 2e cœur) */
         uint32_t k;
-        if (alt_cpu_cut) {                        /* (v0.53 : S voix effacées par la protection, L vrais trous ;
-                                                   * v0.54 : sur leur ligne) */
+        if (alt_cpu_cut || alt_gov) {             /* (v0.53 : S voix effacées par la protection, L vrais trous ;
+                                                   * v0.54 : sur leur ligne ; v0.62 : G le niveau du filet de sécurité) */
             n = 0;
             b[n++] = 'S';
             alt_cpu_num(b, &n, shed_count > 999u ? 999u : shed_count);
             b[n++] = ' ', b[n++] = 'L';
             alt_cpu_num(b, &n, alt_cpu_late > 999u ? 999u : alt_cpu_late);
+            b[n++] = ' ', b[n++] = 'G';
+            alt_cpu_num(b, &n, alt_gov);
             b[n] = 0;
             cv_text(9, 47, ALT_FS, b, ALT_RED);
         }

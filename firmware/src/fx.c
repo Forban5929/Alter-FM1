@@ -887,6 +887,11 @@ static __attribute__((noinline)) void track_insert(track_t *t, int32_t *b, uint3
 
 /* one block of the whole mix (shared with hostsim.c): events -> each part (with its modulation matrix)
  * -> dist -> INSERT -> SLICER -> level / pan / sends -> buses -> master; out: stereo Q15 */
+/* ALTER (v0.62, REFONTE 3, Romain 11/11: "l'écran puis les traînes"): the safety net's level, set by audio.c alt_gov_half
+ * from each half's load: 0 nothing; 1 the screen slows down (main.c); 2 the notes already fading out end sooner (audio.c);
+ * 3 the MASTER FILTER goes plain (no DRIVE, 12 dB: alter_filter.c). Back down by itself when the load is lower again */
+static volatile uint8_t alt_gov;
+static volatile uint32_t alt_gov_ups, alt_gov_tails;   /* (the bench: times it went up, notes ended sooner) */
 #include "alter_fx.c"                                   /* ALTER: the FX page's presets, the MASTER block, the duck */
 static void events_block(uint32_t n);                    /* seq.c */
 #if FELUCCA_CPU2

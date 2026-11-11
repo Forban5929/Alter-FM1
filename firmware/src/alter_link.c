@@ -980,6 +980,9 @@ static void lk_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         lk_b(fix_tk[1] / LK_BLK100 > 127u ? 127u : fix_tk[1] / LK_BLK100);
         for (k = 0; k < AS_NCIRC; k++)
             lk_b(trk[k].engine);
+        lk_b(alt_gov);                               /* (v0.62: the safety net's level, times up, notes ended sooner) */
+        lk_v((int32_t)(alt_gov_ups > 8000u ? 8000u : alt_gov_ups));
+        lk_v((int32_t)(alt_gov_tails > 8000u ? 8000u : alt_gov_tails));
         lk_send();
         return;
     case LKC_TEST:                                   /* op, a, b (5 x 7 bits each): alter_ui.c alt_web_cmd, the tests'
