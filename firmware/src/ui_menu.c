@@ -18,6 +18,12 @@
 enum { MC_TEXT, MC_TITLE, MC_URL };
 typedef struct { const char *text; uint8_t kind; } menu_credit_t;
 static const menu_credit_t MENU_CREDITS[] = {
+    {"ALTER", MC_TITLE},                     /* (v0.69, Romain 11/11: its author, what it owes, how it was made) */
+    {"By Forban5929 / GPL-3.0-only", MC_TEXT},
+    {"https://github.com/Forban5929/alter-fm1", MC_URL},
+    {"Inspired by Basimilus Iteritas (Noise Engineering); not affiliated with or endorsed by Noise Engineering", MC_TEXT},
+    {"Written with the help of Claude (Anthropic)", MC_TEXT},
+    {"", MC_TEXT},
     {"FELUCCA", MC_TITLE},                   /* what ALTER is built on */
     {"Leo Kuroshita, H\xFCgelton Instruments / GPL-3.0-only", MC_TEXT},
     {"https://github.com/hugelton/Felucca", MC_URL},
@@ -110,8 +116,8 @@ static int32_t menu_document(int32_t y, int draw)
         cv_text(6, y + 54, &AF_L, FELUCCA_VERSION, T_THEME);         /* (the version, big; built when, at the right) */
         cv_text_r(232, y + 60, &AF_S, __DATE__, T_MID, T_BG);
         cv_text_r(232, y + 74, &AF_S, __TIME__, T_MID, T_BG);
-        cv_text(6, y + 94, &AF_S, "Built on Felucca", T_TEXT);
-        cv_text(6, y + 112, &AF_S, "(C) 2026 Leo Kuroshita", T_TEXT);
+        cv_text(6, y + 94, &AF_S, "(C) 2026 Forban5929", T_TEXT);   /* (v0.69: ALTER's author; Felucca's below) */
+        cv_text(6, y + 112, &AF_S, "Built on Felucca (C) Leo Kuroshita", T_TEXT);
         cv_text(6, y + 130, &AF_S, "GPL-3.0-only", T_TEXT);
         cv_text(6, y + 150, &AF_S, "github.com/Forban5929", T_MID);
         cv_text(6, y + 168, &AF_S, "/alter-fm1", T_MID);

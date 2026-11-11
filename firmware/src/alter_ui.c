@@ -3447,13 +3447,13 @@ static void alt_sg_scene(void)
  *   RANDOM  which engines (ALTER PHYS NOISE RESO) the random's sounds may come from, which modes (FREE PERC STAB)
  *           CHAOS TOTAL may give: ON / OFF each (at least one stays on)
  *   ABOUT   Felucca's ABOUT / CREDITS document (ui_menu.c menu_document: the GPL-3.0 notices), SELECT scrolls it */
-enum { SYS_THEME, SYS_SMOOTH, SYS_CLOCK, SYS_MIDIIN, SYS_TRSSEEN, SYS_USBSEEN, SYS_NMIDI };   /* (SEEN: read only, 05/11;
+enum { SYS_THEME, SYS_SMOOTH, SYS_CLOCK, SYS_MIDIIN, SYS_TRSSEEN, SYS_USBSEEN, SYS_CPU, SYS_NMIDI };   /* (CPU METER: v0.69) */   /* (SEEN: read only, 05/11;
                                                   * SMOOTH 08/11: alt_sys[8], 0 = ON) */
 static const char *alt_set_text(uint32_t r);    /* (THEME: below) */
 static void alt_set_turn(uint32_t r, int32_t s);
 enum { SYS_TMIDI, SYS_TLEARN, SYS_TAUD, SYS_TRAND, SYS_TABOUT, SYS_NT };
 static const char *const SYS_TAB[SYS_NT] = {"SETUP", "LEARN", "AUDIO", "RANDOM", "ABOUT"};
-static const char *const SYS_MROW[SYS_NMIDI] = {"THEME", "SMOOTH", "CLOCK", "MIDI IN", "TRS SEEN", "USB SEEN"};
+static const char *const SYS_MROW[SYS_NMIDI] = {"THEME", "SMOOTH", "CLOCK", "MIDI IN", "TRS SEEN", "USB SEEN", "CPU METER"};
 static const uint8_t SYS_AROW[] = {MI_CLICK, MI_CLKLVL, MI_LOWCUT, MI_USB, MI_TUNE,   /* (COUNT-IN left 05/11: only
                                                   * Felucca's REC counted in) */
 #if FELUCCA_CPU2
@@ -3517,6 +3517,8 @@ static const char *alt_sys_text(uint32_t r)
         return alt_set_text(0);
     if (r == SYS_SMOOTH)
         return alt_sys[8] ? "OFF" : "ON";
+    if (r == SYS_CPU)
+        return alt_sys[10] ? "ON" : "OFF";
     if (r == SYS_CLOCK)
         return N_CLOCK[clamp(song.g[G_CLOCK], 0, (int32_t)NELEM(N_CLOCK) - 1)];
     if (r == SYS_TRSSEEN || r == SYS_USBSEEN) {  /* (Romain 05/11: "the TRS sees no MIDI"): what came in through each
@@ -3569,6 +3571,8 @@ static void alt_sys_turn(uint32_t r, int32_t s)
         return;                                  /* (it saves itself) */
     } else if (r == SYS_SMOOTH) {
         alt_sys[8] = (uint8_t)(d > 0 ? 0u : 1u);
+    } else if (r == SYS_CPU) {                   /* (v0.69, the 1.0's tidying: the CPU lines on PLAY, OFF by default) */
+        alt_sys[10] = (uint8_t)(d > 0 ? 1u : 0u);
     } else if (r == SYS_TRSSEEN || r == SYS_USBSEEN) {
         return;                                  /* (read only) */
     } else if (r == SYS_CLOCK) {
@@ -4204,7 +4208,8 @@ static void alt_scene(uint32_t q, uint32_t flash)
         cv_text_r(231 - text_w(ALT_FS, ALT_MODE_NAME[m]) - 6, 19, ALT_FS, e->name, ALT_DIM, ALT_BG);
         (void)x;
 #if ALTER_CPU_SHOW
-        alt_cpu_line();
+        if (alt_sys[10])                         /* (SYSTEM > SETUP > CPU METER, v0.69: OFF by default) */
+            alt_cpu_line();
 #endif
     }
     /* the circles, each a sigil: its ring, its hits joined (a square, a triangle, a star ..), its hits as marks: a
@@ -4879,7 +4884,7 @@ static void alter_draw(void)
             sig = sig * 31u + alm_sig();
     }
     if (au.mn == QP_SYS)
-        sig = sig * 31u + alt_sys_top * 5u + alt_sys_tab * 7u + alt_sys[1] * 11u + alt_sys[2] * 13u + alt_sys[8] * 3u + (uint32_t)song.g[G_CLOCK] * 17u +
+        sig = sig * 31u + alt_sys_top * 5u + alt_sys_tab * 7u + alt_sys[1] * 11u + alt_sys[2] * 13u + alt_sys[8] * 3u + alt_sys[10] * 19u + alt_sys[9] * 29u + (uint32_t)song.g[G_CLOCK] * 17u +
               (uint32_t)song.g[G_ROUTE] * 19u + (uint32_t)batt_shown() * 23u
 #if FELUCCA_CPU2
               + menu_get(MI_CPU2) * 29u
@@ -4902,7 +4907,8 @@ static void alter_draw(void)
           (uint32_t)song.g[G_BPM] * 13u + (au.msg && fm1_ms - au.msg_ms < 1500u ? (uint32_t)(uintptr_t)au.msg + (fm1_ms - au.msg_ms < 900u) : 1u);
     alt_fps_poll();
 #if ALTER_CPU_SHOW
-    alt_cpu_poll();
+    alt_cpu_poll();                              /* (measured whatever: the bench reads it) */
+    if (alt_sys[10])
     shead = shead * 31u + alt_t5_pct * 5u + apf_pct[0] * 7u + apf_pct[1] * 11u + apf_pct[2] * 13u + apf_pct[3] * 17u + apf_pct[4] * 19u + apf_pct[5] * 23u + alt_fps * 113u + alt_draw_ms * 127u + alt_cpu_avg * 101u + alt_cpu_pk * 103u + alt_cpu_cut * 107u + alt_cpu_c1 * 109u;   /* (version test : la charge CPU) */
 #endif
     ui.force = 1;                                /* (whatever comes after this view draws itself whole) */

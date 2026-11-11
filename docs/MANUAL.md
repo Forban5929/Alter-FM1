@@ -210,7 +210,8 @@ power-off, for every scene. CCs not linked keep the fixed map.
 **HOME held** opens SYSTEM; ALGORITHM chooses the tab, SELECT the row, KNOB 1 changes it.
 
 - **SETUP**: THEME (NIGHT / DAY), SMOOTH (the gold hand turns smoothly and the hits swell as they play), CLOCK, MIDI IN,
-  TRS SEEN / USB SEEN (the last MIDI each jack received: handy to check a cable).
+  TRS SEEN / USB SEEN (the last MIDI each jack received: handy to check a cable), CPU METER (OFF by default: the
+  processor's load and the screen's frames per second, top left of PLAY).
 - **LEARN**: MIDI learn (above).
 - **AUDIO**: CLICK, CLICK LEVEL, SPEAKER EQ, USB LEVEL, TUNE, 2ND CORE (uses the FM-1's second processor core for more
   headroom; from the next power-on).

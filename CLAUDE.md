@@ -30,7 +30,7 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
    **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v0.68 » (11/11) ; **+0.01 à CHAQUE envoi à Romain** (v0.42, v0.43…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v0.69 » (11/11) ; **+0.01 à CHAQUE envoi à Romain** (v0.42, v0.43…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. Pousser sur `etape-3d` → GitHub Actions construit le vrai firmware + publie https://forban5929.github.io/Alter-FM1/ (version
    dans /version.txt). Le cloud ne télécharge pas les artifacts ni le compilateur JieLi : **rien n'est mesuré sur la FM-1 depuis le cloud.**
@@ -74,7 +74,7 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   liste USER sur la 1re case vide ; **son USB** (Listen, Rec WAV, vumètre) ; taille AUTO d'après la fenêtre ; scroll thémé.
 - Mesures FM-1 connues : écran 28F 24MS (09/11, avant les dernières versions) ; CPU > 60 % avec 3 cercles + effets (09/11).
 
-## Où on en est (11/11, v0.68)
+## Où on en est (11/11, v0.69)
 **Retours de tests FM-1 (10/11, Sheet)** : tests 1-5 OK ; **CPU = problème n° 1** : 67/85 % 27F 31MS avec tous les effets,
 et avec 3 LFO + envois FX sur les pas : 18F 50MS, **CUT 393** (2C était actif). v0.51 (choix de Romain) : **MASTER FILTER simple façon Felucca** (1 étage TPT, coefficients 1 fois par bloc, sauf FM :
 tous les 8 ; RES max k = 0.12, ne crie plus ; presets SHERMAN → ENV WAH, SCREAM → PEAK ; MORPH A/B et les 11 réglages gardés,
@@ -171,6 +171,9 @@ couloirs de pas DELAY/REVERB (`alt_fx_zero`) ; TOTAL inchangé (tire les effets 
 RATCH ; LENGTH ; VELOCITY ; CHANCE ; PITCH = racine + couloir ; THROWS = couloirs de pas DELAY/REVERB gardés) et tire
 EUCLID ou TURING (`alt_tur_draw`) ; CHAOS TOTAL ignore toujours les LOCKS. Test op 33 = LOCKS d'un cercle. Test link BLOB :
 un cercle TURING comparé sur son type seul (il avance en jouant).
+**v0.69 (ménage 1.0, choix de Romain)** : lignes CPU cachées par défaut, **SYSTEM › SETUP › CPU METER** (`alt_sys[10]`,
+1 = affichées ; la mesure tourne toujours pour le banc) ; banc gardé (mesure + pilotage, test.html sans lien) ; ABOUT :
+« (C) 2026 Forban5929 », « Built on Felucca (C) Leo Kuroshita », crédits ALTER (Basimilus sans lien, écrit avec Claude).
 Banc : si le panneau latéral est fermé, ouvrir son propre onglet test.html (tabs_context createIfEmpty) et cliquer Connect
 par javascript (permission MIDI déjà accordée au site).
 Test ops ajoutés : web_alter 29 = HITS d'un cercle ; peek 16 = voix qui sonnent d'un cercle.
@@ -197,8 +200,7 @@ fichier patch entier, MIXER de la page, MIDI LEARN (BCR32), TRS MIDI (câble en 
    `main` rattrapé le 10/11 (avance rapide). RESTE : la Release v1.0 **après** les tests FM-1.
 5. **Documentation** : README réécrit pour ALTER + `docs/MANUAL.md` (anglais, 17 sections, d'après guide.html + le code)
    FAITS le 10/11 (v0.47). À tenir à jour avec guide.html. Reste : notes de version ; vidéo/audio de jam (Romain).
-6. **Ménage** : cacher la ligne CPU « nnF xxMS » (outil de test) ; retirer « VERSION TEST » de SMOOTH ; textes écran tous en
-   anglais ; page ABOUT à jour.
+6. ~~Ménage~~ **FAIT v0.69** (CPU METER, ABOUT, textes écran déjà en anglais).
 7. **Légal / politesse** : GPL + ABOUT déjà OK ; note sur l'aide de l'IA (comme Felucca) ; « inspiré de Basimilus », sans
    laisser croire à un lien avec Noise Engineering ; prévenir Leo Kuroshita (Felucca) avant l'annonce ; Issues GitHub ouvertes.
 
