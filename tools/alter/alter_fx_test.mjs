@@ -128,7 +128,7 @@ const dip = () => {
   W(4, BPM, 0); solo(1); render(FS);
   const back = dip();
   check(`USER 01 keeps the MASTER (pump ${ref.toFixed(2)}, FLAT ${flat.toFixed(2)}, loaded ${back.toFixed(2)})`,
-        Math.abs(back - ref) < 0.06 && flat - back > 0.08);
+        Math.abs(back - ref) < 0.06 && flat - back > 0.04);   // (v0.57: 0.08 -> 0.04, the echoes 1 block later move FLAT a little)
 }
 // the MASTER FILTER (alter_filter.c): off = untouched; LP takes the highs, HP the lows; DRIVE keeps the loudness;
 // RES at 127: a strong peak at the cutoff, but stable (v0.51: the simple filter never screams on silence); a USER scene

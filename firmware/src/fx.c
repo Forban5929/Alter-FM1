@@ -507,7 +507,8 @@ static int32_t part_buf[CTL];                            /* a part's block (mix_
  * cleared, the new one starts from silence */
 static __attribute__((noinline)) void rev_switch(const int32_t *rev_in, int32_t *wet, uint32_t n, int32_t rt)
 {
-    int32_t *t = part_buf, g = 65536, d = 65536 / (int32_t)n;
+    static int32_t t[CTL];                      /* (v0.57: its own, the buses run beside the parts) */
+    int32_t g = 65536, d = 65536 / (int32_t)n;
     uint32_t i;
     for (i = 0; i < n; i++)
         t[i] = 0;
@@ -983,6 +984,21 @@ static void tk_peak(uint32_t *p, uint32_t d)
     uint32_t c = *p - (*p >> 4);
     *p = d > c ? d : c;
 }
+static uint32_t apf_bus;
+/* ALTER (v0.57, REFONTE: the cores truly at once, measured on Romain's FM-1: the buses waited for every part) the delay,
+ * chorus and reverb run one block behind: on the last block's sends (fx_ps), into fx_wet, while this block's parts
+ * render; their output joins this block's dry mix. One block = 0.73 ms on the echoes only, the dry sound not moved.
+ * On the second core with its parts when it answers, else first here: always in the same order, the same samples */
+static int32_t fx_ps[3][CTL], fx_wet[CTL];
+static uint32_t fx_pn = CTL, bus_tk;
+static void bus_block(void)
+{
+    uint32_t t0 = ALT_PT();
+    fx_buses(fx_ps[0], fx_ps[1], fx_ps[2], fx_wet, fx_pn);
+    t0 = ALT_PT() - t0;
+    tk_peak(&bus_tk, t0);
+    apf_bus = t0;                                       /* (the CPU line's X, wherever it ran) */
+}
 #if FELUCCA_CPU2
 static uint16_t part_cost[NTRK];                        /* the last block's, per part */
 static const uint16_t ENG_VCOST[NENGINES] = {0, 0, 330, 330, 0, 0, 0, 0, 0, 309, 360, 134, 330, 0, 330};   /* (v0.54: CORDE RING PLATE were 0) */   /* PHYS RESO NOISE ALTER
@@ -1124,6 +1140,12 @@ static uint32_t c1_blocks;                              /* blocks the second cor
 
 #define MIX_PART_T(I, N, SM) do { uint32_t t_ = ALT_PT(); mix_part(&trk[I], N, SM); tk_peak(&part_tk[I], ALT_PT() - t_); } while (0)
 
+static void c1_parts(uint32_t arg);
+static void c1_job(uint32_t arg)                        /* the buses, then the parts */
+{
+    bus_block();
+    c1_parts(arg);                                      /* (no part too: it clears core 1's sums) */
+}
 static void c1_parts(uint32_t arg)                      /* arg: the parts (bit k = part k) | n << 8 */
 {
     uint32_t i, n = arg >> 8;
@@ -1144,11 +1166,11 @@ static void c1_parts(uint32_t arg)                      /* arg: the parts (bit k
  * parts, so they are no reason to give core 1 more; v0.54 counted them and sent nearly every part over, core 0 waiting) */
 static uint32_t split_load(uint32_t m, uint32_t all)
 {
-    uint32_t a = 0, i, c0;
+    uint32_t a = bus_tk, i, c0;                           /* (v0.57: the second core runs the buses too) */
     for (i = 0; i < NPART; i++)
         if (m >> i & 1u)
             a += part_tk[i];
-    c0 = all - a + (m ? C1_HAND_TK : 0u);
+    c0 = all - (a - bus_tk) + C1_HAND_TK;
     return c0 > a ? c0 : a;
 }
 static uint32_t mix_split(void)
@@ -1159,7 +1181,7 @@ static uint32_t mix_split(void)
     if (all) {                                          /* measured (the FM-1): any set of parts, all of them too */
         uint32_t cur;
         lo = split_load(0, all);
-        for (m = 1; m < (1u << NPART); m++) {
+        for (m = 1; m < (1u << NPART); m++) {   /* (0: the buses alone on core 1) */
             uint32_t w = split_load(m, all);
             if (w < lo) {
                 lo = w;
@@ -1232,20 +1254,22 @@ static void mix_block(int32_t *out, uint32_t n)
     perf = perf_begin(n);                               /* the FX hold layer at work (perform.c) */
     uint32_t pt0 = ALT_PT(), pt1, tk_own = 0, tk_wait = 0;
 #if FELUCCA_CPU2
-    uint32_t m = C1_ON() ? C1_SPLIT() & ((1u << NPART) - 1u) : 0u;
-    if (m && !C1_RUN(c1_parts, m | n << 8))
+    uint32_t m = C1_ON() ? C1_SPLIT() & ((1u << NPART) - 1u) : 0u, c1 = C1_ON() && C1_RUN(c1_job, m | n << 8);
+    if (!c1) {
         m = 0;
-    c1_blocks += m != 0;
+        bus_block();                                    /* (one core: the buses first, as the second core does) */
+    }
+    c1_blocks += c1;
     for (i = 0; i < NPART; i++)
         if (!(m >> i & 1u))
             MIX_PART_T(i, n, &mx[0]);
     pt1 = ALT_PT();
     apf_acc[APF_P] += pt1 - pt0;
     tk_own = pt1 - pt0;
-    if (m) {
+    if (c1) {
         const mixsum_t *sm = &mx[1];
-        if (C1_WAIT())                                  /* it stopped answering (held from now on): its parts here */
-            c1_parts(m | n << 8);
+        if (C1_WAIT())                                  /* it stopped answering (held from now on): its work here */
+            c1_job(m | n << 8);
         pt0 = ALT_PT();
         apf_acc[APF_W] += pt0 - pt1;
         tk_wait = pt0 - pt1;
@@ -1264,6 +1288,7 @@ static void mix_block(int32_t *out, uint32_t n)
     for (i = 0; i < NPART; i++)                         /* the LFOs' blocks, part by part (voice.c) */
         track_lfo_end(&trk[i]);
 #else
+    bus_block();
     for (i = 0; i < NPART; i++)                         /* (one core: as 1.6) */
         mix_part(&trk[i], n);
     pt1 = ALT_PT();
@@ -1271,7 +1296,14 @@ static void mix_block(int32_t *out, uint32_t n)
 #endif
     if (perf)
         perf_pre(mix_l, mix_r, send_d, send_r, n);
-    fx_buses(send_c, send_d, send_r, wet, n);
+    for (i = 0; i < n; i++) {                           /* the sends for the next block's buses; their output now */
+        fx_ps[0][i] = send_c[i];
+        fx_ps[1][i] = send_d[i];
+        fx_ps[2][i] = send_r[i];
+        wet[i] = fx_wet[i];
+    }
+    fx_pn = n;
+    apf_acc[APF_X] += apf_bus;
     if (hl.side)
         rev_side_mix(mix_l, mix_r, n);                  /* HALL: stereo */
     pt0 = ALT_PT();
