@@ -150,6 +150,9 @@ Mesure v0.63 sous charge : une image ≈ 22 ms = son 9-14 + attente LCD 7-10 + d
 l'ancienne règle « 28 ms depuis la dernière image » tombait 1 tour sur 2 = 25 img/s. **v0.64** : `alt_frame_due` (une image
 due toutes les 33 ms, 30/s en moyenne) pour SMOOTH et la vague LFO ; **LCD à 20 MHz** (lcd.c LCD_BAUD 2 ; Romain : écran
 propre à 20 MHz, testé à chaud au banc).
+Mesure v0.64 (banc, 8 pires scènes) : **25-29 img/s** (étaient 20-27), attente LCD 2-7 ms (7-10), pics 60-79 %, 0 trou, G0.
+Reste pour l'écran : le son prend ~10 ms de chaque image (même cœur) ; pistes : moins de pixels par image (kpx 5-9), double
+tampon (dessiner pendant l'envoi), dessin sur le 2e cœur (risqué).
 Banc : si le panneau latéral est fermé, ouvrir son propre onglet test.html (tabs_context createIfEmpty) et cliquer Connect
 par javascript (permission MIDI déjà accordée au site).
 Test ops ajoutés : web_alter 29 = HITS d'un cercle ; peek 16 = voix qui sonnent d'un cercle.
