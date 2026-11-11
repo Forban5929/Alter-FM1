@@ -1739,7 +1739,7 @@ static void acx_poll(void);                       /* (CHAOS waiting: done on its
 static int alter_ui_input(uint32_t pressed)
 {
     uint32_t keys, down, k, i, ours = alt_ours(), q, octs, both;
-    int32_t s;
+    int32_t s, s_sel = 0;
     acx_poll();                                  /* (CHAOS waiting for its bar line: each turn, whatever the screen does) */
     alm_poll();                                  /* MIDI LEARN: the settings moved, the keys and buttons held */
     pressed |= alm_bdown;
@@ -2003,8 +2003,8 @@ static int alter_ui_input(uint32_t pressed)
         (void)panel_enc(EN_ALGO);
         (void)panel_enc(EN_PRESET);
     }
-    if ((s = panel_enc(EN_SELECT)) != 0 && !au.lockc)
-        alt_select((uint32_t)((int32_t)au.sel + s + 3 * 16));
+    if ((s_sel = panel_enc(EN_SELECT)) != 0 && !au.lockc)
+        alt_select((uint32_t)((int32_t)au.sel + s_sel + 3 * 16));
     if ((s = panel_enc(EN_ALGO)) != 0 && !au.lockc) {   /* the chosen circle's envelope mode */
         alt_emode[au.sel] = (uint8_t)clamp((int32_t)alt_emode[au.sel] + (s > 0 ? 1 : -1), 0, (int32_t)AM_NSEL - 1);
         alt_say(ALT_MODE_NAME[alt_emode[au.sel]]);
@@ -2013,7 +2013,16 @@ static int alter_ui_input(uint32_t pressed)
         alt_preset_step(au.sel, s);
     down = keys & ~au.keys;
     if (au.lockc) {                              /* the LOCKS page: the keys are its seven locks */
-        as_circ_t *lc = &alt_seq.c[au.lockc - 1u];
+        as_circ_t *lc;
+        if (s_sel)                               /* (v0.73, Romain: SELECT or a CIRCLE key = another circle's LOCKS,
+                                                  * the page in its colour; the chosen circle follows) */
+            au.lockc = (uint8_t)((au.lockc - 1u + (uint32_t)(s_sel > 0 ? 1 : AS_NCIRC - 1)) % AS_NCIRC + 1u);
+        for (k = 0; k < 27u; k++)
+            if ((down >> k) & 1u && ALT_KEY[k].kind == AK_SEL)
+                au.lockc = (uint8_t)(ALT_KEY[k].arg + 1u);
+        if (au.sel != au.lockc - 1u)
+            alt_select(au.lockc - 1u);
+        lc = &alt_seq.c[au.lockc - 1u];
         for (i = 0; i < 7u; i++)
             if ((down >> ALT_LK_KEY[i]) & 1u)
                 lc->locks ^= ALT_LK_BIT[i];
@@ -2179,8 +2188,12 @@ static void alter_leds(uint8_t *nl, uint8_t *nd, uint8_t *nb, uint8_t *nm)
             led_put(nd, 14u + k, faint);
             continue;
         }
-        if (au.lockc) {                          /* the LOCKS page: a lock lit, a free one faint */
+        if (au.lockc) {                          /* the LOCKS page: a lock lit, a free one faint; its circle's key lit */
             uint32_t j;
+            if (a->kind == AK_SEL) {
+                lit = a->arg == au.lockc - 1u;
+                faint = !lit;
+            }
             for (j = 0; j < 7u; j++)
                 if (ALT_LK_KEY[j] == k) {
                     lit = (alt_seq.c[au.lockc - 1u].locks & ALT_LK_BIT[j]) != 0;
@@ -5109,6 +5122,8 @@ static int32_t alt_peek(uint32_t c, uint32_t w)
         return (int32_t)(au.cfg[c].type | au.cfg[c].len << 8 | au.cfg[c].tdens << 16 | (uint32_t)au.cfg[c].tlock << 24);
     if (w == 10u)
         return au.cfg[c].trange;
+    if (w == 18u)                                /* (v0.73: circle c's LOCKS | the LOCKS page open on circle + 1 << 8) */
+        return (int32_t)(alt_seq.c[c % AS_NCIRC].locks | (uint32_t)au.lockc << 8);
     if (w == 17u)                                /* (v0.66: CHAOS waiting: its kind | glitch on << 8 | playing << 9) */
         return (int32_t)(acx.kind | (uint32_t)acx.on << 8 | (uint32_t)song.playing << 9);
     if (w == 16u) {                              /* (v0.52: circle c's voices sounding, those fading out not counted) */

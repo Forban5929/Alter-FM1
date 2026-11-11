@@ -256,6 +256,23 @@ tap(10); bar();
                                                                 // with the test's own timing, 01/11)
   }
   K(1 << 7); render(FS * 0.7); K(0); render(1200);
+  // (v0.73) LOCKS page: SELECT and the CIRCLE keys move it to another circle; its keys then lock that one
+  {
+    const lk = (c) => ex.web_alter_peek(c, 18) >>> 0;
+    const was2 = lk(1) & 255, was3 = lk(2) & 255;
+    ex.web_buttons((1 << 12) | (1 << 13)); render(2000); tap(7); ex.web_buttons(0); render(2000);
+    const open1 = lk(0) >> 8;
+    enc(0, 1);
+    const open2 = lk(0) >> 8;
+    tap(0);                                                     // F3: RHYTHM on circle 2
+    tap(5);                                                     // CIRCLE 3 (black key)
+    const open3 = lk(0) >> 8;
+    tap(0);                                                     // RHYTHM on circle 3
+    check(`LOCKS page: opened on circle 1, SELECT → 2, CIRCLE 3 → 3 (${open1} ${open2} ${open3}); RHYTHM toggled on 2 and 3`,
+          open1 === 1 && open2 === 2 && open3 === 3 && ((lk(1) & 255) ^ was2) === 32 && ((lk(2) & 255) ^ was3) === 32);
+    tap(0); enc(0, -1); tap(0); enc(0, -1); B(6);               // (both put back, circle 1 chosen again, HOME)
+    check("LOCKS page closed, circles 2 and 3 as before", (lk(0) >> 8) === 0 && (lk(1) & 255) === was2 && (lk(2) & 255) === was3);
+  }
 }
 // ALGORITHM: circle 1's envelope mode (FREE PERC STAB; DRONE retired 04/11): PERC rings less than FREE; turned on,
 // it stops at STAB
