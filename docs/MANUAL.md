@@ -217,7 +217,9 @@ power-off, for every scene. CCs not linked keep the fixed map.
 - **AUDIO**: CLICK, CLICK LEVEL, SPEAKER EQ, USB LEVEL, TUNE, 2ND CORE (uses the FM-1's second processor core for more
   headroom; from the next power-on).
 - **RANDOM** (OCT− + HOME): which engines and envelope modes the random may use (at least one stays on); which effects CHAOS TOTAL may draw (ALL FX, DIST INSERT, DELAY, REVERB). CHAOS switches every effect off.
-- **ABOUT**: the version, the build date, the credits and licences.
+- **ABOUT**: the version, the build date, the credits and licences. After a crash, a **LAST CRASH** block (since power-on): how many, the last one's numbers, after how many seconds of play, and whether the second core was switched off.
+
+**If the FM-1 crashes**: a red screen for 1.5 s, then it restarts by itself with the scene that was playing (a copy is kept every 3 s in memory that survives a restart, not a power-off; press PLAY again). After a crash, the second core stays off until the next power-off (the sound runs on one core). A crash in the first seconds after a restart starts on the first scene instead, so a scene that makes it fall cannot loop.
 
 ## 15. The companion page
 

@@ -159,6 +159,12 @@ static void alt_post_circle(uint32_t i)
     alt_post |= (uint8_t)(1u << i);
 }
 
+#if !defined(FELUCCA_WEB) && !defined(HOSTSIM)
+static uint8_t boot_clean;                       /* (main.c: no crash, hang or failed boot before this start) */
+static int alt_crash_back(void) { return !boot_clean && !(fm1_crash.magic == FM1_CRASH_MAGIC && fm1_crash.early); }
+#else
+static int alt_crash_back(void) { return 0; }   /* (the browser never falls: test op 34) */
+#endif
 static void alt_say(const char *s)
 {
     au.msg = s;
@@ -1784,8 +1790,12 @@ static int alter_ui_input(uint32_t pressed)
         alt_select(song.sel < AS_NCIRC ? song.sel : 0u);
         alt_banks_load();                        /* the USER slots, from the flash */
         alt_sg_boot();                           /* SONG's slots and chain, from the flash */
-        alt_load_scene(0);                       /* power-on: the first scene */
+        if (!alt_crash_back() || !alt_live_back())
+            alt_load_scene(0);                   /* power-on: the first scene */
+        else
+            alt_say("CRASH: SCENE BACK");        /* (REFONTE 6: after a crash, the scene that played) */
     }
+    alt_live_keep();
     if (song.rec)                                /* (no recording in ALTER: an armed REC would count in and click) */
         song.rec = 0;
     alt_sg_sync();                               /* SONG: a slot taken, a chain written */
@@ -5165,6 +5175,14 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
         break;
     case 32: alt_sys[9] = (uint8_t)(b & ALT_RFX_ALL); break;   /* (a test, v0.66: the effects CHAOS TOTAL leaves alone) */
     case 33: alt_seq.c[a % AS_NCIRC].locks = (uint8_t)b; break;   /* (a test, v0.68: circle a's LOCKS) */
+    case 34:                                     /* (a test, v0.72: a = 1 the crash copy now, 2 taken back now) */
+        if (a == 1u) {
+            alt_live_ms = fm1_ms - 3000u;
+            if (fm1_ms >= 5000u)
+                alt_live_keep();
+        } else if (a == 2u && alt_live_back())
+            alt_say("CRASH: SCENE BACK");
+        break;
     case 30:                                     /* (a test, v0.63: the screen's SPI divider, 2..8: lsb / (b + 1)) */
 #if !defined(FELUCCA_WEB) && !defined(HOSTSIM)
         if (b >= 2u && b <= 8u) {

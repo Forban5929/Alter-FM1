@@ -897,6 +897,62 @@ static void alt_us_snap(alt_us_t *f, uint8_t *cs, uint8_t *dr)
     fm1_irq_on();
 }
 
+/* REFONTE 6 (v0.72): the scene that plays, kept every ~3 s in RAM that a crash or a watchdog reset leaves alone
+ * (.noinit, lost at power-off): after a crash the machine comes back with it instead of the first scene. Not after a
+ * crash in the first seconds (a scene that makes the machine fall again would loop: no copy until 5 s of play). */
+#define ALT_LIVE_MAGIC 0x4C495645u               /* "LIVE" */
+typedef struct {
+    uint32_t magic, sum;
+    alt_blob_t b;
+    int32_t g[AS_NCIRC];                         /* the circles' alignment gains (ac_tg) */
+} alt_live_t;
+#if !defined(FELUCCA_WEB) && !defined(HOSTSIM)
+alt_live_t alt_crs __attribute__((section(".noinit")));   /* (not static: see fm1_crash) */
+#else
+static alt_live_t alt_crs;
+#endif
+_Static_assert(sizeof(alt_live_t) <= 4096u, "alt_crs: NOINIT is small");
+static uint32_t alt_live_ms;
+static uint32_t alt_live_sum(void)
+{
+    const uint8_t *p = (const uint8_t *)&alt_crs.b;
+    uint32_t i, h = 2166136261u;
+    for (i = 0; i < sizeof alt_crs - 8u; i++)
+        h = (h ^ p[i]) * 16777619u;
+    return h;
+}
+/* the UI's loop: a copy now and then (the copy changes nothing that plays) */
+static void alt_live_keep(void)
+{
+    uint32_t c;
+    if (fm1_ms < 5000u || (uint32_t)(fm1_ms - alt_live_ms) < 3000u)
+        return;
+    alt_live_ms = fm1_ms;
+    alt_crs.magic = 0;                          /* (a crash in the middle: no half copy taken back) */
+    alt_us_get(&alt_crs.b.r);
+    alt_cs_get(alt_crs.b.cs);
+    fm1_irq_off();
+    alt_dr_pack(alt_crs.b.dr);
+    fm1_irq_on();
+    for (c = 0; c < AS_NCIRC; c++)
+        alt_crs.g[c] = ac_tg[c];
+    alt_crs.sum = alt_live_sum();
+    alt_crs.magic = ALT_LIVE_MAGIC;
+}
+/* at the start, after a crash: the copy back on the circles; 1 done */
+static int alt_live_back(void)
+{
+    uint32_t c;
+    if (alt_crs.magic != ALT_LIVE_MAGIC || alt_crs.sum != alt_live_sum())
+        return 0;
+    alt_crs.magic = 0;                          /* (taken once: fallen again before the next copy = the first scene) */
+    alt_us_apply(&alt_crs.b.r, alt_crs.b.cs, alt_crs.b.dr);
+    for (c = 0; c < AS_NCIRC; c++)
+        if (alt_crs.g[c] > 0 && alt_crs.g[c] <= 4 * AC_UNITY)
+            alt_cal_to(c, alt_crs.g[c]);
+    return 1;
+}
+
 /* SAVE tapped: load row i; 0 = nothing there */
 static int alt_row_load(uint32_t t, uint32_t i)
 {

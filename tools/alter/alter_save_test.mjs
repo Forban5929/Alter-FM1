@@ -78,6 +78,21 @@ const later = t.state();
 check("TURING frozen: still the same pattern 3 s later",
       before.every((s, c) => (s.r & 255) !== 1 || (later[c].tu & 0xFFFF) === (s.tu & 0xFFFF)));
 
+// REFONTE 6 (v0.72): the crash copy (RAM a reset leaves alone) brings back the scene that played, once
+{
+  const d = (u) => { const n = t.ex.web_alter_dump(u); return Array.from(new Uint8Array(t.ex.memory.buffer, t.ex.web_alter_dump_buf(), n)); };
+  t.ex.web_alter(34, 1, 0);                             // the copy now
+  t.ex.web_alter(24, 0, 2); t.w(500);                   // NEW SCENE (as the first scene after a restart)
+  check("crash copy: NEW SCENE took the draws away", t.state().every((s, c) => (s.r & 0xFFFF) !== (later[c].r & 0xFFFF) || s.h !== later[c].h));
+  t.ex.web_alter(34, 2, 0); t.w(400);                   // taken back
+  t.ex.web_alter(23, 3, 0);
+  const a1 = d(1), a3 = d(3), diff = [];
+  for (let i = 0; i < a1.length; i++) if (a1[i] !== a3[i]) diff.push(`${i}:${a1[i]}>${a3[i]}`);
+  check(`crash copy: the scene back, the same bytes (${diff.length ? diff.slice(0, 10).join(" ") : "all " + a1.length})`, diff.length === 0);
+  t.ex.web_alter(24, 0, 2); t.w(300); t.ex.web_alter(34, 2, 0); t.w(300);
+  check("crash copy: taken back once only", t.state().every((s) => (s.tu >> 17 & 1) === 0));
+  t.ex.web_alter(24, 1, 0); t.w(400);                   // (the scene of before, for the tests below)
+}
 // a scene stored without the draws (an older firmware's object) still loads: no draw, the rest as it was
 t.ex.web_alter(25, 2, 0);
 t.ex.web_alter(24, 0, 2); t.w(500); t.ex.web_alter(24, 2, 0); t.w(400);

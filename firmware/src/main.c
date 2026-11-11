@@ -42,8 +42,11 @@ static void fm1_fault(const fm1_crash_t *c)
     draw_text_line(10, 102, 220, &AF_M, b, UI_CRASH_INK, UI_CRASH_BG, 0);
     hexs(b, c->rets);
     draw_text_line(10, 120, 220, &AF_M, b, UI_CRASH_INK, UI_CRASH_BG, 0);
-    t0 = fm1_ticks();
-    while ((uint32_t)(fm1_ticks() - t0) < 4000u * 1000u * FM1_TICKS_PER_US)
+    draw_text_line(0, 170, 240, &AF_M, alt_crs.magic == ALT_LIVE_MAGIC ? "RESTART, SCENE KEPT" : "RESTART",
+                   UI_CRASH_INK, UI_CRASH_BG, 1);
+    t0 = fm1_ticks();                                 /* (v0.72: 1.5 s, was 4: back on stage sooner; SYSTEM > ABOUT keeps
+                                                       * the numbers until power-off) */
+    while ((uint32_t)(fm1_ticks() - t0) < 1500u * 1000u * FM1_TICKS_PER_US)
         ;
     fm1_reboot();
 }

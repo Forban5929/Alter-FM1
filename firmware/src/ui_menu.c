@@ -101,6 +101,66 @@ static void flash_id_text(char *b)                 /* "0xXXXXXX" (9 bytes) */
     b[8] = 0;
 }
 
+/* REFONTE 6 (v0.72): the last crash since power-on (fm1_crash, .noinit: power-off forgets it), to report it */
+static void hex_text(char *b, uint32_t v, uint32_t n)   /* n digits, "0x" first (n + 3 bytes) */
+{
+    uint32_t i;
+    b[0] = '0'; b[1] = 'x';
+    for (i = 0; i < n; i++)
+        b[2 + i] = "0123456789ABCDEF"[(v >> (4u * (n - 1u - i))) & 15u];
+    b[2 + n] = 0;
+}
+static void dec_text(char *b, uint32_t v)            /* up to 10 digits (11 bytes) */
+{
+    char t[11];
+    uint32_t n = 0, i;
+    do { t[n++] = (char)('0' + v % 10u); v /= 10u; } while (v && n < 10u);
+    for (i = 0; i < n; i++)
+        b[i] = t[n - 1u - i];
+    b[n] = 0;
+}
+static int32_t menu_crash(int32_t y, int draw)
+{
+    char l[48], h[12];
+    uint32_t n, k;
+    int hang = 0, off = 0;
+    n = 0;
+#if !defined(FELUCCA_WEB) && !defined(HOSTSIM)                     /* (the browser's machine never falls) */
+    n = fm1_crash.magic == FM1_CRASH_MAGIC ? fm1_crash.count : 0u;
+    hang = (fm1_boot.p3_rst & 4u) != 0;
+#if FELUCCA_CPU2
+    off = fm1_cpu1_barred();
+#endif
+#endif
+    if (!n && !hang && !off)
+        return y;
+#if !defined(FELUCCA_WEB) && !defined(HOSTSIM)
+    y = menu_text("LAST CRASH (SINCE POWER-ON)", y + 12, T_THEME, draw);
+    if (n) {
+        dec_text(l, n);
+        k = str_len(l);
+        memcpy(l + k, n > 1u ? " CRASHES, LAST: VEC " : " CRASH: VEC ", n > 1u ? 21u : 13u);
+        k = str_len(l);
+        dec_text(l + k, fm1_crash.vec);
+        k = str_len(l);
+        memcpy(l + k, " PC ", 5u);
+        hex_text(h, fm1_crash.pc, 8u);
+        memcpy(l + str_len(l), h, 11u);
+        y = menu_text(l, y, T_TEXT, draw);
+        memcpy(l, "AFTER ", 7u);
+        dec_text(l + 6, fm1_crash.uptime_ms / 1000u);
+        k = str_len(l);
+        memcpy(l + k, " S OF PLAY. SCENE KEPT", 23u);
+        y = menu_text(l, y, T_TEXT, draw);
+    }
+#endif
+    if (hang)
+        y = menu_text("LAST START: WATCHDOG (A HANG)", y, T_TEXT, draw);
+    if (off)
+        y = menu_text("2ND CORE OFF UNTIL POWER-OFF", y, T_TEXT, draw);
+    return y;
+}
+
 static int32_t menu_document(int32_t y, int draw)
 {
     uint32_t i;
@@ -132,6 +192,7 @@ static int32_t menu_document(int32_t y, int draw)
         if (!text[0]) y += 8;
         else y = menu_text(text, y, c->kind == MC_TITLE ? T_THEME : c->kind == MC_URL ? T_MID : T_TEXT, draw);
     }
+    y = menu_crash(y, draw);
     y = menu_text("LICENSES + SOURCE", y + 12, T_THEME, draw);
     y = menu_text("ALTER and Felucca: GPL-3.0-only; Felucca-Engines MIT; felucca-bsp MPL-2.0", y, T_TEXT, draw);
     y = menu_text("Fonts and icons: their licences travel with the source and the release files.", y, T_TEXT, draw);

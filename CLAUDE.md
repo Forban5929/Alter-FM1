@@ -27,10 +27,10 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
    - Syntaxe FM-1 : `clang --target=wasm32 -fsyntax-only -std=gnu99 -w -Werror=implicit-function-declaration -Werror=undefined-internal -nostdlibinc -isystem tools/alter/wasm/include -isystem $(clang -print-resource-dir)/include -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Ifirmware/bsp/chip -Ifirmware/bsp/boards/fm1 firmware/src/felucca.c`
 3. Outils : `alter_render.mjs wasm DIR` (WAV + niveaux de tous les sons), `alter_shot.mjs wasm DIR "w:500 B:GLO+ w:700 B:GLO- s:nom"`
    (captures), `alter_knob_probe.mjs`. Ops de test `web_alter` : liste en tête de `alt_web_cmd` (alter_ui.c) ;
-   **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
+   **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v0.71 » (11/11) ; **+0.01 à CHAQUE envoi à Romain** (v0.42, v0.43…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v0.72 » (11/11) ; **+0.01 à CHAQUE envoi à Romain** (v0.42, v0.43…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. Pousser sur `etape-3d` → GitHub Actions construit le vrai firmware + publie https://forban5929.github.io/Alter-FM1/ (version
    dans /version.txt). Le cloud ne télécharge pas les artifacts ni le compilateur JieLi : **rien n'est mesuré sur la FM-1 depuis le cloud.**
@@ -74,7 +74,7 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   liste USER sur la 1re case vide ; **son USB** (Listen, Rec WAV, vumètre) ; taille AUTO d'après la fenêtre ; scroll thémé.
 - Mesures FM-1 connues : écran 28F 24MS (09/11, avant les dernières versions) ; CPU > 60 % avec 3 cercles + effets (09/11).
 
-## Où on en est (11/11, v0.71)
+## Où on en est (11/11, v0.72)
 **Retours de tests FM-1 (10/11, Sheet)** : tests 1-5 OK ; **CPU = problème n° 1** : 67/85 % 27F 31MS avec tous les effets,
 et avec 3 LFO + envois FX sur les pas : 18F 50MS, **CUT 393** (2C était actif). v0.51 (choix de Romain) : **MASTER FILTER simple façon Felucca** (1 étage TPT, coefficients 1 fois par bloc, sauf FM :
 tous les 8 ; RES max k = 0.12, ne crie plus ; presets SHERMAN → ENV WAH, SCREAM → PEAK ; MORPH A/B et les 11 réglages gardés,
@@ -184,6 +184,12 @@ le dé (`as_repat`) ; le bouton HITS affiche les coups qui jouent. Page d'instal
 Banc : si le panneau latéral est fermé, ouvrir son propre onglet test.html (tabs_context createIfEmpty) et cliquer Connect
 par javascript (permission MIDI déjà accordée au site).
 Test ops ajoutés : web_alter 29 = HITS d'un cercle ; peek 16 = voix qui sonnent d'un cercle.
+**v0.72 (REFONTE 6, Romain : filet du plantage)** : le repli sur 1 cœur existait déjà (Felucca `FM1_CPU1_FALLBACK` :
+plantage avec le 2e cœur actif → 2e cœur barré jusqu'à l'extinction). Ajouté : **copie de la scène jouée toutes les 3 s**
+(alter_store.c `alt_crs` en `.noinit`, 1868 o, somme FNV ; pas avant 5 s de jeu ; reprise une seule fois) → au démarrage
+après plantage/chien de garde (`boot_clean` de main.c, pas si `fm1_crash.early`) la scène revient (« CRASH: SCENE BACK »,
+transport arrêté) ; écran rouge 1,5 s (était 4) + « RESTART, SCENE KEPT » ; ABOUT : bloc **LAST CRASH** (nombre, VEC, PC,
+secondes de jeu, chien de garde, 2e cœur coupé). Test op 34 (a 1 = copie, 2 = reprise) ; alter_save_test. **Pas vérifié sur la FM-1.**
 LOCKS refaits en v0.48 (7 verrous
 = les dés : RHYTHM LENGTH VELOCITY CHANCE PITCH THROWS SOUND ; bits 1 2 32 gardés, anciens 4 8 16 64 relus LEN CHANCE SOUND
 THROWS) ; UPDATE (OCT− + OCT+ 5 s) seulement s'ils sont tenus SEULS (main.c `combo`, pas testable dans l'émulateur).
@@ -207,7 +213,7 @@ fichier patch entier, MIXER de la page, MIDI LEARN (BCR32), TRS MIDI (câble en 
    `main` rattrapé le 10/11 (avance rapide). RESTE : la Release v1.0 **après** les tests FM-1.
 5. **Documentation** : README réécrit pour ALTER + `docs/MANUAL.md` (anglais, 17 sections, d'après guide.html + le code)
    FAITS le 10/11 (v0.47). À tenir à jour avec guide.html. Reste : notes de version ; vidéo/audio de jam (Romain).
-6. ~~Ménage~~ **FAIT v0.69** (CPU METER, ABOUT, textes écran déjà en anglais).
+6. ~~Ménage~~ **FAIT v0.69** ; filet du plantage **FAIT v0.72** (CPU METER, ABOUT, textes écran déjà en anglais).
 7. **Légal / politesse** : GPL + ABOUT déjà OK ; note sur l'aide de l'IA (comme Felucca) ; « inspiré de Basimilus », sans
    laisser croire à un lien avec Noise Engineering ; prévenir Leo Kuroshita (Felucca) avant l'annonce ; Issues GitHub ouvertes.
 
