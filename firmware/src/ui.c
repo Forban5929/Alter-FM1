@@ -248,7 +248,10 @@ static const uint8_t SCR_CODE[5] = {0, 2, 1, 4, 7};    /* the stored byte of NEV
 static const uint8_t SCR_DEC[8] = {0, 2, 1, 0, 3, 0, 0, 4};   /* .. and back (3: 1.1.5's NEVER; 5, 6 unknown) */
 #define SCR_EAT_MS 300u
 static const uint8_t SCR_MIN[5] = {0, 5, 15, 30, 60};  /* NEVER, minutes */
-enum { SCR_ON, SCR_OFF, SCR_WAKE, SCR_SLPOUT, SCR_SHOW };
+enum { SCR_ON, SCR_OFF, SCR_WAKE, SCR_SLPOUT, SCR_SHOW, SCR_SEAL };   /* SEAL (ALTER v0.74): the seal breathing, before dark */
+static void alt_seal_frame(uint32_t ms);              /* (alter_ui.c) */
+static uint8_t alt_redraw_all;                         /* (alter_ui.c alter_draw: the whole view drawn again, once) */
+#define ALT_SEAL_MS 60000u                             /* (alter_ui.c too: the seal's minute, then dark) */
 static struct {
     uint8_t st;                  /* SCR_*: SCR_WAKE asked, SCR_SLPOUT sent, SCR_SHOW the frame that redraws */
     uint8_t eat;                 /* the wake gesture: panel input swallowed (ui_input) */
@@ -267,6 +270,11 @@ static void scr_put(uint32_t v)                        /* (the time counts from 
 }
 static void scr_wake(void)
 {
+    if (scrn.st == SCR_SEAL) {                         /* (the seal: the panel is still on, the page back at once) */
+        scrn.st = SCR_SHOW;
+        ui.force = 1;
+        alt_redraw_all = 1;
+    }
     if (scrn.st == SCR_OFF)
         scrn.st = SCR_WAKE;
     scrn.eat = 1;
@@ -293,6 +301,8 @@ static int scr_input(uint32_t pressed, uint32_t notes)
         scrn.idle = fm1_ms;
         if (scrn.st == SCR_OFF)
             scrn.st = SCR_WAKE;
+        if (scrn.st == SCR_SEAL)
+            scr_wake();
     }
     if (scrn.st == SCR_ON && !scrn.eat)
         return 0;
@@ -322,11 +332,20 @@ static int scr_frame(void)
     case SCR_ON:
         if (!lim || (int32_t)(fm1_ms - scrn.idle) < (int32_t)lim)   /* (signed: robust to a wrap) */
             return 1;
-        lcd_power(0);
-        scrn.st = SCR_OFF;
+        scrn.st = SCR_SEAL;                            /* (ALTER v0.74: the seal breathing a minute first) */
         scrn.t = fm1_ms;
         scrn.eat = 1;
         kb_asleep = 1;
+        alt_seal_frame(0);
+        break;
+    case SCR_SEAL:
+        if (fm1_ms - scrn.t < ALT_SEAL_MS) {
+            alt_seal_frame(fm1_ms - scrn.t);
+            break;
+        }
+        lcd_power(0);
+        scrn.st = SCR_OFF;
+        scrn.t = fm1_ms;
         break;
     case SCR_WAKE:
         if (fm1_ms - scrn.t >= 120u) {

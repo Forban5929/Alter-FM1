@@ -1,6 +1,10 @@
 # ALTER — manual
 
-Firmware for the M-VAVE FM-1 · test versions v0.4x (the version is shown at power-on and in SYSTEM › ABOUT).
+Firmware for the M-VAVE FM-1 · test versions v0.7x (the version is shown at power-on and in SYSTEM › ABOUT).
+
+**Power-on**: a short animation (~1.5 s): the three circles engraved in gold, the gold hand turns once and gives them their colours, ALTER appears on its ribbon; the keys light as the hand passes. Any key or button skips it. After a crash it is skipped.
+
+**Screen asleep** (SYSTEM › SETUP › SCREEN OFF, if set): the three circles breathe, very dark, for a minute, then the screen goes really dark. Any key or button wakes it (that press does nothing else).
 The one-page [controls guide](https://forban5929.github.io/Alter-FM1/editor/guide.html) has drawings of every gesture;
 this manual says the same in words, with a little more about each page.
 

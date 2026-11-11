@@ -260,7 +260,7 @@ static void cdc_task(void) {}
 #undef usb_detach
 
 /* --------------------------------------------------------- the device --- */
-static uint32_t web_booted, web_boot_ms, web_last_frame;
+static uint32_t web_booted, web_boot_ms, web_last_frame, web_splash_t0, web_splash_due;
 
 /* main.c fm1_main's boot, up to the main loop (no USB, no UART, no panel setup) */
 static void web_power_on(void)
@@ -280,7 +280,8 @@ static void web_power_on(void)
     kb_boot_hold = 1;                     /* main.c (#137): the keys silent under the splash */
     audio_init();
     boot_leds();                          /* main.c: the power-on LED sweep, from the scan's start */
-    web_boot_ms = fm1_ms + 430u;         /* main.c: 30 + 400 ms before the first frame */
+    web_boot_ms = fm1_ms + 30u + (boot_clean ? ALT_SPLASH_MS : 0u) + 300u;   /* main.c: 30 ms, then alt_boot_splash */
+    web_splash_t0 = fm1_ms + 30u;
     web_booted = 1;
 }
 
@@ -321,7 +322,23 @@ static void web_ms(void)
         }
         web_half ^= 1u;
     }
-    if (!web_booted || (int32_t)(fm1_ms - web_boot_ms) < 0)
+    if (web_booted && (int32_t)(fm1_ms - web_boot_ms) < 0) {   /* main.c alt_boot_splash: the animation, its LEDs */
+        uint32_t ms = (int32_t)(fm1_ms - web_splash_t0) < 0 ? 0u : fm1_ms - web_splash_t0;
+        if (ms > ALT_SPLASH_MS)
+            ms = ALT_SPLASH_MS;
+        if (ms > 150u && (fm1_in.buttons | fm1_in.notes)) {   /* (main.c: any key or button skips it) */
+            web_boot_ms = fm1_ms;
+            return;
+        }
+        if ((int32_t)(fm1_ms - web_splash_due) >= 0 && (int32_t)(fm1_ms - web_splash_t0) >= 0) {
+            web_splash_due = fm1_ms + 33u;
+            alt_splash_draw(ms);
+            if (boot_anim)
+                alt_splash_leds(ms, settings_leds == LEDS_DIM || settings_leds == LEDS_DIM_LO);
+        }
+        return;
+    }
+    if (!web_booted)
         return;
     if (web_boot_ms) {                                    /* main.c: the splash goes, the loop starts */
         web_boot_ms = 0;

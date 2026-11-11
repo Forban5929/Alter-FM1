@@ -85,6 +85,7 @@ static void felucca_init(void)
  * reset), a hang (a WDT reset) or a failed boot (bootguard: the last one died within its first 30 s): straight to the
  * UI. The UBOOT paths never get here. */
 static uint32_t crash_seen __attribute__((section(".noinit")));   /* fm1_crash.count at the last boot */
+static uint8_t boot_anim;                     /* (v0.74) the power-on LEDs: ALTER's, with the splash */
 static uint8_t boot_clean;                    /* no crash, hang (WDT) or failed boot before this one (boot_leds):
                                                * the sweep runs */
 static void boot_leds(void)
@@ -94,8 +95,32 @@ static void boot_leds(void)
     crash_seen = fm1_crash.count;
     boot_clean = !crashed && !bootguard.failed && !(fm1_boot.p3_rst & 4u);
     fm1_led_dim_level(settings_leds == LEDS_DIM_LO);
-    if (boot_clean && !(ui_prefs & PREF_ANIM_OFF))
-        fm1_led_anim_start(settings_leds == LEDS_DIM || settings_leds == LEDS_DIM_LO);
+    boot_anim = boot_clean && !(ui_prefs & PREF_ANIM_OFF);   /* (v0.74: ALTER's own, with the splash: alt_splash_leds;
+                                                    * Felucca's sweep, fm1_led_anim_start, no more) */
+}
+
+/* v0.74 (Romain): the power-on animation (alter_ui.c alt_splash_draw, ~1.5 s) and its LEDs; any key or button skips it.
+ * After a crash or a hang: its last picture at once (back on stage sooner). Returns when the UI may start */
+static void alt_boot_splash(void)
+{
+    uint32_t t0 = fm1_ms, d = boot_clean ? ALT_SPLASH_MS : 0u, ms, done = 0;
+    int glow = settings_leds == LEDS_DIM || settings_leds == LEDS_DIM_LO;
+    for (;;) {
+        ms = fm1_ms - t0;
+        if (!done) {
+            alt_splash_draw(ms < d ? ms : ALT_SPLASH_MS);
+            done = ms >= d;
+        }
+#if !defined(HOSTSIM)
+        if (boot_anim)
+            alt_splash_leds(ms < d ? ms : ALT_SPLASH_MS, glow);
+#endif
+        fm1_delay_ms(done ? 10u : 1u);
+        fm1_wdt_feed();
+        master_poll();
+        if (ms >= d + 300u || (ms > 150u && (fm1_in.buttons | fm1_in.notes)))
+            break;
+    }
 }
 
 static void fm1_main(void)
@@ -167,11 +192,14 @@ static void fm1_main(void)
         draw_text_box(0, 192, 240, &AF_S, "PLEASE REPORT THIS ID", T_DIM, 1);
         lcd_sync();
     }
-    for (ms = 0; ms < (flash_unknown ? 6000u : 400u); ms += 10u) {   /* the splash; the pot followed (MIDI IN under it) */
-        fm1_delay_ms(10);
-        fm1_wdt_feed();
-        master_poll();
-    }
+    if (flash_unknown)
+        for (ms = 0; ms < 6000u; ms += 10u) {    /* the unknown flash said; the pot followed (MIDI IN under it) */
+            fm1_delay_ms(10);
+            fm1_wdt_feed();
+            master_poll();
+        }
+    else
+        alt_boot_splash();                     /* (v0.74: the animation, ~1.5 s, any key skips it) */
     kb_boot_hold = 0;
     lcd_fill(0, 0, 240, 240, T_BG);
     scrn.idle = fm1_ms;                        /* (MENU > SCREEN OFF: from here) */

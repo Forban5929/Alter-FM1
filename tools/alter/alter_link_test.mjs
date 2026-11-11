@@ -10,7 +10,7 @@ const { instance } = await WebAssembly.instantiate(wasm, {});
 const ex = instance.exports, mem = ex.memory;
 ex._initialize(); ex.web_nor_erase(); ex.web_boot();
 const render = (n) => { for (let k = 0; k < n; k += 128) ex.web_render(Math.min(128, n - k)); };
-render(44100);
+render(44100 * 2);   /* (v0.74: the power-on animation, ~1.8 s) */
 const out = () => {
   const n = ex.web_link_out_n(), b = Array.from(new Uint8Array(mem.buffer, ex.web_link_out(), n));
   ex.web_link_out_clear();

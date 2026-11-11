@@ -3,7 +3,7 @@
 // The browser build (build/emu/felucca.wasm, web/emu/felucca_web.c) in Node, as the worklet runs it. After X0X's
 // tests/host/emu_test.mjs (charlesvestal/fm1-x0x, GPL-3.0).
 //   node web/emu/emu_test.mjs build/emu/felucca.wasm [NATIVE.f32]
-// Checks: it boots (splash, then HOME on the screen, the HOME LED; the power-on LED sweep under the splash, over by
+// Checks: it boots (splash, then HOME on the screen, the HOME LED; ALTER's power-on LEDs under the splash (v0.74; was the sweep), over by
 // 1 s), a held key sounds and lights its LED, PLAY
 // starts the sequencer (PLAY's green LED), a user preset saved from the panel (SAVE, OCT+, OCT+) reaches the flash,
 // and the flash sectors kept as the page keeps them bring it back in a fresh instance; the same gestures twice
@@ -56,17 +56,13 @@ const colours = (fb) => new Set(fb).size;
 const a = await device(null);
 a.render(200);
 const splash = colours(a.screen());
-{ // the power-on LED sweep (bsp/boards/fm1/fm1_led_anim.h) under the splash: at 200 ms its head on the middle of the keyboard, the
-  // keys it passed glowing (DIM HI), the ones ahead dark, the buttons not yet; the UI's LEDs untouched until it ends
-  const p = a.ex.web_anim_levels(), lv = p ? Array.from(new Uint8Array(a.mem.buffer, p, 41)) : [];
-  const keys = lv.slice(14), head = keys.indexOf(Math.max(...keys.map((q) => q & 127)) | 128);
-  check(`power-on LED sweep: at 200 ms the head on key ${head}, glow behind, dark ahead, buttons dark`,
-        lv.length === 41 && head >= 8 && head <= 18 && keys.slice(0, head - 6).every((q) => q === 128) &&
-        keys.slice(head + 3).every((q) => q === 0) && lv.slice(0, 14).every((q) => q === 0) &&
-        a.ex.web_lit_keys() === 0 && a.ex.web_lit_buttons() === 0);
+{ // ALTER v0.74: its own power-on LEDs (alter_ui.c alt_splash_leds) under the animation: at 700 ms the hand half way,
+  // some keys lit, the buttons dark; Felucca's sweep no more
+  a.render(500);
+  check(`power-on (ALTER): at 700 ms keys lit by the hand (${a.ex.web_lit_keys().toString(2)}), buttons dark, no Felucca sweep`,
+        a.ex.web_lit_keys() !== 0 && a.ex.web_lit_buttons() === 0 && a.ex.web_anim_levels() === 0);
 }
-a.render(800);
-check("  over by 1 s (~0.70 s)", a.ex.web_anim_levels() === 0);
+a.render(1300);
 const home = a.screen();
 check(`boots: the splash, then HOME (${colours(home)} colours), the HOME LED lit`,
       splash > 1 && colours(home) > 4 && (a.ex.web_lit_buttons() >> B.HOME & 1) === 1);
@@ -151,8 +147,8 @@ check("a fresh instance with the kept sectors has it; one without does not",
         ["bin", "twos", "sign"].every((m) => k(MASTER_CC, 0, m).master === 0 && k(MASTER_CC, 127, m).master === 1023) &&
         k(20, 65, "bin").role === EN.SELECT && k(26, 65, "bin").role === EN.K4 && k(19, 65, "bin") === null);
   const t = await device(null), u = await device(null);             // u: left alone
-  t.render(1200);
-  u.render(1200);
+  t.render(2200);   // (v0.74: the power-on animation)
+  u.render(2200);
   t.render(40);
   t.turn(EN.PRESETS, 3);
   t.render(300);
@@ -160,7 +156,7 @@ check("a fresh instance with the kept sectors has it; one without does not",
   const ts = t.screen(), us = u.screen();
   for (const [mode, vs] of [["abs", [64, 65, 66, 67]], ["bin", [65, 65, 65]], ["twos", [1, 1, 1]], ["sign", [1, 1, 1]]]) {
     const m = await device(null), knob = [];                   // a controller's knob: three detents
-    m.render(1200);
+    m.render(2200);
     for (const v of vs) {
       const r = midiKnob(knob, cc, v, mode);
       if (r.n) m.ex.web_enc(r.role, r.n);

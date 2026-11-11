@@ -4802,6 +4802,147 @@ static void acx_glitch(uint32_t amp)
                     cv_px[yy * w + x] = c;
     }
 }
+/* ---- the power-on animation (v0.74, Romain 11/11: « la carte qui s'ouvre », maquette https://claude.ai/artifact/7KF2zSNpU1VBwS3NHZDfKm):
+ * the three circles engraved in gold, the gold hand turns once from early on and, as it passes, the circles take their
+ * colours, the ring's marks and the ribbon come, ALTER letter by letter; a last stroke of glitch, the version. ~1.5 s,
+ * any key or button skips it (main.c). LEDs: the keys follow the hand, the three CIRCLE keys light with the colours */
+#define ALT_SPLASH_MS 1500u
+static const int16_t ASP_CX[AS_NCIRC] = {120, 104, 136}, ASP_CY[AS_NCIRC] = {80, 106, 106};
+static const uint32_t ASP_ST[AS_NCIRC] = {0u, 0xAAAAAAAAu, 0x2AAAAAAAu};   /* where each circle's stroke starts */
+static uint32_t asp_pm(uint32_t ms, uint32_t a, uint32_t b)   /* permille of [a, b] (in permille of the whole) */
+{
+    uint32_t t = ms * 1000u / ALT_SPLASH_MS;
+    return t <= a ? 0u : t >= b ? 1000u : (t - a) * 1000u / (b - a);
+}
+static uint32_t asp_hand(uint32_t ms)            /* the hand's progress, permille, eased (smoothstep) */
+{
+    uint32_t h = asp_pm(ms, 80u, 780u);
+    return h * h / 1000u * (3000u - 2u * h) / 1000u;
+}
+static int asp_past(uint32_t hp, int32_t x, int32_t y)   /* the hand has gone past (x, y): its colours on */
+{
+    if (hp >= 1000u)
+        return 1;
+    return hp && alt_turnof(x - 120, y - 120) <= (uint32_t)((uint64_t)hp * 4294967u);
+}
+static void alt_splash_draw(uint32_t ms)
+{
+    static const char *const L[5] = {"A", "L", "T", "E", "R"};
+    uint32_t hp = asp_hand(ms), turn = (uint32_t)((uint64_t)hp * 4294967u), gl = asp_pm(ms, 830u, 960u), i, k, b;
+    int32_t lw[5], tw = 0, x;
+    for (k = 0; k < 5u; k++)
+        tw += lw[k] = text_w(ALT_FL, L[k]) + 2;
+    for (b = 0; b < 2u; b++) {
+        cv_begin(240, 120, ALT_BG);
+        cv_oy = -(int32_t)b * 120;
+        for (k = 0; k < AS_NCIRC; k++) {         /* the circles, engraved in gold, their colours once passed */
+            uint32_t p = asp_pm(ms, k * 60u, 280u + k * 60u);
+            int on = asp_past(hp, ASP_CX[k], ASP_CY[k]);
+            if (p)
+                alt_arc(ASP_CX[k], ASP_CY[k], 26, ASP_ST[k], (uint32_t)((uint64_t)p * 4294967u), on ? ALT_COL[k] : ALT_GOLD,
+                        on ? 2 : 1);
+        }
+        for (i = 0; i < 16u; i++) {              /* the ring's marks */
+            int32_t x0, y0, x1, y1;
+            uint32_t t = i * 0x10000000u;
+            alt_pt(120, 120, t, 96, &x0, &y0);
+            if (!asp_past(hp, x0, y0))
+                continue;
+            alt_pt(120, 120, t, i % 4u ? 100 : 104, &x1, &y1);
+            alt_aaline(x0, y0, x1, y1, i % 4u ? alt_gold_line(45) : ALT_GOLD);
+        }
+        if (asp_past(hp, 188, 158)) {            /* the ribbon (notched as the cards'), ALTER letter by letter */
+            cv_rect(52, 140, 136, 36, ALT_RIB);
+            alt_tri(46 * 16, 140 * 16, 52 * 16, 140 * 16, 52 * 16, 158 * 16, ALT_RIB);
+            alt_tri(52 * 16, 158 * 16, 52 * 16, 176 * 16, 46 * 16, 176 * 16, ALT_RIB);
+            alt_tri(194 * 16, 140 * 16, 188 * 16, 140 * 16, 188 * 16, 158 * 16, ALT_RIB);
+            alt_tri(188 * 16, 158 * 16, 188 * 16, 176 * 16, 194 * 16, 176 * 16, ALT_RIB);
+        }
+        x = 120 - tw / 2;
+        for (k = 0; k < 5u; k++) {
+            if (asp_past(hp, x + lw[k] / 2, 158))
+                cv_text(x, 143, ALT_FL, L[k], ALT_RIBTX);
+            x += lw[k];
+        }
+        if (hp && hp < 1000u) {                  /* the gold hand */
+            int32_t hx, hy;
+            alt_pt(120, 120, turn, 108, &hx, &hy);
+            alt_aaline(120, 120, hx, hy, ALT_GOLD);
+            alt_aaline(121, 120, hx + 1, hy, ALT_GOLD);
+            alt_disc(120, 120, 3, ALT_GOLD);
+        }
+        if (ms * 1000u / ALT_SPLASH_MS >= 880u) {   /* the version */
+            const char *v = FELUCCA_VERSION;
+            cv_text(120 - text_w(ALT_FS, v) / 2, 194, ALT_FS, v, alt_fade(ALT_DIM, (int32_t)asp_pm(ms, 880u, 1000u) / 10));
+        }
+        cv_oy = 0;
+        if (gl && gl < 1000u) {                  /* the last stroke of glitch, from full to nothing */
+            acx_rng = (ms / 40u) * 2654435761u | 1u;
+            acx_glitch((1000u - gl) * 256u / 1000u);
+        }
+        cv_blit(0, b * 120u);
+    }
+}
+#if !defined(HOSTSIM)
+static void alt_splash_leds(uint32_t ms, int glow)   /* the keys follow the hand (the board's order), the CIRCLE keys
+                                                       * light with the colours; the buttons glow at the end */
+{
+    uint8_t nl[FM1_NCOL] = {0}, nd[FM1_NCOL] = {0};
+    uint32_t hp = asp_hand(ms), head = hp * 31u * 16u / 1000u, k, c;
+    static uint8_t ready;
+    if (!ready) {
+        led_pos_init();
+        ready = 1;
+    }
+    for (k = 0; k < FM1_ANIM_NKEY; k++) {
+        uint32_t x16 = FM1_ANIM_X[k] * 16u;
+        const alt_key_t *a = &ALT_KEY[k];
+        if (a->kind == AK_SEL && asp_past(hp, ASP_CX[a->arg % AS_NCIRC], ASP_CY[a->arg % AS_NCIRC]))
+            led_put(nl, 14u + k, 1);
+        else if (hp && x16 <= head && head - x16 < 40u && hp < 1000u)
+            led_put(nl, 14u + k, 1);
+        else if (glow && hp && x16 <= head)
+            led_put(nd, 14u + k, 1);
+    }
+    if (glow && hp >= 1000u)
+        for (k = 0; k < NB; k++)
+            led_put(nd, panel.btn[k], 1);
+    for (c = 0; c < FM1_NCOL; c++) {
+        fm1_led_dim[c] = nd[c];
+        fm1_led[c] = nl[c];
+    }
+}
+#endif
+
+/* ---- the screen asleep (v0.74, Romain: « le sceau qui respire »): MENU > SCREEN OFF's time over, the three circles
+ * dark and breathing slowly (a 6 s breath, the seal drifting a little: nothing burnt in), ALT_SEAL_MS, then really dark
+ * (ui.c scr_frame) */
+static void alt_seal_frame(uint32_t ms)
+{
+    static uint32_t last;
+    uint32_t b, k, i;
+    int32_t br = 14 + (int32_t)((uint32_t)(32768 - sine_i(ms * 715827u + 0x40000000u)) * 22u >> 16);   /* 14..36 % */
+    int32_t dx = (sine_i(ms * 71582u) * 6) >> 15, dy = (sine_i(ms * 50000u + 0x40000000u) * 6) >> 15;
+    if (ms && ms - last < 100u)                  /* (10 a second: a slow breath needs no more) */
+        return;
+    last = ms;
+    for (b = 0; b < 2u; b++) {
+        cv_begin(240, 120, ALT_BG);
+        cv_oy = -(int32_t)b * 120;
+        for (k = 0; k < AS_NCIRC; k++)
+            alt_arc(ASP_CX[k] + dx, ASP_CY[k] + 14 + dy, 26, 0u, 0xFFFFFFFFu, alt_fade(ALT_COL[k], br), 1);
+        for (i = 0; i < 16u; i++) {
+            int32_t x0, y0, x1, y1;
+            uint32_t t = i * 0x10000000u + ms * 7158u;   /* (a turn a ten minutes) */
+            alt_pt(120 + dx, 120 + dy, t, 86, &x0, &y0);
+            alt_pt(120 + dx, 120 + dy, t, i % 4u ? 89 : 92, &x1, &y1);
+            alt_aaline(x0, y0, x1, y1, alt_fade(ALT_GOLD, br * (i % 4u ? 1 : 2) / 2));
+        }
+        cv_oy = 0;
+        cv_blit(0, b * 120u);
+    }
+}
+
 /* a glitch frame (the whole screen); 1 = drawn, the frame is the glitch's */
 static int acx_frame(uint32_t q, uint32_t flash)
 {
@@ -4841,6 +4982,10 @@ static int acx_frame(uint32_t q, uint32_t flash)
 static void alter_draw(void)
 {
     uint32_t sig = 0, sfoot = 0, shead = 0, i, h, flash = 0, q = au.lockc ? 0u : alt_page();
+    if (alt_redraw_all) {                        /* (v0.74: back from the seal, ui.c scr_wake) */
+        alt_redraw_all = 0;
+        au.drawn = 0;
+    }
     alt_now_ms = fm1_ms;
     alt_draw_t0 = fm1_ticks();
     alt_dr_isr0 = alt_isr_tk;
@@ -5190,6 +5335,12 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
         break;
     case 32: alt_sys[9] = (uint8_t)(b & ALT_RFX_ALL); break;   /* (a test, v0.66: the effects CHAOS TOTAL leaves alone) */
     case 33: alt_seq.c[a % AS_NCIRC].locks = (uint8_t)b; break;   /* (a test, v0.68: circle a's LOCKS) */
+    case 35:                                     /* (a test, v0.74: the screen asleep now, the seal breathing) */
+        scrn.st = SCR_SEAL;
+        scrn.t = fm1_ms;
+        scrn.eat = 1;
+        kb_asleep = 1;
+        break;
     case 34:                                     /* (a test, v0.72: a = 1 the crash copy now, 2 taken back now) */
         if (a == 1u) {
             alt_live_ms = fm1_ms - 3000u;

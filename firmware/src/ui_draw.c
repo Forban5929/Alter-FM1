@@ -453,19 +453,9 @@ static card_span_t card_span;
 
 /* The power-on splash (main.c fm1_main, web/emu felucca_web.c): ALTER and its version in a double frame, the tarot
  * cards' way (alter_look.c), in the saved palette (settings_init before it) */
-static void draw_splash(void)
+static void draw_splash(void)                        /* (v0.74: the background alone; main.c alt_boot_splash animates) */
 {
     lcd_fill(0, 0, 240, 240, T_BG);
-    lcd_fill(32, 32, 176, 1, T_TEXT);                       /* the outer frame */
-    lcd_fill(32, 207, 176, 1, T_TEXT);
-    lcd_fill(32, 32, 1, 176, T_TEXT);
-    lcd_fill(207, 32, 1, 176, T_TEXT);
-    lcd_fill(37, 37, 166, 1, T_DIM);                        /* .. and the inner one */
-    lcd_fill(37, 202, 166, 1, T_DIM);
-    lcd_fill(37, 37, 1, 166, T_DIM);
-    lcd_fill(202, 37, 1, 166, T_DIM);
-    draw_text_box(40, 98, 160, &AF_L, "ALTER", T_TEXT, 1);   /* (inside the frames: the box fills its width) */
-    draw_text_box(40, 136, 160, &AF_M, FELUCCA_VERSION, T_DIM, 1);
     lcd_sync();
 }
 
