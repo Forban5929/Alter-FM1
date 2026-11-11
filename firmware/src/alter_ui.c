@@ -1222,8 +1222,8 @@ static int alt_fx_budget1(uint32_t c)
 
 /* CHAOS: the three circles drawn to the extreme */
 static void alt_chaos_req(uint32_t kind);      /* (below alter_draw: CHAOS / CHAOS TOTAL with the glitch) */
-/* (v0.66, Romain 11/11) a circle's effects kept across a random draw, put back for those it must leave alone: CHAOS all of
- * them (it never draws effects), CHAOS TOTAL those SYSTEM > RANDOM turned off (alt_sys[9]) */
+/* (v0.66, Romain 11/11) a circle's effects kept across a random draw, put back for those CHAOS TOTAL must leave alone
+ * (SYSTEM > RANDOM turned them off: alt_sys[9]); CHAOS clears them all (v0.67: alt_fx_zero) */
 #define ALT_RFX_CHO 8u                           /* (the chorus send: CHAOS keeps it too) */
 typedef struct {
     int16_t p[9];
@@ -1241,6 +1241,17 @@ static void alt_fx_keep(uint32_t c, alt_fxk_t *k)
     }
     k->sel = afx_sel[c];
     k->edit = (uint8_t)((afx_edit >> c) & 1u);
+}
+static void alt_fx_zero(uint32_t c)               /* (v0.67) circle c dry: DIST, INSERT, CHORUS DELAY REVERB sends, the steps' sends */
+{
+    uint32_t i;
+    fm1_irq_off();
+    for (i = 0; i < 9u; i++)
+        trk[c].p[ALT_FXK_P[i]] = 0;
+    for (i = 0; i < AS_NLANE; i++)
+        alt_seq.c[c].sdly[i] = alt_seq.c[c].srev[i] = 0;
+    fm1_irq_on();
+    afx_edit |= (uint8_t)(1u << c);              /* (the FX page: its DIST changed, SOUND *) */
 }
 static void alt_fx_back(uint32_t c, const alt_fxk_t *k, uint32_t mask)
 {
@@ -1280,8 +1291,6 @@ static void alt_chaos(void)
         uint32_t pi = alt_rand_pre(), e = ALT_ENGS[ALT_PRE[pi].eng % ALT_NENG], ei;
         const engine_t *en = ENGINES[e];
         as_cfg_t *cf = &au.cfg[c];
-        alt_fxk_t fk;
-        alt_fx_keep(c, &fk);                     /* (v0.66: CHAOS draws no effect, Romain 11/11) */
         alt_load_sound(c, pi);                   /* a sound of ours, then everything in it drawn */
         fm1_irq_off();
         for (k = 0; k < 8u; k++)                 /* the engine's eight, anywhere */
@@ -1338,7 +1347,8 @@ static void alt_chaos(void)
             }
             alt_rat_draw(sc, pick & 32u ? 50u : 0u);   /* (RATCH: one step at most, a fifth of the circles) */
         }
-        alt_fx_back(c, &fk, ALT_RFX_ALL | ALT_RFX_CHO);   /* (the effects as they were, the steps' sends too) */
+        alt_fx_zero(c);                          /* (v0.67, Romain 11/11: CHAOS clears every effect: DIST, INSERT, the sends,
+                                                  * the steps' DELAY and REVERB) */
         alt_post_now |= (uint8_t)(1u << c);
         alt_post_circle(c);
         alt_roll_w[c] = AS_DW_ALL;
@@ -3613,7 +3623,7 @@ static void alt_sys_scene(void)
     cv_text(8, 202, ALT_FS, alt_sys_tab == SYS_TLEARN && alm_msg && fm1_ms - alm_msg_ms < 2000u ? alm_msg :
                             FOOT[alt_sys_tab % SYS_NT][0], alt_sys_tab == SYS_TLEARN && alm_msg && fm1_ms - alm_msg_ms < 2000u ?
                             ALT_GOLD : ALT_DIM);
-    cv_text(8, 216, ALT_FS, alt_sys_tab == SYS_TRAND && au.set_row >= SYS_NRFX ? "EFFECTS: CHAOS TOTAL ONLY" :
+    cv_text(8, 216, ALT_FS, alt_sys_tab == SYS_TRAND && au.set_row >= SYS_NRFX ? "EFFECTS: CHAOS TOTAL (CHAOS: ALL OFF)" :
                             FOOT[alt_sys_tab % SYS_NT][1], ALT_DIM);
 }
 

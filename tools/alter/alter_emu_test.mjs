@@ -580,12 +580,15 @@ play();
   R2(FS / 4);
   const f0 = fx();
   let same = 0;
-  for (let r = 0; r < 4; r++) { e2.web_alter(31, 0, 2); R2(FS / 2); same += fx() === f0; }   // (CHAOS at once)
+  const z0 = "0/0/0/0 0/0/0/0 0/0/0/0";
+  for (let r = 0; r < 4; r++) { e2.web_alter(31, 0, 2); R2(FS / 2); same += fx() === z0; }   // (CHAOS at once: every effect off, v0.67)
+  [0, 1, 2].forEach((c) => { e2.web_alter(17, c | P.DIST << 8, 21 + c); e2.web_alter(17, c | P.DLY << 8, 31 + c); e2.web_alter(17, c | P.REV << 8, 41 + c); e2.web_alter(17, c | P.CHOR << 8, 11 + c); });
+  R2(FS / 4);
   e2.web_alter(32, 0, 2 | 4); e2.web_alter(22, 0, 0); R2(FS / 4);                          // TOTAL, DELAY and REVERB left alone
   const ft = [0, 1, 2].map((c) => e2.web_alter_peek(c, 100 + P.DLY) === 31 + c && e2.web_alter_peek(c, 100 + P.REV) === 41 + c).every(Boolean);
   R2(FS * 4); e2.web_alter(32, 0, 0); e2.web_alter(22, 0, 0); R2(FS / 4);              // TOTAL, all drawn
   const fa = fx();
-  check(`CHAOS keeps every effect (${same}/4: ${f0}); TOTAL with DELAY + REVERB off keeps the sends (${ft}); with all on draws them (${fa})`,
+  check(`CHAOS clears every effect (${same}/4); TOTAL with DELAY + REVERB off keeps the sends (${ft}); with all on draws them (${fa})`,
         same === 4 && ft && fa !== f0);
 }
 {                                                               // REC (Romain 01/11): the knob moves on the steps, in a loop
