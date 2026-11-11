@@ -42,17 +42,18 @@ def main(pkg, version, out):
     html = (WEB / "index_pkg.html").read_text(encoding="utf-8")
     lib = strip_module((WEB / "fm1pkg.js").read_text(encoding="utf-8")) + "\n" + \
         strip_module((WEB / "fm1ota.js").read_text(encoding="utf-8"))
-    name = f"alter-{re.sub(r'[^A-Za-z0-9.-]', '-', version)}.fwsc"
+    name = "alter-" + re.sub(r"-+", "-", re.sub(r"[^A-Za-z0-9.-]", "-", version)).strip("-") + ".fwsc"
     meta = json.dumps({"version": version, "product": product, "pkg": "firmware/" + name})
     html = sub1(html, "/*LIB*/", lib)
     html = sub1(html, "/*META*/", meta)
     html = sub1(html, "<title>Felucca</title>", "<title>ALTER FM-1</title>")
-    html = sub1(html, "<h1>Felucca</h1>", "<h1>ALTER</h1>\n  <p class=\"small\">Firmware ALTER pour M-VAVE FM-1 · "
-                f"version {version}</p>")
+    short = version.split(" ")[0]                # (v0.71, Romain: the version shown big: "v0.71"; the build after it, small)
+    html = sub1(html, "<h1>Felucca</h1>", f"<h1>ALTER <span style=\"font-size:.6em;opacity:.8\">{short}</span></h1>\n"
+                f"  <p class=\"small\">Firmware ALTER pour M-VAVE FM-1 · version {version}</p>")
     html = sub1(html, "say(`Felucca ${meta.version}`);", "say(`ALTER ${meta.version}`);")
     html = re.sub(r'beta: "Felucca 1\.0 is a field-testing release; please report problems on GitHub\.',
-                  'beta: "ALTER is a TEST version, never checked before on a real FM-1: the screen shows the CPU load '
-                  '(top left) and CUT if the sound was cut.', html)
+                  'beta: "ALTER is still a test version: please report problems on GitHub (Issues). SYSTEM > SETUP > CPU '
+                  'METER shows the processor load.', html)
     # le retour à V15 : par The Firmware Hub (éléments Felucca gardés, cachés : le script les attend)
     html = sub1(html, '<details style="margin-top:24px">', '<div class="small" style="margin-top:24px">'
                 '<b>Retour au firmware officiel / secours :</b> <a href="https://thefirmwarehub.com/" target="_blank" '

@@ -447,9 +447,7 @@ static int lk_act(uint32_t c, uint32_t a)
         alt_say("CLEAN");
         return 1;
     case LA_DENSM: case LA_DENSP: {
-        int32_t d = a == LA_DENSP ? 1 : -1;
-        alt_dens_tot[c] += d;
-        au.cfg[c].hits = (uint8_t)clamp((int32_t)au.cfg[c].hits + d, 0, au.cfg[c].len);
+        alt_dens_press(c, a == LA_DENSP ? 1 : -1);
         return 1;
     }
     case LA_SHL: case LA_SHR: {

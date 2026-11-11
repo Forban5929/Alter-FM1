@@ -221,6 +221,17 @@ int main(void)
         as_density(&q, 0, -1);
         check("DENSITY -1: 4/16 again", pat16(run(&q, 0, 16, 0)) == as_euclid(16, 4, 0));
     }
+    /* 14b. (v0.71, Romain) DENSITY - takes the steps TRIGGER + REC added first, then HITS; HITS 0 = silence, die or not */
+    as_init(&q, 1);
+    as_add(&q, 0, 1);                                   /* (step 2: not a hit of 4/16) */
+    check("TRIGGER: step 2 added on top of 4/16", pat16(run(&q, 0, 16, 0)) == (as_euclid(16, 4, 0) | 2u));
+    as_density(&q, 0, -1);
+    check("DENSITY -1: the added step goes first, HITS stay 4", pat16(run(&q, 0, 16, 0)) == as_euclid(16, 4, 0) && q.c[0].cfg.hits == 4);
+    q.c[0].die = 1;
+    q.c[0].dhits = 3;
+    as_density(&q, 0, -4);
+    as_density(&q, 0, -4);
+    check("die with extra hits, DENSITY to 0: silent (no phantom)", pat16(run(&q, 0, 16, 0)) == 0 && q.c[0].cfg.hits == 0);
     /* 15. CHORD: a triad of the scale over each hit, at once */
     as_init(&q, 1);
     {

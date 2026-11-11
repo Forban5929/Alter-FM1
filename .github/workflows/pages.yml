@@ -90,7 +90,8 @@ jobs:
           (cd "$HOME/fw-AC79_AIoT_SDK" && git sparse-checkout set --no-cone cpu/wl82/tools/uboot.boot \
               cpu/wl82/tools/cfg_tool.bin cpu/wl82/tools/cfg/eq_cfg_hw.bin)
           ./build.sh > build-fw-log.txt 2>&1 || { tail -40 build-fw-log.txt; exit 1; }
-          python3 tools/alter/make_install.py build/felucca.fwsc "$GITHUB_REF_NAME-${GITHUB_SHA::7}" site/install
+          VER=$(sed -n 's/^#define FELUCCA_VERSION "\([^"]*\)".*/\1/p' firmware/src/felucca.c | head -n 1)
+          python3 tools/alter/make_install.py build/felucca.fwsc "$VER ($GITHUB_REF_NAME-${GITHUB_SHA::7})" site/install
       - uses: actions/download-artifact@v4
         with:
           name: rescue

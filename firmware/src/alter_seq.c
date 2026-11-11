@@ -245,7 +245,8 @@ static uint32_t as_bits(uint32_t m) { uint32_t n = 0; for (; m; m &= m - 1u) n++
  * dice, each its own): AS_DW_RHY the pattern (HITS, ROT, flams, a ratchet) · AS_DW_VC the velocities and chances ·
  * AS_DW_PDR the pitches and throws into the delay and reverb · AS_DW_SND (CHAOS's full draw only) glide, length,
  * envelope, timbre. What it does not draw stays as the last draw left it (a fresh draw: as the clean pattern) */
-enum { AS_DW_RHY = 1, AS_DW_VC = 2, AS_DW_PDR = 4, AS_DW_SND = 8, AS_DW_ALL = 15 };
+enum { AS_DW_RHY = 1, AS_DW_VC = 2, AS_DW_PDR = 4, AS_DW_SND = 8, AS_DW_ALL = 15, AS_DW_NOTHR = 0x40 };   /* (NOTHR, v0.71: no throw
+                                                  * into the delay or reverb: CHAOS) */
 static void as_draw_w(as_seq_t *q, uint32_t i, uint32_t w)
 {
     as_circ_t *c = &q->c[i];
@@ -297,9 +298,9 @@ static void as_draw_w(as_seq_t *q, uint32_t i, uint32_t w)
             if (w & AS_DW_PDR) {
                 if (!(lk & AS_LK_PITCH) && as_coin(s, d * 7))   /* up to 3 octaves of degrees, the root less often */
                     c->pitch[k] = (int8_t)(as_rand(s) % (uint32_t)(1 + d * 21 / 127));
-                if (!(lk & AS_LK_THROW) && ndly < 3 && as_coin(s, 150))                 /* a few throws (3 at most each): 50..110 */
+                if (!(lk & AS_LK_THROW) && !(w & AS_DW_NOTHR) && ndly < 3 && as_coin(s, 150))                 /* a few throws (3 at most each): 50..110 */
                     c->ddly[k] = (uint8_t)(50u + as_rand(s) % 61u), ndly++;
-                if (!(lk & AS_LK_THROW) && nrev < 3 && as_coin(s, 120))
+                if (!(lk & AS_LK_THROW) && !(w & AS_DW_NOTHR) && nrev < 3 && as_coin(s, 120))
                     c->drev[k] = (uint8_t)(50u + as_rand(s) % 61u), nrev++;
             }
         }
@@ -335,6 +336,7 @@ static uint32_t as_rot(uint32_t m, uint32_t n, uint32_t r)
     return r ? ((m << r) | (m >> (n - r))) & full : m;
 }
 
+static uint32_t as_lenmask(uint32_t len) { return len >= 32u ? 0xFFFFFFFFu : (1u << len) - 1u; }
 /* circle c's pattern as it plays: its settings, the draw's HITS and ROT on top (TURING: its register) */
 static void as_repat(as_circ_t *c)
 {
@@ -348,6 +350,8 @@ static void as_repat(as_circ_t *c)
         h = h < 0 ? 0 : h > c->cfg.len ? c->cfg.len : h;
         if (c->cfg.hits && !h)
             h = 1;                                      /* (a circle that plays keeps a hit) */
+        if (!c->cfg.hits)
+            h = 0;                                      /* (v0.71: HITS 0 is silence, whatever the die drew) */
         r += c->drot;
     }
     c->pat = as_euclid(c->cfg.len, (uint32_t)h, (uint32_t)r % c->cfg.len) | as_rot(c->add, c->cfg.len, 0);
@@ -424,6 +428,23 @@ static void as_density(as_seq_t *q, uint32_t i, int32_t d)
     if (i >= AS_NCIRC)
         return;
     c = &q->c[i];
+    /* (v0.71, Romain 11/11: "phantom" hits at 0 HITS) DENSITY - takes away what plays on top of HITS first: the die's
+     * extra hits, then the steps TRIGGER + REC added (a hit like the others now: counted, taken away); then HITS */
+    while (d < 0 && ((c->die && c->dhits > 0) || (c->add & as_lenmask(c->cfg.len)))) {
+        if (c->die && c->dhits > 0)
+            c->dhits--;
+        else {
+            uint32_t a = c->add & as_lenmask(c->cfg.len), k = 31u;
+            while (!((a >> k) & 1u))
+                k--;
+            c->add &= ~(1u << k);
+        }
+        d++;
+    }
+    if (!d) {
+        as_repat(c);
+        return;
+    }
     h = (int32_t)c->cfg.hits + d;
     c->cfg.hits = (uint8_t)(h < 0 ? 0 : h > c->cfg.len ? c->cfg.len : h);
     h = (int32_t)c->next.hits + d;

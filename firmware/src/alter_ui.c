@@ -1222,6 +1222,18 @@ static int alt_fx_budget1(uint32_t c)
 
 /* CHAOS: the three circles drawn to the extreme */
 static void alt_chaos_req(uint32_t kind);      /* (below alter_draw: CHAOS / CHAOS TOTAL with the glitch) */
+/* DENSITY + / - on circle c (the key, MIDI LEARN, the page): the audio side moves it (alter_seq.c as_density); here the
+ * UI's copy of HITS follows. v0.71 (Romain 11/11): DENSITY - takes away first what plays on top of HITS (the die's extra
+ * hits, the steps TRIGGER + REC added): HITS stays then */
+static void alt_dens_press(uint32_t c, int32_t d)
+{
+    const as_circ_t *sc = &alt_seq.c[c % AS_NCIRC];
+    c %= AS_NCIRC;
+    alt_dens_tot[c] += d;
+    if (d < 0 && ((sc->die && sc->dhits > 0) || (sc->add & as_lenmask(sc->cfg.len))))
+        return;
+    au.cfg[c].hits = (uint8_t)clamp((int32_t)au.cfg[c].hits + d, 0, au.cfg[c].len);
+}
 /* (v0.66, Romain 11/11) a circle's effects kept across a random draw, put back for those CHAOS TOTAL must leave alone
  * (SYSTEM > RANDOM turned them off: alt_sys[9]); CHAOS clears them all (v0.67: alt_fx_zero) */
 #define ALT_RFX_CHO 8u                           /* (the chorus send: CHAOS keeps it too) */
@@ -1310,22 +1322,10 @@ static void alt_chaos(void)
         for (k = 0; k < 8u; k++)                 /* the engine's eight, anywhere */
             t->p[P_E0 + k] = alt_crange(&en->edit[k], 1);
         (void)FXP;                               /* (v0.66: no effect drawn: they stay as they were, below) */
-        alt_cl[c][0].wave = (uint8_t)alt_cr(GW_N);   /* its LFO 1: any wave and rate, a DEST of the timbre or the mix */
-        alt_cl[c][0].rate = (uint8_t)alt_cr(GL_NRATE);
-        alt_cl[c][0].dst = LDST[alt_cr(6u)];
-        alt_cl[c][0].depth = (int8_t)((int32_t)alt_cr(33u) - 16);   /* (Romain 01/11: light, -16 .. 16 of 64) */
-        for (k = 1; k < CL_N; k++)               /* one LFO per circle at most: LFO 2 and 3 off */
-            alt_cl[c][k].depth = 0;
-        for (k = 0; k < NMSLOT; k++)             /* the matrix: one slot at most, light (AMT -25 .. 25), half the time */
+        (void)LDST;                              /* (v0.71, Romain 11/11: CHAOS draws no LFO and clears them, below, with
+                                                  * the matrix: a dry, still sound; CHAOS TOTAL still draws them) */
+        for (k = 0; k < NMSLOT; k++)
             t->p[P_M1SRC + 3u * k] = t->p[P_M1DST + 3u * k] = t->p[P_M1AMT + 3u * k] = 0;
-        if (alt_cr(2u)) {
-            static const uint8_t MSRC[6] = {MS_LFO, MS_ENV, MS_VEL, MS_RAND, MS_SLEW, MS_FORCE};
-            static const uint8_t MDST[5] = {MD_CUT, MD_SHP, MD_PAN, MD_E1, MD_E1 + 1};   /* (not the pitch) */
-            int32_t a = 6 + (int32_t)alt_cr(20u);
-            t->p[P_M1SRC] = MSRC[alt_cr(6u)];
-            t->p[P_M1DST] = MDST[alt_cr(5u)];
-            t->p[P_M1AMT] = (int16_t)(alt_cr(2u) ? a : -a);
-        }
         for (k = 0; k < ALT_NSLOT; k++)
             alt_applied[c][k] = 0;
         alt_note[c][0] = alt_note[c][1] = alt_note[c][2] = 0;
@@ -1400,11 +1400,13 @@ static void alt_chaos(void)
             if (lk & AS_LK_RHYTHM)               /* (RATCH: the rhythm's, as the die has it) */
                 oc->srat[k] = orat[k];
         }
+        for (k = 0; k < CL_N; k++)               /* (v0.71: the circle's LFOs all off, whatever was locked) */
+            alt_cl[c][k].depth = 0;
         alt_fx_zero(c, !(lk & AS_LK_THROW));     /* (v0.67, Romain 11/11: CHAOS clears every effect: DIST, INSERT, the sends,
                                                   * the steps' DELAY and REVERB; v0.68: those throws kept if THROWS is locked) */
         alt_post_now |= (uint8_t)(1u << c);
         alt_post_circle(c);
-        alt_roll_w[c] = AS_DW_ALL;
+        alt_roll_w[c] = AS_DW_ALL | AS_DW_NOTHR; /* (v0.71: and the die throws nothing into the delay or reverb) */
         alt_roll_cnt[c]++;                       /* and the die at full DOSE */
         alt_cal(c);                              /* (its level aligned on its first hits) */
     }
@@ -2055,9 +2057,7 @@ static int alter_ui_input(uint32_t pressed)
                     alt_chaos_req(1u);           /* (11/11: on the 1 after a whole bar, with a glitch) */
                 }
             } else if (a->kind == AK_DENS) {
-                int32_t d = i2 ? 1 : -1;
-                alt_dens_tot[au.sel] += d;
-                au.cfg[au.sel].hits = (uint8_t)clamp((int32_t)au.cfg[au.sel].hits + d, 0, au.cfg[au.sel].len);
+                alt_dens_press(au.sel, i2 ? 1 : -1);
                 au.tap_ms[k] = fm1_ms | 1u;
             } else if (a->kind == AK_SHIFT) {
                 int32_t d = i2 ? 1 : -1;
@@ -2389,8 +2389,12 @@ static int32_t alt_kv(uint32_t q, uint32_t i, const char **name, char *txt, int3
             v = c->len;
         else if (ty == AS_T_TURING)
             v = i == 1u ? c->tlock * 100 / 127 : i == 2u ? c->tdens * 100 / 127 : c->trange;
-        else if (i == 1u)
+        else if (i == 1u) {                      /* (v0.71: the hits that play: the die's and the added steps counted) */
+            const as_circ_t *sc = &alt_seq.c[au.sel % AS_NCIRC];
             v = c->hits;
+            if (sc->die || sc->add)
+                v = (int32_t)as_bits(sc->pat & as_lenmask(sc->cfg.len));
+        }
         else
             v = i == 2u ? c->rot : c->prob * 100 / 127;
         alt_num(txt, v, (ty == AS_T_TURING && (i == 1u || i == 2u)) || (ty != AS_T_TURING && i == 3u));
