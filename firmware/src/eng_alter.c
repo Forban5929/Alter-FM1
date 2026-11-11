@@ -203,11 +203,35 @@ static void alt_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const v
     /* the noise burst: longer as NOIS rises (tau ~23 .. 40 ms) */
     nlvl = S->nenv;
     nrate = 2600 - p[P_E5] * 10;
-    for (i = 0; i < n; i++) {
+    /* (v0.58, measured on the FM-1: one ALTER circle took up to half a block) only the oscillators heard: one at level 0
+     * adds nothing, and outside METAL nothing reads it (its phase is moved on after the block); and at a crossfade's
+     * start (frac 0) only its first wave. The same samples, bit for bit */
+    uint32_t ks[ALT_NOSC], nk = 0, j;
+    for (k = ALT_NOSC; k-- > 0;)
+        if (fmd || w[k])
+            ks[nk++] = k;
+    for (i = 0; i < n && !fmd && !frac; i++) {          /* (the common case: no FM, a pure wave) */
+        int32_t acc = 0, y;
+        for (j = 0; j < nk; j++) {
+            uint32_t kk = ks[j], pk = ph[kk], ik = inc[kk];
+            int32_t o = seg == 0u ? sine_i(pk) : seg == 1u ? osc_tri(pk + 0x40000000u) : osc_saw(pk + 0x80000000u, ik);
+            ph[kk] += ik;
+            acc += (o * w[kk]) >> 15;
+        }
+        y = ((acc >> 4) * g) >> 11;
+        if (nlvl > 64) {
+            int32_t r = (int32_t)(noise32(&rng) >> 17) - 16384;
+            y += (r * (nlvl >> 1)) >> 14;
+        }
+        y = soft_knee(y, 20000);
+        out[i] += voice_amp(y, m, i);
+    }
+    for (; i < n; i++) {
         int32_t acc = 0, mod = 0, y;
-        for (k = ALT_NOSC; k-- > 0;) {
-            uint32_t pk = ph[k] + (uint32_t)mod, ik = inc[k];
+        for (j = 0; j < nk; j++) {
+            uint32_t kk = ks[j], pk = ph[kk] + (uint32_t)mod, ik = inc[kk];
             int32_t a, b, o;
+            k = kk;
             switch (seg) {
             case 0u:
                 a = sine_i(pk);
@@ -236,6 +260,9 @@ static void alt_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const v
         y = soft_knee(y, 20000);
         out[i] += voice_amp(y, m, i);
     }
+    for (k = 0; k < ALT_NOSC; k++)                      /* (the oscillators not run: their phase on, as if run) */
+        if (!fmd && !w[k])
+            ph[k] += inc[k] * n;
     if (nlvl > 64)
         nlvl -= (nlvl >> 4) * nrate >> 12;
     S->nenv = nlvl;

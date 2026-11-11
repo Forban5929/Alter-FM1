@@ -30,7 +30,7 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
    **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v0.57 » (11/11) ; **+0.01 à CHAQUE envoi à Romain** (v0.42, v0.43…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v0.58 » (11/11) ; **+0.01 à CHAQUE envoi à Romain** (v0.42, v0.43…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. Pousser sur `etape-3d` → GitHub Actions construit le vrai firmware + publie https://forban5929.github.io/Alter-FM1/ (version
    dans /version.txt). Le cloud ne télécharge pas les artifacts ni le compilateur JieLi : **rien n'est mesuré sur la FM-1 depuis le cloud.**
@@ -74,7 +74,7 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   liste USER sur la 1re case vide ; **son USB** (Listen, Rec WAV, vumètre) ; taille AUTO d'après la fenêtre ; scroll thémé.
 - Mesures FM-1 connues : écran 28F 24MS (09/11, avant les dernières versions) ; CPU > 60 % avec 3 cercles + effets (09/11).
 
-## Où on en est (11/11, v0.57)
+## Où on en est (11/11, v0.58)
 **Retours de tests FM-1 (10/11, Sheet)** : tests 1-5 OK ; **CPU = problème n° 1** : 67/85 % 27F 31MS avec tous les effets,
 et avec 3 LFO + envois FX sur les pas : 18F 50MS, **CUT 393** (2C était actif). v0.51 (choix de Romain) : **MASTER FILTER simple façon Felucca** (1 étage TPT, coefficients 1 fois par bloc, sauf FM :
 tous les 8 ; RES max k = 0.12, ne crie plus ; presets SHERMAN → ENV WAH, SCREAM → PEAK ; MORPH A/B et les 11 réglages gardés,
@@ -114,6 +114,10 @@ fixe ~28 % séquentiel. **v0.57 : bus FX en pipeline** (fx.c `bus_block` : delay
 d'avant, `fx_ps` → `fx_wet`, sur le 2e cœur AVEC ses parties ; 1 cœur : avant les parties ; 1 bloc = 0,73 ms de retard sur
 les échos seulement). `c1_job` = bus + parties (vide aussi les sommes de mx[1]). rev_switch a son propre tampon. split :
 cœur 1 = bus + ses parties. Dualcore identique (TSAN), fx test « keeps the MASTER » seuil 0.08 → 0.04.
+Mesure v0.57 (banc, 4 tirages CHAOS TOTAL) : une scène légère 35-55 % sans trous ; les lourdes 65-76 % moy., pics 85-115 %,
+L +2..+11 en 8 s, 5-20F. Un cercle seul monte à 45-54 % d'un bloc → **le moteur ALTER** (3 voix × 6 osc × 2 formes).
+v0.58 : `alt_render` saute les osc à niveau 0 (hors METAL) et la 2e forme quand frac = 0 : identique au bit (10 tirages),
+coût du moteur ÷ 2 (natif). À faire si besoin : même chose pour RING/CORDE/PLATE ; puis JIANT HOTRAM (code chaud en RAM).
 Banc : si le panneau latéral est fermé, ouvrir son propre onglet test.html (tabs_context createIfEmpty) et cliquer Connect
 par javascript (permission MIDI déjà accordée au site).
 Test ops ajoutés : web_alter 29 = HITS d'un cercle ; peek 16 = voix qui sonnent d'un cercle.
