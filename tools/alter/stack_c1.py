@@ -116,10 +116,10 @@ def main(path, formes=False):
         return memo[fn]
 
     total, chain = 0, []
-    for root in ("c1_parts", "afl_side_c1"):         # (v0.49 : le côté droit du MASTER FILTER aussi)
+    if not {"c1_job", "c1_parts"} & set(fns):
+        sys.exit("stack_c1: ni c1_job ni c1_parts dans le désassemblage")
+    for root in ("c1_job", "c1_parts", "afl_side_c1"):   # (v0.57 : c1_job = bus + parties ; v0.49 : le côté droit du filtre)
         if root not in fns:
-            if root == "c1_parts":
-                sys.exit(f"stack_c1: {root} absent du désassemblage")
             continue
         t = depth(root, [])
         ch, fn = [], root
