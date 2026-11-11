@@ -15,7 +15,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: pages-2  # (11/11: the old group holds ghost runs GitHub cannot cancel)
   cancel-in-progress: true
 
 jobs:
