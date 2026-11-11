@@ -24,6 +24,8 @@ static volatile uint32_t audio_halves, audio_max_us;
 /* ALTER (version test) : le pic de charge de la seconde passée (1/256) et le nombre de demi-blocs en retard (= trous dans
  * le son), lus par l'écran PLAY (alter_ui.c alt_cpu_line) */
 static volatile uint32_t alt_cpu_pk_q8, alt_cpu_late;
+static volatile uint32_t alt_t5_pct;              /* ALTER (v0.53): TIMER5 nested in the audio, % of its time, ~1 s */
+static uint32_t alt_t5_acc;
 static uint32_t alt_cpu_win, alt_cpu_n;
 static volatile uint32_t t5_nested_ticks;              /* TIMER4 ticks TIMER5 spent nested in this ISR (main.c) */
 static uint32_t audio_cpu_rem;                         /* keep the fractional IIR step: no low-load bias */
@@ -67,7 +69,10 @@ static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 
  * lowest POLY note and MONO / LEGATO / UNISON lead, as the shared budget does. */
 static volatile uint8_t shed_req;
 static uint8_t shed_over;                              /* bit k: the half k halves ago was over 85 % */
-#define SHED_TICKS ((HALF_FRAMES * 1000000u / FS) * 85u / 100u * FM1_TICKS_PER_US)   /* 85 % of a half */
+/* ALTER (v0.53, Romain 11/11: CUT 999 at P39 X12 F8 M8): 95 %, not Felucca's 85 %. ALTER has a voice or two a circle:
+ * a voice faded out is heard at once, and the 15 % kept free was killing them at a load the DMA still had room for.
+ * The real misses (late halves) are counted apart (the CPU line: L) */
+#define SHED_TICKS ((HALF_FRAMES * 1000000u / FS) * 95u / 100u * FM1_TICKS_PER_US)   /* 95 % of a half */
 static uint32_t shed_count;
 
 /* end of a half: all = its ticks, TIMER5 nested in it included -> the render alone in us. The deadline sees
@@ -152,7 +157,10 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (bsp/chip/fm1_is
             uint32_t alt_load = (us * 256u) / (HALF_FRAMES * 1000000u / FS);
             if (alt_load > alt_cpu_win)
                 alt_cpu_win = alt_load;
+            alt_t5_acc += t5_nested_ticks;
             if (++alt_cpu_n >= FS / HALF_FRAMES) {
+                alt_t5_pct = alt_t5_acc / (alt_cpu_n * HALF_FRAMES / 100u * (FM1_TICKS_PER_US * 1000000u / FS));
+                alt_t5_acc = 0;
                 alt_cpu_pk_q8 = alt_cpu_win;
                 alt_cpu_win = 0;
                 alt_cpu_n = 0;

@@ -3843,7 +3843,7 @@ static void alt_cpu_num(char *b, uint32_t *n, uint32_t v)
 }
 static void alt_cpu_line(void)
 {
-    char b[32];
+    char b[40];
     uint32_t n = 0;
     uint16_t col = alt_cpu_cut ? ALT_RED : alt_cpu_pk >= 75u ? ALT_GOLD : ALT_DIM;
     b[n++] = 'C', b[n++] = 'P', b[n++] = 'U', b[n++] = ' ';
@@ -3868,17 +3868,20 @@ static void alt_cpu_line(void)
         static const char L[APF_N] = {'P', 'W', 'X', 'F', 'M'};
         uint32_t k;
         n = 0;
-        if (alt_cpu_cut) {
-            b[n++] = 'C', b[n++] = 'U', b[n++] = 'T', b[n++] = ' ';
-            alt_cpu_num(b, &n, alt_cpu_cut);
+        if (alt_cpu_cut) {                        /* (v0.53 : S voix effacées par la protection, L vrais trous) */
+            b[n++] = 'S';
+            alt_cpu_num(b, &n, shed_count > 999u ? 999u : shed_count);
+            b[n++] = ' ', b[n++] = 'L';
+            alt_cpu_num(b, &n, alt_cpu_late > 999u ? 999u : alt_cpu_late);
             b[n++] = ' ';
         }
         for (k = 0; k < APF_N; k++) {
             b[n++] = L[k];
             alt_cpu_num(b, &n, apf_pct[k]);
-            if (k + 1u < APF_N)
-                b[n++] = ' ';
+            b[n++] = ' ';
         }
+        b[n++] = 'T';                             /* (TIMER5 : clavier, USB, MIDI, au milieu du son) */
+        alt_cpu_num(b, &n, alt_t5_pct > 99u ? 99u : alt_t5_pct);
         b[n] = 0;
         cv_text(9, 33, ALT_FS, b, alt_cpu_cut ? ALT_RED : ALT_DIM);
     }
@@ -4561,7 +4564,7 @@ static void alter_draw(void)
     alt_fps_poll();
 #if ALTER_CPU_SHOW
     alt_cpu_poll();
-    shead = shead * 31u + apf_pct[0] * 7u + apf_pct[1] * 11u + apf_pct[2] * 13u + apf_pct[3] * 17u + apf_pct[4] * 19u + alt_fps * 113u + alt_draw_ms * 127u + alt_cpu_avg * 101u + alt_cpu_pk * 103u + alt_cpu_cut * 107u + alt_cpu_c1 * 109u;   /* (version test : la charge CPU) */
+    shead = shead * 31u + alt_t5_pct * 5u + apf_pct[0] * 7u + apf_pct[1] * 11u + apf_pct[2] * 13u + apf_pct[3] * 17u + apf_pct[4] * 19u + alt_fps * 113u + alt_draw_ms * 127u + alt_cpu_avg * 101u + alt_cpu_pk * 103u + alt_cpu_cut * 107u + alt_cpu_c1 * 109u;   /* (version test : la charge CPU) */
 #endif
     ui.force = 1;                                /* (whatever comes after this view draws itself whole) */
     {                                            /* the steps playing and the hits' flash: a page that shows them has
