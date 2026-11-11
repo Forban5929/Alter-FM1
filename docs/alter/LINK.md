@@ -96,3 +96,11 @@ ou non (0) (`ALT_PRE[k].rumble`). Page : onglet SOUNDS, une ligne RUMBLE en bas 
   Une scène d'une autre version du firmware (taille différente) = refusée → les sons seuls.
 - **MIXER** (groupe 17 `GR_MIX`, réglage partagé « MASTER » = `alt_mgain`, 100 = 0 dB, gardé dans `alt_sys[5]`) ; page :
   onglet MIXER = par cercle la CONSOLE + MUTE + fader LEVEL, et le fader MASTER ; la CONSOLE quitte EFFECTS.
+
+## Banc de test (11/11, v0.55) — versions de test seulement
+| cmd | requête | réponse |
+| --- | --- | --- |
+| 30 DIAG | — | version (chaîne), CPU moy, pic, images/s, ms/image, S, L (valeurs), 2C, P W X F M C, T, split, 4 × % d'une partie, fixe cœur 0, fixe cœur 1, 3 moteurs |
+| 31 TEST | op, a (5 × 7 bits), b (5 × 7 bits) | op — exécute `alt_web_cmd(op, a, b)` (les ops des tests) sur la machine |
+| 32 PEEK | c, w (5 × 7 bits chacun) | `alt_peek(c, w)` en 5 × 7 bits |
+Page : `web/alter/test.html` (publiée `/editor/test.html`), objet `window.alt`.

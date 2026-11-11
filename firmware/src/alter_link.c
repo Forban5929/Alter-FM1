@@ -724,6 +724,12 @@ static void lk_song(const uint8_t *a, uint32_t na)
     lk_send();
 }
 
+enum { LKC_DIAG = 30, LKC_TEST, LKC_PEEK };
+#define LK_BLK100 (CTL * 544u / 100u)            /* 1 % of a block in TIMER4 ticks */
+static uint32_t lk_r32(const uint8_t *p)
+{
+    return (uint32_t)p[0] | (uint32_t)p[1] << 7 | (uint32_t)p[2] << 14 | (uint32_t)p[3] << 21 | (uint32_t)p[4] << 28;
+}
 static void lk_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0 and F7 */
 {
     const uint8_t *a = f + 4;
@@ -949,6 +955,52 @@ static void lk_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         lk_begin(LKC_PING);
         lk_b(0);
         lk_send();
+        return;
+    case LKC_DIAG:                                   /* (v0.55, the test page web/alter/test.html: Romain's FM-1
+                                                      * measured from his browser) the CPU lines' numbers */
+        lk_begin(LKC_DIAG);
+        lk_str(FELUCCA_VERSION);
+#if ALTER_CPU_SHOW
+        lk_v((int32_t)alt_cpu_avg), lk_v((int32_t)alt_cpu_pk), lk_v((int32_t)alt_fps), lk_v((int32_t)alt_draw_ms);
+        lk_v((int32_t)(shed_count > 8000u ? 8000u : shed_count));
+        lk_v((int32_t)(alt_cpu_late > 8000u ? 8000u : alt_cpu_late));
+        lk_b(alt_cpu_c1);
+#else
+        for (k = 0; k < 6u; k++)
+            lk_v(0);
+        lk_b(0);
+#endif
+        for (k = 0; k < APF_N; k++)
+            lk_b(apf_pct[k]);
+        lk_b(alt_t5_pct > 99u ? 99u : alt_t5_pct);
+        lk_b(split_last);
+        for (k = 0; k < NPART; k++)                  /* each part's and each core's fixed work, % of a block */
+            lk_b(part_tk[k] / LK_BLK100 > 127u ? 127u : part_tk[k] / LK_BLK100);
+        lk_b(fix_tk[0] / LK_BLK100 > 127u ? 127u : fix_tk[0] / LK_BLK100);
+        lk_b(fix_tk[1] / LK_BLK100 > 127u ? 127u : fix_tk[1] / LK_BLK100);
+        for (k = 0; k < AS_NCIRC; k++)
+            lk_b(trk[k].engine);
+        lk_send();
+        return;
+    case LKC_TEST:                                   /* op, a, b (5 x 7 bits each): alter_ui.c alt_web_cmd, the tests'
+                                                      * own ops, on the real machine */
+        if (na < 11u)
+            return;
+        alt_web_cmd(a[0], lk_r32(a + 1), lk_r32(a + 6));
+        lk_begin(LKC_TEST);
+        lk_b(a[0]);
+        lk_send();
+        return;
+    case LKC_PEEK:                                   /* c, w (5 x 7 bits each): alt_peek's value, 5 x 7 bits */
+        if (na < 10u)
+            return;
+        {
+            uint32_t v = (uint32_t)alt_peek(lk_r32(a), lk_r32(a + 5));
+            lk_begin(LKC_PEEK);
+            for (k = 0; k < 5u; k++)
+                lk_b(v >> (7u * k));
+            lk_send();
+        }
         return;
     default:
         return;                                      /* (unknown: no reply) */

@@ -1,0 +1,94 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only — ALTER test bench (v0.55): the real FM-1's CPU numbers in the browser, and the
+     tests' own commands sent to it (alter_link.c DIAG 30, TEST 31, PEEK 32). A tool for the test versions. -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ALTER — test bench</title>
+<style>
+  body { background:#121212; color:#ddd; font:14px/1.4 system-ui,sans-serif; margin:20px; max-width:900px }
+  h1 { font-size:18px; color:#e0b040 } button { font:inherit; padding:6px 12px; margin:0 6px 6px 0; background:#2a2a2a; color:#eee; border:1px solid #555; border-radius:4px; cursor:pointer }
+  button:hover { background:#3a3a3a } #say { color:#e0b040; min-height:1.4em } .bad { color:#e05050 !important }
+  table { border-collapse:collapse; margin:10px 0 } td,th { border:1px solid #333; padding:3px 9px; text-align:right } th { color:#999; font-weight:normal }
+  #big { font:20px/1.5 ui-monospace,monospace; white-space:pre } #log { font:12px/1.4 ui-monospace,monospace; white-space:pre; color:#999; max-height:260px; overflow:auto }
+</style></head><body>
+<h1>ALTER — test bench</h1>
+<p>Plug the FM-1 in by USB (ALTER v0.55 or later), then:</p>
+<button id="bMidi">Connect the FM-1</button><button id="bDemo">Connect the simulator</button>
+<button id="bWorst">Worst scene (CHAOS TOTAL, 16 hits, all effects)</button><button id="bClear">Clear the log</button>
+<div id="say"></div>
+<div id="big"></div>
+<table id="tab"></table>
+<div id="log"></div>
+<script type="module">
+import { frame, splitFrames, HDR } from "./link.js";
+const $ = (id) => document.getElementById(id);
+const say = (t, bad) => { $("say").textContent = t; $("say").className = bad ? "bad" : ""; };
+const DIAG = 30, TEST = 31, PEEK = 32, ACT = 17;
+const w32 = (v) => { v >>>= 0; return [v & 127, (v >>> 7) & 127, (v >>> 14) & 127, (v >>> 21) & 127, (v >>> 28) & 15]; };
+let send = null, waiting = [];
+const onFrame = (f) => {
+  if (f.length < 4 || f[0] !== HDR[0] || f[1] !== HDR[1] || f[2] !== HDR[2]) return;
+  const k = waiting.findIndex((w) => w.cmd === f[3]);
+  if (k >= 0) { const w = waiting.splice(k, 1)[0]; clearTimeout(w.t); w.ok(f.slice(4)); }
+};
+const ask = (cmd, ...args) => new Promise((ok, no) => {
+  if (!send) return no(new Error("not connected"));
+  const w = { cmd, ok, t: setTimeout(() => { waiting = waiting.filter((x) => x !== w); no(new Error("no answer to " + cmd)); }, 1500) };
+  waiting.push(w); send(frame(cmd, ...args));
+});
+const alt = window.alt = {
+  hist: [], connected: false, last: null,
+  raw: ask,
+  async diag() {
+    const a = await ask(DIAG); let i = 0, ver = "";
+    while (i < a.length && a[i]) ver += String.fromCharCode(a[i++]); i++;
+    const v = () => { const x = (a[i] | (a[i + 1] << 7)) - 8192; i += 2; return x; }, b = () => a[i++] ?? 0;
+    const d = { t: Date.now(), ver, avg: v(), pk: v(), fps: v(), ms: v(), S: v(), L: v(), c2: b(),
+      P: b(), W: b(), X: b(), F: b(), M: b(), C: b(), T: b(), split: b(), parts: [b(), b(), b(), b()], fix0: b(), fix1: b(), eng: [b(), b(), b()] };
+    return d;
+  },
+  cmd: (op, a = 0, b = 0) => ask(TEST, op, ...w32(a), ...w32(b)),
+  async peek(c, w) { const a = await ask(PEEK, ...w32(c), ...w32(w)); return (a[0] | a[1] << 7 | a[2] << 14 | a[3] << 21 | a[4] << 28) >>> 0; },
+  act: (c, a) => ask(ACT, c, a),
+  // the worst scene of Romain's report: CHAOS TOTAL, 16 hits on 16 steps, DIST / DELAY / REVERB up, a MASTER FILTER preset
+  async worst(preset = 7) {
+    await alt.cmd(22);
+    for (let c = 0; c < 3; c++) { await alt.cmd(21, c, 16); await alt.cmd(29, c, 16); await alt.cmd(17, c | 33 << 8, 80); await alt.cmd(17, c | 35 << 8, 60); await alt.cmd(17, c | 36 << 8, 60); }
+    await alt.cmd(13, 0, preset);
+  },
+  // n samples, one a second: [{...}] and their summary
+  async watch(n = 10) { const r = []; for (let k = 0; k < n; k++) { r.push(await alt.diag()); await new Promise((ok) => setTimeout(ok, 1000)); } return r; },
+};
+const COLS = ["ver", "avg", "pk", "fps", "ms", "S", "L", "P", "W", "X", "F", "M", "C", "T", "split", "parts", "fix0", "fix1", "eng", "c2"];
+function draw(d) {
+  $("big").textContent = `${d.ver}   CPU ${d.avg}/${d.pk}%   ${d.fps}F ${d.ms}MS ${d.c2 ? "2C" : "1C"}\nP${d.P} W${d.W} X${d.X} F${d.F} M${d.M} C${d.C} T${d.T}   S${d.S} L${d.L}\nsplit ${d.split.toString(2).padStart(4, "0")}   parts ${d.parts.join(" ")} %   fixed ${d.fix0} / ${d.fix1} %   engines ${d.eng.join(" ")}`;
+  $("log").textContent = new Date(d.t).toLocaleTimeString() + "  " + COLS.map((k) => k + "=" + (Array.isArray(d[k]) ? d[k].join("/") : d[k])).join(" ") + "\n" + $("log").textContent.slice(0, 20000);
+}
+let timer = null;
+function started(how) {
+  alt.connected = true; say("Connected: " + how);
+  clearInterval(timer);
+  timer = setInterval(async () => { try { const d = await alt.diag(); alt.last = d; alt.hist.push(d); if (alt.hist.length > 900) alt.hist.shift(); draw(d); }
+    catch (e) { say("No answer from ALTER (v0.55 or later needed): " + e.message, true); } }, 1000);
+}
+$("bMidi").onclick = async () => {
+  if (!navigator.requestMIDIAccess) return say("This browser does not speak MIDI: Chrome or Edge on a computer.", true);
+  let acc; try { acc = await navigator.requestMIDIAccess({ sysex: true }); } catch { return say("MIDI access was refused.", true); }
+  const pick = (m) => [...m.values()].find((p) => /alter|fm-?1|felucca/i.test(p.name));
+  const out = pick(acc.outputs), inp = pick(acc.inputs);
+  if (!out || !inp) return say("FM-1 not found: check the USB cable and that ALTER is running.", true);
+  inp.onmidimessage = (e) => splitFrames(e.data).forEach(onFrame);
+  send = (b) => out.send(b); started(out.name);
+};
+$("bDemo").onclick = async () => {
+  const { instance } = await WebAssembly.instantiateStreaming(fetch("../felucca.wasm"), {}); const ex = instance.exports;
+  ex._initialize(); ex.web_nor_erase(); ex.web_boot();
+  for (let k = 0; k < 44100 * 3; k += 128) ex.web_render(128);
+  ex.web_buttons(1 << 10); for (let k = 0; k < 2048; k += 128) ex.web_render(128); ex.web_buttons(0);
+  const drain = () => { const n = ex.web_link_out_n(); if (!n) return; const b = new Uint8Array(ex.memory.buffer, ex.web_link_out(), n).slice(); ex.web_link_out_clear(); splitFrames(b).forEach(onFrame); };
+  setInterval(() => { for (let k = 0; k < 882; k += 128) ex.web_render(Math.min(128, 882 - k)); ex.web_link_sync(); drain(); }, 20);
+  send = (b) => { new Uint8Array(ex.memory.buffer, ex.web_link_in_buf(), b.length).set(b); ex.web_link_in(b.length); setTimeout(drain, 0); };
+  started("simulator (its CPU numbers are 0)");
+};
+$("bWorst").onclick = () => alt.worst().then(() => say("Worst scene set."), (e) => say(e.message, true));
+$("bClear").onclick = () => { $("log").textContent = ""; alt.hist.length = 0; };
+</script></body></html>

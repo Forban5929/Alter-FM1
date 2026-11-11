@@ -70,7 +70,7 @@ jobs:
           cp build/emu/fonts/* site/fonts/
           mkdir -p site/editor
           cp web/alter/editor.html site/editor/index.html
-          cp web/alter/link.js web/alter/guide.html site/editor/
+          cp web/alter/link.js web/alter/guide.html web/alter/test.html site/editor/
           cp -r web/alter/fonts site/editor/
           echo "$(sed -n 's/^#define FELUCCA_VERSION "\([^"]*\)".*/\1/p' firmware/src/felucca.c | head -n 1)  $GITHUB_REF_NAME @ ${GITHUB_SHA::7}" > site/version.txt
       # La page d'installation FM-1 (/install/) : vrai firmware (compilateur JieLi). Si ça échoue, RIEN n'est publié (l'ancien site reste).
