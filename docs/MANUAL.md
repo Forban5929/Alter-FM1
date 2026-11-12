@@ -198,7 +198,7 @@ ALTER listens on **USB** and on the **TRS** jack.
 - **Clock**: SYSTEM › SETUP › CLOCK — INT, USB, or TRS (e.g. an Elektron's clock).
 - **MIDI learn** (SYSTEM › LEARN): any controller. GROUP (KNOB 1 on the first row) chooses what the list shows. SELECT a row,
   turn **KNOB 1 right**: it says WAITING — move a knob or press a pad on your controller: linked. **KNOB 1 left** clears the
-  row's link.
+  row's link. The companion page's **Learn** tab does the same from your computer (every link listed, Learn / Clear per row).
 
 | GROUP | What its rows link |
 | --- | --- |

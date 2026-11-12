@@ -4,7 +4,7 @@
 export const HDR = [0x7d, 0x41, 0x4c];
 export const CMD = { INFO: 1, STATE: 2, DESC: 3, SET: 4, SOUND: 5, SCENE: 6, WATCH: 7, CHANGED: 8, RELOAD: 9, PING: 10,
   VLIST: 11, VDESC: 12, VALL: 13, VSET: 14, LANE: 15, LSET: 16, ACT: 17, PLAY: 18, VCHANGED: 19, LCHANGED: 20,
-  PAT: 21, SONG: 22, BLOB: 23 };
+  PAT: 21, SONG: 22, BLOB: 23, LEARN: 24 };
 // the actions (alter_link.c LA_*): a circle's, then CHAOS / TOTAL (any circle number)
 export const ACT = { MUTE: 0, DIE: 1, CLEAN: 2, DENSM: 3, DENSP: 4, SHL: 5, SHR: 6, TRIG: 7, RANDOM: 8, LANES: 9,
   FLATALL: 10, SHUF0: 11, FLAT0: 17, CHAOS: 23, TOTAL: 24, SELECT: 25, PLAY: 26, STOP: 27, REC: 28 };
@@ -48,6 +48,13 @@ export const req = {
   blobSnap: () => frame(CMD.BLOB, 0),
   blobGet: (off) => frame(CMD.BLOB, 1, off & 127, (off >> 7) & 127),
   blobPut: (off, bytes) => frame(CMD.BLOB, 2, off & 127, (off >> 7) & 127, ...pack7(bytes)),
+  // v0.76: MIDI LEARN (alter_link.c lk_learn): a group's links (0..2 a circle, 3 GLOBAL, 4 ACTIONS), wait for a control
+  // for a code, clear a code's link, cancel the waiting, clear every link
+  learnList: (g) => frame(CMD.LEARN, 0, g),
+  learnArm: (code) => frame(CMD.LEARN, 1, code & 127, (code >> 7) & 127),
+  learnClear: (code) => frame(CMD.LEARN, 2, code & 127, (code >> 7) & 127),
+  learnCancel: () => frame(CMD.LEARN, 3),
+  learnClearAll: () => frame(CMD.LEARN, 4),
   blobPlay: (size, sum) => frame(CMD.BLOB, 3, size & 127, (size >> 7) & 127, sum & 127, (sum >> 7) & 127),
 };
 export const BLOB_PUT = 49;   // (bytes a BLOB put frame carries: the synth reads 64 bytes of a frame)
@@ -131,6 +138,19 @@ export function parse(f) {
       for (let k = 0; k < n; k++) { const l = b(); chain.push({ slot: l & 3, bars: (l >> 2) & 3 }); }
       return { cmd, op, rc, full: [full & 1, (full >> 1) & 1, (full >> 2) & 1], play, asked, on, link, left, chain };
     }
+    case CMD.LEARN: {
+      const op = b();
+      if (op === 0) {
+        const g = b(), n = b(), wait = v(), last = b(), used = b(), rows = [];
+        for (let k = 0; k < n && i < f.length; k++) {
+          const code = v(), linked = !!b(), num = b(), note = !!b(), ch = b(), name = s();
+          rows.push({ code, linked, num, note, ch, name });
+        }
+        return { cmd, op, g, wait: wait - 1, last, used, rows };
+      }
+      if (op === 1 || op === 2) return { cmd, op, code: v(), ok: !!b() };
+      return { cmd, op };
+    }
     case CMD.WATCH: return { cmd, on: b() };
     case CMD.RELOAD: return { cmd, circ: b() };
     case CMD.PING: return { cmd };
@@ -172,6 +192,13 @@ export function parse(f) {
 }
 
 // how a value reads, as the device shows it (roughly: the page needn't match the device to the letter)
+// a link's control as the FM-1 shows it: "CC21 CH1", "C3 CH10" (C4 = 60)
+export function learnText(r) {
+  if (!r.linked) return "-";
+  const NN = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+  return (r.note ? NN[r.num % 12] + (Math.floor(r.num / 12) - 1) : "CC" + r.num) + " CH" + r.ch;
+}
+
 export function show(d, val) {
   if (!d) return String(val);
   if (d.fmt === F_ENUM) return d.names[val - d.min] ?? String(val);

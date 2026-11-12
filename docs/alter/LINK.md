@@ -97,6 +97,16 @@ ou non (0) (`ALT_PRE[k].rumble`). Page : onglet SOUNDS, une ligne RUMBLE en bas 
 - **MIXER** (groupe 17 `GR_MIX`, réglage partagé « MASTER » = `alt_mgain`, 100 = 0 dB, gardé dans `alt_sys[5]`) ; page :
   onglet MIXER = par cercle la CONSOLE + MUTE + fader LEVEL, et le fader MASTER ; la CONSOLE quitte EFFECTS.
 
+## v0.76 (12/11) — MIDI LEARN depuis la page
+
+| cmd | requête (octets tels quels) | réponse |
+| --- | --- | --- |
+| 24 LEARN | `0 g` (0..2 un cercle, 3 GLOBAL, 4 ACTIONS) | 0, g, n, code attendu + 1 (14 bits), dernier (1 appris, 2 refusé, 3 rien en 20 s), liens utilisés, puis n lignes : code (14 bits), lié, numéro, note, canal 1..16, nom |
+| | `1 lo hi` = attendre un contrôle pour ce code (le prochain CC / note entendu par la FM-1, USB ou TRS) | 1, code, ok |
+| | `2 lo hi` = effacer le lien de ce code · `3` = arrêter l'attente · `4` = tout effacer | 2, code, ok · 3 · 4 |
+Codes = ceux d'`alter_learn.c` (cercle c * 32 + t, GLOBAL 96 + g, action 128 + a). Page : onglet LEARN (XXI), sondé 400 ms
+quand il est ouvert ; firmware sans LEARN = pas d'onglet. Test : `alter_link_test.mjs` (7 tests LEARN).
+
 ## Banc de test (11/11, v0.55) — versions de test seulement
 | cmd | requête | réponse |
 | --- | --- | --- |

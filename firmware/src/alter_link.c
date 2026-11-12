@@ -17,7 +17,9 @@ enum { LKC_INFO = 1, LKC_STATE, LKC_DESC, LKC_SET, LKC_SOUND, LKC_SCENE, LKC_WAT
        /* v3 (05/11): the USER patterns (as SCENE; gone 10/11, no reply), SONG */
        LKC_PAT, LKC_SONG,
        /* 10/11: a whole scene to and from the page's file (lk_blob) */
-       LKC_BLOB };
+       LKC_BLOB,
+       /* v0.76 (12/11): MIDI LEARN from the page (lk_learn) */
+       LKC_LEARN };
 
 /* the sound's parameters, in this order (STATE): the engine's eight, then what a USER scene keeps (ALT_SP) */
 static const uint8_t LK_IDS[] = {P_E0, P_E1, P_E2, P_E3, P_E4, P_E5, P_E6, P_E7, P_ATK, P_DEC, P_SUS, P_REL,
@@ -680,6 +682,64 @@ static void lk_blob(const uint8_t *a, uint32_t na)
  * from the next bar (as its key); 3 n, n links (slot | bars' code << 2): the chain (stored); 4 on: the chain on / off
  * (as ARP). Reply op, rc (1 done, 0 refused, 2 the flash failed), then the state: the full slots (bits), the slot
  * playing + 1, the one asked for + 1, the chain on, its link playing, that link's bars left, n, the n links */
+/* LEARN (v0.76, Romain: « LEARN dans la page »), alter_learn.c's links. Request bytes as they are (7 bits each):
+ *   0 g      the group g (0..2 a circle's, 3 GLOBAL, 4 ACTIONS) -> 0, g, n, waiting code + 1 (14 bits), last (1 learned,
+ *            2 refused, 3 nothing came), links used, then n rows: code (14 bits), linked, number, note, channel (1..16), name
+ *   1 lo hi  wait for a control for code lo | hi << 7 (the FM-1 links the next CC or note it hears) -> 1, code, ok
+ *   2 lo hi  that code's link cleared -> 2, code, ok      3  the waiting cancelled -> 3      4  every link cleared -> 4 */
+static void lk_learn(const uint8_t *a, uint32_t na)
+{
+    uint32_t op = na ? a[0] : 99u, code = na >= 3u ? (uint32_t)a[1] | (uint32_t)a[2] << 7 : 0u, i, n, used = 0;
+    alm_init();
+    lk_begin(LKC_LEARN);
+    lk_b(op);
+    switch (op) {
+    case 0: {
+        uint32_t g = na >= 2u ? a[1] % ALM_NGRP : 0u;
+        n = g < AS_NCIRC ? ALM_NCT : g == 3u ? ALG_N : ALM_NAT;
+        for (i = 0; i < ALM_N; i++)
+            used += (alm_e(i)[1] & 0x80u) != 0;
+        lk_b(g);
+        lk_b(n);
+        lk_v((int32_t)alm_pwait);
+        lk_b(alm_last);
+        lk_b(used);
+        for (i = 0; i < n; i++) {
+            uint32_t c = g < AS_NCIRC ? ALM_C0 + g * 32u + i : g == 3u ? ALM_G0 + i : ALM_A0 + i;
+            int32_t f = alm_find(c);
+            lk_v((int32_t)c);
+            lk_b(f >= 0);
+            lk_b(f >= 0 ? alm_e((uint32_t)f)[0] & 0x7Fu : 0u);
+            lk_b(f >= 0 ? (alm_e((uint32_t)f)[0] >> 7) & 1u : 0u);
+            lk_b(f >= 0 ? (alm_e((uint32_t)f)[1] & 15u) + 1u : 0u);
+            lk_str(alm_cname(c));
+        }
+        break;
+    }
+    case 1:
+    case 2: {
+        int ok = na >= 3u && alm_valid(code);
+        if (ok && op == 1u)
+            alm_page_arm(code);
+        else if (ok)
+            alm_clear(code);
+        lk_v((int32_t)code);
+        lk_b(ok);
+        break;
+    }
+    case 3:
+        alm_page_cancel();
+        break;
+    case 4:
+        alm_page_cancel();
+        alm_clear_all();
+        break;
+    default:
+        return;
+    }
+    lk_send();
+}
+
 static void lk_song(const uint8_t *a, uint32_t na)
 {
     uint32_t rc = 1, k;
@@ -809,6 +869,9 @@ static void lk_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         return;
     case LKC_BLOB:                                    /* a whole scene, to and from a file (10/11): lk_blob */
         lk_blob(a, na);
+        return;
+    case LKC_LEARN:                                   /* MIDI LEARN from the page (v0.76): lk_learn */
+        lk_learn(a, na);
         return;
     case LKC_SONG:                                    /* SONG (v3, 05/11): lk_song */
         lk_song(a, na);

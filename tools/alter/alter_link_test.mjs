@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // ALTER LINK (firmware/src/alter_link.c) against the browser build: node tools/alter/alter_link_test.mjs build/emu/felucca.wasm
 import fs from "node:fs";
-import { req, parse, splitFrames, CMD, F_ENUM, ACT, SHARED, BLOB_PUT, blobSum } from "../../web/alter/link.js";
+import { req, parse, splitFrames, CMD, F_ENUM, ACT, SHARED, BLOB_PUT, blobSum, learnText } from "../../web/alter/link.js";
 
 const wasm = fs.readFileSync(process.argv[2] || "build/emu/felucca.wasm");
 let fails = 0;
@@ -231,6 +231,30 @@ check("trames étrangères ou fausses : aucune réponse", send([0xf0, 0x7d, 0x46
   const now = peekAll(), stn = [0, 1, 2].map((c) => JSON.stringify(one(req.state(c))?.values));
   check(`BLOB : écrite (${put} octets), mauvaise somme refusée (${bad?.ok}), jouée (${pl?.ok}) : même scène qu'avant NEW (${now === was}, sons ${stn.join() === stw.join() ? true : stw.join() + ' / ' + stn.join()})`,
     put === bytes.length && bad?.ok === 0 && pl?.ok === 1 && now === was && blank !== was && stn.join() === stw.join());
+}
+// ---- LEARN (v0.76): the page arms a code, the next CC heard is linked; cleared; a note refused for a setting
+{
+  const g0 = one(req.learnList(0)), ga = one(req.learnList(4)), gg = one(req.learnList(3));
+  check(`LEARN : listes (cercle ${g0?.rows?.length}, GLOBAL ${gg?.rows?.length}, ACTIONS ${ga?.rows?.length} : ${ga?.rows?.slice(0, 3).map((r) => r.name).join(", ")})`,
+        g0?.rows?.length >= 20 && gg?.rows?.[0]?.name === "MASTER" && ga?.rows?.some((r) => r.name === "CHAOS"));
+  const lvl = g0.rows.find((r) => r.name === "LEVEL"), armed = one(req.learnArm(lvl.code));
+  const w = one(req.learnList(0));
+  check(`LEARN : armé sur LEVEL du cercle 1 (attente ${w.wait} = ${lvl.code})`, armed?.ok && w.wait === lvl.code);
+  ex.web_midi(0xB2, 21, 90); render(4410);                      // CC21 on channel 3, from the controller
+  const after = one(req.learnList(0)), r = after.rows.find((x) => x.code === lvl.code);
+  check(`LEARN : CC21 CH3 entendu → lié (${learnText(r)}), plus d'attente, dernier = appris`, r.linked && learnText(r) === "CC21 CH3" && after.wait === -1 && after.last === 1);
+  ex.web_midi(0xB2, 21, 0); render(4410);
+  const lv0 = ex.web_alter_peek(0, 100);
+  ex.web_midi(0xB2, 21, 127); render(8820);
+  check(`LEARN : le lien bouge LEVEL (${lv0} → ${ex.web_alter_peek(0, 100)})`, ex.web_alter_peek(0, 100) > lv0);
+  one(req.learnArm(g0.rows[0].code)); ex.web_midi(0x92, 60, 100); render(4410);
+  check("LEARN : une note pour un réglage = refusée (dernier = 2)", one(req.learnList(0)).last === 2);
+  const cl = one(req.learnClear(lvl.code));
+  check("LEARN : lien effacé", cl?.ok && !one(req.learnList(0)).rows.find((x) => x.code === lvl.code).linked);
+  one(req.learnArm(ga.rows[0].code)); ex.web_midi(0x99, 36, 100); render(4410);
+  const a2 = one(req.learnList(4));
+  check(`LEARN : une action prend une note (${learnText(a2.rows[0])}) ; CLEAR ALL`, learnText(a2.rows[0]) === "C2 CH10" &&
+        (one(req.learnClearAll()), one(req.learnList(4)).used === 0));
 }
 console.log(fails ? `link: ${fails} FAIL` : "link: tout ok");
 process.exit(fails ? 1 : 0);

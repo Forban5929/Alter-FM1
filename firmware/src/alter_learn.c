@@ -66,6 +66,9 @@ typedef char alm_at_fits[ALM_NAT <= 64u ? 1 : -1];
 static const char *const ALM_GRP[ALM_NGRP] = {"CIRCLE I", "CIRCLE II", "CIRCLE III", "GLOBAL", "ACTIONS"};
 
 static uint8_t alm_grp, alm_wait;                /* the group shown; the row waiting for a control + 1 (0: none) */
+static uint16_t alm_pwait;                       /* (v0.76) the page's LEARN tab waiting: the code + 1 (0: none) */
+static uint32_t alm_pwait_ms;
+static uint8_t alm_last;                         /* (v0.76) the page's: 1 learned, 2 refused (a note on a setting, full) */
 static uint8_t alm_seen[ALM_N], alm_on[ALM_N];   /* each link's messages already taken; an action held */
 static const char *alm_msg;                      /* (the foot's line a while: LEARNED, USE A KNOB, FULL) */
 static uint32_t alm_msg_ms;
@@ -168,6 +171,59 @@ static void alm_set(uint32_t code, uint32_t v)
     }
 }
 
+static int alm_store(uint32_t code, uint32_t src, uint32_t ch);
+static int alm_valid(uint32_t code)              /* (v0.76) a code that moves something */
+{
+    if (code >= ALM_A0)
+        return code - ALM_A0 < ALM_NAT;
+    if (code >= ALM_G0)
+        return code - ALM_G0 < ALG_N;
+    return code / 32u < AS_NCIRC && code % 32u < ALM_NCT;
+}
+/* (v0.76, Romain: LEARN in the companion page) the page arms a code: the next CC or note the FM-1 hears (USB or TRS)
+ * is linked to it, as KNOB 1 on a row of SYSTEM > LEARN; 20 s, then given up. alm_last: 1 learned, 2 refused, 3 none came */
+static void alm_page_arm(uint32_t code)
+{
+    alm_wait = 0;
+    alm_io_s.heard[2] = 0;
+    alm_io_s.arm = 1;
+    alm_pwait = (uint16_t)(code + 1u);
+    alm_pwait_ms = fm1_ms;
+    alm_last = 0;
+}
+static void alm_page_cancel(void)
+{
+    if (alm_pwait) {
+        alm_pwait = 0;
+        alm_io_s.arm = 0;
+    }
+}
+static void alm_page_poll(void)
+{
+    if (!alm_pwait)
+        return;
+    if (alm_io_s.heard[2]) {
+        uint32_t src = alm_io_s.heard[0], ch = alm_io_s.heard[1], code = alm_pwait - 1u;
+        alm_io_s.arm = 0;
+        alm_io_s.heard[2] = 0;
+        alm_pwait = 0;
+        alm_last = alm_store(code, src, ch) ? 1u : 2u;
+    } else if (fm1_ms - alm_pwait_ms > 20000u) {
+        alm_page_cancel();
+        alm_last = 3u;
+    }
+}
+static void alm_clear_all(void)
+{
+    uint32_t i;
+    fm1_irq_off();
+    for (i = 0; i < ALM_N; i++)
+        alm_e(i)[1] = 0;
+    fm1_irq_on();
+    settings_save();
+    alm_say("ALL LINKS CLEARED");
+}
+
 /* once a pass (alter_ui_input, first): the links' news. A setting: its latest value; an action: held from on to off
  * (on and off within one pass: held for this pass only, a tap) */
 static void alm_poll(void)
@@ -175,6 +231,7 @@ static void alm_poll(void)
     uint32_t i, k = 0, b = 0;
     static uint32_t bwas;
     alm_init();
+    alm_page_poll();
     if (alm_wait && (au.mn != QP_SYS || alt_sys_tab != SYS_TLEARN)) {   /* (the page left: no more waiting) */
         alm_wait = 0;
         alm_io_s.arm = 0;
@@ -223,14 +280,8 @@ static uint32_t alm_code(uint32_t r)             /* row r's code (r >= 1); 255: 
         return r < ALG_N ? ALM_G0 + r : 255u;
     return ALM_A0 + r;
 }
-static const char *alm_name(uint32_t r)
+static const char *alm_cname(uint32_t code)      /* what code moves, by name (v0.76: the page's LEARN tab too) */
 {
-    uint32_t code;
-    if (r == 0)
-        return "GROUP";
-    code = alm_code(r);
-    if (code == 255u)
-        return "CLEAR ALL";
     if (code >= ALM_A0)
         return ALM_AT[(code - ALM_A0) % ALM_NAT].name;
     if (code >= ALM_G0)
@@ -243,6 +294,14 @@ static const char *alm_name(uint32_t r)
         d = track_desc(&trk[code / 32u % AS_NCIRC], a->ref);
         return d && d->label ? d->label : "-";
     }
+}
+static const char *alm_name(uint32_t r)
+{
+    uint32_t code;
+    if (r == 0)
+        return "GROUP";
+    code = alm_code(r);
+    return code == 255u ? "CLEAR ALL" : alm_cname(code);
 }
 static const char *alm_text(uint32_t r)
 {
@@ -339,21 +398,15 @@ static void alm_turn(uint32_t r, int32_t s)
         return;
     }
     if (code == 255u) {
-        if (s < 0) {
-            uint32_t i;
-            fm1_irq_off();
-            for (i = 0; i < ALM_N; i++)
-                alm_e(i)[1] = 0;
-            fm1_irq_on();
-            settings_save();
-            alm_say("ALL LINKS CLEARED");
-        }
+        if (s < 0)
+            alm_clear_all();
         return;
     }
     if (s < 0) {
         alm_clear(code);
         return;
     }
+    alm_pwait = 0;                               /* (the page's waiting, if any: the device's now) */
     alm_io_s.heard[2] = 0;
     alm_io_s.arm = 1;
     alm_wait = (uint8_t)r;
