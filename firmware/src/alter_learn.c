@@ -40,9 +40,13 @@ static const alm_ct_t ALM_CT[] = {               /* (name 0: the sound's own, as
 #define ALM_NCT ((uint32_t)NELEM(ALM_CT))
 typedef char alm_ct_fits[ALM_NCT <= 32u ? 1 : -1];
 enum { ALG_MASTER, ALG_TEMPO, ALG_SWING, ALG_FFREQ, ALG_FRES, ALG_FDRIVE, ALG_FMIX, ALG_FMORPH, ALG_DFB, ALG_DCOL,
-       ALG_RSIZE, ALG_RDAMP, ALG_N };
+       ALG_RSIZE, ALG_RDAMP, ALG_MACRO, ALG_N };   /* (codes ALM_G0 + g: kept in the flash, only ever added at the end;
+                                                  * MACRO v0.77: alter_macro.c) */
 static const char *const ALM_GT[ALG_N] = {"MASTER", "TEMPO", "SWING", "FILT FREQ", "FILT RES", "FILT DRIVE",
-                                          "FILT MIX", "FILT MORPH", "DLY FEEDBK", "DLY COLOR", "REV SIZE", "REV DAMP"};
+                                          "FILT MIX", "FILT MORPH", "DLY FEEDBK", "DLY COLOR", "REV SIZE", "REV DAMP",
+                                          "MACRO"};
+static void amc_turn_to(uint32_t v);             /* (alter_macro.c) */
+static uint32_t amc_value(void);
 typedef struct { uint32_t keys; uint8_t btn; const char *name; } alm_at_t;
 #define ALM_K(k) (1u << (k))
 #define ALM_NOBTN 0xFFu
@@ -120,8 +124,31 @@ static void alm_global(uint32_t g, uint32_t v)
     case ALG_DFB: song.g[G_DFDBK] = (int16_t)((int32_t)v * 120 / 127); afx_edit |= 1u << AFX_S_DLY; break;
     case ALG_DCOL: song.g[G_DCOLOR] = (int16_t)v; afx_edit |= 1u << AFX_S_DLY; break;
     case ALG_RSIZE: song.g[G_RSIZE] = (int16_t)v; afx_edit |= 1u << AFX_S_REV; break;
+    case ALG_MACRO: amc_turn_to(v); break;
     default: song.g[G_RDAMP] = (int16_t)v; afx_edit |= 1u << AFX_S_REV; break;
     }
+}
+/* (v0.77, the MACRO) a GLOBAL's value now, 0..127, as alm_global takes it */
+static uint32_t alm_gget(uint32_t g)
+{
+    uint32_t sn = afl_morph < 64u ? 0u : 1u;
+    int32_t v;
+    switch (g) {
+    case ALG_MASTER: return alt_mgain;
+    case ALG_TEMPO: v = ((int32_t)song.g[G_BPM] - 40) * 127 / 200; break;
+    case ALG_SWING: v = (int32_t)song.g[G_SWING] * 127 / 100; break;
+    case ALG_FFREQ: return afl[sn][AFL_FREQ];
+    case ALG_FRES: return afl[sn][AFL_RES];
+    case ALG_FDRIVE: return afl[sn][AFL_DRIVE];
+    case ALG_FMIX: return afl[sn][AFL_MIX];
+    case ALG_FMORPH: return afl_morph;
+    case ALG_DFB: v = ((int32_t)song.g[G_DFDBK] * 127 + 60) / 120; break;
+    case ALG_DCOL: v = song.g[G_DCOLOR]; break;
+    case ALG_RSIZE: v = song.g[G_RSIZE]; break;
+    case ALG_MACRO: return amc_value();
+    default: v = song.g[G_RDAMP]; break;
+    }
+    return (uint32_t)(v < 0 ? 0 : v > 127 ? 127 : v);
 }
 /* code's setting to v (0..127 over its range) */
 static void alm_set(uint32_t code, uint32_t v)
@@ -167,6 +194,35 @@ static void alm_set(uint32_t code, uint32_t v)
             dd -= st;
         }
         break;
+    }
+    }
+}
+
+/* (v0.77, the MACRO) code's setting now, 0..127 over its range, as alm_set takes it (the die's offset left out) */
+static uint32_t alm_get(uint32_t code)
+{
+    uint32_t c = code / 32u, t = code % 32u;
+    const alm_ct_t *a;
+    if (code >= ALM_A0)
+        return 0;
+    if (code >= ALM_G0)
+        return code - ALM_G0 < ALG_N ? alm_gget(code - ALM_G0) : 0u;
+    if (c >= AS_NCIRC || t >= ALM_NCT)
+        return 0;
+    a = &ALM_CT[t];
+    switch (a->kind) {
+    case ALK_CS: return acs_v[c][a->ref % ACS_N];
+    case ALK_RMB: return alt_rmb[c];
+    case ALK_HITS: return au.cfg[c].len ? (au.cfg[c].hits * 127u + au.cfg[c].len / 2u) / au.cfg[c].len : 0u;
+    case ALK_DOSE: return au.cfg[c].dose;
+    default: {
+        const param_desc_t *d = track_desc(&trk[c], a->ref);
+        int32_t sl = alt_slot(a->ref), base, v;
+        if (!d || d->max <= d->min)
+            return 0;
+        base = trk[c].p[a->ref] - (sl >= 0 ? alt_applied[c][sl] : 0);
+        v = ((base - d->min) * 127 + (d->max - d->min) / 2) / (d->max - d->min);
+        return (uint32_t)(v < 0 ? 0 : v > 127 ? 127 : v);
     }
     }
 }

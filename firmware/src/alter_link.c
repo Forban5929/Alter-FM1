@@ -598,13 +598,14 @@ static void lk_user(uint32_t t, uint32_t cmd, const uint8_t *a, uint32_t na)
  *   3 size, sum   alt_blob played (as a USER scene loads), if size and sum match and it is ours  -> 3, rc (1 played, 0 refused) */
 #define LK_BLOB_OUT 256u
 _Static_assert(sizeof(alt_blob_t) < 8192u, "BLOB: its size and offsets in a value");
-static uint32_t lk_blob_sum(void)
+static uint32_t lk_blob_sum_n(uint32_t n)
 {
     uint32_t k, sm = 0;
-    for (k = 0; k < sizeof alt_blob; k++)
+    for (k = 0; k < n; k++)
         sm = (sm * 31u + ((const uint8_t *)&alt_blob)[k]) & 0x1FFFu;
     return sm;
 }
+static uint32_t lk_blob_sum(void) { return lk_blob_sum_n(sizeof alt_blob); }
 static void lk_blob(const uint8_t *a, uint32_t na)
 {
     uint8_t *b = (uint8_t *)&alt_blob;
@@ -615,6 +616,7 @@ static void lk_blob(const uint8_t *a, uint32_t na)
         for (k = 0; k < sizeof alt_blob; k++)
             b[k] = 0;
         alt_us_snap(&alt_blob.r, alt_blob.cs, alt_blob.dr);
+        amc_get(alt_blob.mc);
         lk_begin(LKC_BLOB);
         lk_b(0);
         lk_v((int32_t)sizeof alt_blob);
@@ -663,10 +665,13 @@ static void lk_blob(const uint8_t *a, uint32_t na)
     }
     {
         uint32_t sz = off, sm = na >= 5u ? (uint32_t)(lk_rv(a + 3) + 8192) : 0xFFFFFFFFu, ok;   /* (no sum: never matches) */
-        ok = sz == sizeof alt_blob && sm == lk_blob_sum() && alt_blob.r.used == 1u;
+        ok = (sz == sizeof alt_blob || sz == ALT_BLOB_OLD) && sm == lk_blob_sum_n(sz) && alt_blob.r.used == 1u;
         if (ok) {
+            if (sz == ALT_BLOB_OLD)              /* (a file from before the MACRO, v0.77: none) */
+                alt_blob.mc[0] = 0;
             sg_detach = 1;
             alt_us_apply(&alt_blob.r, alt_blob.cs, alt_blob.dr);
+            amc_put(alt_blob.mc);
         }
         lk_begin(LKC_BLOB);
         lk_b(3);

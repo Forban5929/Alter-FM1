@@ -113,7 +113,7 @@ check(`après extinction : ${links(t2).length} liens gardés, CC21 = HIGH du cer
 t2.system(); t2.enc(E.ALGO, 1);
 t2.enc(E.SELECT, -60); t2.enc(E.K1, -6); t2.enc(E.K1, 4); t2.enc(E.SELECT, 2); t2.enc(E.K1, -1);
 check(`KNOB 1 < sur MUTE 2 : ce lien effacé (${links(t2).length} liens)`, links(t2).length === 5);
-t2.enc(E.SELECT, -60); t2.enc(E.K1, -6); t2.enc(E.K1, 3); t2.enc(E.SELECT, 13); t2.enc(E.K1, -1);
+t2.enc(E.SELECT, -60); t2.enc(E.K1, -6); t2.enc(E.K1, 3); t2.enc(E.SELECT, 14);   /* (v0.77: + MACRO) */ t2.enc(E.K1, -1);
 check(`CLEAR ALL : plus aucun lien (${links(t2).length})`, links(t2).length === 0);
 t2.tap(B.HOME); t2.w(100);
 t2.midi(0xB0, 7, 33); t2.w(100);

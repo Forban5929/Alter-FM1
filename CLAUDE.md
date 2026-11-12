@@ -18,7 +18,7 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
    - `cc -std=c99 -O2 -Wall -o build/alter/alter_seq_test tools/alter/alter_seq_test.c && build/alter/alter_seq_test`
    - `node tools/alter/alter_link_test.mjs build/emu/felucca.wasm` · `node tools/alter/alter_learn_test.mjs build/emu/felucca.wasm`
      · `node tools/alter/alter_smooth_test.mjs build/emu/felucca.wasm` (bandes = redessin complet, coût ON/OFF)
-     · `node tools/alter/alter_boot_test.mjs build/emu/felucca.wasm` (démarrage + veille) · `node web/emu/emu_test.mjs …` (**4 échecs VOULUS**)
+     · `node tools/alter/alter_boot_test.mjs build/emu/felucca.wasm` (démarrage + veille) · `alter_macro_test.mjs` (MACRO) · `node web/emu/emu_test.mjs …` (**4 échecs VOULUS**)
    - 2 cœurs (GitHub le lance) : `cc -std=gnu99 -O1 -w -fsanitize=thread -DFELUCCA_CPU2=1 -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -Ifirmware/bsp/chip -Ifirmware/bsp/boards/fm1 tests/dualcore_test.c -o build/host/dualcore_test -lpthread -lm`
    - `node tools/alter/alter_save_test.mjs build/emu/felucca.wasm` (sauver/rappeler, tirages, PROG) · `cc -O2 -o build/alter/alter_dvm_test tools/alter/alter_dvm_test.c && build/alter/alter_dvm_test`
    - Page compagnon : servir `/tmp/site` (build/emu + web/alter → editor/) par `python3 -m http.server`, piloter Chrome headless
@@ -30,7 +30,7 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v0.76 » (12/11) ; **+0.01 à CHAQUE envoi à Romain** (v0.42, v0.43…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v0.77 » (12/11) ; **+0.01 à CHAQUE envoi à Romain** (v0.42, v0.43…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. Pousser sur `etape-3d` → GitHub Actions construit le vrai firmware + publie https://forban5929.github.io/Alter-FM1/ (version
    dans /version.txt). Le cloud ne télécharge pas les artifacts ni le compilateur JieLi : **rien n'est mesuré sur la FM-1 depuis le cloud.**
@@ -74,7 +74,7 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   liste USER sur la 1re case vide ; **son USB** (Listen, Rec WAV, vumètre) ; taille AUTO d'après la fenêtre ; scroll thémé.
 - Mesures FM-1 connues : écran 28F 24MS (09/11, avant les dernières versions) ; CPU > 60 % avec 3 cercles + effets (09/11).
 
-## Où on en est (12/11, v0.76)
+## Où on en est (12/11, v0.77)
 **Retours de tests FM-1 (10/11, Sheet)** : tests 1-5 OK ; **CPU = problème n° 1** : 67/85 % 27F 31MS avec tous les effets,
 et avec 3 LFO + envois FX sur les pas : 18F 50MS, **CUT 393** (2C était actif). v0.51 (choix de Romain) : **MASTER FILTER simple façon Felucca** (1 étage TPT, coefficients 1 fois par bloc, sauf FM :
 tous les 8 ; RES max k = 0.12, ne crie plus ; presets SHERMAN → ENV WAH, SCREAM → PEAK ; MORPH A/B et les 11 réglages gardés,
@@ -208,6 +208,12 @@ RESO (exciteur) ; RING ne calcule plus que les 2 formes d'onde qu'il mélange (�
 / `alm_page_poll` (attente de la page, 20 s, `alm_pwait`, `alm_last`), `alm_cname`, `alm_valid`, `alm_clear_all` ; page :
 onglet **Learn (XXI)** (groupes, Learn / Clear par ligne, Clear every link via dialogue, aide) ; `window.altSim` = le simulateur
 de ?demo (tests CDP : `altSim.web_midi(0xB0, 21, 80)`). Testé : alter_link_test (7) + Chrome headless.
+**v0.77 (Romain : MACRO, toute la scène, recettes + modifiables, OCT+ tenu + KNOB 1)** : `alter_macro.c` (`amc`) ; 4 lignes
+= cibles MIDI LEARN (ligne de cercle ALM_CT × I/II/III/I-III, ou GLOBAL) + quantité −64..63 ; recettes TENSION SPACE DARK
+DESTROY ; base = valeur à MACRO 0, réglage tourné à la main = nouvelle place (`w`/`w0`) ; `alm_get` (alter_learn.c) ;
+GLOBAL de LEARN « MACRO » (ALG_MACRO, ajouté à la fin) ; gardée dans la scène (`alt_ub.s.mc`, BLOB `mc` à la fin, fichier
+ancien accepté `ALT_BLOB_OLD`, copie de plantage) ; CHAOS / TOTAL / NEW / usine = 0 (`amc_zero`). Peek 19 (état), 20-23
+(lignes). Test : `tools/alter/alter_macro_test.mjs`. Attention : les REC de mouvements bougent aussi les cibles.
 LOCKS refaits en v0.48 (7 verrous
 = les dés : RHYTHM LENGTH VELOCITY CHANCE PITCH THROWS SOUND ; bits 1 2 32 gardés, anciens 4 8 16 64 relus LEN CHANCE SOUND
 THROWS) ; UPDATE (OCT− + OCT+ 5 s) seulement s'ils sont tenus SEULS (main.c `combo`, pas testable dans l'émulateur).
@@ -237,5 +243,5 @@ fichier patch entier, MIXER de la page, MIDI LEARN (BCR32), TRS MIDI (câble en 
    laisser croire à un lien avec Noise Engineering ; prévenir Leo Kuroshita (Felucca) avant l'annonce ; Issues GitHub ouvertes.
 
 ## Idées (après la 1.0, si Romain le demande)
-Macro (un contrôle → plusieurs réglages) ; ~~LEARN dans la page compagnon~~ (v0.76) ; DENSITY/ROT continus ; PROG dans la page compagnon ;
+~~Macro~~ (v0.77) ; ~~LEARN dans la page compagnon~~ (v0.76) ; DENSITY/ROT continus ; PROG dans la page compagnon ;
 même vague LFO dans la page compagnon.

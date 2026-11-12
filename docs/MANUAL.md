@@ -136,6 +136,14 @@ REVERB; all on by default). CHAOS switches every effect off (DIST, INSERT, the s
 
 ## 7. Performance
 
+- **MACRO** (OCT+ held on the circles' view): one knob for the whole scene. **KNOB 1** turns it (0..127, a gauge),
+  **KNOB 2** picks a recipe — **TENSION** (DRIVE, HIGH, REVERB, DELAY up on the three circles), **SPACE** (REVERB and
+  DELAY sends, DELAY FEEDBACK, REVERB SIZE), **DARK** (HIGH and MID down, REVERB DAMP and LOW up), **DESTROY** (DRIVE,
+  INSERT MIX, COMP, MASTER FILTER DRIVE). Each of the four rows can be changed: **SELECT** a row, **KNOB 3** its target
+  (any setting MIDI LEARN reaches, or none), **ALGORITHM** its circle (I, II, III or I-III), **KNOB 4** how far it goes
+  (−64..+63; the recipe's name then reads with a *). The MACRO moves the settings from where they are and gives them back
+  at 0; a setting you turn by hand meanwhile keeps its new place. Kept with the scene (USER slots, patch files); CHAOS,
+  CHAOS TOTAL, NEW and the factory scenes start it at 0. Also in MIDI LEARN (GLOBAL › MACRO).
 - **TRIGGER**: a hit of the chosen circle at once. **REC held + TRIGGER**: the hit is added to its pattern.
 - **Fills** (upper keys, held): DUB DELAY, DUB REVERB, DESTROY, ROLL 1/16, ROLL 1/8 on the chosen circle as long as you
   hold them. With REC on, they are written.

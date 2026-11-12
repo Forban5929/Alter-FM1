@@ -253,6 +253,11 @@ static void alt_preset_step(uint32_t c, int32_t s)
     alt_say(ALT_PRE[i].name);
 }
 
+#define AMC_REC 15u                              /* (alter_macro.c: the MACRO kept with a scene, its bytes) */
+static void amc_get(uint8_t *b);
+static void amc_put(const uint8_t *b);
+static void amc_zero(void);
+static void amc_input(uint32_t keys);
 #include "alter_store.c"
 
 /* the SAVE page's tabs (10/11: the patterns gone, Romain): SCENES A, B, C. A: NEW, the factory ones, USER A01..A16;
@@ -1302,6 +1307,7 @@ static void alt_chaos(void)
     uint32_t c, k, ntur = 0;
     for (c = 0; c < AS_NCIRC; c++)               /* (the TURINGs a LOCK keeps count: one at most in all, v0.70) */
         ntur += (alt_seq.c[c].locks & AS_LK_RHYTHM) && au.cfg[c].type == AS_T_TURING;
+    amc_zero();                                  /* (v0.77: the MACRO at 0, nothing to give back) */
     alt_crng ^= fm1_ms * 0x9E3779B9u;
     alt_seq.scale = (uint8_t)alt_cr(AS_NSCALE);
     for (k = 0; k < NELEM(alt_gl.amt); k++)      /* the GLOBAL off (one LFO per circle, no more) */
@@ -1582,6 +1588,7 @@ static void alt_total_chaos(void)
     }
     alt_tc_snap();
     au.tc_ms = fm1_ms | 1u;
+    amc_zero();                                  /* (v0.77: the MACRO at 0, nothing to give back) */
     alt_crng ^= fm1_ms * 0x9E3779B9u;
     alt_seq.scale = (uint8_t)alt_cr(AS_NSCALE);
     {                                            /* the shared delay and reverb, anywhere (FEEDBACK under the howl: 0..100 of
@@ -1982,6 +1989,7 @@ static int alter_ui_input(uint32_t pressed)
         au.keys = keys;
         return 1;
     }
+    amc_input(keys);                             /* (v0.77) OCT+ held alone on the circles' view: the MACRO page */
     q = alt_page();
     if (afp.open)                                /* the FX page: its encoders (the keys play on: mutes, dice, fills) */
         afp_input(pressed);
@@ -3506,6 +3514,7 @@ static uint8_t alt_sys_top;                      /* (the first row shown: RANDOM
 static uint8_t alt_sys_tab;
 static int16_t alt_sys_scroll;                   /* (ABOUT: pixels scrolled) */
 #include "alter_learn.c"                         /* LEARN: MIDI LEARN (07/11) */
+#include "alter_macro.c"                         /* MACRO (v0.77): OCT+ held, KNOB 1 */
 static void alt_sys_open_rand(void)
 {
     alt_menu_set(QP_SYS);
@@ -4153,6 +4162,10 @@ static void alt_scene(uint32_t q, uint32_t flash)
     alt_band_set();
     if (au.lockc) {
         alt_locks_scene();
+        return;
+    }
+    if (amc.show) {                              /* (v0.77) the MACRO page, OCT+ held */
+        amc_scene();
         return;
     }
     if (au.scene_open) {
@@ -5030,7 +5043,7 @@ static void alter_draw(void)
     sig = sig * 31u + alt_emode[au.sel] * 37u + alt_seq.scale * 41u + au.scene_open * 43u + au.row[au.tab] * 47u + au.tab * 59u +
           au.pre[au.sel] * 53u;
     sig = sig * 31u + (au.mat_open ? alt_mat_sig() * 2u + 1u : 0u) + (au.seq_open ? alt_seq_sig() * 4u + 3u : 0u) +
-          (afp.open ? afp_sig() * 8u + 5u : 0u);
+          (afp.open ? afp_sig() * 8u + 5u : 0u) + (amc.show ? amc_sig() * 16u + 9u : 0u);
     if (au.mn == QP_GLO) {                       /* (the MIXER: its faders and meter) */
         alt_mix_poll();
         sig = sig * 31u + (uint32_t)alt_mix_pk / 600u * 7u + (uint32_t)alt_mix_hold / 600u * 11u + alt_mgain * 13u;
@@ -5108,7 +5121,7 @@ static void alter_draw(void)
                                                   * on (Romain 05/11: "laggy": a whole frame each step) */
         static uint8_t now_seen[AS_NCIRC], fl_seen;
         uint8_t now[AS_NCIRC];
-        int circles = !au.lockc && !au.scene_open && !au.mat_open && !au.seq_open && !afp.open && !au.mn;
+        int circles = !au.lockc && !au.scene_open && !au.mat_open && !au.seq_open && !afp.open && !au.mn && !amc.show;
         for (i = 0; i < AS_NCIRC; i++) {
             uint32_t len = alt_seq.c[i].cfg.len ? alt_seq.c[i].cfg.len : 1u;
             now[i] = (uint8_t)((alt_seq.c[i].pos + len - 1u) % len);
@@ -5267,6 +5280,10 @@ static int32_t alt_peek(uint32_t c, uint32_t w)
         return (int32_t)(au.cfg[c].type | au.cfg[c].len << 8 | au.cfg[c].tdens << 16 | (uint32_t)au.cfg[c].tlock << 24);
     if (w == 10u)
         return au.cfg[c].trange;
+    if (w == 19u)                                /* (v0.77: the MACRO: value | recipe << 8 | edited << 15 | shown << 16) */
+        return (int32_t)(amc.val | amc.rcp << 8 | amc.edited << 15 | (uint32_t)amc.show << 16);
+    if (w >= 20u && w < 20u + AMC_NS)            /* (v0.77: row w - 20: target | circle << 8 | (amount + 64) << 16) */
+        return (int32_t)(amc.t[w - 20u] | amc.cir[w - 20u] << 8 | (uint32_t)(amc.amt[w - 20u] + 64) << 16);
     if (w == 18u)                                /* (v0.73: circle c's LOCKS | the LOCKS page open on circle + 1 << 8) */
         return (int32_t)(alt_seq.c[c % AS_NCIRC].locks | (uint32_t)au.lockc << 8);
     if (w == 17u)                                /* (v0.66: CHAOS waiting: its kind | glitch on << 8 | playing << 9) */
@@ -5363,7 +5380,7 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
     case 25:                                     /* (a test: USER a stored as before the draws, 10/11: the object cut) */
         alt_web_rc = alt_row_save(0, ALT_NFACT + 1u + a % ALT_NUSER);
         alt_ub.s.dr[a % ALT_US_PER][0] = 0;
-        (void)st_save(alt_us_obj(a % ALT_NUSER), &alt_ub.s, sizeof alt_ub.s - sizeof alt_ub.s.dr);
+        (void)st_save(alt_us_obj(a % ALT_NUSER), &alt_ub.s, sizeof alt_ub.s - sizeof alt_ub.s.dr - sizeof alt_ub.s.mc);   /* (v0.77: the MACRO after them) */
         break;
     case 24: alt_web_rc = alt_row_load(b & 1u, b & 2u ? 0u : ALT_NFACT + 1u + a % ALT_NUSER); break;   /* (a test: LOAD
                                                   * USER a, b & 1 a pattern; b & 2: NEW) */
