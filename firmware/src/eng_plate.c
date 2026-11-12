@@ -22,6 +22,8 @@
  * Monophonic (a new hit strikes the same plate: the ring carries on). The lines in the part's engine memory, 16 bits:
  * 4 x 1536 samples (the note an octave up while its lines would not fit: C1..B1 ring an octave higher). */
 
+#include "eng_dvm.h"
+
 #define PL_NL 4
 #define PL_LEN 1536
 typedef struct {
@@ -82,6 +84,7 @@ static void plate_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
     const int16_t *p = t->p;
     uint32_t len[PL_NL], k, i, per16, w;
     int32_t gk[PL_NL], mt, sp, seg, frac, g, drv, dirt, fold, tone, rate, hit, env, rng, xa, xg;
+    uint32_t mdrv, mrate;                        /* (v0.75: the divisions as multiplies, eng_dvm.h) */
     if (!S)
         return;
     /* the note's period in samples, Q16 (2^48 / inc), an octave up while the longest line would not fit */
@@ -128,6 +131,8 @@ static void plate_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
     hit = p[P_E7];
     xa = mt < 43 ? 900 + mt * 200 : 32767;        /* the mallet: a dark burst; harder above 42 */
     xg = 64 + 16384 / (rate + 16) + (32767 - xa) / 90;   /* (the exciter's gain, Q6: short and dark strikes louder) */
+    mdrv = dvm_make((uint32_t)drv, 42u);         /* (|z << 12| < 2^27, drv < 2^14: 2^41 < 2^42) */
+    mrate = dvm_make((uint32_t)rate, 32u);       /* (env < 2^17, rate <= 3510: < 2^29) */
     env = S->env;
     rng = S->rng;
     w = S->w;
@@ -136,7 +141,7 @@ static void plate_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
         if (env > 16) {                           /* the strike: noise, shaped */
             int32_t nz = (int32_t)(noise32(&rng) >> 16) - 32768;
             x = (int32_t)(((int64_t)nz * (env >> 1)) >> 15);
-            env -= env / rate + 1;
+            env -= dvm_div(env, mrate, 32u) + 1;
         }
         if (mt > 84 && v->gate) {                 /* the scrape: crackle, then rough noise, while held */
             int32_t r = (int32_t)(noise32(&rng) >> 16), dens = (mt - 84) * 1500;
@@ -167,7 +172,7 @@ static void plate_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
             if (dirt) {                           /* DIRT: a tanh in the loop (the small-signal gain kept) */
                 z = (int32_t)(((int64_t)z * drv) >> 12);
                 z = softclip(clamp(z, -65535, 65535));
-                z = (z << 12) / drv;             /* (v0.59: 32 bits, |z| <= 32767: the same, no 64-bit division a sample) */
+                z = dvm_div(z << 12, mdrv, 42u);   /* (v0.75: as a multiply; v0.59: no 64-bit division) */
                 if (fold) {                       /* past 90: folded back over a lower ceiling */
                     int32_t c = 32767 - fold, a = z < 0 ? -z : z;
                     if (a > c)

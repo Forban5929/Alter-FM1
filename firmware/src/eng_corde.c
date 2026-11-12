@@ -21,6 +21,8 @@
  * Two voices per part. Each line in the part's engine memory, 16 bits, 2048 samples (C1 and up). The allpasses'
  * delay is taken off the line's length, so a stiff string stays (about) in tune. */
 
+#include "eng_dvm.h"
+
 #define CD_POLY 2
 #define CD_LEN 2048
 typedef struct {
@@ -63,6 +65,7 @@ static void corde_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
     const int16_t *p = t->p;
     uint32_t i, w, len16, di, f;
     int32_t mt, c, apd, g, dirt, drv, fold, tone, rate, buzz, env, rng, xa, xg;
+    uint32_t mdrv, mrate;                        /* (v0.75: the divisions as multiplies, eng_dvm.h) */
     if (!S)
         return;
     mt = (clamp((p[P_E0] << 8) + m->shape - (64 << 8), 0, 127 << 8) >> 8) * 90 / 127;   /* MATR (+ SHP); the knob at
@@ -105,6 +108,8 @@ static void corde_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
     buzz = p[P_E6] ? 30000 - p[P_E6] * 200 : 0;  /* BUZZ: the ceiling one side of the wave hits (Q15) */
     xa = mt < 43 ? 1500 + mt * 300 : 32767;       /* the pluck dark; the pick bright */
     xg = 64 + 16384 / (rate + 16) + (32767 - xa) / 90;   /* (the exciter's gain, Q6: short and dark strikes louder) */
+    mdrv = dvm_make((uint32_t)drv, 42u);         /* (|z << 12| < 2^27, drv < 2^14) */
+    mrate = dvm_make((uint32_t)rate, 32u);       /* (env < 2^17, rate < 2^13: the half period's at most 1020) */
     env = S->env;
     rng = S->rng;
     w = S->w;
@@ -115,7 +120,7 @@ static void corde_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
             x = (int32_t)(((int64_t)nz * (env >> 1)) >> 15);
             if (mt >= 43 && mt <= 84 && env > 60000)
                 x += 12000;                       /* (the pick's click) */
-            env -= env / rate + 1;
+            env -= dvm_div(env, mrate, 32u) + 1;
         }
         if (mt > 84 && v->gate) {                 /* the bow, the scrape: friction while held */
             int32_t q = (int32_t)(noise32(&rng) >> 16), dens = (mt - 84) * 1500;
@@ -147,7 +152,7 @@ static void corde_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
         if (dirt) {                               /* DIRT: a tanh (the small-signal gain kept), then a fold */
             z = (int32_t)(((int64_t)z * drv) >> 12);
             z = softclip(clamp(z, -65535, 65535));
-            z = (z << 12) / drv;                 /* (v0.59: 32 bits, |z| <= 32767: the same, no 64-bit division a sample) */
+            z = dvm_div(z << 12, mdrv, 42u);   /* (v0.75: as a multiply; v0.59: no 64-bit division) */
             if (fold) {
                 int32_t cl = 32767 - fold, a = z < 0 ? -z : z;
                 if (a > cl)

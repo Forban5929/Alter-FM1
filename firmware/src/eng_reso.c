@@ -24,6 +24,8 @@
  * Polyphony 2 per part. Fixed point: Q15 audio, Q24 coefficients (once a block: g = tan(pi f / FS) from the sine
  * table, four divisions). */
 
+#include "eng_dvm.h"
+
 #define RESO_NF 4
 #define RESO_POLY 2
 enum { RESO_MIX, RESO_NOTCH, RESO_LOW, RESO_NOUT };
@@ -97,6 +99,7 @@ static void reso_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     reso_slot_t *S = reso_slot_of(t, v);
     const int16_t *p = t->p;
     int32_t a[RESO_NF][3], kq, kb, fb, drv, mt, sp, seg, frac, i, rate, outm, rng, env, dirt, gain, dens, rub;
+    uint32_t mrate;
     uint32_t inc[RESO_NF], k, einc, on = 0;
     if (!S)
         return;
@@ -115,6 +118,7 @@ static void reso_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     frac = sp - seg * 256;
     /* DCAY: the exciter's fall (its time constant, 0.2 .. 80 ms in samples) */
     rate = 10 + p[P_E5] * p[P_E5] * 3500 / 16129;
+    mrate = dvm_make((uint32_t)rate, 32u);       /* (v0.75: env < 2^17, rate <= 3510: the division as a multiply) */
     for (k = 0; k < RESO_NF; k++) {
         int32_t o = 2 * 4096 + RESO_SET[seg][k] + (RESO_SET[seg + 1][k] - RESO_SET[seg][k]) * frac / 256 + S->sw +
                     m->cutoff * 2 * 4096 / (64 << 8);   /* (FLT: an offset around 0) */
@@ -161,7 +165,7 @@ static void reso_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
                 x = imp + (nz - imp) * mt / 86;  /* (half way to the noise at 42; v0.59: 32 bits, the same) */
             else
                 x = nz + (imp - nz) * (84 - clamp(mt, 43, 84)) / 82;
-            env -= env / rate + 1;
+            env -= dvm_div(env, mrate, 32u) + 1;
         }
         if (rub) {                               /* the rubbing: crackle, then noise */
             int32_t r = (int32_t)(noise32(&rng) >> 16);

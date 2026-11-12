@@ -20,7 +20,7 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
      · `node tools/alter/alter_smooth_test.mjs build/emu/felucca.wasm` (bandes = redessin complet, coût ON/OFF)
      · `node tools/alter/alter_boot_test.mjs build/emu/felucca.wasm` (démarrage + veille) · `node web/emu/emu_test.mjs …` (**4 échecs VOULUS**)
    - 2 cœurs (GitHub le lance) : `cc -std=gnu99 -O1 -w -fsanitize=thread -DFELUCCA_CPU2=1 -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -Ifirmware/bsp/chip -Ifirmware/bsp/boards/fm1 tests/dualcore_test.c -o build/host/dualcore_test -lpthread -lm`
-   - `node tools/alter/alter_save_test.mjs build/emu/felucca.wasm` (sauver/rappeler, tirages, PROG)
+   - `node tools/alter/alter_save_test.mjs build/emu/felucca.wasm` (sauver/rappeler, tirages, PROG) · `cc -O2 -o build/alter/alter_dvm_test tools/alter/alter_dvm_test.c && build/alter/alter_dvm_test`
    - Page compagnon : servir `/tmp/site` (build/emu + web/alter → editor/) par `python3 -m http.server`, piloter Chrome headless
      par CDP (`--remote-debugging-port`, script type /tmp/cdp.mjs à refaire : Runtime.evaluate + Page.captureScreenshot) ;
      pas de sortie son en headless (AudioContext suspendu), getUserMedia à remplacer par un oscillateur.
@@ -30,7 +30,7 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v0.74 » (12/11) ; **+0.01 à CHAQUE envoi à Romain** (v0.42, v0.43…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v0.75 » (12/11) ; **+0.01 à CHAQUE envoi à Romain** (v0.42, v0.43…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. Pousser sur `etape-3d` → GitHub Actions construit le vrai firmware + publie https://forban5929.github.io/Alter-FM1/ (version
    dans /version.txt). Le cloud ne télécharge pas les artifacts ni le compilateur JieLi : **rien n'est mesuré sur la FM-1 depuis le cloud.**
@@ -74,7 +74,7 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   liste USER sur la 1re case vide ; **son USB** (Listen, Rec WAV, vumètre) ; taille AUTO d'après la fenêtre ; scroll thémé.
 - Mesures FM-1 connues : écran 28F 24MS (09/11, avant les dernières versions) ; CPU > 60 % avec 3 cercles + effets (09/11).
 
-## Où on en est (12/11, v0.74)
+## Où on en est (12/11, v0.75)
 **Retours de tests FM-1 (10/11, Sheet)** : tests 1-5 OK ; **CPU = problème n° 1** : 67/85 % 27F 31MS avec tous les effets,
 et avec 3 LFO + envois FX sur les pas : 18F 50MS, **CUT 393** (2C était actif). v0.51 (choix de Romain) : **MASTER FILTER simple façon Felucca** (1 étage TPT, coefficients 1 fois par bloc, sauf FM :
 tous les 8 ; RES max k = 0.12, ne crie plus ; presets SHERMAN → ENV WAH, SCREAM → PEAK ; MORPH A/B et les 11 réglages gardés,
@@ -123,7 +123,7 @@ CPU moy. max 56-74 %, pics 82-91 %, 8-24F ; un cercle jusqu'à 37-50 %. Le plus 
 Reste : marge faible (pics ~90) → même nettoyage CORDE/RING/PLATE ; écran (8-24F sous charge) → REFONTE 4.
 v0.59 (Romain : « marge son d'abord ») : divisions 64 bits PAR ÉCHANTILLON retirées (logicielles sur pi32v2, alter_divdi.c) :
 DIRT de CORDE (1), PLATE (4 lignes), RING (1 + softclip(bias) par bloc), RESO (jusqu'à 8). Valeurs bornées → 32 bits,
-identique au bit (24 tirages, 7 moteurs : /tmp/prof/esum.c). Règle : **jamais de `(int64_t) … /` dans une boucle par échantillon**.
+identique au bit (24 tirages, 7 moteurs : /tmp/prof/esum.c). Règle : **jamais de `(int64_t) … /` dans une boucle par échantillon** (et v0.75 : une division par une valeur du bloc → `dvm_div`).
 Mesures v0.59 sur la FM-1, effets coupés : les 3 cercles seuls ≈ 33-38 % moy., pics ~60 ; MASTER FILTER +13, bus +12..24.
 v0.60 : **code du son rangé en tête de flash** (build.py `audio_sections`, app.ld `.text.a.*`, size_fns `isr_reach` suit les
 tables ; ALTER_LAYOUT=0 = comme avant), d'après JIANT 0.9.12 : **pas de gain visible** au banc (même coût moteurs).
@@ -200,6 +200,10 @@ image finale direct) ; LEDs à nous (`alt_splash_leds`, `boot_anim` remplace le 
 **Veille** : ui.c `SCR_SEAL` (SCREEN OFF écoulé → `alt_seal_frame` 1 min, cercles sombres qui respirent et dérivent, 10 img/s,
 puis vraiment noir ; une touche réveille, `alt_redraw_all`). Test op 35 = veille ; `tools/alter/alter_boot_test.mjs` ;
 emu_test/link_test démarrent 2 s (animation).
+**v0.75 (Romain : marge CPU)** : `eng_dvm.h` (division par une valeur fixe du bloc = 1 multiplication 32x32→64, exacte :
+`alter_dvm_test.c` vérifie 1,1 milliard de quotients) dans PLATE (4 DIRT + exciteur), CORDE (DIRT + exciteur), RING (DIRT),
+RESO (exciteur) ; RING ne calcule plus que les 2 formes d'onde qu'il mélange (−13 % d'instructions natif). Identique au bit
+(/tmp/prof/esum.c 24 tirages, engp.c 16 cas). Gain des divisions **à mesurer au banc** (callgrind compte 1 div = 1 instruction).
 LOCKS refaits en v0.48 (7 verrous
 = les dés : RHYTHM LENGTH VELOCITY CHANCE PITCH THROWS SOUND ; bits 1 2 32 gardés, anciens 4 8 16 64 relus LEN CHANCE SOUND
 THROWS) ; UPDATE (OCT− + OCT+ 5 s) seulement s'ils sont tenus SEULS (main.c `combo`, pas testable dans l'émulateur).

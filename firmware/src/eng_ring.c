@@ -37,16 +37,17 @@ static uint32_t ring_exp2(int32_t o)
     return n >= 0 ? w << n : w >> -n;
 }
 
+#include "eng_dvm.h"
+
 /* the wave at phase ph: MATR (0..127 << 8) from sine to a shaken square (pw: the shaken width) */
 static inline int32_t ring_wave(uint32_t ph, int32_t mt, uint32_t pw)
 {
-    int32_t a, b, seg = mt >> 13, fr = mt & 8191;   /* (four stretches of 32) */
-    int32_t sn = sine_i(ph), tr = osc_tri(ph), sw = (int32_t)(ph >> 16) - 32768, sq = ph < 0x80000000u ? 24000 : -24000;
+    int32_t a, b, seg = mt >> 13, fr = mt & 8191;   /* (four stretches of 32; v0.75: only the two shapes it mixes) */
     switch (seg) {
-    case 0: a = sn, b = tr; break;
-    case 1: a = tr, b = sw; break;
-    case 2: a = sw, b = sq; break;
-    default: a = sq, b = ph < pw ? 24000 : -24000; break;
+    case 0: a = sine_i(ph), b = osc_tri(ph); break;
+    case 1: a = osc_tri(ph), b = (int32_t)(ph >> 16) - 32768; break;
+    case 2: a = (int32_t)(ph >> 16) - 32768, b = ph < 0x80000000u ? 24000 : -24000; break;
+    default: a = ph < 0x80000000u ? 24000 : -24000, b = ph < pw ? 24000 : -24000; break;
     }
     return a + (int32_t)(((int64_t)(b - a) * fr) >> 13);
 }
@@ -59,7 +60,7 @@ static void ring_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
 {
     const int16_t *p = t->p;
     int32_t mt, sp, seg, frac, ob, q, fq, dirt, bias, sbias, dd, radio, blnd, rng, i, lo, bd;
-    uint32_t inca, incb, incf, pw;
+    uint32_t inca, incb, incf, pw, mdd;
     mt = clamp((p[P_E0] << 8) + m->shape - (64 << 8), 0, (127 << 8) - 1);   /* MATR (+ SHP) */
     sp = p[P_E1] * 7 * 256 / 127;                /* SPRD: between two of the eight ratios, Q8 */
     seg = sp >> 8 > 6 ? 6 : sp >> 8;
@@ -93,6 +94,7 @@ static void ring_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     bias = dirt * 60;                            /* (the valve's bias: asymmetric, even harmonics) */
     sbias = softclip(bias);                      /* (v0.59: once a block) */
     dd = 4096 + dirt * 40;
+    mdd = dvm_make((uint32_t)dd, 42u);           /* (v0.75: |x << 12| < 2^28, dd < 2^14) */
     blnd = p[P_E6];
     lo = v->s[0];
     bd = v->s[1];
@@ -116,7 +118,7 @@ static void ring_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         if (dirt) {                              /* the valve: driven, biased, its own bias taken off */
             int32_t d = 4096 + dirt * 120;
             x = softclip(clamp((int32_t)(((int64_t)x * d) >> 12) + bias, -65535, 65535)) - sbias;
-            x = (x << 12) / dd;                  /* (v0.59: 32 bits, |x| <= 65534: the same, no 64-bit division a sample) */
+            x = dvm_div(x << 12, mdd, 42u);      /* (v0.75: as a multiply; v0.59: no 64-bit division) */
         }
         if (radio) {                             /* static and fading */
             int32_t r = (int32_t)(noise32(&rng) >> 16);
