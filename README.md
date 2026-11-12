@@ -9,8 +9,9 @@ for industrial techno, noise and texture work: **three euclidean circles**, each
 ALTER is a fork of [Felucca](https://github.com/hugelton/Felucca) by Leo Kuroshita. It keeps Felucca's hardware layer, effects and
 installer, and replaces the groovebox with a new instrument.
 
-> **Status: test versions (v0.4x), on the way to 1.0.** Everything below works in the browser emulator; testing on real
-> FM-1s is in progress. The version is shown at power-on and in SYSTEM › ABOUT.
+> **Status: test versions (v0.7x), on the way to 1.0.** Tested on a real FM-1 (UC25HQ80 flash, 12/11/2026): sound, dice,
+> CHAOS, locks, saves, power cuts while playing, song, effects, mixer and companion page pass; a MIDI-learn controller and a
+> long jam are the last tests before 1.0. The version is shown at power-on and in SYSTEM › ABOUT.
 
 ## What it does
 
