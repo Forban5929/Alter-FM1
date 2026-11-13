@@ -194,6 +194,7 @@ input[type=range]:hover::-webkit-slider-thumb { border-color: var(--c); }
 .curve { margin: 2px 0 8px; border: 1px solid var(--dark); background: color-mix(in srgb, var(--bg) 85%, var(--dark)); }
 .curve svg { display: block; width: 100%; height: 64px; }
 .curve .mid { stroke: var(--dark); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.curve .bar { stroke: var(--c); stroke-width: 2; opacity: .55; vector-effect: non-scaling-stroke; }
 .curve .wave { fill: none; stroke: var(--c); stroke-width: 1.6; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 .curve { position: relative; }
 .curve .dot { position: absolute; left: 0; top: 50%; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%; background: var(--ink); pointer-events: none; }
@@ -1500,8 +1501,8 @@ function waveAt(w, x) {                              // x in cycles (0..2): -1..
     case 1: return f < 0.5 ? f * 4 - 1 : 3 - f * 4;
     case 2: return f * 2 - 1;
     case 3: return f < 0.5 ? 1 : -1;
-    case 4: return SH_PTS[cyc % 4];
-    case 5: { const a = SH_PTS[cyc % 4], b = SH_PTS[(cyc + 1) % 4]; return a + (b - a) * f; }
+    case 4: return SH_PTS[((cyc % 4) + 4) % 4];
+    case 5: { const a = SH_PTS[((cyc % 4) + 4) % 4], b = SH_PTS[(((cyc + 1) % 4) + 4) % 4]; return a + (b - a) * f; }
     case 6: return f * 2 - 1;
     default: return 1 - f * 2;
   }
@@ -1510,20 +1511,29 @@ function lfoCurve(c, g) {
   const box = document.createElement("div");
   box.className = "curve";
   box.innerHTML = `<svg viewBox="0 0 240 64" preserveAspectRatio="none" aria-hidden="true"><line class="mid" x1="0" x2="240" y1="32" y2="32"/>
-    <line class="mid" x1="120" x2="120" y1="4" y2="60"/><path class="wave"/></svg><i class="dot"></i>`;
+    <line class="bar" x1="20" x2="20" y1="2" y2="62"/><path class="wave"/></svg><i class="dot"></i>`;
   const cv = { c, g, box, path: box.querySelector(".wave"), dot: box.querySelector(".dot"), per: 0, l: null };
   curves.push(cv);
   return box;
 }
-function drawCurve(cv) {
-  const l = lfoGet(cv.c, cv.g), amp = (l.depth / 64) * 28, off = !l.depth || !l.dest;
-  cv.l = l;
+// (v0.78, as on the synth: the wave runs to the left, into the bar; the bar's dot = the LFO now. x0: the phase at the
+// bar, in cycles; 0 when the synth is stopped)
+const BAR = 20;
+function waveDots(cv, x0) {
+  const l = cv.l, amp = (l.depth / 64) * 28;
   let d = "";
-  for (let k = 0; k <= 240; k += 2) {
-    const x = Math.min(k / 120, 1.999), y = 32 - waveAt(l.wave, x) * amp;
+  for (let k = 0; k <= 240; k += 3) {
+    const y = 32 - waveAt(l.wave, x0 + (k - BAR) / 120) * amp;
     d += `${k ? "L" : "M"}${k} ${y.toFixed(1)}`;
   }
   cv.path.setAttribute("d", d);
+  cv.dot.style.left = `${((BAR / 240) * 100).toFixed(2)}%`;
+  cv.dot.style.top = `${(((32 - waveAt(l.wave, x0) * amp) / 64) * 100).toFixed(2)}%`;
+}
+function drawCurve(cv) {
+  const l = lfoGet(cv.c, cv.g), off = !l.depth || !l.dest;
+  cv.l = l;
+  waveDots(cv, cv.x0 || 0);
   cv.box.classList.toggle("off", off);
 }
 function modMark(c, g) {
@@ -1580,7 +1590,7 @@ function modColumn(c, host) {
   mt.pick(modSel[c].slot);
   gc.append(fm);
 }
-// the dots run at the LFO's speed (TEMPO and RATE); they are not locked to the synth's own phase. ~30 images a
+// the waves run at the LFO's speed (TEMPO and RATE), into the bar, as on the synth; not locked to the synth's own phase. ~30 images a
 // second, and only while MODULATION is shown, the synth plays and the page is in view
 let playing = false, tLast = 0;
 function curveLoop(t) {
@@ -1590,9 +1600,10 @@ function curveLoop(t) {
   const ti = v2.sdesc.findIndex((d) => d.name === "TEMPO"), bpm = Math.max(40, v2.sval[ti] || 120), six = 60000 / bpm / 4 / 6;
   for (const cv of curves) {
     if (!cv.l || cv.box.offsetParent === null) continue;
-    const per = six * RATE_6TH[cv.l.rate % 11], x = playing ? (t / per) % 2 : 0;
-    cv.dot.style.left = `${((x / 2) * 100).toFixed(2)}%`;
-    cv.dot.style.top = `${(((32 - waveAt(cv.l.wave, x) * (cv.l.depth / 64) * 28) / 64) * 100).toFixed(2)}%`;
+    const per = six * RATE_6TH[cv.l.rate % 11], x = playing ? (t / per) % 4 : 0;
+    if (x === cv.x0) continue;
+    cv.x0 = x;
+    waveDots(cv, x);
   }
 }
 requestAnimationFrame(curveLoop);

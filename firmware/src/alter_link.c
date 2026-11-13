@@ -146,7 +146,8 @@ static int32_t lk_set(uint32_t c, uint32_t id, int32_t v)
 
 
 /* ---- v2: the other settings, by number (LK_V): a circle's (scope 1: VALL / VSET with the circle) or shared ------- */
-enum { LV_CFG, LV_MODE, LV_LFO, LV_MTX, LV_SCALE, LV_GL, LV_G, LV_AMX, LV_AFL, LV_MORPH, LV_CONS, LV_PAR, LV_RMB, LV_VOL };
+enum { LV_CFG, LV_MODE, LV_LFO, LV_MTX, LV_SCALE, LV_GL, LV_G, LV_AMX, LV_AFL, LV_MORPH, LV_CONS, LV_PAR, LV_RMB, LV_VOL,
+       LV_PROG };
 /* (LV_CONS: the CONSOLE's acs_v[c][ref]; LV_PAR: the sound's parameter ref, its base, as SET: the CONSOLE's DRIVE,
  * DELAY, REVERB, LEVEL; LINK 4, 07/11; LV_RMB: the circle's RUMBLE alt_rmb, 08/11; LV_VOL: the MIXER's MASTER gain,
  * alt_mgain, 100 = 0 dB, 10/11) */
@@ -231,6 +232,8 @@ static const lk_var_t LK_V[] = {
     LKV_C(LV_RMB, 0, GR_RMB, "RUMBLE", 0, 127, 0),
     /* 10/11: the MIXER's MASTER gain (its knob 4; the page's MIXER tab) */
     LKV_G(LV_VOL, 0, GR_MIX, "MASTER", 0, 127, 0),
+    /* v0.78: each circle's PROGRESSION (SCALE page's PROG: a chord a bar) */
+    LKV_C(LV_PROG, 0, GR_GAM, "PROG", 0, AS_NPROG - 1, AS_PG_NAME),
 };
 #define LK_NV (sizeof LK_V / sizeof LK_V[0])
 _Static_assert(LK_NV <= 2u * 48u, "LK_V: lk.vs holds 48 a scope");
@@ -297,6 +300,7 @@ static int32_t lk_vget(const lk_var_t *v, uint32_t c)
     case LV_PAR: return clamp(alt_base(c % AS_NCIRC, v->ref), 0, 127);
     case LV_RMB: return alt_rmb[c % AS_NCIRC];
     case LV_VOL: return alt_mgain;
+    case LV_PROG: return alt_seq.prog[c % AS_NCIRC] % AS_NPROG;
     default: return afl_morph;
     }
 }
@@ -367,6 +371,7 @@ static int32_t lk_vset(const lk_var_t *v, uint32_t c, int32_t x)
     case LV_CONS: acs_v[c][v->ref % ACS_N] = (uint8_t)x; break;
     case LV_PAR: (void)lk_set(c, v->ref, x); break;
     case LV_RMB: alt_rmb[c] = (uint8_t)x; break;
+    case LV_PROG: alt_seq.prog[c] = (uint8_t)x; break;
     case LV_VOL:
         alt_mgain = (uint8_t)x;
         alt_sys[5] = (uint8_t)(x + 1);           /* (kept: SYSTEM's settings, as the MIXER's knob 4) */
