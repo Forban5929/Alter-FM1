@@ -249,7 +249,8 @@ fichier patch entier, MIXER de la page, MIDI LEARN (BCR32), TRS MIDI (câble en 
    (kinds groove, image `assets/fmhub.png` 240×240 = capture PLAY, liens play/editor/guide) ; pas de fichier son dans le dépôt.
    Test d'installation OK (21/11, v0.79) ; Release v1.0 publiée (tag v1.0, identité 929 = prise !) → v1.01 (956) ;
    le tag ne peut pas être poussé d'ici : Romain (ou Claude in Chrome, connecté) crée la Release sur github.com
-   (releases/new?tag=vX&target=main), firmware.yml remplit titre, notes et fichiers. RESTE : formulaire du Hub.
+   (releases/new?tag=vX&target=main), firmware.yml remplit titre, notes et fichiers (`--release` accepte X.YY depuis v1.01).
+   **Release v1.01 publiée (22/11, FM-1_956, alter-1.01.fwsc)** ; formulaire du Hub rempli dans Chrome, envoi à faire (email).
 5. **Documentation** : README réécrit pour ALTER + `docs/MANUAL.md` (anglais, 17 sections, d'après guide.html + le code)
    FAITS le 10/11 (v0.47). À tenir à jour avec guide.html. Reste : notes de version ; vidéo/audio de jam (Romain).
 6. ~~Ménage~~ **FAIT v0.69** ; filet du plantage **FAIT v0.72** (CPU METER, ABOUT, textes écran déjà en anglais).
