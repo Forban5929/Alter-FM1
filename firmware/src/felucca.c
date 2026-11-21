@@ -33,7 +33,7 @@
 #define FELUCCA_UART 1           /* TRS MIDI IN on UART1 / PH8 */
 #endif
 #ifndef FELUCCA_ID
-#define FELUCCA_ID "FM-1_929"    /* package identity (ALTER own number, 21/11) (build.py: the .fwsc marker string) */
+#define FELUCCA_ID "FM-1_956"    /* package identity (ALTER own number, 21/11) (build.py: the .fwsc marker string) */
 #endif
 #ifndef FELUCCA_CPU2
 #define FELUCCA_CPU2 1           /* 1 (1.6.1): the second core is built in and renders some parts when MENU > SYSTEM >
@@ -55,7 +55,7 @@
 #define FELUCCA_USB_MANUFACTURER "ALTER"
 #endif
 #ifndef FELUCCA_VERSION
-#define FELUCCA_VERSION "v1.0"    /* ALTER's version (10/11: +0.01 at each push to Romain): splash, SYSTEM > ABOUT, emulator page, version.txt */
+#define FELUCCA_VERSION "v1.01"    /* ALTER's version (10/11: +0.01 at each push to Romain): splash, SYSTEM > ABOUT, emulator page, version.txt */
 #endif
 #if FELUCCA_OTA && !FELUCCA_FLASH
 #error "FELUCCA_OTA needs FELUCCA_FLASH"

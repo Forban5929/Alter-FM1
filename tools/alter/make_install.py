@@ -35,8 +35,8 @@ def main(pkg, version, out):
     pkg, out = Path(pkg), Path(out)
     raw = pkg.read_bytes()
     product = product_of(raw)
-    if product != "FM-1_929":
-        raise SystemExit(f"{pkg}: identité {product!r}, attendu FM-1_929")
+    if product != "FM-1_956":
+        raise SystemExit(f"{pkg}: identité {product!r}, attendu FM-1_956")
     if b"FELUCCA-LOADER-1" not in raw:
         raise SystemExit(f"{pkg}: pas le chargeur de mise à jour Felucca dedans : paquet refusé")
     html = (WEB / "index_pkg.html").read_text(encoding="utf-8")

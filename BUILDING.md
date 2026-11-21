@@ -58,7 +58,7 @@ On Linux x86-64 the toolchain runs natively and Docker is not needed.
 `JIELI_TOOLCHAIN` and `AC79_SDK` override the default locations
 (`~/.jieli/toolchain`, `~/fw-AC79_AIoT_SDK`).
 
-`./build.sh --release 1.0` makes a release build: the package identity stays `FM-1_929` (ALTER's own number)
+`./build.sh --release 1.0` makes a release build: the package identity stays `FM-1_956` (ALTER's own number)
 and the version string `v1.0`; the package is `build/alter-1.0.fwsc`, and
 `build/release-1.0/` holds what a release ships: the package, the app
 (`felucca-1.0-app.bin`), `SHA256SUMS`, the sample attribution, `LICENSE`, `LICENSING.md` and

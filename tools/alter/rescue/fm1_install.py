@@ -46,8 +46,8 @@ STOCK_V15_SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7e
 # the app area only; the official one writes the whole package including the boot data and reports the
 # name in its update record (firmware/src/ota.c). Each package goes only to its own.
 MELODEE_LOADER, STOCK_LOADER = "ota-FM-1_900", "ota-FM-1_015"
-ALTER_LOADER = "ota-FM-1_929"       # ALTER v0.79+ (own identity FM-1_929); before: Felucca's ota-FM-1_900
-OWN_LOADERS = (ALTER_LOADER, MELODEE_LOADER)
+ALTER_LOADER = "ota-FM-1_956"       # ALTER v1.01+ (own identity FM-1_956); v0.79-v1.0: ota-FM-1_929; before: Felucca's ota-FM-1_900
+OWN_LOADERS = (ALTER_LOADER, "ota-FM-1_929", MELODEE_LOADER)
 LOADER_HINT = {MELODEE_LOADER: "finish the interrupted Melodee install with a Melodee package first",
                ALTER_LOADER: "finish the interrupted install with an ALTER package first",
                STOCK_LOADER: "finish the interrupted return to stock with the official FM-1.fwsc first"}

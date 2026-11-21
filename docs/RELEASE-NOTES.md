@@ -1,5 +1,10 @@
 # ALTER — release notes
 
+## v1.01 (22 November 2026)
+
+- New package identity `FM-1_956`: the number used by v0.79 and v1.0 (`FM-1_929`) already belongs to another firmware
+  on The Firmware Hub. Nothing else changes: same sound, same scenes, same settings. Install it over v1.0 as usual.
+
 ## v1.0 (21 November 2026)
 
 The first release of ALTER, alternative firmware for the M-VAVE FM-1, built on Felucca.
@@ -36,7 +41,7 @@ The first release of ALTER, alternative firmware for the M-VAVE FM-1, built on F
 **Install and safety**
 - Install from <https://forban5929.github.io/Alter-FM1/install/>; back to M-VAVE's firmware with *Back to official V15*
   on The Firmware Hub; a Windows rescue kit for a failed update.
-- Package identity `FM-1_929` (ALTER's own number; test versions before v0.79 used Felucca's `FM-1_900`). The package
+- Package identity `FM-1_929` (from v1.01: `FM-1_956`; test versions before v0.79 used Felucca's `FM-1_900`). The package
   carries the update loader, so ALTER can be removed again from the install page or the Hub.
 - Known flash chips: `0x856014` and `0xB36014`. Another chip is reported on screen (UNKNOWN FLASH + its ID): ALTER plays,
   but does not save and does not take USB updates.

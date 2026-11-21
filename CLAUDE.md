@@ -30,7 +30,7 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.0 » (21/11, 1re release) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.01 » (22/11) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. Pousser sur `etape-3d` → GitHub Actions construit le vrai firmware + publie https://forban5929.github.io/Alter-FM1/ (version
    dans /version.txt). Le cloud ne télécharge pas les artifacts ni le compilateur JieLi : **rien n'est mesuré sur la FM-1 depuis le cloud.**
@@ -39,9 +39,9 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
 - JieLi AC79 pi32v2 : **entiers seulement** (Q15/Q24), pas de float/malloc/math.h ; 44,1 kHz, blocs de 32.
 - Un seul fichier compilé `firmware/src/felucca.c` (inclut tout) ; navigateur : `web/emu/felucca_web.c` + `tests/hostsim.c`.
 - RAM ~16 Ko libres (gros tampons → `__attribute__((section(".pool")))`, ~19 Ko libres ; CI exige 4 Ko RAM / 8 Ko pool). Sous-modules `firmware/engines`, `firmware/bsp` : ne pas toucher.
-- Mise à jour USB : identité **`FM-1_929`** (à nous depuis v0.79 ; `FM-1_900` = celle de Felucca, refusée par The Firmware Hub) ;
-  le loader dit « ota-FM-1_929 » (firmware/loader/loader.c ; la page d'installation ne compare que « FM-1 » ; le kit de
-  secours accepte ota-FM-1_929 et ota-FM-1_900). Garder « FM-1 » dans le nom USB. GPL-3.0 : garder la page ABOUT.
+- Mise à jour USB : identité **`FM-1_956`** (v1.01 ; v0.79-v1.0 : 929, PRIS par Wanderer sur le Hub ; 900 = Felucca) ;
+  le loader dit « ota-FM-1_956 » (firmware/loader/loader.c ; la page d'installation ne compare que « FM-1 » ; le kit de
+  secours accepte 956, 929 et 900). make_site.py exige FM-1_9xx. Vérifier un numéro : thefirmwarehub.com/submit/ « Is my identity free? ». Garder « FM-1 » dans le nom USB. GPL-3.0 : garder la page ABOUT.
 - 2e cœur : une partie ne touche que l'état de SON cercle (tout état par cercle, jamais partagé dans mix_part).
 - Page compagnon (`web/alter/`, protocole `docs/alter/LINK.md`, **v4** + BLOB + MIXER) + guide (`web/alter/guide.html`, à tenir à jour) :
   **jamais prompt/alert/confirm**.
@@ -79,7 +79,7 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
 ## Où on en est (21/11, **v1.0 publiée**)
 **Release : pousser un tag `vX.Y` (sur le commit testé) → firmware.yml construit `--release X.Y` et publie la Release
 GitHub (paquet, app, SHA256SUMS, licences ; notes = section « ## vX.Y » de docs/RELEASE-NOTES.md).** v1.0 = v0.79 + le texte
-de version (installée V15 → ALTER, Felucca → ALTER, retour V15 : OK le 21/11 par Romain).
+de version ; v1.01 = v1.0 + identité FM-1_956 (installée V15 → ALTER, Felucca → ALTER, retour V15 : OK le 21/11 par Romain).
 **Retours de tests FM-1 (10/11, Sheet)** : tests 1-5 OK ; **CPU = problème n° 1** : 67/85 % 27F 31MS avec tous les effets,
 et avec 3 LFO + envois FX sur les pas : 18F 50MS, **CUT 393** (2C était actif). v0.51 (choix de Romain) : **MASTER FILTER simple façon Felucca** (1 étage TPT, coefficients 1 fois par bloc, sauf FM :
 tous les 8 ; RES max k = 0.12, ne crie plus ; presets SHERMAN → ENV WAH, SCREAM → PEAK ; MORPH A/B et les 11 réglages gardés,
@@ -245,9 +245,11 @@ fichier patch entier, MIXER de la page, MIDI LEARN (BCR32), TRS MIDI (câble en 
    `docs/RELEASE-NOTES.md` ; retour M-VAVE = lien The Firmware Hub sur la page d'installation (déjà là).
    `main` rattrapé le 10/11 (avance rapide). 12/11 : notes de version complétées (Live safety, Known limits), README statut
    v0.7x, message à Leo rédigé (Romain l'envoie). RESTE : la Release v1.0 **après** le test d'installation du Hub.
-   **The Firmware Hub (21/11, v0.79)** : https://thefirmwarehub.com/submit/ ; identité `FM-1_929` ; `fmhub.json` à la racine
+   **The Firmware Hub (21/11, v0.79)** : https://thefirmwarehub.com/submit/ ; identité `FM-1_956` (depuis v1.01) ; `fmhub.json` à la racine
    (kinds groove, image `assets/fmhub.png` 240×240 = capture PLAY, liens play/editor/guide) ; pas de fichier son dans le dépôt.
-   Test d'installation OK (21/11) ; Release v1.0 publiée (tag v1.0) ; RESTE : le formulaire (Romain).
+   Test d'installation OK (21/11, v0.79) ; Release v1.0 publiée (tag v1.0, identité 929 = prise !) → v1.01 (956) ;
+   le tag ne peut pas être poussé d'ici : Romain (ou Claude in Chrome, connecté) crée la Release sur github.com
+   (releases/new?tag=vX&target=main), firmware.yml remplit titre, notes et fichiers. RESTE : formulaire du Hub.
 5. **Documentation** : README réécrit pour ALTER + `docs/MANUAL.md` (anglais, 17 sections, d'après guide.html + le code)
    FAITS le 10/11 (v0.47). À tenir à jour avec guide.html. Reste : notes de version ; vidéo/audio de jam (Romain).
 6. ~~Ménage~~ **FAIT v0.69** ; filet du plantage **FAIT v0.72** (CPU METER, ABOUT, textes écran déjà en anglais).
