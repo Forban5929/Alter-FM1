@@ -486,10 +486,10 @@ def main():
     ap.add_argument("--sdk", type=Path, help="JieLi AC79 SDK checkout (default: $AC79_SDK)")
     a = ap.parse_args()
     name = "felucca.fwsc"
-    if a.release:                   # one digit each: the identity has room for two (X.Y.Z and X.Y.Z.W keep X.Y's)
-        m = re.fullmatch(r"(\d)\.(\d)(?:\.\d){0,2}(-[A-Za-z0-9]+)?", a.release)
+    if a.release:                   # ALTER: the identity never carries the version, so X.YY is fine (v1.01, 22/11)
+        m = re.fullmatch(r"(\d)\.(\d{1,2})(?:\.\d{1,2}){0,2}(-[A-Za-z0-9]+)?", a.release)
         if not m:
-            raise SystemExit(f"--release {a.release}: use X.Y, X.Y.Z, X.Y.Z.W or X.Y-suffix, one digit each")
+            raise SystemExit(f"--release {a.release}: use X.Y, X.YY, X.Y.Z or X.Y-suffix")
         # ALTER (10/11, 21/11 FM-1_956 = our own number for The Firmware Hub): the identity stays fixed for every build, releases too (Felucca's FM-1_9XY would be refused
         # by ALTER's install page, make_install.py, and the install page only compares the model "FM-1" before writing) on Romain's FM-1)
         VERSION = "v" + a.release.lower()      # e.g. v1.0, v1.1-rc1
