@@ -46,7 +46,10 @@ STOCK_V15_SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7e
 # the app area only; the official one writes the whole package including the boot data and reports the
 # name in its update record (firmware/src/ota.c). Each package goes only to its own.
 MELODEE_LOADER, STOCK_LOADER = "ota-FM-1_900", "ota-FM-1_015"
+ALTER_LOADER = "ota-FM-1_929"       # ALTER v0.79+ (own identity FM-1_929); before: Felucca's ota-FM-1_900
+OWN_LOADERS = (ALTER_LOADER, MELODEE_LOADER)
 LOADER_HINT = {MELODEE_LOADER: "finish the interrupted Melodee install with a Melodee package first",
+               ALTER_LOADER: "finish the interrupted install with an ALTER package first",
                STOCK_LOADER: "finish the interrupted return to stock with the official FM-1.fwsc first"}
 PORT_RE = re.compile(r"fm-1|melodee|felucca|ota|composite|sinco|usb-midi", re.I)   # never probe other gear
 
@@ -154,10 +157,11 @@ def model_of(text):
 
 def own_loader(dev, loader):
     """refuse a device in update mode whose loader is not `loader` (the package's own; None: unknown)"""
-    if dev.id.loader and dev.id.text != loader:
+    ok = (loader,) if isinstance(loader, str) else tuple(loader or ())
+    if dev.id.loader and dev.id.text not in ok:
         dev.link.close()
         raise InstallError("loader", f"the FM-1 is in update mode as {dev.id.text}; this package goes only to "
-                                     f"{loader or 'the loader it starts itself'}, so nothing was sent. "
+                                     f"{' or '.join(ok) if ok else 'the loader it starts itself'}, so nothing was sent. "
                                      + LOADER_HINT.get(dev.id.text, "Please report this loader on GitHub"))
 
 
@@ -405,7 +409,7 @@ def load_package(path, force):
         raise InstallError("badpkg", f"{path}: no Melodee update loader in this package; only Melodee's own "
                                      "packages and the unmodified official V15 (FM-1.fwsc) are installed "
                                      "(--force overrides)")
-    loader = STOCK_LOADER if official else MELODEE_LOADER if LOADER_MARK in raw else None
+    loader = STOCK_LOADER if official else OWN_LOADERS if LOADER_MARK in raw else None
     return product, logical_image(raw), loader
 
 

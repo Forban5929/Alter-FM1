@@ -40,7 +40,8 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
 - Un seul fichier compilé `firmware/src/felucca.c` (inclut tout) ; navigateur : `web/emu/felucca_web.c` + `tests/hostsim.c`.
 - RAM ~16 Ko libres (gros tampons → `__attribute__((section(".pool")))`, ~19 Ko libres ; CI exige 4 Ko RAM / 8 Ko pool). Sous-modules `firmware/engines`, `firmware/bsp` : ne pas toucher.
 - Mise à jour USB : identité **`FM-1_929`** (à nous depuis v0.79 ; `FM-1_900` = celle de Felucca, refusée par The Firmware Hub) ;
-  le loader garde « ota-FM-1_900 » (la page d'installation ne compare que « FM-1 »). Garder « FM-1 » dans le nom USB. GPL-3.0 : garder la page ABOUT.
+  le loader dit « ota-FM-1_929 » (firmware/loader/loader.c ; la page d'installation ne compare que « FM-1 » ; le kit de
+  secours accepte ota-FM-1_929 et ota-FM-1_900). Garder « FM-1 » dans le nom USB. GPL-3.0 : garder la page ABOUT.
 - 2e cœur : une partie ne touche que l'état de SON cercle (tout état par cercle, jamais partagé dans mix_part).
 - Page compagnon (`web/alter/`, protocole `docs/alter/LINK.md`, **v4** + BLOB + MIXER) + guide (`web/alter/guide.html`, à tenir à jour) :
   **jamais prompt/alert/confirm**.
