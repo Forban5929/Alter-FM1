@@ -36,6 +36,8 @@ The first release of ALTER, alternative firmware for the M-VAVE FM-1, built on F
 **Install and safety**
 - Install from <https://forban5929.github.io/Alter-FM1/install/>; back to M-VAVE's firmware with *Back to official V15*
   on The Firmware Hub; a Windows rescue kit for a failed update.
+- Package identity `FM-1_929` (ALTER's own number; test versions before v0.79 used Felucca's `FM-1_900`). The package
+  carries the update loader, so ALTER can be removed again from the install page or the Hub.
 - Known flash chips: `0x856014` and `0xB36014`. Another chip is reported on screen (UNKNOWN FLASH + its ID): ALTER plays,
   but does not save and does not take USB updates.
 
