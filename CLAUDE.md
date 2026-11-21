@@ -228,7 +228,8 @@ fichier patch entier, MIXER de la page, MIDI LEARN (BCR32), TRS MIDI (câble en 
 
 ## Feuille de route vers la 1.0 (proposée à Romain le 10/11 ; ordre à confirmer avec lui)
 1. **Tests sur la FM-1** (le plus important) : liste FAITE (10/11, 44 tests, Sheet https://claude.ai/artifact/4wMzoCU4XtT5LgPXGqZvES ;
-   la relire avant de coder : ses lignes « Problème » = le travail suivant ; **onglet « v0.72 » = session guidée de 20 tests (18 OK, restent 19 BCR32 + 20 jam)**) ;
+   la relire avant de coder : ses lignes « Problème » = le travail suivant ; **onglet « v0.72 » = session guidée de 20 tests : 19/19 OK** (21/11 : jam 30 min RAS ; test 19 BCR32 abandonné par Romain,
+   MIDI LEARN à essayer plus tard avec un autre contrôleur)) ;
    relever « nnF xxMS » et le % CPU avec filtre + comp + dist + delay + reverb ; longues jams sans plantage ni perte de scène
    (extinctions au milieu) ; sauver/charger A B C ; patch entier aller-retour ; MIDI LEARN avec le BCR32.
 2. **CPU si coupures encore** : moteurs ~28 %, MASTER FILTER 15 %, rev_hall 7 % (profil navigateur) ; pistes : reverb sautée
@@ -240,11 +241,11 @@ fichier patch entier, MIXER de la page, MIDI LEARN (BCR32), TRS MIDI (câble en 
    make_install) → `alter-X.Y.fwsc` + dossier release ; essai à chaque push (firmware.yml, `--release 1.0-ci`) ; brouillon
    `docs/RELEASE-NOTES.md` ; retour M-VAVE = lien The Firmware Hub sur la page d'installation (déjà là).
    `main` rattrapé le 10/11 (avance rapide). 12/11 : notes de version complétées (Live safety, Known limits), README statut
-   v0.7x, message à Leo rédigé (Romain l'envoie). RESTE : la Release v1.0 **après** les tests 19-20.
+   v0.7x, message à Leo rédigé (Romain l'envoie). RESTE : la Release v1.0 **après** le test d'installation du Hub.
    **The Firmware Hub (21/11, v0.79)** : https://thefirmwarehub.com/submit/ ; identité `FM-1_929` ; `fmhub.json` à la racine
    (kinds groove, image `assets/fmhub.png` 240×240 = capture PLAY, liens play/editor/guide) ; pas de fichier son dans le dépôt.
    RESTE pour soumettre : installer v0.79 depuis V15 ET depuis un autre firmware (Felucca), puis revenir à V15 ;
-   tests 19-20 ; tag + Release v1.0 avec `alter-1.0.fwsc` ; formulaire (Romain).
+   tag + Release v1.0 avec `alter-1.0.fwsc` ; formulaire (Romain).
 5. **Documentation** : README réécrit pour ALTER + `docs/MANUAL.md` (anglais, 17 sections, d'après guide.html + le code)
    FAITS le 10/11 (v0.47). À tenir à jour avec guide.html. Reste : notes de version ; vidéo/audio de jam (Romain).
 6. ~~Ménage~~ **FAIT v0.69** ; filet du plantage **FAIT v0.72** (CPU METER, ABOUT, textes écran déjà en anglais).

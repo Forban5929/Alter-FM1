@@ -44,6 +44,7 @@ The first release of ALTER, alternative firmware for the M-VAVE FM-1, built on F
 **Known limits**
 - Tested on one FM-1 with the UC25HQ80 flash (`0xB36014`); the Puya P25Q80 (`0x856014`) is supported as in Felucca, not
   tested by us.
+- MIDI learn: tested in the emulator and the companion page, not yet with a hardware controller.
 - MIDI clock over TRS: not verified yet on hardware (a cable problem during the tests); USB clock and notes work.
 - The companion page and the installer need Chrome or Edge (Web MIDI / Web Serial); the rescue kit is Windows only.
 
