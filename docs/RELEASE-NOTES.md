@@ -1,6 +1,6 @@
 # ALTER — release notes
 
-## v1.0 (draft — not released yet: waiting for the tests on real FM-1s)
+## v1.0 (21 November 2026)
 
 The first release of ALTER, alternative firmware for the M-VAVE FM-1, built on Felucca.
 
