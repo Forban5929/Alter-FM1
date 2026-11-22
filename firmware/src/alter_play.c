@@ -373,6 +373,17 @@ static void alt_take(void)
     while (alt_qr != alt_qw) {                   /* the knobs */
         alt_qe_t q = alt_q[alt_qr];
         track_t *t = &trk[q.c % AS_NCIRC];
+        if ((q.p == P_IA || q.p == P_ITYPE || q.p == P_IB || q.p == P_IC) && t->p[P_ITYPE] &&
+            t->p[P_IMIX] < 127) {                /* v1.07 (Romain: no MIX knob, the insert full): a scene's MIX
+                                                  * under 100 % goes into INS at the first touch (A x MIX) */
+            t->p[P_IA] = (int16_t)(t->p[P_IA] * clamp(t->p[P_IMIX], 0, 127) / 127);
+            t->p[P_IMIX] = 127;
+        }
+        if (q.p == P_ITYPE && !t->p[P_ITYPE]) {  /* TYPE from OFF (v1.07 TYPE knob): full wet, INS from 0 (the
+                                                  * blend, fx.c track_insert: nothing heard until INS moves) */
+            t->p[P_IA] = 0;
+            t->p[P_IMIX] = 127;
+        }
         if (q.p == P_IA && !t->p[P_ITYPE]) {     /* FX's INSERT from OFF: FOLD, full wet */
             t->p[P_ITYPE] = 3;                   /* (params.c N_ITYPE) */
             t->p[P_IMIX] = 127;

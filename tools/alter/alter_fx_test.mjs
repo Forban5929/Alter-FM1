@@ -35,17 +35,17 @@ render(FS * 2);
   const home = scr();
   B(FXB, FS * 0.7);
   const page = scr();
-  enc(1, 3);                                                     // ALGORITHM: to MASTER
+  enc(1, -2);                                                    // ALGORITHM: to REVERB (v1.07: REVERB DELAY DIST)
   const m0 = scr();
-  enc(2, 1);                                                     // PRESETS: the next master preset
+  enc(2, 1);                                                     // PRESETS: the next reverb preset
   const m1 = scr();
   B(FXB);
   render(FS * 1.7);                                              // (the middle's word gone)
   const back = scr();
   check("FX held: the FX page stays open; ALGORITHM + PRESETS change it; FX tapped: the circles",
         page !== home && m0 !== page && m1 !== m0 && back === home);
-  B(FXB, FS * 0.7); enc(1, -3); B(FXB);                          // (back to its DIST tab, closed)
-  W(7, 5, 0);                                                    // (MASTER FLAT)
+  B(FXB, FS * 0.7); enc(1, 2); B(FXB);                           // (back to its DIST tab, closed)
+  W(7, 4, 0);                                                    // (REVERB HALL)
 }
 W(4, BPM, 0);
 ex.web_buttons(1 << PLAY); render(128); ex.web_buttons(0);

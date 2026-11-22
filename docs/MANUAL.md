@@ -56,11 +56,11 @@ A page button **tapped** opens its quick page (the four knobs change with it); *
 | (none) | the engine's four main settings | |
 | SEQ | RHYTHM: LEN HITS ROT PROB (TURING: LEN LOCK DENS RANGE) | the lanes (VELO CHANCE DELAY REVERB PITCH RATCH), the lower keys are the steps; SEQ held + ALGORITHM: EUCLID / TURING |
 | ENV | the envelope's four settings, by mode | ENVELOPE: the shape drawn |
-| FX | DIST · INSERT · DELAY send · REVERB send | FX page: DIST, INSERT, DELAY (TIME FEEDBK TAPE SEND), REVERB, MASTER |
+| FX | DIST · INS · DELAY send · REVERB send | FX page: REVERB, DELAY (TIME FEEDBK TAPE SEND), DIST (DRIVE INS TYPE TONE) |
 | LFO | LFO 1: WAVE RATE DEPTH DEST | LFO 1 2 3, GLOBAL, MATRIX |
 | EDIT | the engine's four other settings | DEEP: every setting of the circle's sound as a list |
 | SCL | SCALE · ROOT · CHORD · PROG | SCALES |
-| GLO | BPM · LEVEL · PAN · SWING | MIXER |
+| GLO | BPM · LEVEL · PAN · SWING | MIXER: MIX, CONSOLE I II III, MASTER, FILTER |
 | HOME | back to the circles | SYSTEM |
 | ARP | SONG chain on / off | SONG page |
 | SAVE | the SAVE page | (+ A B C: store a SONG slot) |
@@ -162,13 +162,17 @@ says which chord. **SCL held**: the SCALES page.
 
 ## 10. Effects and mixer
 
-**FX tapped**: the chosen circle's DIST, INSERT, DELAY send, REVERB send. **FX held**: the FX page — DIST, INSERT, DELAY
-(TIME, FEEDBK, TAPE mode, SEND), REVERB, MASTER (with the MASTER FILTER: FREQ RES DRIVE MIX MORPH).
+**FX tapped**: the chosen circle's DIST, INSERT, DELAY send, REVERB send. **FX held**: the FX page — tabs REVERB (TYPE
+SIZE DAMP SEND), DELAY (TIME, FEEDBK, TAPE mode, SEND) and DIST: KNOB 1 DRIVE, KNOB 2 INS (the insert's amount, 0 = none),
+KNOB 3 TYPE (SOFT HARD FOLD FUZZ CRUSH), KNOB 4 TONE. The insert is always full (no MIX).
 
 **GLO held** opens the **MIXER**:
 - tab **MIX**: KNOB 1 2 3 the three circles' levels, KNOB 4 the MASTER, and the output meter;
 - tabs **I II III** (ALGORITHM): each circle's **CONSOLE**. SELECT the row; KNOB 1-4 are DRIVE, LOW, MID, HIGH on the first
-  row and COMP, DELAY, REVERB, LEVEL on the second. LOW, MID or HIGH at 0 is a KILL.
+  row and COMP, DELAY, REVERB, LEVEL on the second. LOW, MID or HIGH at 0 is a KILL;
+- tab **MASTER**: the master bus (PRESETS; SELECT the row: LOW MID HIGH COMP / DUCK SRC SHAPE CLIP);
+- tab **FILTER**: the MASTER FILTER (PRESETS; SELECT the row: FREQ RES TYPE DRIVE / MOD SRC FM MIX / SLOPE DETUNE MODTYP
+  MORPH; OCT− edits snapshot A, OCT+ snapshot B).
 
 ## 11. Song
 

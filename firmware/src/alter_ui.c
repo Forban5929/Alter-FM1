@@ -1738,7 +1738,7 @@ static const char *alt_menu_name(uint32_t q)
 static void afp_input(uint32_t pressed);                     /* the FX page (alter_fxpage.c, with the screen below) */
 static void alt_deep_input(void);                /* DEEP (with the screens below) */
 static void alt_mix_turn(uint32_t i, int32_t s);  /* the MIXER */
-static void alt_mx_nav(void);                    /* the MIXER's tabs (the CONSOLE) */
+static void alt_mx_nav(uint32_t pressed);                    /* the MIXER's tabs (the CONSOLE) */
 static void alt_sys_input(void);                  /* SYSTEM (HOME held) */
 static void alt_sys_open_rand(void);              /* (v0.66: OCT- + HOME, SYSTEM's RANDOM tab) */
 static void acx_reset(void);                      /* (CHAOS's wait and glitch: none) */
@@ -1994,7 +1994,7 @@ static int alter_ui_input(uint32_t pressed)
     if (afp.open)                                /* the FX page: its encoders (the keys play on: mutes, dice, fills) */
         afp_input(pressed);
     if (au.mn == QP_GLO && !au.lockc)
-        alt_mx_nav();                            /* the MIXER's tabs and rows (the CONSOLE) */
+        alt_mx_nav(pressed);                     /* the MIXER's tabs and rows (the CONSOLE, MASTER, FILTER) */
     for (i = 0; i < 4u; i++)
         if ((s = panel_enc(EN_K1 + i)) != 0 && !au.lockc)
         {
@@ -2503,6 +2503,8 @@ static int32_t alt_kv(uint32_t q, uint32_t i, const char **name, char *txt, int3
         if (alt_slot(id) >= 0)
             v -= alt_applied[au.sel][alt_slot(id)];   /* (the base, without the die's offset) */
         v = clamp(v, d->min, d->max);
+        if (id == P_IA && !t->p[P_ITYPE])
+            v = 0;                               /* (v1.07, Romain: INS at rest is 0, not a half moon) */
         *name = d->label;
         if (d->fmt == F_ENUM && d->names) {
             const char *n = d->names[v - d->min];
@@ -3226,7 +3228,9 @@ static uint32_t alt_mix_ms;
  * the sends and LEVEL go through the queue (REC, the scene: as before); LOW MID HIGH COMP are alter_console.c's acs_v
  * (the scene keeps them, not REC). A circle's tab follows the chosen circle (the black keys) */
 static uint8_t alt_mx_tab, alt_mx_row, alt_mx_sel;
-static const char *const ALT_MX_TAB[4] = {"MIX", "I", "II", "III"};
+static const char *const ALT_MX_TAB[6] = {"MIX", "I", "II", "III", "MASTER", "FILTER"};   /* (v1.07: + the FX page's
+                                                  * MASTER and FILTER, Romain 22/11: the general ones together) */
+#define ALT_MX_GEN 4u                            /* the first general tab: MASTER (afp.tab AFP_MST), FILTER after */
 static const char *const ALT_MX_NM[2][4] = {{"DRIVE", "LOW", "MID", "HIGH"}, {"COMP", "DELAY", "REVERB", "LEVEL"}};
 static const uint8_t ALT_MX_P[2][4] = {{P_DIST, 255, 255, 255}, {255, P_DLY, P_REV, P_LEVEL}};   /* (255: acs_v) */
 static int32_t alt_mx_val(uint32_t c, uint32_t r, uint32_t i)   /* a strip's value 0..127 */
@@ -3236,17 +3240,28 @@ static int32_t alt_mx_val(uint32_t c, uint32_t r, uint32_t i)   /* a strip's val
         return clamp(trk[c % AS_NCIRC].p[p], 0, 127);
     return acs_v[c % AS_NCIRC][r ? ACS_COMP : i - 1u];
 }
-static void alt_mx_nav(void)                     /* ALGORITHM: the tab; SELECT: the row (MIX: the chosen circle) */
+static void afp_ctl(uint32_t pressed);          /* (alter_fxpage.c: MASTER / FILTER, as on the FX page) */
+static void afp_gen_scene(void);
+static void alt_mx_nav(uint32_t pressed)         /* ALGORITHM: the tab; SELECT: the row (MIX: the chosen circle) */
 {
     int32_t s;
-    if (alt_mx_tab && alt_mx_sel != au.sel)      /* (a black key chose another circle: its strip) */
+    int strip = alt_mx_tab && alt_mx_tab < ALT_MX_GEN;
+    if (strip && alt_mx_sel != au.sel)           /* (a black key chose another circle: its strip) */
         alt_mx_tab = (uint8_t)(au.sel % AS_NCIRC + 1u);
     if ((s = panel_enc(EN_ALGO)) != 0) {
-        alt_mx_tab = (uint8_t)clamp((int32_t)alt_mx_tab + (s > 0 ? 1 : -1), 0, 3);
-        if (alt_mx_tab && au.sel != alt_mx_tab - 1u)
+        alt_mx_tab = (uint8_t)clamp((int32_t)alt_mx_tab + (s > 0 ? 1 : -1), 0, 5);
+        if (alt_mx_tab && alt_mx_tab < ALT_MX_GEN && au.sel != alt_mx_tab - 1u)
             alt_select(alt_mx_tab - 1u);
+        if (alt_mx_tab >= ALT_MX_GEN) {
+            afp.tab = (uint8_t)(alt_mx_tab == ALT_MX_GEN ? AFP_MST : AFP_FLT);
+            afp.row = 0;
+        }
     }
     alt_mx_sel = au.sel;
+    if (alt_mx_tab >= ALT_MX_GEN) {              /* MASTER / FILTER: SELECT their row, PRESETS, KNOBS, OCT- / OCT+ */
+        afp_ctl(pressed);
+        return;
+    }
     if (alt_mx_tab && (s = panel_enc(EN_SELECT)) != 0)
         alt_mx_row = (uint8_t)(s > 0 ? 1u : 0u);
 }
@@ -3362,7 +3377,13 @@ static void alt_mix_scene(void)
     int32_t top = 78, h = 96, y0 = top + h, x, y, yl = alt_mix_y(LIM_T, top, h), y0db = alt_mix_y(32767, top, h);
     char b[12];
     alt_card("MIXER", "XIV");
-    alt_tabs(40, ALT_MX_TAB, 4, alt_mx_tab, alt_mx_tab ? ALT_COL[(alt_mx_tab - 1u) % AS_NCIRC] : ALT_GOLD);
+    alt_tabs(40, ALT_MX_TAB, 6, alt_mx_tab,
+             alt_mx_tab && alt_mx_tab < ALT_MX_GEN ? ALT_COL[(alt_mx_tab - 1u) % AS_NCIRC] : ALT_GOLD);
+    if (alt_mx_tab >= ALT_MX_GEN) {             /* (v1.07) MASTER / FILTER, as they were on the FX page */
+        afp.tab = (uint8_t)(alt_mx_tab == ALT_MX_GEN ? AFP_MST : AFP_FLT);
+        afp_gen_scene();
+        return;
+    }
     if (alt_mx_tab) {
         alt_mx_strip((alt_mx_tab - 1u) % AS_NCIRC);
         return;
@@ -3411,7 +3432,7 @@ static void alt_mix_scene(void)
     }
     cv_rect(8, 196, 224, 1, alt_gold_line(30));
     cv_text(8, 202, ALT_FS, "KNOB 1 2 3 CIRCLES (dB)  4 MASTER", ALT_INK);
-    cv_text(8, 216, ALT_FS, "ALGORITHM: I II III = CONSOLE", ALT_DIM);
+    cv_text(8, 216, ALT_FS, "ALGORITHM: CONSOLE, MASTER, FILTER", ALT_DIM);
 }
 
 /* SONG (XX, Judgement; ARP held, Romain 05/11): the three slots (lit: playing; blinking: asked for; EMPTY), the chain as
@@ -5050,7 +5071,9 @@ static void alter_draw(void)
         for (i = 0; i < AS_NCIRC; i++)
             sig = sig * 31u + (uint32_t)trk[i].p[P_LEVEL] + alt_seq.c[i].cfg.mute * 128u;
         sig = sig * 31u + alt_mx_tab * 3u + alt_mx_row * 5u;   /* (the CONSOLE: its tab, row, values, the COMP's meter) */
-        if (alt_mx_tab) {
+        if (alt_mx_tab >= ALT_MX_GEN)
+            sig = sig * 31u + afp_sig();         /* (MASTER / FILTER) */
+        else if (alt_mx_tab) {
             uint32_t cc = (alt_mx_tab - 1u) % AS_NCIRC, k;
             for (k = 0; k < 4u; k++)
                 sig = sig * 31u + (uint32_t)alt_mx_val(cc, 0, k) * 7u + (uint32_t)alt_mx_val(cc, 1, k) * 11u;

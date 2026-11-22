@@ -1,8 +1,12 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * ALTER's FX page (included by alter_ui.c after alter_store.c): FX held 0.5 s opens it, it stays open (FX tapped,
  * HOME or another page button leaves; a tap on FX is the quick page as before). The keys play on (mutes, dice,
- * fills: DUB DELAY into the delay shown). Four tabs (ALGORITHM):
- *   DIST    the chosen circle's (SELECT the circle): PRESETS its preset, KNOB DRIVE TYPE AMOUNT MIX
+ * fills: DUB DELAY into the delay shown). Tabs (ALGORITHM), v1.07 (Romain 22/11): REVERB DELAY DIST here; MASTER and
+ * FILTER are the general ones: GLO held (the MIXER's tabs MIX I II III MASTER FILTER, alter_ui.c alt_mx_*), drawn and
+ * driven by the same code below (afp_ctl, afp_gen_scene):
+ *   DIST    the chosen circle's (SELECT the circle): PRESETS its preset, KNOB DRIVE (DIST) INS (the insert's amount,
+ *           0 = none) TYPE TONE (v1.07: no MIX knob, the insert full; a scene's MIX under 100 % stays until a knob of
+ *           the insert moves: then it goes into INS, alter_play.c alt_take)
  *   DELAY   shared: PRESETS the preset, KNOB TIME FEEDBK COLOR, and SEND: the chosen circle's (SELECT)
  *   REVERB  shared: PRESETS the preset, KNOB TYPE SIZE DAMP, and SEND: the chosen circle's (SELECT)
  *   MASTER  PRESETS the preset; two rows of four (SELECT the row): LOW MID HIGH COMP | DUCK SRC SHAPE CLIP; the
@@ -13,8 +17,19 @@
  * The presets and the master: alter_fx.c. A knob moved after a preset: its name with a * */
 
 /* (its state, afp: alter_fx.c, so alter_ui_input sees it) */
-enum { AFP_DIST, AFP_DLY, AFP_REV, AFP_MST, AFP_FLT, AFP_N };
+/* (AFP_DIST .. AFP_N: alter_fx.c, with afp, so the MIXER sees them) */
 static const char *const AFP_TAB[AFP_N] = {"DIST", "DELAY", "REVERB", "MASTER", "FILTER"};
+/* the FX page's tabs in their order (v1.07: REVERB DELAY DIST; MASTER FILTER in the MIXER) */
+static const uint8_t AFP_FXT[3] = {AFP_REV, AFP_DLY, AFP_DIST};
+static const char *const AFP_FXN[3] = {"REVERB", "DELAY", "DIST"};
+static uint32_t afp_fx_pos(void)
+{
+    uint32_t i;
+    for (i = 0; i < 3u; i++)
+        if (AFP_FXT[i] == afp.tab)
+            return i;
+    return 2u;
+}
 static const char *const AFP_RTYPE[4] = {"SHORT", "GATED", "HALL", "CLOUD"};
 /* the delay's times, short to long (params.c N_DTIME's ids) */
 static const uint8_t AFP_DT[] = {2, 1, 10, 0};   /* 1/16 1/8 1/8D 1/4 (Romain 04/11) */
@@ -99,13 +114,16 @@ static void afp_turn(uint32_t i, int32_t s)
 {
     uint32_t c = au.sel % AS_NCIRC;
     switch (afp.tab) {
-    case AFP_DIST: {
-        static const uint8_t ID[4] = {P_DIST, P_ITYPE, P_IA, P_IMIX};
-        if (i == 1u) {                           /* TYPE: OFF .. CRUSH (the swept ones are not distortions) */
+    case AFP_DIST: {                             /* v1.07: DRIVE INS TYPE TONE */
+        if (i == 2u) {                           /* TYPE: OFF .. CRUSH (the swept ones are not distortions) */
             int32_t v = clamp(trk[c].p[P_ITYPE] + (s > 0 ? 1 : -1), IT_OFF, IT_CRUSH);
             alt_qpush(c, P_ITYPE, v - trk[c].p[P_ITYPE]);
+        } else if (i == 3u) {                    /* TONE: the drives' B, CRUSH's LPF (C); nothing while OFF */
+            if (!trk[c].p[P_ITYPE])
+                return;
+            afp_part(trk[c].p[P_ITYPE] == IT_CRUSH ? P_IC : P_IB, s);
         } else
-            afp_part(ID[i], s);
+            afp_part(i ? P_IA : P_DIST, s);
         afx_edit |= (uint8_t)(1u << c);
         return;
     }
@@ -150,8 +168,8 @@ static void afp_turn(uint32_t i, int32_t s)
     }
 }
 
-/* the FX page has this frame */
-static void afp_input(uint32_t pressed)
+/* the tab shown has this frame (the FX page's three, or the MIXER's MASTER / FILTER): all but ALGORITHM */
+static void afp_ctl(uint32_t pressed)
 {
     uint32_t i, dn = panel.btn[B_OCTDN], up = panel.btn[B_OCTUP];
     int32_t s;
@@ -166,8 +184,6 @@ static void afp_input(uint32_t pressed)
             alt_say("EDIT B");
         }
     }
-    if ((s = panel_enc(EN_ALGO)) != 0)
-        afp.tab = (uint8_t)clamp((int32_t)afp.tab + (s > 0 ? 1 : -1), 0, AFP_N - 1);
     if ((s = panel_enc(EN_SELECT)) != 0) {
         if (afp.tab == AFP_MST)
             afp.row = (uint8_t)(s > 0 ? 1 : 0);
@@ -189,6 +205,16 @@ static void afp_input(uint32_t pressed)
     for (i = 0; i < 4u; i++)
         if ((s = panel_enc(EN_K1 + i)) != 0)
             afp_turn(i, s);
+}
+/* the FX page has this frame: ALGORITHM its three tabs (REVERB DELAY DIST), then the tab's own */
+static void afp_input(uint32_t pressed)
+{
+    int32_t s;
+    if (afp.tab != AFP_DIST && afp.tab != AFP_DLY && afp.tab != AFP_REV)
+        afp.tab = AFP_DIST;                      /* (MASTER / FILTER were last seen in the MIXER) */
+    if ((s = panel_enc(EN_ALGO)) != 0)
+        afp.tab = AFP_FXT[clamp((int32_t)afp_fx_pos() + (s > 0 ? 1 : -1), 0, 2)];
+    afp_ctl(pressed);
 }
 
 /* ---- the screen -------------------------------------------------------------------------------------------- */
@@ -332,7 +358,7 @@ static void afl_ab(int32_t y, uint16_t col)
 /* knob value k of the tab: its name, its text, a fill of 50 px (-1: text only) */
 static void afp_kv(uint32_t k, const char **name, char *txt, int32_t *fill)
 {
-    static const char *const KN[3][4] = {{"DRIVE", "TYPE", "AMNT", "MIX"}, {"TIME", "FEEDBK", "TAPE", "SEND"},
+    static const char *const KN[3][4] = {{"DRIVE", "INS", "TYPE", "TONE"}, {"TIME", "FEEDBK", "TAPE", "SEND"},
                                          {"TYPE", "SIZE", "DAMP", "SEND"}};
     uint32_t c = au.sel % AS_NCIRC;
     const track_t *t = &trk[c];
@@ -374,7 +400,8 @@ static void afp_kv(uint32_t k, const char **name, char *txt, int32_t *fill)
     *name = KN[afp.tab][k & 3u];
     switch (afp.tab * 4u + k) {
     case 0: v = t->p[P_DIST]; break;
-    case 1: {
+    case 1: v = t->p[P_ITYPE] ? t->p[P_IA] : 0; break;   /* (OFF shows 0, where a turn starts from) */
+    case 2: {
         const char *s = N_ITYPE[clamp(t->p[P_ITYPE], 0, IT_N - 1)];
         uint32_t n = 0;
         while (s[n])
@@ -382,8 +409,7 @@ static void afp_kv(uint32_t k, const char **name, char *txt, int32_t *fill)
         txt[n] = 0;
         return;
     }
-    case 2: v = t->p[P_ITYPE] ? t->p[P_IA] : 0; break;   /* (v1.06: OFF shows 0, where a turn starts from) */
-    case 3: v = t->p[P_IMIX]; break;
+    case 3: v = t->p[P_ITYPE] == IT_CRUSH ? t->p[P_IC] : t->p[P_ITYPE] ? t->p[P_IB] : 0; break;   /* TONE */
     case 4: {
         const char *s = N_DTIME[clamp(song.g[G_DTIME], 0, 12)];
         uint32_t n = 0;
@@ -421,10 +447,26 @@ static void afp_knob(int32_t x, int32_t y, uint32_t k, uint16_t col, int lit)
 }
 
 /* the preset's name, big, with its place in the list (and a * once a knob moved it) */
+static int32_t afp_hy = 44;                     /* (the head's y: 44 on the FX page, lower under the MIXER's tabs) */
 static void afp_head(const char *name, uint32_t i, uint32_t n, int edited, uint16_t col)
 {
     char b[8];
-    int32_t w;
+    int32_t w, y = afp_hy;
+    if (y != 44) {                               /* the MIXER: one line, PRESET n/N NAME */
+        b[0] = (char)('0' + (i + 1u) / 10u);
+        b[1] = (char)('0' + (i + 1u) % 10u);
+        b[2] = '/';
+        b[3] = (char)('0' + n / 10u);
+        b[4] = (char)('0' + n % 10u);
+        b[5] = 0;
+        cv_text(8, y + 2, ALT_FS, "PRESET", ALT_DIM);
+        cv_text_r(232, y + 2, ALT_FV, b[0] == '0' ? b + 1 : b, ALT_DIM, ALT_BG);
+        w = cv_text(8 + text_w(ALT_FS, "PRESET") + 6, y, ALT_FM, name, col);
+        if (edited)
+            cv_text(8 + text_w(ALT_FS, "PRESET") + 6 + text_w(ALT_FM, name) + 3, y, ALT_FM, "*", ALT_DIM);
+        (void)w;
+        return;
+    }
     cv_text(8, 44, ALT_FS, "PRESET", ALT_DIM);
     b[0] = (char)('0' + (i + 1u) / 10u);
     b[1] = (char)('0' + (i + 1u) % 10u);
@@ -525,7 +567,8 @@ static void afp_scene(void)
     uint32_t i, c = au.sel % AS_NCIRC;
     uint16_t cc = ALT_COL[c];
     alt_menu_head("FX", "XVI");
-    alt_tabs(23, AFP_TAB, AFP_N, afp.tab, afp.tab == AFP_DIST ? cc : ALT_GOLD);
+    alt_tabs(23, AFP_FXN, 3, afp_fx_pos(), afp.tab == AFP_DIST ? cc : ALT_GOLD);
+    afp_hy = 44;
     switch (afp.tab) {
     case AFP_DIST:
         afp_head(AFX_DIST[afx_sel[c] % AFX_NDIST].name, afx_sel[c], AFX_NDIST, (afx_edit >> c) & 1u, cc);
@@ -541,6 +584,19 @@ static void afp_scene(void)
         afp_rev_pic(94, 64, cc);
         afp_sends(P_REV, 168);
         break;
+    default:
+        break;
+    }
+    for (i = 0; i < 4u; i++)                     /* the four knobs (DIST: TONE grey with no insert) */
+        afp_knob(8 + (int32_t)i * 57, 200, i, i == 3u || afp.tab == AFP_DIST ? cc : ALT_INK,
+                 !(afp.tab == AFP_DIST && i == 3u && !trk[c].p[P_ITYPE]));
+}
+/* the MIXER's MASTER / FILTER tabs (afp.tab AFP_MST / AFP_FLT): under its tabs (y 40), the head one line at y 62 */
+static void afp_gen_scene(void)
+{
+    uint32_t i;
+    afp_hy = 62;
+    switch (afp.tab) {
     case AFP_FLT: {
         uint32_t s = afp.ab & 1u;
         afp_head(AFL_PRE[afl_sel[s] % AFL_NPRE].name, afl_sel[s], AFL_NPRE, (afl_edit >> s) & 1u, ALT_INK);
@@ -567,9 +623,6 @@ static void afp_scene(void)
         return;
     }
     }
-    for (i = 0; i < 4u; i++)                     /* the four knobs (DIST: AMOUNT and MIX grey with no insert) */
-        afp_knob(8 + (int32_t)i * 57, 200, i, i == 3u || afp.tab == AFP_DIST ? cc : ALT_INK,
-                 !(afp.tab == AFP_DIST && i >= 2u && !trk[c].p[P_ITYPE]));
 }
 
 /* what the FX page's picture depends on */

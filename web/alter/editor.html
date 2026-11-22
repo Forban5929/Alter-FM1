@@ -486,7 +486,7 @@ import { req, parse, splitFrames, CMD, F_ENUM, show, PATCH_KIND, ACT, SHARED, NA
 
 const $ = (id) => document.getElementById(id);
 const MODES = ["FREE", "PERC", "STAB", "DRONE"];
-const GROUPS = [["Engine", 0, 8], ["Envelope", 8, 12], ["Effects", 12, 19], ["Output", 19, 22]];
+const GROUPS = [["Engine", 0, 8], ["Envelope", 8, 12], ["Effects", 12, 18], ["Output", 19, 22]];   // (v1.07: the insert's MIX, 18, not shown: always full)
 const ROMAN = ["I", "II", "III"];
 let port = null, info = null, slots = [];
 const circ = [0, 1, 2].map(() => ({ state: null, desc: [], ctl: [], dragging: -1 }));

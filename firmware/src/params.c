@@ -155,7 +155,7 @@ static const param_desc_t TP[P_COUNT] = {
     /* the INSERT (1.5, fx.c track_insert): TYPE OFF = as before. A B C as the editor protocol names them; the device
      * shows the type's own labels (ins_desc) */
     [P_ITYPE] = PE("INSRT", N_ITYPE, 0),
-    [P_IA] = PD("INS A", F_PCT, 0, 127, 64),
+    [P_IA] = PD("INS", F_PCT, 0, 127, 0),          /* (ALTER v1.07: the insert's amount, 0 at rest; was INS A 64) */
     [P_IB] = PD("INS B", F_PCT, 0, 127, 96),
     [P_IC] = PD("INS C", F_PCT, 0, 127, 96),
     [P_IMIX] = PD("MIX", F_PCT, 0, 127, 127),
@@ -167,8 +167,8 @@ static const param_desc_t TP[P_COUNT] = {
  * LPF, the swept ones RATE DEPTH FDBK; OFF TP's own */
 #define PU(l, f, df, n, u) {l, f, 0, 127, df, n, u}
 static const param_desc_t INS_DESC[3][3] = {
-    {PU("DRIVE", F_PCT, 64, 0, 0), PU("TONE", F_CUTOFF, 96, 0, 0), PU("LEVEL", F_DB, 96, 0, 0)},
-    {PU("CRUSH", F_PCT, 64, 0, 0), PU("RATE", F_INT, 96, N_IRATE, "Hz"), PU("LPF", F_CUTOFF, 96, 0, 0)},
+    {PU("INS", F_PCT, 0, 0, 0), PU("TONE", F_CUTOFF, 96, 0, 0), PU("LEVEL", F_DB, 96, 0, 0)},   /* (v1.07: INS) */
+    {PU("INS", F_PCT, 0, 0, 0), PU("RATE", F_INT, 96, N_IRATE, "Hz"), PU("LPF", F_CUTOFF, 96, 0, 0)},
     {PU("RATE", F_LFOHZ, 64, 0, 0), PU("DEPTH", F_PCT, 96, 0, 0), PU("FDBK", F_PCT, 96, 0, 0)},
 };
 #undef PU

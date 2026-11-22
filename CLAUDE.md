@@ -17,7 +17,12 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    exponentiel ; 1/pas calculé 1 fois par bloc), fondu A 0..32 aussi ; presets BITS 85, DESTROY 127 ; scènes USER sauvées avec
    l'ancien BITS : sens inversé, à refaire à la main). **v1.06** : la vraie cause du « on/off » d'AMNT (Romain) = alter_play.c
    `alt_take` : AMNT tourné avec TYPE OFF allume FOLD à fond **depuis l'AMNT restant** (50) → maintenant depuis 0 ; page FX : AMNT
-   affiche 0 si TYPE OFF (`tools/alter/alter_insert_click.mjs` : 1er cran = −0,2 dB). Mesures : `node tools/alter/alter_param_probe.mjs wasm SON "id=v,…" ID v1,v2`
+   affiche 0 si TYPE OFF (`tools/alter/alter_insert_click.mjs` : 1er cran = −0,2 dB).
+   **v1.07 (Romain)** : page FX = onglets **REVERB DELAY DIST** (`AFP_FXT`) ; DIST = **DRIVE · INS · TYPE · TONE** (TONE = P_IB,
+   CRUSH : P_IC ; pas de MIX : MIX < 127 d'une scène → fondu dans INS au 1er geste sur l'insert, alter_play.c `alt_take`) ;
+   **MASTER + FILTER déplacés dans GLO tenu** (MIXER : MIX I II III MASTER FILTER, `ALT_MX_GEN` ; même code `afp_ctl` /
+   `afp_gen_scene`, tête sur une ligne `afp_hy` 62) ; P_IA défaut 0, libellé « INS » ; page compagnon : MIX d'insert caché
+   (GROUPS Effects 12..18). TYPE depuis OFF = INS 0. Les éditions par la page compagnon ne font pas ce fondu MIX→INS. Mesures : `node tools/alter/alter_param_probe.mjs wasm SON "id=v,…" ID v1,v2`
    (P_DIST 33, P_ITYPE 96, P_IA 97, P_IB 98, P_IC 99, P_IMIX 100), audit de tous les knobs
    (sauts, zones mortes ; montrer la liste avant de corriger), balance des niveaux des sons d'usine, moteurs plus différents
    (écoutes WAV d'abord), **RUMBLE à refaire** (2-3 variantes WAV à écouter). 4. Vu ailleurs (Felucca 1.0, fm1-dock,
@@ -51,7 +56,7 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.06 » (22/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.07 » (22/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. **Deux sites (v1.02, 22/11)** : pousser sur `etape-3d` → pages.yml construit (tools/alter/site_build.sh, 2 fois) :
    **racine = dernière Release** (tag vX.YY le plus haut ; ce que voient les gens) et **/beta/ = etape-3d** (bandeau rouge

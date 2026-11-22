@@ -415,6 +415,7 @@ static __attribute__((noinline)) void am_master(int32_t *l, int32_t *r, int32_t 
 enum { AFX_S_DLY = 3, AFX_S_REV, AFX_S_MST, AFX_NS };
 static uint8_t afx_sel[AFX_NS];
 static uint8_t afx_edit;
+enum { AFP_DIST, AFP_DLY, AFP_REV, AFP_MST, AFP_FLT, AFP_N };   /* (alter_fxpage.c's tabs; MST FLT in the MIXER) */
 static struct {
     uint8_t open, hold, tab, row;    /* the FX page: open; opened by this hold (its release keeps it); the tab; MASTER's row */
     uint8_t ab;                      /* the FILTER tab: the snapshot the knobs edit (0 A, 1 B) */
