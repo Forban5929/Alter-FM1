@@ -2266,7 +2266,7 @@ static const uint8_t ALT_R[AS_NCIRC] = {80, 60, 40};
  * draws in its own colours, light when the palette is (ux.light). NIGHT: crimson, verdigris, old gold on black and
  * gold leaf; DAY: coral, teal, sun on cream, indigo ink */
 #define ALT_DAY (ux.light != 0)
-/* SPLIT (v1.09, Romain 22/11: "minimaliste, black and white opposition"): SYSTEM > SETUP > THEME's third value
+/* SPLIT (v1.10, Romain 22/11: "minimaliste, black and white opposition"): SYSTEM > SETUP > THEME's third value
  * (alt_sys[11] = 1, the palette NIGHT under it). The PLAY view (the circles) only, for now: drawn in white on black
  * (alt_mono: every ALT_ colour below grey), then its left half (screen x < 120) turned over, black on white
  * (alt_split_turn); the chosen circle's ring and hand in red (ALT_SPLIT_RED), kept red on both halves. The other
@@ -3897,7 +3897,7 @@ enum { SET_THEME, SET_N };
 #define ALT_PAL_NIGHT UI_GREY_INDEX
 #define ALT_PAL_DAY 6u                            /* PAPER (build/gen/ui_palettes.h) */
 static uint32_t alt_theme(void) { return ALT_SPLIT ? 2u : ALT_DAY ? 1u : 0u; }   /* (0 NIGHT, 1 DAY, 2 SPLIT) */
-static void alt_theme_set(uint32_t t)            /* (v1.09: SPLIT = the palette NIGHT + alt_sys[11]) */
+static void alt_theme_set(uint32_t t)            /* (v1.10: SPLIT = the palette NIGHT + alt_sys[11]) */
 {
     if (t > 2u || t == alt_theme())
         return;
@@ -4194,7 +4194,7 @@ static int alt_band(int32_t lo, int32_t hi) { return hi >= alt_wd0 - 1 && lo <= 
 #define alt_sm_simple_on (ALT_SMOOTH && alt_sm_simple_v)
 static uint32_t alt_sm_simple_v = 1u;              /* (SMOOTH: the halo lighter, 09/11 Romain's choice; 0: as before, tests) */
 
-/* SPLIT (v1.09): the left half of the canvas (screen x < 120) turned over: a grey pixel (white, black and the greys
+/* SPLIT (v1.10): the left half of the canvas (screen x < 120) turned over: a grey pixel (white, black and the greys
  * of their edges) inverted; a coloured one (the red, over black: c = a x red) put back over white instead
  * (c + (1 - a) x white), so the red stays red on both halves, its edges smooth */
 static void alt_split_turn(void)
@@ -4403,7 +4403,7 @@ static void alt_scene(uint32_t q, uint32_t flash)
         alt_sg_scene();
         return;
     }
-    if (ALT_SPLIT) {                             /* (v1.09: the PLAY view in black and white) */
+    if (ALT_SPLIT) {                             /* (v1.10: the PLAY view in black and white) */
         alt_split_scene(q, flash);
         return;
     }
@@ -5553,7 +5553,7 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
         break;
     case 32: alt_sys[9] = (uint8_t)(b & ALT_RFX_ALL); break;   /* (a test, v0.66: the effects CHAOS TOTAL leaves alone) */
     case 33: alt_seq.c[a % AS_NCIRC].locks = (uint8_t)b; break;   /* (a test, v0.68: circle a's LOCKS) */
-    case 36:                                     /* (a test, v1.09: THEME a = 0 NIGHT, 1 DAY, 2 SPLIT) */
+    case 36:                                     /* (a test, v1.10: THEME a = 0 NIGHT, 1 DAY, 2 SPLIT) */
         alt_theme_set(a);
         break;
     case 35:                                     /* (a test, v0.74: the screen asleep now, the seal breathing) */

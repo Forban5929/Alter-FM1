@@ -41,7 +41,7 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    craquements ≤ 4 %) ; le DIRT dans la boucle reste. Mesuré : ±3 dB de 0 à 96, −5..−9 dB à 127 (les queues partent). balance des niveaux des sons d'usine, moteurs plus différents
    (écoutes WAV d'abord), **RUMBLE à refaire** (2-3 variantes WAV à écouter). 4. Vu ailleurs (Felucca 1.0, fm1-dock,
    ChoralRoot) : backup complet depuis la page, mise à jour qui garde scènes/réglages, MIDI Bluetooth.
-5. **v1.09 (Romain 22/11) : THEME SPLIT** (SYSTEM › SETUP › THEME : NIGHT / DAY / SPLIT ; `alt_sys[11]` = 1, palette NIGHT
+5. **v1.10 (Romain 22/11) : THEME SPLIT** (SYSTEM › SETUP › THEME : NIGHT / DAY / SPLIT ; `alt_sys[11]` = 1, palette NIGHT
    dessous). Vue PLAY seule pour l'instant (`alt_split_scene` avant alt_scene) : tout en blanc/gris sur noir (`alt_mono` : les
    macros ALT_* passent en gris), puis `alt_split_turn` retourne la moitié gauche (x < 120) et rend les gris neutres (5-6-5 : le
    vert fait foi) ; le rouge (`ALT_SPLIT_RED`, anneau + aiguille du cercle choisi) est recalé sur blanc à gauche. Pas de rayons,
@@ -77,7 +77,7 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.09 » (22/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.10 » (22/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. **Deux sites (v1.02, 22/11)** : pousser sur `etape-3d` → pages.yml construit (tools/alter/site_build.sh, 2 fois) :
    **racine = dernière Release** (tag vX.YY le plus haut ; ce que voient les gens) et **/beta/ = etape-3d** (bandeau rouge
