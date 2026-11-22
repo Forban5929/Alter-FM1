@@ -267,12 +267,7 @@ static void as_draw_w(as_seq_t *q, uint32_t i, uint32_t w)
             for (k = 0; k < AS_MAXLEN; k++)
                 if (as_coin(s, d * 2))
                     c->flam[k] = 1;
-            /* a ratchet (Romain 04/11): none as a rule; at most ONE step, x2 mostly, x3 1 in 16; a quarter at DOSE 127 */
-            if (as_coin(s, d * 2)) {
-                k = as_rand(s) % (c->cfg.len ? c->cfg.len : 16u);
-                c->rat[k] = (uint8_t)(as_rand(s) % 16u ? 1u : 2u);
-                c->flam[k] = 0;
-            }
+            /* (v1.10, Romain 22/11: no more ratchet drawn: RATCH taken out) */
         }
     }
     hits = as_bits(c->pat & (c->cfg.len >= 32u ? 0xFFFFFFFFu : (1u << c->cfg.len) - 1u));
@@ -668,12 +663,10 @@ static void as_step(as_seq_t *q, as_event_t ev[AS_NCIRC])
             e->gate = 1;
             e->dly = (uint8_t)as_rng(q, c, 2u, l, c->sdly[l]);
             e->rev = (uint8_t)as_rng(q, c, 3u, l, c->srev[l]);
-            e->rat = (uint8_t)as_rng(q, c, 5u, l, c->srat[l]);   /* (the RATCH lane; a draw's burst may go further) */
+            e->rat = 0;                          /* (v1.10: RATCH taken out, its lane and the die's no longer played) */
             if (c->cfg.type == AS_T_TURING)
                 deg += as_tpitch(c, k);
             if (c->die) {
-                if (c->rat[k] > e->rat)
-                    e->rat = c->rat[k];
                 e->flam = c->flam[k];
                 e->gate = c->gate[k];
                 e->env = c->env[k];

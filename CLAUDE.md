@@ -38,7 +38,14 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    **Rien écouté à l'oreille** : WAV / FM-1 par Romain.
    **v1.09 (Romain : « DIRT ne marche que sur RING BELL », choix « les deux »)** : `eng_dirt.h` = étage DIRT de sortie commun
    RING/PLATE/CORDE (tanh ×1..×26 via alt_curve, make-up 1/(1+(G−1)/14) ; > 90 : grain = bits en moins, échantillons tenus,
-   craquements ≤ 4 %) ; le DIRT dans la boucle reste. Mesuré : ±3 dB de 0 à 96, −5..−9 dB à 127 (les queues partent). balance des niveaux des sons d'usine, moteurs plus différents
+   craquements ≤ 4 %) ; le DIRT dans la boucle reste. Mesuré : ±3 dB de 0 à 96, −5..−9 dB à 127 (les queues partent).
+   **v1.10 (Romain 22/11 : « trop de doublons dirt/saturation/dst/ins »)** : **RATCH retiré** (lane gardée dans les scènes, à 0 ;
+   `alt_rat_draw` vide, dé sans ratchet, lecture `rep` = fills seulement) ; SEQ = **VELO PITCH CHNC DLY REV** (`ALT_LANE_ORD`,
+   touches noires 1 3 5 8 10 ; ⚠ `ALT_NTAB` existe déjà = onglets SAVE : nom pris `ALT_NLTAB`) ; **INSERT sans SOFT/HARD/FUZZ**
+   (alt_take les saute, une vieille scène garde le sien ; presets WARM/CRUNCH = DIST seul, FUZZ/SCREAM = DIST + FOLD ; page :
+   options cachées). **Décidé : le knob DIRT des moteurs sera remplacé par RING MOD ou FOLD selon le moteur**, après écoute :
+   page https://claude.ai/artifact/GCqAHt17EWzZaXNypcQbtm (`tools/alter/alter_rmfold_wav.mjs` : 15 sons × sec, RING ×0,5 ×1,5
+   ×2,71 700 Hz, FOLD léger/moyen/fort, hors firmware) → attendre le choix de Romain par moteur. balance des niveaux des sons d'usine, moteurs plus différents
    (écoutes WAV d'abord), **RUMBLE à refaire** (2-3 variantes WAV à écouter). 4. Vu ailleurs (Felucca 1.0, fm1-dock,
    ChoralRoot) : backup complet depuis la page, mise à jour qui garde scènes/réglages, MIDI Bluetooth.
 5. **v1.10 (Romain 22/11) : THEME SPLIT** (SYSTEM › SETUP › THEME : NIGHT / DAY / SPLIT ; `alt_sys[11]` = 1, palette NIGHT

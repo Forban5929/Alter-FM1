@@ -718,7 +718,11 @@ function drawControls(c) {
         row.className = "p enum";
         row.innerHTML = `<label for="${uid}">${d.label}</label><select id="${uid}"></select>`;
         const s = row.querySelector("select");
-        d.names.forEach((nm, i) => s.append(new Option(nm, d.min + i)));
+        d.names.forEach((nm, i) => {                 // (v1.10: SOFT HARD FUZZ left the INSERT: hidden, an old scene's still shown)
+          const op = new Option(nm, d.min + i);
+          if (d.label === "INSRT" && /^(SOFT|HARD|FUZZ)$/.test(nm)) op.hidden = true;
+          s.append(op);
+        });
         s.onchange = () => queueSet(c, k, +s.value);
         C.ctl[k] = { row, input: s, d };
       } else {
@@ -1087,6 +1091,7 @@ const PLACE = {
 };   // (the CONSOLE: the MIXER tab, 10/11, mixerBuild)
 const LANE_LIM = [[1, 127], [0, 127], [0, 127], [0, 127], [-7, 7], [0, 3]];   // (alter_ui.c alt_lane_lim)
 const LANE_SHORT = ["VELO", "CHNC", "DLY", "REV", "PITCH", "RATCH"];
+const LANE_ORD = [0, 4, 1, 2, 3];                   // (v1.10: RATCH gone, PITCH second; the lanes keep their numbers)
 const NOTE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 let v2 = null, currentTab = "sons";
 const vctl = [[], [], [], []];                      // the controls of circle 0..2's settings, [3] the shared ones
@@ -1186,7 +1191,7 @@ function buildV2() {
         <div class="arow"><span>Random</span><button class="act" data-a="DIE" title="A new draw of the dice, at once">DICE</button>
           <button class="act" data-a="CLEAN" title="The clean pattern, without the dice">CLEAN</button>
           <button class="act" data-a="RANDOM" title="LEN and HITS at random, with VELO, CHANCE and PITCH">RHYTHM</button></div>
-        <div class="arow"><span>Lanes</span>${LANE_SHORT.map((n, ln) => `<button class="act" data-a="SHUF${ln}" title="${vl.lanes[ln]} at random">${n}</button>`).join("")}
+        <div class="arow"><span>Lanes</span>${LANE_ORD.map((ln) => `<button class="act" data-a="SHUF${ln}" title="${vl.lanes[ln]} at random">${LANE_SHORT[ln]}</button>`).join("")}
           <button class="act" data-a="LANES" title="The six lanes at random">ALL</button></div>
       </div></div>`;
     col.querySelectorAll("[data-a]").forEach((b) => {
@@ -1638,7 +1643,7 @@ async function doAct(c, a) {
 function laneEditor(c) {
   const L = lane[c], box = document.createElement("div");
   box.className = "lanes";
-  box.innerHTML = `<div class="ltabs" role="group" aria-label="Lane of circle ${c + 1}">${LANE_SHORT.map((n, ln) => `<button class="act" data-ln="${ln}">${n}</button>`).join("")}</div>
+  box.innerHTML = `<div class="ltabs" role="group" aria-label="Lane of circle ${c + 1}">${LANE_ORD.map((ln) => `<button class="act" data-ln="${ln}">${LANE_SHORT[ln]}</button>`).join("")}</div>
     <svg class="lbars" viewBox="0 0 320 120" preserveAspectRatio="none" aria-label="Values per step"></svg>
     <div class="lfoot"><button class="act" data-do="shuf">Random</button><button class="act" data-do="flat">Flat</button><output></output></div>`;
   box.querySelectorAll("[data-ln]").forEach((b) => (b.onclick = () => { L.sel = +b.dataset.ln; drawLane(c); }));

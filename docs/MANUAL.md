@@ -54,7 +54,7 @@ A page button **tapped** opens its quick page (the four knobs change with it); *
 | Button | Tapped: quick page | Held: menu |
 | --- | --- | --- |
 | (none) | the engine's four main settings | |
-| SEQ | RHYTHM: LEN HITS ROT PROB (TURING: LEN LOCK DENS RANGE) | the lanes (VELO CHANCE DELAY REVERB PITCH RATCH), the lower keys are the steps; SEQ held + ALGORITHM: EUCLID / TURING |
+| SEQ | RHYTHM: LEN HITS ROT PROB (TURING: LEN LOCK DENS RANGE) | the lanes (VELO PITCH CHANCE DELAY REVERB), the lower keys are the steps; SEQ held + ALGORITHM: EUCLID / TURING |
 | ENV | the envelope's four settings, by mode | ENVELOPE: the shape drawn |
 | FX | DIST · INS · DELAY send · REVERB send | FX page: REVERB, DELAY (TIME FEEDBK TAPE SEND), DIST (DRIVE INS TYPE TONE) |
 | LFO | LFO 1: WAVE RATE DEPTH DEST | LFO 1 2 3, GLOBAL, MATRIX |
@@ -111,8 +111,7 @@ may move this circle).
 **SEQ tapped**: LEN (5-16 steps), HITS, ROT (rotation), PROB. **SEQ held + ALGORITHM** switches the circle between
 EUCLID and TURING; a TURING circle shows LEN, LOCK, DENS, RANGE.
 
-**SEQ held** opens the **lanes**: per step VELO, CHANCE, DELAY (a throw into the delay), REVERB (a throw), PITCH, RATCH
-(ratchets). The lower keys are the 16 steps.
+**SEQ held** opens the **lanes**: per step VELO, PITCH, CHANCE, DELAY (a throw into the delay), REVERB (a throw). The lower keys are the 16 steps.
 
 **SWING** and **BPM** are on GLO's quick page.
 
@@ -122,11 +121,11 @@ The three DICE keys each draw for their own circle. What a die draws depends on 
 
 | Gesture | Draws |
 | --- | --- |
-| DICE tapped | a new pattern: HITS, ROT, flams and a ratchet |
+| DICE tapped | a new pattern: HITS, ROT and flams |
 | OCT− + DICE | the VELO and CHANCE lanes, and a new LEN (5 to 16, mostly near 16) |
 | OCT+ + DICE | the PITCH lane and the throws into the delay and reverb |
 | DICE held 0.6 s | clean: back to the plain pattern, the draw undone |
-| OCT− + OCT+ + DICE | the circle's **LOCKS** page: lower keys 1-7 lock RHYTHM (hits, rotation, flams, ratchet), LENGTH, VELOCITY, CHANCE, PITCH, THROWS (delay / reverb), SOUND (what CHAOS changes on the sound: timbre, glide, envelope, force); a locked part is left alone by the dice and CHAOS (CHAOS TOTAL changes everything); SELECT or a CIRCLE key: another circle's LOCKS (the page takes its colour); HOME: back |
+| OCT− + OCT+ + DICE | the circle's **LOCKS** page: lower keys 1-7 lock RHYTHM (hits, rotation, flams), LENGTH, VELOCITY, CHANCE, PITCH, THROWS (delay / reverb), SOUND (what CHAOS changes on the sound: timbre, glide, envelope, force); a locked part is left alone by the dice and CHAOS (CHAOS TOTAL changes everything); SELECT or a CIRCLE key: another circle's LOCKS (the page takes its colour); HOME: back |
 | DICE 1 + 2 + 3 | **CHAOS**: everything drawn on the three circles (timbre, glide and length per hit too), every effect switched off, no LFO nor modulation, EUCLID or TURING drawn too (one TURING at most); what the circle's LOCKS keep stays. Playing: the screen glitches and it lands on the 1 after a whole bar; again while it waits: cancelled |
 | CIRCLE 1 + 2 + 3 | **CHAOS TOTAL**: sounds, engines, modes, rhythms (EUCLID or TURING, one TURING at most, LEN 5-16), all at random. Playing, the draw waits: the screen glitches and the new scene lands on the 1 after a whole bar (press again while it waits: cancelled). Stopped: at once. Again within 3 s of the draw: undone |
 
@@ -164,7 +163,7 @@ says which chord. **SCL held**: the SCALES page.
 
 **FX tapped**: the chosen circle's DIST, INSERT, DELAY send, REVERB send. **FX held**: the FX page — tabs REVERB (TYPE
 SIZE DAMP SEND), DELAY (TIME, FEEDBK, TAPE mode, SEND) and DIST: KNOB 1 DRIVE, KNOB 2 INS (the insert's amount, 0 = none),
-KNOB 3 TYPE (SOFT HARD FOLD FUZZ CRUSH), KNOB 4 TONE. The insert is always full (no MIX).
+KNOB 3 TYPE (OFF FOLD CRUSH: the plain drives are DIST's), KNOB 4 TONE. The insert is always full (no MIX).
 
 **GLO held** opens the **MIXER**:
 - tab **MIX**: KNOB 1 2 3 the three circles' levels, KNOB 4 the MASTER, and the output meter;

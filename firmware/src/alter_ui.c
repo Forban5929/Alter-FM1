@@ -785,7 +785,20 @@ static void alt_mtx_turn(uint32_t i, int32_t s)
 /* ---- the SEQ menu: the chosen circle's steps, its lanes (VELO CHANCE DELAY REVERB PITCH), its engine ------------- */
 enum { LN_VELO, LN_CHANCE, LN_DLY, LN_REV, LN_PITCH, LN_RATCH, LN_N };
 static const char *const ALT_LANE_NAME[LN_N] = {"VELO", "CHANCE", "DELAY", "REVERB", "PITCH", "RATCH"};
-static const char *const ALT_LANE_TAB[LN_N] = {"VELO", "CHNC", "DLY", "REV", "PITCH", "RATCH"};   /* (the tabs: six fit) */
+static const char *const ALT_LANE_TAB[LN_N] = {"VELO", "CHNC", "DLY", "REV", "PITCH", "RATCH"};
+/* v1.10 (Romain 22/11): RATCH gone, PITCH second; the lanes keep their numbers (the RANGE masks are by lane) and the
+ * tabs are shown in this order */
+#define ALT_NLTAB 5
+static const uint8_t ALT_LANE_ORD[ALT_NLTAB] = {LN_VELO, LN_PITCH, LN_CHANCE, LN_DLY, LN_REV};
+static const char *const ALT_TAB_ORD[ALT_NLTAB] = {"VELO", "PITCH", "CHNC", "DLY", "REV"};
+static uint32_t alt_lane_pos(uint32_t ln)
+{
+    uint32_t i;
+    for (i = 0; i < ALT_NLTAB; i++)
+        if (ALT_LANE_ORD[i] == ln)
+            return i;
+    return 0;
+}
 static const uint8_t ALT_WHITE[16] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26};   /* step i's key */
 
 /* lane ln's value at step k of circle c: 0..127 (PITCH: -7..7) */
@@ -880,15 +893,17 @@ static void alt_lane_flat(uint32_t ln)
 /* two steps held + KNOB 2: the lane shown drawn anew on its 16 steps, hits or not, single values (no RANGE), over its
  * whole height but VELO and CHANCE kept audible (30 % and up) */
 static uint32_t alt_cr(uint32_t n);              /* (below: CHAOS's draws) */
-/* circle c's RATCH lane drawn at random (Romain 04/11): no ratchet as a rule; with pct % chance ONE step only, x2
- * mostly, x3 almost never (1 in 16), never x4 */
+/* circle c's RATCH lane emptied (v1.10, Romain 22/11: RATCH taken out of ALTER; the lane stays in the scenes' layout,
+ * always 0, and nothing plays it) */
 static void alt_rat_draw(as_circ_t *sc, uint32_t pct)
 {
     uint32_t k, len = sc->cfg.len ? sc->cfg.len : 16u;
     for (k = 0; k < AS_NLANE; k++)
         sc->srat[k] = 0;
-    if (alt_cr(100u) < pct)
-        sc->srat[alt_cr(len < AS_NLANE ? len : AS_NLANE)] = (uint8_t)(alt_cr(16u) ? 1u : 2u);
+    if (alt_cr(100u) < pct) {                    /* (the same draws as before, thrown away: CHAOS's other draws unchanged) */
+        (void)alt_cr(len < AS_NLANE ? len : AS_NLANE);
+        (void)alt_cr(16u);
+    }
 }
 static uint32_t alt_crng;
 static uint32_t alt_cr(uint32_t n);
@@ -966,7 +981,7 @@ static void alt_seq_type(int32_t s)
 enum { ASK_LANE = 0, ASK_TYPE = 100, ASK_PREV, ASK_NEXT, ASK_NONE = 255 };
 static const uint8_t ALT_SEQ_BK[27] = {
     [0 ... 26] = ASK_NONE,
-    [1] = LN_VELO, [3] = LN_CHANCE, [5] = LN_DLY, [8] = LN_REV, [10] = LN_PITCH, [13] = LN_RATCH,
+    [1] = LN_VELO, [3] = LN_PITCH, [5] = LN_CHANCE, [8] = LN_DLY, [10] = LN_REV,   /* (v1.10: the tabs' order, no RATCH) */
     [15] = ASK_TYPE, [20] = ASK_PREV, [22] = ASK_NEXT,
 };
 /* the SEQ menu has this frame: the step keys, the lanes, the knobs (no fills here) */
@@ -975,7 +990,7 @@ static void alt_seq_input(uint32_t keys)
     uint32_t down = keys & ~au.keys, up = au.keys & ~keys, k, i;
     int32_t s;
     if ((s = panel_enc(EN_ALGO)) != 0)
-        au.lane = (uint8_t)clamp((int32_t)au.lane + (s > 0 ? 1 : -1), 0, LN_N - 1);
+        au.lane = ALT_LANE_ORD[clamp((int32_t)alt_lane_pos(au.lane) + (s > 0 ? 1 : -1), 0, ALT_NLTAB - 1)];
     if ((s = panel_enc(EN_SELECT)) != 0) {
         alt_select((uint32_t)((int32_t)au.sel + s + 3 * 16));
         au.step_down = 0;
@@ -1628,7 +1643,10 @@ static void alt_total_chaos(void)
         for (k = 0; k < 4u; k++)                 /* ATK DEC SUS REL */
             t->p[P_ATK + k] = (int16_t)alt_cr(128u);
         t->p[P_DIST] = (int16_t)alt_cr(128u);
-        t->p[P_ITYPE] = (int16_t)alt_cr(IT_N);
+        {                                        /* (v1.10: no SOFT HARD FUZZ: OFF FOLD CRUSH and the swept ones) */
+            static const uint8_t IT_OK[6] = {IT_OFF, IT_FOLD, IT_CRUSH, IT_PHASER, IT_FLANGER, IT_CHORUS};
+            t->p[P_ITYPE] = (int16_t)IT_OK[alt_cr(6u)];
+        }
         t->p[P_IA] = (int16_t)alt_cr(128u);
         t->p[P_IB] = (int16_t)alt_cr(128u);
         t->p[P_IC] = (int16_t)alt_cr(113u);      /* (its LEVEL: 112 = 0 dB at most) */
@@ -2911,7 +2929,7 @@ static void alt_seq_scene(void)
                                                   * ALGORITHM) at the right */
     alt_chip();                                  /* (the sound at the right, the engine of the rhythm at the left) */
     alt_eng_tag("X", AS_TYPE_NAME[cf->type % AS_NTYPE], col);
-    alt_tabs(23, ALT_LANE_TAB, LN_N, ln, col);  /* the lanes (ALGORITHM) */
+    alt_tabs(23, ALT_TAB_ORD, ALT_NLTAB, alt_lane_pos(ln), col);   /* the lanes (ALGORITHM; v1.10: VELO PITCH CHNC DLY REV) */
     if (ln == LN_PITCH)
         cv_rect(x, mid, 224, 1, ALT_DARK);
     for (k = 0; k < 16u; k++) {                  /* the steps: a bar each, their lane's value */

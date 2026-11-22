@@ -352,8 +352,7 @@ int main(void)
             worst = n > worst ? n : worst;
         }
         printf("  ratchet at DOSE 127 in 2000 draws: %u with one (%u x3), at most %u per circle\n", with, x3, worst);
-        check("die: at most ONE ratcheted step per circle, in 10..40 % of the draws, x3 under 1 in 10 of them",
-              worst <= 1u && with > 200u && with < 800u && x3 * 10u < with);
+        check("die: no ratchet any more (v1.10, Romain: RATCH taken out)", with == 0u && x3 == 0u && worst == 0u);
     }
     {
         as_seq_t w;

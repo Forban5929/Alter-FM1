@@ -171,18 +171,18 @@ check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().
   const h16 = notes(20), h8 = notes(22);
   check(`ROLL 1/16 ~ 16 attacks; ROLL 1/8 half as many notes as 1/16 (${n["ROLL 1/16"]}; ${h16} -> ${h8})`,
         n["ROLL 1/16"] >= 14 && h16 > 0 && Math.abs(2 * h8 - h16) <= 2);
-  // the SEQ menu's RATCH lane: black key 13 = RATCH, step 1 held + KNOB 1 up: that hit plays x4
+  // v1.10: RATCH taken out: black key 13 no longer opens a lane; step 1 held + KNOB 1 up (VELO) adds no attack
   {
     const seqTap = (hold) => { ex.web_buttons(1 << SEQB); render(hold); ex.web_buttons(0); render(2000); };
     const a0 = attacks(bar().audio, FS * 0.012).length;
-    seqTap(FS * 0.7); K(1 << 13); render(1500); K(0); render(1500);
+    seqTap(FS * 0.7);
     K(1 << 0); render(1500); enc(3, 5); K(0); render(1500);
     seqTap(2000); bar();
     const a1 = attacks(bar().audio, FS * 0.012).length;
     seqTap(FS * 0.7); K(1 << 0); render(1500); enc(3, -5); K(0); render(1500); seqTap(2000); bar();
-    check(`SEQ RATCH lane: step 1 at x4 adds attacks (${a0} -> ${a1})`, a1 >= a0 + 2);
-    // a RANGE: CHANCE lane (black key 3), step 1 held + KNOB 3 down: its chance drawn in 0 .. 100 % at each pass
-    seqTap(FS * 0.7); K(1 << 3); render(1500); K(0); render(1500);
+    check(`SEQ: no RATCH lane any more (attacks ${a0} -> ${a1})`, a1 <= a0 + 1);
+    // a RANGE: CHANCE lane (black key 5), step 1 held + KNOB 3 down: its chance drawn in 0 .. 100 % at each pass
+    seqTap(FS * 0.7); K(1 << 5); render(1500); K(0); render(1500);
     K(1 << 0); render(1500); enc(5, -20); K(0); render(1500); seqTap(2000); bar();
     let played = 0;
     for (let b = 0; b < 10; b++) if (bar().steps.includes(0)) played++;
@@ -190,10 +190,10 @@ check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().
     const back = bar().steps.includes(0);
     check(`SEQ RANGE: CHANCE 0..100 % on step 1 plays it in some bars only (${played}/10), KNOB 1 gives it back`,
           played > 0 && played < 10 && back);
-    // SHUFFLE: two steps held + KNOB 2 = the lane shown drawn anew (here CHANCE, black key 3); one step held + KNOB 2:
+    // SHUFFLE: two steps held + KNOB 2 = the lane shown drawn anew (here CHANCE, black key 5); one step held + KNOB 2:
     // nothing. The screen's lane changes with two, not with one
     const scr = () => { render(4000); return Array.from(new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240).slice(240 * 46, 240 * 157)).join(); };   // (the bars only: not the moving playhead under them)
-    seqTap(FS * 0.7); K(1 << 3); render(1500); K(0); render(1500);
+    seqTap(FS * 0.7); K(1 << 5); render(1500); K(0); render(1500);
     const l0 = scr();
     K(1 << 0); render(1500); enc(4, 1); K(0); render(1500);
     const l1 = scr();
@@ -201,14 +201,14 @@ check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().
     const l2 = scr();
     seqTap(2000);
     check("SEQ SHUFFLE: KNOB 2 with one step held changes nothing, with two it draws the lane anew", l1 === l0 && l2 !== l1);
-    // FLAT: OCT- + OCT+ held + the CHANCE key: that lane back to flat (the bars as before the shuffle)
+    // FLAT: OCT- + OCT+ held + the CHANCE key (5): that lane back to flat (the bars as before the shuffle)
     seqTap(FS * 0.7);
-    ex.web_buttons((1 << 12) | (1 << 13)); render(2000); K(1 << 3); render(1500); K(0); ex.web_buttons(0); render(2000);
+    ex.web_buttons((1 << 12) | (1 << 13)); render(2000); K(1 << 5); render(1500); K(0); ex.web_buttons(0); render(2000);
     const l3 = scr();
     seqTap(2000);
     check("SEQ FLAT: OCT- + OCT+ + the lane's black key puts it back flat", l3 === l0);
     // (the chances stay audible: 30 % and up; put back to 100 % for what follows)
-    seqTap(FS * 0.7); K(1 << 3); render(1500); K(0); render(1500);
+    seqTap(FS * 0.7); K(1 << 5); render(1500); K(0); render(1500);
     K(0x5ad5ad5); render(1500); enc(3, 20); K(0); render(1500); seqTap(2000);   // (all 16 step keys held)
   }
 

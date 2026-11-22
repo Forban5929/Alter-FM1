@@ -392,6 +392,15 @@ static void alt_take(void)
                                                   * blend 0..INS_XF (fx.c track_insert) brings it in */
         }
         alt_move(q.c % AS_NCIRC, q.p, q.d);
+        if (q.p == P_ITYPE) {                    /* v1.10 (Romain 22/11): SOFT HARD FUZZ left the INSERT (DIST does
+                                                  * them): a turn passes over them; a scene stored with one keeps it
+                                                  * until TYPE is turned (fx.c IT_*) */
+            int32_t v = t->p[P_ITYPE];
+            if (v == 1 || v == 2)
+                t->p[P_ITYPE] = (int16_t)(q.d > 0 ? 3 : 0);
+            else if (v == 4)
+                t->p[P_ITYPE] = (int16_t)(q.d > 0 ? 5 : 3);
+        }
         ar_moved(q.c % AS_NCIRC, q.p, alt_run && song.playing);
         alt_qr = (uint8_t)((alt_qr + 1u) % ALT_QN);
     }
@@ -702,7 +711,8 @@ static void alter_step(void)
                 alt_on(c, v->note, v->vel, v->glide, v->chord);
             alt_gate_left[c] = (uint8_t)(gate > 1u ? gate - 1u : 0u);
         }
-        rep = alt_emode[c] == AM_DRONE ? 0u : v->rat;   /* repeats: the die's burst (not in a drone), or a RATCHET */
+        rep = 0u;                                /* repeats: only the fills now (v1.10: RATCH taken out; an old SONG's
+                                                  * ratchets are not played) */
         if (fill) {
             uint32_t f = (h >> AF_RAT3) & 1u ? 2u : (h >> AF_RAT2) & 1u ? 1u : 0u;
             rep = f > rep ? f : rep;
