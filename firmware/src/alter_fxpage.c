@@ -382,7 +382,7 @@ static void afp_kv(uint32_t k, const char **name, char *txt, int32_t *fill)
         txt[n] = 0;
         return;
     }
-    case 2: v = t->p[P_IA]; break;
+    case 2: v = t->p[P_ITYPE] ? t->p[P_IA] : 0; break;   /* (v1.06: OFF shows 0, where a turn starts from) */
     case 3: v = t->p[P_IMIX]; break;
     case 4: {
         const char *s = N_DTIME[clamp(song.g[G_DTIME], 0, 12)];

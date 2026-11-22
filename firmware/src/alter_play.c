@@ -376,6 +376,9 @@ static void alt_take(void)
         if (q.p == P_IA && !t->p[P_ITYPE]) {     /* FX's INSERT from OFF: FOLD, full wet */
             t->p[P_ITYPE] = 3;                   /* (params.c N_ITYPE) */
             t->p[P_IMIX] = 127;
+            t->p[P_IA] = 0;                      /* v1.06 (Romain 22/11: "comme un on off"): from 0, not from the
+                                                  * AMNT left over (50: FOLD half driven at the first click); the
+                                                  * blend 0..INS_XF (fx.c track_insert) brings it in */
         }
         alt_move(q.c % AS_NCIRC, q.p, q.d);
         ar_moved(q.c % AS_NCIRC, q.p, alt_run && song.playing);
