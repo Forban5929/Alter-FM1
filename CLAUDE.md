@@ -23,8 +23,12 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    **MASTER + FILTER déplacés dans GLO tenu** (MIXER : MIX I II III MASTER FILTER, `ALT_MX_GEN` ; même code `afp_ctl` /
    `afp_gen_scene`, tête sur une ligne `afp_hy` 62) ; P_IA défaut 0, libellé « INS » ; page compagnon : MIX d'insert caché
    (GROUPS Effects 12..18). TYPE depuis OFF = INS 0. Les éditions par la page compagnon ne font pas ce fondu MIX→INS. Mesures : `node tools/alter/alter_param_probe.mjs wasm SON "id=v,…" ID v1,v2`
-   (P_DIST 33, P_ITYPE 96, P_IA 97, P_IB 98, P_IC 99, P_IMIX 100), audit de tous les knobs
-   (sauts, zones mortes ; montrer la liste avant de corriger), balance des niveaux des sons d'usine, moteurs plus différents
+   (P_DIST 33, P_ITYPE 96, P_IA 97, P_IB 98, P_IC 99, P_IMIX 100). **Audit des knobs FAIT (22/11, v1.07)** :
+   `tools/alter/alter_knob_audit.mjs wasm OUT.json [sons]` (41 sons × E1..E8 par pas de 4, ~2 min en 2 moitiés) puis
+   `alter_knob_report.mjs a.json b.json` ; résultat = onglet **« Audit knobs »** du Sheet (31 lignes, colonne « À corriger ? »
+   remplie par Romain) → corriger ce qu'il marque Oui. Mesure = volume/brillance/longueur (pas la hauteur ni la stéréo).
+   Pires : RING MATR (trou −15 dB vers 72-80), PHYS BOW (−20 dB dès 0→16), PHYS BRIT/DAMP, PLATE MATR/TONE, NOISE DENS.
+   Petit reste page : feedback.js envoie « v1.07 (page) » → étiquette « v-v1.07page » (à nettoyer au prochain envoi). balance des niveaux des sons d'usine, moteurs plus différents
    (écoutes WAV d'abord), **RUMBLE à refaire** (2-3 variantes WAV à écouter). 4. Vu ailleurs (Felucca 1.0, fm1-dock,
    ChoralRoot) : backup complet depuis la page, mise à jour qui garde scènes/réglages, MIDI Bluetooth.
 
