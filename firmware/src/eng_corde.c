@@ -11,7 +11,8 @@
  *       a bow or a scrape that lasts while the note is held (friction: a crackle)
  * SPRD  the stiffness: 0 a plain string (in tune, harmonic) .. a piano wire .. a cable, a spring (inharmonic, clanging)
  * RES   how long it rings: a muted thud (0.1 s) -> a wire that sustains (15 s), the same at every pitch
- * DIRT  a drive in the loop: 0 clean; up the middle it thickens and distorts; past ~90 a fold too: it screams,
+ * RING  (v1.12, Romain 22/11: in place of DIRT, eng_xform.h) a ring modulator on the string's output; the old DIRT
+ *       (below) no longer runs: a drive in the loop: 0 clean; up the middle it thickens and distorts; past ~90 a fold too: it screams,
  *       feeds back, comes apart
  * TONE  the loop's low-pass: dull (nylon, rust) .. bright (steel)
  * DCAY  the exciter's length (0.2 .. 80 ms)
@@ -24,7 +25,7 @@
  * delay is taken off the line's length, so a stiff string stays (about) in tune. */
 
 #include "eng_dvm.h"
-#include "eng_dirt.h"
+#include "eng_xform.h"
 
 #define CD_POLY 2
 #define CD_LEN 2048
@@ -36,6 +37,7 @@ typedef struct {
     int32_t xlp;
     int32_t dc, dcx;
     int32_t rng;
+    uint32_t rph;                /* RING's carrier phase (v1.12) */
     uint16_t w;
 } corde_t;
 
@@ -67,8 +69,8 @@ static void corde_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
     corde_t *S = corde_of(t, v);
     const int16_t *p = t->p;
     uint32_t i, w, len16, di, f;
-    int32_t edh = 0, edc = 0;
-    edirt_t ed;
+    uint32_t rinc;
+    ering_t er;
     int32_t mt, c, apd, g, dirt, drv, fold, tone, rate, buzz, env, rng, xa, xg;
     uint32_t mdrv, mrate;                        /* (v0.75: the divisions as multiplies, eng_dvm.h) */
     if (!S)
@@ -100,7 +102,7 @@ static void corde_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
         if (g > 32740)
             g = 32740;
     }
-    dirt = p[P_E3];
+    dirt = 0;                                    /* (v1.12: E3 is RING; the loop's drive no longer runs) */
     drv = 4096 + dirt * 80;                      /* DIRT: the drive into the loop's tanh, 1 .. 3.5, Q12 */
     fold = dirt > 90 ? (dirt - 90) * 600 : 0;
     tone = clamp(p[P_E4] * 256 + m->cutoff, 0, 127 << 8);   /* TONE (+ FLT) */
@@ -119,7 +121,8 @@ static void corde_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
     mrate = dvm_make((uint32_t)rate, 32u);       /* (env < 2^17, rate < 2^13: the half period's at most 1020) */
     env = S->env;
     rng = S->rng;
-    edirt_set(&ed, dirt);                        /* (v1.09: DIRT's output stage, eng_dirt.h) */
+    ering_set(&er, p[P_E3]);                     /* RING (v1.12) */
+    rinc = ering_inc(&er, m->inc);
     w = S->w;
     for (i = 0; i < n; i++) {
         int32_t x = 0, r, z, a0, a1;
@@ -177,7 +180,7 @@ static void corde_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
         S->buf[w] = (int16_t)clamp(z, -32767, 32767);
         S->dc = r - S->dcx + (int32_t)(((int64_t)S->dc * 32604) >> 15);   /* the output's DC blocker */
         S->dcx = r;
-        out[i] += voice_amp(soft_knee(clamp(edirt_run(&ed, S->dc * 3 / 2, &edh, &edc, &rng), -(1 << 20), 1 << 20), 22000), m, i);
+        out[i] += voice_amp(soft_knee(clamp(ering_run(&er, S->dc * 3 / 2, &S->rph, rinc), -(1 << 20), 1 << 20), 22000), m, i);
     }
     S->env = env;
     S->rng = rng;
@@ -186,7 +189,7 @@ static void corde_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
 
 /* {MATR SPRD RES DIRT TONE DCAY BUZZ BEND} (ALTER's sounds: alter_sounds.c ALT_PRE) */
 static const preset_t CORDE_PRESETS[] = {
-    {"WIRE", {118, 40, 110, 20, 90, 10, 0, 0}, {0, 100, 127, 80}, 0, 0, FX(0, 0, 10, 20)},   /* (v1.08: 118 = the pick) */
+    {"WIRE", {118, 40, 110, 0, 90, 10, 0, 0}, {0, 100, 127, 80}, 0, 0, FX(0, 0, 10, 20)},   /* (v1.08: 118 = the pick) */
 };
 
 static const engine_t ENG_CORDE = {
@@ -196,7 +199,7 @@ static const engine_t ENG_CORDE = {
         {"MATR", F_PCT, 0, 127, 60, 0, 0},
         {"SPRD", F_PCT, 0, 127, 30, 0, 0},
         {"RES", F_PCT, 0, 127, 105, 0, 0},
-        {"DIRT", F_PCT, 0, 127, 20, 0, 0},
+        {"RING", F_PCT, 0, 127, 0, 0, 0},            /* (v1.12: was DIRT) */
         {"TONE", F_PCT, 0, 127, 90, 0, 0},
         {"DCAY", F_PCT, 0, 127, 10, 0, 0},
         {"BUZZ", F_PCT, 0, 127, 0, 0, 0},

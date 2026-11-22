@@ -10,7 +10,7 @@
  * SPRD  B against A: 0 a hair apart (slow beating, a throb) -> a fifth, an octave -> inharmonic ratios (bells,
  *       metal) -> far apart (a robot, a siren's whine)
  * RES   the filter's resonance: a wide colour -> a sharp, whistling peak
- * DIRT  a valve: 0 clean; up the middle warm, then torn (asymmetric: even harmonics, a growl)
+ * FOLD  (v1.12, in place of DIRT: eng_xform.h) a wave folder on the output; the old DIRT (no longer run): a valve: 0 clean; up the middle warm, then torn (asymmetric: even harmonics, a growl)
  * RADIO an AM radio (v1.08, Romain 22/11: "it does little"): 0 none; the band narrows (a transistor, a telephone:
  *       the lows and the highs go), static crackle, the level fading in and out, B's carrier drifting off tune, and
  *       past the middle a tuning whistle; gentle up to ~10, then clearly heard
@@ -40,7 +40,7 @@ static uint32_t ring_exp2(int32_t o)
 }
 
 #include "eng_dvm.h"
-#include "eng_dirt.h"
+#include "eng_xform.h"
 
 /* the wave at phase ph: MATR (0..127 << 8) from sine to a shaken square (pw: the shaken width) */
 static inline int32_t ring_wave(uint32_t ph, int32_t mt, uint32_t pw)
@@ -64,8 +64,7 @@ static const int16_t RING_SPR[8] = {12, 300, 2397, 4096, 5984, 7453, 9834, 11660
 static void ring_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
-    int32_t edh = 0, edc = 0;
-    edirt_t ed;
+    efold_t fo;
     int32_t mt, sp, seg, frac, ob, q, fq, dirt, bias, sbias, dd, radio, blnd, rng, i, lo, bd, rk, lpk, hpk, whs;
     uint32_t whi;
     uint32_t inca, incb, incf, pw, mdd;
@@ -105,13 +104,13 @@ static void ring_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     q = 32768 * 2 - p[P_E2] * 62000 / 127;       /* RES: damping 2 .. ~0.05, Q15 */
     if (q < 1600)
         q = 1600;
-    dirt = p[P_E3];
+    dirt = 0;                                    /* (v1.12, Romain 22/11: E3 is FOLD; the valve no longer runs) */
     bias = dirt * 60;                            /* (the valve's bias: asymmetric, even harmonics) */
     sbias = softclip(bias);                      /* (v0.59: once a block) */
     dd = 4096 + dirt * 40;
     mdd = dvm_make((uint32_t)dd, 42u);           /* (v0.75: |x << 12| < 2^28, dd < 2^14) */
     blnd = p[P_E6];
-    edirt_set(&ed, dirt);                        /* (v1.09: DIRT's output stage, eng_dirt.h) */
+    efold_set(&fo, p[P_E3]);                     /* FOLD (v1.12, eng_xform.h) */
     lo = v->s[0];
     bd = v->s[1];
     pw = 0x80000000u;
@@ -155,7 +154,7 @@ static void ring_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         v->s[6] += (int32_t)(((int64_t)(x - v->s[6]) * (radio ? hpk : 32)) >> 15);   /* (the DC out; RDIO: the band's
                                                   * bottom, up to ~350 Hz) */
         x -= v->s[6];
-        out[i] += voice_amp(soft_knee(clamp(edirt_run(&ed, x * 2, &edh, &edc, &rng), -(1 << 20), 1 << 20), 22000), m, (uint32_t)i);
+        out[i] += voice_amp(soft_knee(clamp(efold_run(&fo, x * 2), -(1 << 20), 1 << 20), 22000), m, (uint32_t)i);
     }
     v->s[0] = lo;
     v->s[1] = bd;
@@ -164,7 +163,7 @@ static void ring_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
 
 /* {MATR SPRD RES DIRT RADIO TONE BLND SWEP} (ALTER's sounds: alter_sounds.c ALT_PRE) */
 static const preset_t RING_PRESETS[] = {
-    {"RADIO", {40, 50, 60, 30, 13, 70, 20, 0}, {0, 100, 110, 60}, 0, 0, FX(0, 0, 10, 20)},
+    {"RADIO", {40, 50, 60, 0, 13, 70, 20, 0}, {0, 100, 110, 60}, 0, 0, FX(0, 0, 10, 20)},
 };
 
 static const engine_t ENG_RING = {
@@ -174,7 +173,7 @@ static const engine_t ENG_RING = {
         {"MATR", F_PCT, 0, 127, 40, 0, 0},
         {"SPRD", F_PCT, 0, 127, 50, 0, 0},
         {"RES", F_PCT, 0, 127, 60, 0, 0},
-        {"DIRT", F_PCT, 0, 127, 30, 0, 0},
+        {"FOLD", F_PCT, 0, 127, 0, 0, 0},            /* (v1.12: was DIRT) */
         {"RDIO", F_PCT, 0, 127, 0, 0, 0},
         {"TONE", F_PCT, 0, 127, 70, 0, 0},
         {"BLND", F_PCT, 0, 127, 20, 0, 0},

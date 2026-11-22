@@ -97,10 +97,13 @@ Each circle has its own sound: an **engine** plus its settings, an envelope, eff
 | RESO | four resonant filters in a feedback ring: they growl, beat, scream (played by hand: the dice leave it out) |
 | PLATE | a struck metal sheet: plate, cymbal, gong, cracked bell |
 | CORDE | a mistreated metal string: it clangs, screams, buzzes |
-| RING | a ring modulator through a resonant filter and a valve drive, with an AM radio (RDIO: a band-limited, crackling radio with a whistle near the top): bells, sirens, robots |
+| RING | a ring modulator through a resonant filter, with a wave folder (FOLD) and an AM radio (RDIO: a band-limited, crackling radio with a whistle near the top): bells, sirens, robots |
 
 On PLATE, CORDE and RING, KNOB 1-4 are MATR (material), SPRD (spread), RES (ring time: the same length at every pitch) and
-DIRT. **PRESETS** steps through the sounds of every engine; **EDIT** tapped gives the engine's four other settings; **EDIT held**
+a fourth knob. Each engine has its own transformation (v1.12): **RING** (a ring modulator following the note: mixed in up
+to the middle at half the note, then its carrier rises to rough, then metal) on ALTER (in place of NOIS) and CORDE; **FOLD**
+(a wave folder: the sound folds over itself, brighter and brighter) on RING, RESO, PHYS (in place of EXC) and NOISE (in
+place of DRFT); PLATE keeps **DIRT** (saturation, then grain past 90). 0 always means off; 0-10 stays subtle. **PRESETS** steps through the sounds of every engine; **EDIT** tapped gives the engine's four other settings; **EDIT held**
 opens **DEEP**, every setting of the circle as one list (SOUND, ENV, FX, MIX; MIX ends with **DICE DOSE**: how far the dice
 may move this circle).
 

@@ -5,6 +5,7 @@
  * "0..50 do nothing, the sound nearly gone"): gentle 0..10, then from where they were heard. */
 
 #include "eng_curve.h"
+#include "eng_xform.h"
 /* NOISE: from analog-style noise to shift-register noise, through a resonant filter.
  *
  * MODE picks the source:
@@ -105,11 +106,13 @@ static void noise_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
 {
     const int16_t *p = t->p;
     uint32_t mode = (uint32_t)p[P_E0] & 3u, sel = ((uint32_t)p[P_E5] >> 4) & 7u, i;
-    int32_t res = p[P_E3], drft = alt_curve(p[P_E6]), crsh = mode < NZ_LFSR ? p[P_E7] : 0;
+    int32_t res = p[P_E3], drft = 0, crsh = mode < NZ_LFSR ? p[P_E7] : 0;
     int32_t ic1 = v->s[0], ic2 = v->s[1], rng = v->s[2], b0 = v->s[4], b1 = v->s[5], b2 = v->s[6], br = v->s[7];
     uint32_t ph = v->ph[0], reg = v->ph[1];         /* state in locals: out[] may alias v->s[] */
     int32_t drift = (int32_t)v->ph[2], d16 = 0, gain = 32767, gq, colr, cut, k, a1, a2, a3, g, bpg, mix, cf, thr = 0;
     uint32_t inc = 0, taps = NOISE_TAPS[sel];
+    efold_t fo;                                     /* (v1.12, Romain 22/11: E6 is FOLD, the drift no longer runs) */
+    efold_set(&fo, p[P_E6]);
     /* drift: a new random target every 0.7..3 s, followed with a 0.7 s lag */
     if (drft) {
         int32_t tg = v->s[3] >> 16, cnt = v->s[3] & 0xFFFF;
@@ -231,7 +234,7 @@ static void noise_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
             }
             y = (int32_t)reg;
         }
-        out[i] += voice_amp(y, m, i);
+        out[i] += voice_amp(efold_run(&fo, y), m, i);
     }
     v->s[0] = ic1;
     v->s[1] = ic2;
@@ -247,8 +250,8 @@ static void noise_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
 
 /* {MODE, COLR, FREQ, RES, TRK, DENS, DRFT, CRSH / CLK} */
 static const preset_t NOISE_PRESETS[] = {
-    {"WIND", {NZ_ANLG, 64, 70, 100, 127, 0, 50, 0}, {90, 90, 110, 90}, 0, 0, FX(0, 30, 20, 80), PAT(5)},
-    {"RAIN", {NZ_DUST, 30, 88, 80, 64, 97, 10, 0}, {10, 90, 127, 70}, 0, 0, FX(0, 0, 20, 70), PAT(5)},
+    {"WIND", {NZ_ANLG, 64, 70, 100, 127, 0, 0, 0}, {90, 90, 110, 90}, 0, 0, FX(0, 30, 20, 80), PAT(5)},
+    {"RAIN", {NZ_DUST, 30, 88, 80, 64, 97, 0, 0}, {10, 90, 127, 70}, 0, 0, FX(0, 0, 20, 70), PAT(5)},
     /* a 7-bit register (127 steps) clocked 84 semitones (7 octaves) above the key: one period per key period,
      * a pitched chip-style buzz */
     {"ARCADE", {NZ_LFSR, 0, 127, 0, 127, 112, 0, 84}, {0, 80, 0, 50}, 0, 0, FX(0, 0, 10, 20), PAT(3)},
@@ -265,7 +268,7 @@ static const engine_t ENG_NOISE = {
         {"RES", F_PCT, 0, 127, 30, 0, 0},
         {"TRK", F_PCT, 0, 127, 64, 0, 0},
         {"DENS", F_PCT, 0, 127, 0, 0, 0},           /* LFSR, META: the register (noise_desc) */
-        {"DRFT", F_PCT, 0, 127, 0, 0, 0},
+        {"FOLD", F_PCT, 0, 127, 0, 0, 0},            /* (v1.12: was DRFT) */
         {"CRSH", F_PCT, 0, 127, 0, 0, 0},           /* LFSR, META: the clock above the key */
     },
     .presets = NOISE_PRESETS,

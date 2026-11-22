@@ -8,7 +8,8 @@
  *       phase of the one below (6 -> 5 -> .. -> 1)
  * AMNT  per MODE (alt_desc): SKIN DTUN (a slight detune, beating), LIQUID PNCH (the sweep's depth and length),
  *       METAL FM (the modulation depth)
- * NOIS  a white-noise burst at the hit (0 = none)
+ * RING  (v1.12, was NOIS, Romain 22/11) a ring modulator on the voice (eng_xform.h): 0 none, to 64 mixed in at x 0.5
+ *       the note, then the carrier rises to x 2.71 (the noise burst is gone)
  * TILT  centre: all six follow the ADSR; left: the upper ones die first (bright -> dark); right: the lower
  *       ones die first (thin, ringing)
  * DRFT  a slow random wander of each oscillator's pitch, up to about a semitone
@@ -22,6 +23,7 @@
  * Fixed point only: phases are 32-bit turns, levels Q15, decays Q16; ratios and coefficients once a block. */
 
 #include "eng_curve.h"
+#include "eng_xform.h"
 
 #define ALT_NOSC 6
 #define ALT_POLY 3
@@ -36,6 +38,7 @@ typedef struct {
     int32_t nenv;                /* the noise burst's level, Q16 */
     int32_t rng;                 /* xorshift state */
     int32_t dcnt;                /* blocks to the next drift target */
+    uint32_t rph;                /* RING's carrier phase (v1.12) */
 } alt_slot_t;
 
 ENG_MEM_FITS("ALTER", sizeof(alt_slot_t) * ALT_POLY);
@@ -96,7 +99,7 @@ static void alt_note_on(track_t *t, voice_t *v)
 {
     alt_slot_t *S = alt_slot_of(t, v);
     uint32_t k, seed = (v->note + 1u) * 0x9E3779B9u ^ v->age * 0x85EBCA6Bu;
-    int32_t a = t->p[P_E4], nz = alt_curve(t->p[P_E5]);
+    int32_t a = t->p[P_E4], nz = 0;              /* (v1.12: no noise burst: E5 is RING now) */
     if (!S)
         return;
     if (v->env_out > 512) {                             /* a voice still sounding taken again (a DRONE's layers): */
@@ -122,6 +125,8 @@ static void alt_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const v
     uint32_t inc[ALT_NOSC], ph[ALT_NOSC], inc0, mode, i, k, seg;
     int32_t w[ALT_NOSC], ratio[ALT_NOSC], lvl[ALT_NOSC];
     int32_t mm, q, frac, sp, hh, posq, tilt, amt, L = 0, g, nlvl, nrate, fmd = 0, rng;
+    ering_t er;
+    uint32_t rinc;
     if (!S)
         return;
     mode = (uint32_t)p[P_E3] % 3u;
@@ -208,7 +213,9 @@ static void alt_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const v
         fmd = amt * amt * 8;                            /* the phase offset per unit of the one above: up to ~2 turns */
     /* the noise burst: longer as NOIS rises (tau ~23 .. 40 ms) */
     nlvl = S->nenv;
-    nrate = 2600 - alt_curve(p[P_E5]) * 10;
+    nrate = 2600;
+    ering_set(&er, p[P_E5]);                       /* RING (v1.12): its carrier on the base pitch */
+    rinc = ering_inc(&er, inc0);
     /* (v0.58, measured on the FM-1: one ALTER circle took up to half a block) only the oscillators heard: one at level 0
      * adds nothing, and outside METAL nothing reads it (its phase is moved on after the block); and at a crossfade's
      * start (frac 0) only its first wave. The same samples, bit for bit */
@@ -229,7 +236,7 @@ static void alt_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const v
             int32_t r = (int32_t)(noise32(&rng) >> 17) - 16384;
             y += (r * (nlvl >> 1)) >> 14;
         }
-        y = soft_knee(y, 20000);
+        y = soft_knee(ering_run(&er, y, &S->rph, rinc), 20000);
         out[i] += voice_amp(y, m, i);
     }
     for (; i < n; i++) {
@@ -263,7 +270,7 @@ static void alt_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const v
             int32_t r = (int32_t)(noise32(&rng) >> 17) - 16384;
             y += (r * (nlvl >> 1)) >> 14;
         }
-        y = soft_knee(y, 20000);
+        y = soft_knee(ering_run(&er, y, &S->rph, rinc), 20000);
         out[i] += voice_amp(y, m, i);
     }
     for (k = 0; k < ALT_NOSC; k++)                      /* (the oscillators not run: their phase on, as if run) */
@@ -279,11 +286,11 @@ static void alt_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const v
 
 /* {MRPH, SPRD, HARM, MODE, AMNT, NOIS, TILT, DRFT} */
 static const preset_t ALTER_PRESETS[] = {
-    {"THUD", {0, 0, 8, ALT_LIQUID, 90, 4, -40, 0}, {0, 60, 0, 45}, 0, 0, FX(10, 0, 0, 10)},
+    {"THUD", {0, 0, 8, ALT_LIQUID, 90, 0, -40, 0}, {0, 60, 0, 45}, 0, 0, FX(10, 0, 0, 10)},
     {"BELL", {8, 70, 90, ALT_SKIN, 15, 0, 30, 1}, {0, 95, 0, 90}, 0, 0, FX(0, 0, 25, 50)},
-    {"CLANG", {30, 100, 75, ALT_METAL, 60, 6, 0, 0}, {0, 72, 0, 60}, 0, 0, FX(15, 0, 20, 35)},
-    {"SNAP", {20, 40, 50, ALT_LIQUID, 40, 104, -30, 0}, {0, 45, 0, 35}, 0, 0, FX(20, 0, 0, 25)},
-    {"STAB", {110, 15, 80, ALT_SKIN, 40, 2, -45, 0}, {0, 55, 0, 40}, 0, 0, FX(25, 0, 30, 20)},
+    {"CLANG", {30, 100, 75, ALT_METAL, 60, 0, 0, 0}, {0, 72, 0, 60}, 0, 0, FX(15, 0, 20, 35)},
+    {"SNAP", {20, 40, 50, ALT_LIQUID, 40, 0, -30, 0}, {0, 45, 0, 35}, 0, 0, FX(20, 0, 0, 25)},
+    {"STAB", {110, 15, 80, ALT_SKIN, 40, 0, -45, 0}, {0, 55, 0, 40}, 0, 0, FX(25, 0, 30, 20)},
     {"RUST", {70, 120, 110, ALT_METAL, 100, 0, 10, 37}, {30, 127, 127, 85}, 0, 0, FX(30, 0, 30, 60)},
 };
 
@@ -296,7 +303,7 @@ static const engine_t ENG_ALTER = {
         {"HARM", F_PCT, 0, 127, 40, 0, 0},
         {"MODE", F_ENUM, 0, 2, 0, N_ALT_MODE, 0},
         {"AMNT", F_PCT, 0, 127, 20, 0, 0},               /* named by MODE (alt_desc) */
-        {"NOIS", F_PCT, 0, 127, 0, 0, 0},
+        {"RING", F_PCT, 0, 127, 0, 0, 0},           /* (v1.12: was NOIS) */
         {"TILT", F_BIPCT, -64, 63, 0, 0, 0},
         {"DRFT", F_PCT, 0, 127, 0, 0, 0},
     },

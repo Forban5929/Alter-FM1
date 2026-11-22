@@ -45,7 +45,12 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    (alt_take les saute, une vieille scène garde le sien ; presets WARM/CRUNCH = DIST seul, FUZZ/SCREAM = DIST + FOLD ; page :
    options cachées). **Décidé : le knob DIRT des moteurs sera remplacé par RING MOD ou FOLD selon le moteur**, après écoute :
    page https://claude.ai/artifact/GCqAHt17EWzZaXNypcQbtm (`tools/alter/alter_rmfold_wav.mjs` : 15 sons × sec, RING ×0,5 ×1,5
-   ×2,71 700 Hz, FOLD léger/moyen/fort, hors firmware) → attendre le choix de Romain par moteur. balance des niveaux des sons d'usine, moteurs plus différents
+   ×2,71 700 Hz, FOLD léger/moyen/fort, hors firmware) → **v1.12 (choix de Romain)** : `eng_xform.h` (`ering_*` : ≤ 64 mélange à ×0,5 la note (vmod inc), puis ×0,5 → ×2,71 ;
+   `efold_*` : sin(π/2·g·x/131072), g 1..24, make-up `EFOLD_MK` 25 ; PHYS ×2 + make-up 60). **RING** : ALTER (E5, était NOIS :
+   plus de bruit d'attaque), CORDE (E3, était DIRT) ; **FOLD** : RING (E3), RESO (E3 : feedback/drive de l'ancien DIRT coupés),
+   PHYS (E7, était EXC), NOISE (E6, était DRFT) ; **PLATE garde DIRT**. Presets/sons : ces knobs à 0, LEVEL des sons RESO/RING/
+   CORDE remonté (±1 dB d'avant). Perdu : LARSEN/FRICTION ne « chantent » plus (feedback de DIRT), bruit d'attaque de SNAP/GRIND.
+   Mesuré : pas de saut, volume ±3..10 dB sur la course ; scènes USER avec ces knobs ≠ 0 sonnent autrement. balance des niveaux des sons d'usine, moteurs plus différents
    (écoutes WAV d'abord), **RUMBLE à refaire** (2-3 variantes WAV à écouter). 4. Vu ailleurs (Felucca 1.0, fm1-dock,
    ChoralRoot) : backup complet depuis la page, mise à jour qui garde scènes/réglages, MIDI Bluetooth.
 5. **v1.10 (Romain 22/11) : THEME SPLIT** (SYSTEM › SETUP › THEME : NIGHT / DAY / SPLIT ; `alt_sys[11]` = 1, palette NIGHT
@@ -84,7 +89,7 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.11 » (22/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.12 » (22/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. **Deux sites (v1.02, 22/11)** : pousser sur `etape-3d` → pages.yml construit (tools/alter/site_build.sh, 2 fois) :
    **racine = dernière Release** (tag vX.YY le plus haut ; ce que voient les gens) et **/beta/ = etape-3d** (bandeau rouge

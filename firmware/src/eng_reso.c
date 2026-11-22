@@ -12,7 +12,7 @@
  * SPRD  the four tunings: 0 together (a single huge resonance, beating) -> harmonic (1 2 3 4) -> metallic
  *       (808-like) -> wide and dissonant (to ~3.7 octaves)
  * RES   their Q: a short knock -> a long ring
- * DIRT  the ring's feedback and its drive: 0 four filters apart; up the middle they colour one another (growl); past
+ * FOLD  (v1.12, in place of DIRT: eng_xform.h) a wave folder on the output. The old DIRT, no longer run: the ring's feedback and its drive: 0 four filters apart; up the middle they colour one another (growl); past
  *       ~90 the ring sings by itself (larsen, screams, unstable)
  * OUT   MIX the rings and a part of the exciter (the impact); NTCH the exciter minus the rings (hollow, phase
  *       cancelled); LOW their low-pass outputs (bodies, thuds)
@@ -30,6 +30,7 @@
 
 #include "eng_dvm.h"
 #include "eng_curve.h"
+#include "eng_xform.h"
 
 #define RESO_NF 4
 #define RESO_POLY 2
@@ -105,10 +106,13 @@ static void reso_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     const int16_t *p = t->p;
     int32_t a[RESO_NF][3], kq, kb, fb, drv, mt, sp, seg, frac, i, rate, outm, rng, env, dirt, gain, dens, rub;
     uint32_t mrate;
+    efold_t fo;
     uint32_t inc[RESO_NF], k, einc, on = 0;
     if (!S)
         return;
-    dirt = alt_curve(p[P_E3]);
+    dirt = 0;                                    /* (v1.12, Romain 22/11: E3 is FOLD; the old DIRT (feedback + drive)
+                                                  * no longer runs) */
+    efold_set(&fo, p[P_E3]);
     outm = p[P_E4] % RESO_NOUT;
     /* RES: k = 2 (a knock) .. 0.006 (a long ring) */
     kq = (int32_t)(((int64_t)(127 - p[P_E2]) * (127 - p[P_E2]) << 25) / (127 * 127)) + 100000;
@@ -214,7 +218,7 @@ static void reso_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
             y = xs;
         else if (outm == RESO_MIX)
             y += x >> 3;                         /* (the impact itself: the hit) */
-        y = soft_knee((int32_t)(((int64_t)clamp(y, -(1 << 20), 1 << 20) * gain) >> 14), 22000);
+        y = soft_knee(efold_run(&fo, (int32_t)(((int64_t)clamp(y, -(1 << 20), 1 << 20) * gain) >> 14)), 22000);
         out[i] += voice_amp(y, m, (uint32_t)i);
     }
     S->env = env;
@@ -223,9 +227,9 @@ static void reso_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
 
 /* {MATR SPRD RES DIRT OUT DCAY PING SWEP} */
 static const preset_t RESO_PRESETS[] = {
-    {"ZAP", {10, 50, 90, 8, RESO_MIX, 25, RP_ALL, 90}, {0, 80, 0, 60}, 0, 0, FX(10, 0, 10, 20)},
-    {"HOLLOW", {70, 60, 95, 8, RESO_NOTCH, 72, RP_ALL, 0}, {0, 80, 127, 60}, 0, 0, FX(10, 0, 20, 30)},
-    {"LARSEN", {20, 10, 110, 111, RESO_MIX, 19, RP_ALL, 0}, {10, 90, 110, 60}, 0, 0, FX(10, 0, 10, 20)},
+    {"ZAP", {10, 50, 90, 0, RESO_MIX, 25, RP_ALL, 90}, {0, 80, 0, 60}, 0, 0, FX(10, 0, 10, 20)},
+    {"HOLLOW", {70, 60, 95, 0, RESO_NOTCH, 72, RP_ALL, 0}, {0, 80, 127, 60}, 0, 0, FX(10, 0, 20, 30)},
+    {"LARSEN", {20, 10, 110, 0, RESO_MIX, 19, RP_ALL, 0}, {10, 90, 110, 60}, 0, 0, FX(10, 0, 10, 20)},
 };
 
 static const engine_t ENG_RESO = {
@@ -235,7 +239,7 @@ static const engine_t ENG_RESO = {
         {"MATR", F_PCT, 0, 127, 10, 0, 0},
         {"SPRD", F_PCT, 0, 127, 50, 0, 0},
         {"RES", F_PCT, 0, 127, 90, 0, 0},
-        {"DIRT", F_PCT, 0, 127, 30, 0, 0},
+        {"FOLD", F_PCT, 0, 127, 0, 0, 0},            /* (v1.12: was DIRT) */
         {"OUT", F_ENUM, 0, RESO_NOUT - 1, 0, N_RESO_OUT, 0},
         {"DCAY", F_PCT, 0, 127, 10, 0, 0},
         {"PING", F_ENUM, 0, RP_N - 1, 0, N_RESO_PING, 0},
