@@ -1,12 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-only
-# ALTER en ligne : à chaque envoi sur main ou une branche etape-*, construit la version navigateur (le vrai
-# firmware en WebAssembly) et la publie sur GitHub Pages (https://forban5929.github.io/Alter-FM1/ (MAJUSCULES : adresse sensible à la casse)).
-# Le dernier envoi gagne : le lien suit toujours l'étape en cours.
+# ALTER en ligne (https://forban5929.github.io/Alter-FM1/ (MAJUSCULES : adresse sensible à la casse)).
+# Depuis la v1.1 (22/11, choix de Romain) : DEUX sites dans une seule publication GitHub Pages :
+#   - racine  = la DERNIÈRE RELEASE (tag vX.YY) : ce que voient les gens, ne change qu'à une Release ;
+#   - /beta/  = la branche de travail etape-3d, à chaque envoi, bandeau rouge « BETA ».
+# Relancé par firmware.yml après chaque Release (workflow_dispatch) pour mettre la racine à jour.
 name: ALTER en ligne
 
 on:
   push:
-    branches: [main, "etape-*"]
+    branches: ["etape-*"]
   workflow_dispatch:
 
 permissions:
@@ -51,7 +53,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: etape-3d
           submodules: true
+          fetch-depth: 0          # les tags, pour trouver la dernière Release
+          path: beta-src
+      - name: Dernière Release (tag vX.YY)
+        id: rel
+        run: |
+          cd beta-src
+          T=$(git tag -l 'v[0-9]*' | grep -E '^v[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+          echo "tag=$T" >> "$GITHUB_OUTPUT"; echo "Release publique : $T"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.rel.outputs.tag }}
+          submodules: true
+          path: pub-src
       - name: Outils (clang, wasm-ld)
         run: |
           # (11/11: Ubuntu's mirror down) the runner's own clang / wasm-ld first; apt only if missing, 3 tries
@@ -64,43 +80,27 @@ jobs:
           fi
           clang --version | head -1; wasm-ld --version
           pip install --quiet pillow fonttools numpy
-      - name: Construire la version navigateur
-        run: sh tools/alter/wasm/build_emu.sh
-      - name: Test ALTER
+      - name: Compilateur + SDK JieLi
         run: |
-          node tools/alter/alter_emu_test.mjs build/emu/felucca.wasm build/emu/alter_play.wav
-          node tools/alter/alter_link_test.mjs build/emu/felucca.wasm
-          node tools/alter/alter_learn_test.mjs build/emu/felucca.wasm
-      - name: Préparer le site
-        run: |
-          mkdir -p site/fonts
-          cp build/emu/index.html build/emu/felucca.wasm build/emu/worklet.js site/
-          cp build/emu/fonts/* site/fonts/
-          mkdir -p site/editor
-          cp web/alter/editor.html site/editor/index.html
-          cp web/alter/link.js web/alter/guide.html web/alter/test.html site/editor/
-          cp -r web/alter/fonts site/editor/
-          echo "$(sed -n 's/^#define FELUCCA_VERSION "\([^"]*\)".*/\1/p' firmware/src/felucca.c | head -n 1)  $GITHUB_REF_NAME @ ${GITHUB_SHA::7}" > site/version.txt
-      # La page d'installation FM-1 (/install/) : vrai firmware (compilateur JieLi). Si ça échoue, RIEN n'est publié (l'ancien site reste).
-      - name: Firmware FM-1 + page d'installation
-        run: |
-          sh tools/get_toolchain.sh "$HOME/.jieli"
+          sh beta-src/tools/get_toolchain.sh "$HOME/.jieli"
           for i in 1 2 3; do git clone -q --depth 1 --filter=blob:none --sparse --branch AC79NN_SDK_V1.2.1_2023-12-13 \
               https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git "$HOME/fw-AC79_AIoT_SDK" && break; rm -rf "$HOME/fw-AC79_AIoT_SDK"; sleep 20; done
           (cd "$HOME/fw-AC79_AIoT_SDK" && git sparse-checkout set --no-cone cpu/wl82/tools/uboot.boot \
               cpu/wl82/tools/cfg_tool.bin cpu/wl82/tools/cfg/eq_cfg_hw.bin)
-          ./build.sh > build-fw-log.txt 2>&1 || { tail -40 build-fw-log.txt; exit 1; }
-          VER=$(sed -n 's/^#define FELUCCA_VERSION "\([^"]*\)".*/\1/p' firmware/src/felucca.c | head -n 1)
-          python3 tools/alter/make_install.py build/felucca.fwsc "$VER ($GITHUB_REF_NAME-${GITHUB_SHA::7})" site/install
       - uses: actions/download-artifact@v4
         with:
           name: rescue
-          path: site/secours
-      - name: ALTER.fwsc dans le kit de secours (contrôlé par l'outil)
+          path: rescue
+      # Si l'un des deux échoue, RIEN n'est publié (l'ancien site reste en ligne).
+      - name: Site public (dernière Release)
+        run: sh beta-src/tools/alter/site_build.sh pub-src site public "${{ steps.rel.outputs.tag }}" rescue/alter-fm1-secours-windows.zip
+      - name: Site BETA (etape-3d)
+        run: sh beta-src/tools/alter/site_build.sh beta-src site/beta beta etape-3d rescue/alter-fm1-secours-windows.zip
+      - name: Résumé
         run: |
-          python3 tools/alter/rescue/fm1_recover.py build/felucca.fwsc --check --loader tools/alter/rescue/wl82loader.bin
-          python3 -c "import zipfile;z=zipfile.ZipFile('site/secours/alter-fm1-secours-windows.zip','a');z.write('build/felucca.fwsc','ALTER.fwsc');z.close()"
-          python3 -c "import zipfile;print(zipfile.ZipFile('site/secours/alter-fm1-secours-windows.zip').namelist())"
+          echo "public : $(cat site/version.txt)"; echo "beta   : $(cat site/beta/version.txt)"
+          echo "### Public : $(cat site/version.txt)" >> "$GITHUB_STEP_SUMMARY"
+          echo "### BETA : $(cat site/beta/version.txt)" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

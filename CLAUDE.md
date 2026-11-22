@@ -2,6 +2,16 @@
 Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes) : `docs/alter/HISTORIQUE.md`
 (archives en bas : CLAUDE.md complet au 04/11 et au 10/11 soir = commandes détaillées + journal jour par jour). Mettre à jour CE fichier à chaque session, en le gardant court.
 
+## >>> v1.1 (décidé par Romain le 22/11) <<<
+Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand la liste est finie.** Entre deux : BETA seulement.
+1. ~~Site BETA~~ FAIT v1.02. 2. **Bouton Feedback** dans la page compagnon → **relais Vercel → GitHub Issues** (étiquettes
+   `a-trier` + version ; aucun compte pour l'utilisateur ; le token GitHub fine-grained Issues:write est créé PAR ROMAIN et
+   collé dans Vercel, jamais dans la page). En début de session : résumer les Issues `a-trier` à Romain, ajouter au Sheet ce
+   qu'il accepte. 3. **Son** : insert DIST (saut on/off entre 0 et 1, cause pas encore vérifiée), audit de tous les knobs
+   (sauts, zones mortes ; montrer la liste avant de corriger), balance des niveaux des sons d'usine, moteurs plus différents
+   (écoutes WAV d'abord), **RUMBLE à refaire** (2-3 variantes WAV à écouter). 4. Vu ailleurs (Felucca 1.0, fm1-dock,
+   ChoralRoot) : backup complet depuis la page, mise à jour qui garde scènes/réglages, MIDI Bluetooth.
+
 ## Utilisateur
 - Romain, non-développeur, techno live indus (Analog Rytm pour les drums). Français simple, honnêteté (vérifié / pas vérifié).
 - Choix de design/direction → AskUserQuestion AVANT de coder. Retours de jam = issues/listes : résumer, clarifier, puis coder.
@@ -10,8 +20,8 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
 
 ## Démarrer une session (≈ 2 min)
 1. `add_repo Forban5929/alter-fm1` (push) · `git clone --depth 1` · `git fetch --depth 40 origin etape-3d:etape-3d` ·
-   `git checkout etape-3d` · `git submodule update --init --depth 1`. **Travail sur `etape-3d`** ; `main` (vitrine GitHub) = même
-   commit depuis le 10/11 : après chaque envoi, `git push origin etape-3d:main` (avance rapide seulement).
+   `git checkout etape-3d` · `git submodule update --init --depth 1`. **Travail sur `etape-3d`** ; `main` (vitrine GitHub) :
+   **seulement à une Release** (`git push origin etape-3d:main`, avance rapide) — depuis la v1.1, plus à chaque envoi.
 2. Construire + tester :
    - `sh tools/alter/wasm/build_emu.sh` (→ `build/emu/`, ~30 s ; `mkdir -p build/alter build/host` avant les cc)
    - `node tools/alter/alter_emu_test.mjs build/emu/felucca.wasm build/emu/alter_play.wav` · `node tools/alter/alter_fx_test.mjs build/emu/felucca.wasm`
@@ -30,10 +40,13 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.01 » (22/11) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.02 » (22/11, 1re BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
-5. Pousser sur `etape-3d` → GitHub Actions construit le vrai firmware + publie https://forban5929.github.io/Alter-FM1/ (version
-   dans /version.txt). Le cloud ne télécharge pas les artifacts ni le compilateur JieLi : **rien n'est mesuré sur la FM-1 depuis le cloud.**
+5. **Deux sites (v1.02, 22/11)** : pousser sur `etape-3d` → pages.yml construit (tools/alter/site_build.sh, 2 fois) :
+   **racine = dernière Release** (tag vX.YY le plus haut ; ce que voient les gens) et **/beta/ = etape-3d** (bandeau rouge
+   BETA, `site_beta_banner.py` ; tests emu lancés seulement pour la beta). Une Release (firmware.yml) relance pages.yml →
+   la racine passe à la nouvelle version. Romain + testeurs : https://forban5929.github.io/Alter-FM1/beta/ (…/beta/editor/,
+   …/beta/install/). Version : /version.txt et /beta/version.txt. Le cloud ne télécharge pas les artifacts ni le compilateur JieLi : **rien n'est mesuré sur la FM-1 depuis le cloud.**
 
 ## Règles techniques (vérifiées)
 - JieLi AC79 pi32v2 : **entiers seulement** (Q15/Q24), pas de float/malloc/math.h ; 44,1 kHz, blocs de 32.
