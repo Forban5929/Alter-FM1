@@ -879,6 +879,13 @@ static __attribute__((noinline)) void track_insert(track_t *t, int32_t *b, uint3
     if (s->type != ty && !s->w)                         /* faded out: the new type from rest */
         s->type = (uint8_t)ty;
     tw = s->type == ty && ty ? ins_mixq(t->p[P_IMIX]) : 0;
+    /* ALTER v1.04 (Romain 22/11, as DIST in v1.03): SOFT HARD FOLD FUZZ, DRIVE (A) 0..INS_XF blends the clean sound
+     * into the insert (A 0 = the track as without it: turning a TYPE on changes nothing until DRIVE moves; the
+     * TONE and LEVEL come in with it), from INS_XF up as before (every factory DIST preset is above it). A 0: nothing
+     * runs (Romain: off costs nothing) */
+#define INS_XF 32
+    if (ty >= IT_SOFT && ty <= IT_FUZZ && t->p[P_IA] < INS_XF)
+        tw = (tw * (clamp(t->p[P_IA], 0, INS_XF) * (32768 / INS_XF))) >> 15;
     if (!s->w) {
         if (!tw) {
             t->ins_run = 0;
