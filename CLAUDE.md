@@ -284,6 +284,8 @@ fichier patch entier, MIXER de la page, MIDI LEARN (BCR32), TRS MIDI (câble en 
    le tag ne peut pas être poussé d'ici : Romain (ou Claude in Chrome, connecté) crée la Release sur github.com
    (releases/new?tag=vX&target=main), firmware.yml remplit titre, notes et fichiers (`--release` accepte X.YY depuis v1.01).
    **Release v1.01 publiée (22/11, FM-1_956, alter-1.01.fwsc)** ; formulaire du Hub rempli dans Chrome, envoi à faire (email).
+   **Miniature du Hub (22/11, Romain : C « le glitch »)** : `assets/fmhub.png` 1024×1024 dessinée (source `tools/alter/hub_card/`) ;
+   poussée seule sur `main` avec l'accord de Romain (le Hub lit `main`), puis main fusionné dans etape-3d.
 5. **Documentation** : README réécrit pour ALTER + `docs/MANUAL.md` (anglais, 17 sections, d'après guide.html + le code)
    FAITS le 10/11 (v0.47). À tenir à jour avec guide.html. Reste : notes de version ; vidéo/audio de jam (Romain).
 6. ~~Ménage~~ **FAIT v0.69** ; filet du plantage **FAIT v0.72** (CPU METER, ABOUT, textes écran déjà en anglais).
