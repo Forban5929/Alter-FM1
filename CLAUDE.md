@@ -41,6 +41,13 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    craquements ≤ 4 %) ; le DIRT dans la boucle reste. Mesuré : ±3 dB de 0 à 96, −5..−9 dB à 127 (les queues partent). balance des niveaux des sons d'usine, moteurs plus différents
    (écoutes WAV d'abord), **RUMBLE à refaire** (2-3 variantes WAV à écouter). 4. Vu ailleurs (Felucca 1.0, fm1-dock,
    ChoralRoot) : backup complet depuis la page, mise à jour qui garde scènes/réglages, MIDI Bluetooth.
+5. **v1.09 (Romain 22/11) : THEME SPLIT** (SYSTEM › SETUP › THEME : NIGHT / DAY / SPLIT ; `alt_sys[11]` = 1, palette NIGHT
+   dessous). Vue PLAY seule pour l'instant (`alt_split_scene` avant alt_scene) : tout en blanc/gris sur noir (`alt_mono` : les
+   macros ALT_* passent en gris), puis `alt_split_turn` retourne la moitié gauche (x < 120) et rend les gris neutres (5-6-5 : le
+   vert fait foi) ; le rouge (`ALT_SPLIT_RED`, anneau + aiguille du cercle choisi) est recalé sur blanc à gauche. Pas de rayons,
+   carte ni figures. Boutons = lunes d'`alt_foot` en gris. Test op **36** = THEME (0/1/2). Maquettes : canvas
+   https://claude.ai/artifact/BYCHi6JSFNoxxGFRJ721Pe (A Split, B Noir, C Blanc). **Pas mesuré sur la FM-1** (coût du retournement :
+   une passe sur chaque morceau dessiné). Suite si Romain valide : WHITE / BLACK, puis les autres pages.
 
 ## Utilisateur
 - Romain, non-développeur, techno live indus (Analog Rytm pour les drums). Français simple, honnêteté (vérifié / pas vérifié).

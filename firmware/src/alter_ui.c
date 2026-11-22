@@ -2266,22 +2266,31 @@ static const uint8_t ALT_R[AS_NCIRC] = {80, 60, 40};
  * draws in its own colours, light when the palette is (ux.light). NIGHT: crimson, verdigris, old gold on black and
  * gold leaf; DAY: coral, teal, sun on cream, indigo ink */
 #define ALT_DAY (ux.light != 0)
-static const uint16_t ALT_COLS[2][AS_NCIRC] = {
+/* SPLIT (v1.09, Romain 22/11: "minimaliste, black and white opposition"): SYSTEM > SETUP > THEME's third value
+ * (alt_sys[11] = 1, the palette NIGHT under it). The PLAY view (the circles) only, for now: drawn in white on black
+ * (alt_mono: every ALT_ colour below grey), then its left half (screen x < 120) turned over, black on white
+ * (alt_split_turn); the chosen circle's ring and hand in red (ALT_SPLIT_RED), kept red on both halves. The other
+ * pages: NIGHT */
+#define ALT_SPLIT (alt_sys[11] == 1u)
+static uint8_t alt_mono;                         /* (1 while the SPLIT view draws: the colours below in grey) */
+#define ALT_SPLIT_RED RGB(232, 40, 40)
+static const uint16_t ALT_COLS[3][AS_NCIRC] = {
     {RGB(201, 80, 74), RGB(79, 168, 140), RGB(212, 174, 82)},
     {RGB(224, 102, 74), RGB(42, 157, 143), RGB(217, 154, 34)},
+    {RGB(255, 255, 255), RGB(255, 255, 255), RGB(255, 255, 255)},   /* (SPLIT) */
 };
-#define ALT_COL (ALT_COLS[ALT_DAY])
-#define ALT_BG (ALT_DAY ? RGB(243, 230, 200) : RGB(14, 12, 16))     /* the card (DAY: cream paper, textured) */
-#define ALT_GREY (ALT_DAY ? RGB(172, 152, 112) : RGB(100, 86, 60))  /* what rests (inactive words, marks) */
-#define ALT_DARK (ALT_DAY ? RGB(232, 216, 184) : RGB(30, 26, 22))   /* faint fills */
-#define ALT_INK (ALT_DAY ? RGB(46, 43, 85) : RGB(235, 217, 168))    /* indigo / ivory */
-#define ALT_DIM (ALT_DAY ? RGB(111, 96, 75) : RGB(154, 132, 92))
-#define ALT_GOLD (ALT_DAY ? RGB(200, 150, 46) : RGB(201, 162, 77))
-#define ALT_FRAME (ALT_DAY ? RGB(46, 43, 85) : RGB(201, 162, 77))
-#define ALT_RIB (ALT_DAY ? RGB(46, 43, 85) : RGB(74, 26, 31))      /* the title's ribbon */
-#define ALT_RIBTX (ALT_DAY ? RGB(243, 230, 200) : RGB(235, 217, 168))
+#define ALT_COL (ALT_COLS[alt_mono ? 2 : ALT_DAY])
+#define ALT_BG (alt_mono ? RGB(0, 0, 0) : ALT_DAY ? RGB(243, 230, 200) : RGB(14, 12, 16))     /* the card (DAY: cream paper, textured) */
+#define ALT_GREY (alt_mono ? RGB(96, 96, 96) : ALT_DAY ? RGB(172, 152, 112) : RGB(100, 86, 60))  /* what rests (inactive words, marks) */
+#define ALT_DARK (alt_mono ? RGB(28, 28, 28) : ALT_DAY ? RGB(232, 216, 184) : RGB(30, 26, 22))   /* faint fills */
+#define ALT_INK (alt_mono ? RGB(255, 255, 255) : ALT_DAY ? RGB(46, 43, 85) : RGB(235, 217, 168))    /* indigo / ivory */
+#define ALT_DIM (alt_mono ? RGB(150, 150, 150) : ALT_DAY ? RGB(111, 96, 75) : RGB(154, 132, 92))
+#define ALT_GOLD (alt_mono ? RGB(255, 255, 255) : ALT_DAY ? RGB(200, 150, 46) : RGB(201, 162, 77))
+#define ALT_FRAME (alt_mono ? RGB(255, 255, 255) : ALT_DAY ? RGB(46, 43, 85) : RGB(201, 162, 77))
+#define ALT_RIB (alt_mono ? RGB(255, 255, 255) : ALT_DAY ? RGB(46, 43, 85) : RGB(74, 26, 31))      /* the title's ribbon */
+#define ALT_RIBTX (alt_mono ? RGB(0, 0, 0) : ALT_DAY ? RGB(243, 230, 200) : RGB(235, 217, 168))
 #define ALT_GO ALT_GOLD                                             /* PLAY */
-#define ALT_RED (ALT_DAY ? RGB(200, 40, 40) : RGB(226, 60, 52))     /* REC */
+#define ALT_RED (alt_mono ? ALT_SPLIT_RED : ALT_DAY ? RGB(200, 40, 40) : RGB(226, 60, 52))     /* REC */
 /* c towards the background by (100 - pct) %, in colour whatever the palette (a grey palette's ux_mix would grey it) */
 static uint16_t alt_mixc(uint16_t a, uint16_t c, int32_t pct)
 {
@@ -3887,21 +3896,32 @@ static void alt_deep_scene(void)
 enum { SET_THEME, SET_N };
 #define ALT_PAL_NIGHT UI_GREY_INDEX
 #define ALT_PAL_DAY 6u                            /* PAPER (build/gen/ui_palettes.h) */
+static uint32_t alt_theme(void) { return ALT_SPLIT ? 2u : ALT_DAY ? 1u : 0u; }   /* (0 NIGHT, 1 DAY, 2 SPLIT) */
+static void alt_theme_set(uint32_t t)            /* (v1.09: SPLIT = the palette NIGHT + alt_sys[11]) */
+{
+    if (t > 2u || t == alt_theme())
+        return;
+    alt_sys[11] = (uint8_t)(t == 2u);
+    if ((t == 1u) != (uint32_t)ALT_DAY)
+        palette_choose(t == 1u ? ALT_PAL_DAY : ALT_PAL_NIGHT);
+    settings_save();
+    au.drawn = 0;
+}
 static const char *alt_set_text(uint32_t r)
 {
+    static const char *const TH[3] = {"NIGHT", "DAY", "SPLIT"};
     if (r == SET_THEME)
-        return ALT_DAY ? "DAY" : "NIGHT";
+        return TH[alt_theme()];
     return "";
 }
 static void alt_set_turn(uint32_t r, int32_t s)
 {
     if (r == SET_THEME) {
-        uint32_t day = s > 0;
-        if (day == (uint32_t)ALT_DAY)
-            return;
-        palette_choose(day ? ALT_PAL_DAY : ALT_PAL_NIGHT);
-        settings_save();
-        au.drawn = 0;
+        uint32_t t = alt_theme();
+        if (s > 0 && t < 2u)
+            alt_theme_set(t + 1u);
+        else if (s < 0 && t > 0u)
+            alt_theme_set(t - 1u);
     }
 }
 #include "alter_fxpage.c"
@@ -4174,6 +4194,160 @@ static int alt_band(int32_t lo, int32_t hi) { return hi >= alt_wd0 - 1 && lo <= 
 #define alt_sm_simple_on (ALT_SMOOTH && alt_sm_simple_v)
 static uint32_t alt_sm_simple_v = 1u;              /* (SMOOTH: the halo lighter, 09/11 Romain's choice; 0: as before, tests) */
 
+/* SPLIT (v1.09): the left half of the canvas (screen x < 120) turned over: a grey pixel (white, black and the greys
+ * of their edges) inverted; a coloured one (the red, over black: c = a x red) put back over white instead
+ * (c + (1 - a) x white), so the red stays red on both halves, its edges smooth */
+static void alt_split_turn(void)
+{
+    int32_t xe = 120 + cv_ox, x;
+    uint32_t y;
+    xe = xe < 0 ? 0 : xe > (int32_t)cv_w ? (int32_t)cv_w : xe;
+    for (y = 0; y < cv_h; y++) {
+        uint16_t *p = &cv_px[y * cv_w];
+        for (x = 0; x < (int32_t)cv_w; x++) {
+            uint32_t v = swap16(p[x]), r = v >> 11, g = (v >> 5) & 63u, b = v & 31u, a, w;
+            int32_t dg = (int32_t)(r * 2u) - (int32_t)g, db = (int32_t)r - (int32_t)b;
+            if (dg >= -3 && dg <= 3 && db >= -2 && db <= 2) {   /* (a grey: made neutral from its green, the finest
+                                                  * channel: 5-6-5 greys lean green, turned over purple) */
+                if (x < xe)
+                    g = 63u - g;
+                if (g && g < 63u)
+                    p[x] = swap16((uint16_t)((g >> 1) << 11 | g << 5 | (g >> 1)));
+                else
+                    p[x] = g ? 0xFFFFu : 0u;
+                continue;
+            }
+            if (x >= xe)
+                continue;
+            a = r * 256u / ((ALT_SPLIT_RED >> 11) & 31u);   /* (how much red: 256 = all) */
+            w = a >= 256u ? 0u : 256u - a;
+            r += (31u * w) >> 8, g += (63u * w) >> 8, b += (31u * w) >> 8;
+            r = r > 31u ? 31u : r, g = g > 63u ? 63u : g, b = b > 31u ? 31u : b;
+            p[x] = swap16((uint16_t)(r << 11 | g << 5 | b));
+        }
+    }
+}
+/* the PLAY view in SPLIT: the head (the sound's name, the page, the tempo, the engine and mode), the three rings, their
+ * steps as dots (a hit: a dot; the step playing grows, SMOOTH), the hands, the knobs (alt_foot: their moons in white
+ * and grey). No rays, no card, no sigils (Romain 22/11). The chosen circle: its ring and hand in red */
+static void alt_split_scene(uint32_t q, uint32_t flash)
+{
+    const engine_t *e = ENGINES[eng_idx(trk[au.sel].eng_req)];
+    uint32_t i, j, n = 0, m = alt_emode[au.sel] % AM_N, bpm = (uint32_t)song.g[G_BPM];
+    int32_t x, y;
+    char b[8];
+    alt_mono = 1;
+    for (j = 0; j < cv_w * cv_h; j++)            /* (black: the left half turns white below) */
+        cv_px[j] = 0;
+    if (alt_band(0, 44)) {                       /* the head */
+        cv_text(10, 6, ALT_FM, ALT_PRE[au.pre[au.sel] % ALT_NPRE].name, ALT_INK);
+        cv_text(10, 26, ALT_FS, q ? alt_qp_name(q) : e->name, ALT_DIM);
+        if (bpm >= 100u)
+            b[n++] = (char)('0' + bpm / 100u);
+        b[n++] = (char)('0' + bpm / 10u % 10u);
+        b[n++] = (char)('0' + bpm % 10u);
+        b[n] = 0;
+        x = cv_text_r(231, 6, ALT_FV, b, ALT_INK, ALT_BG) - text_w(ALT_FV, b) - 9;
+        if (song.playing)
+            alt_tri(x * 16, 10 * 16, x * 16, 18 * 16, (x + 6) * 16, 14 * 16, ALT_INK);
+        else
+            cv_rect(x, 11, 6, 6, ALT_DIM);
+        if (ar_on)                               /* REC: a red dot while it writes, a ring when the chosen circle has moves */
+            alt_disc(x - 9, 14, 4, ALT_RED);
+        else if (ar_n[au.sel % AS_NCIRC]) {
+            alt_disc(x - 9, 14, 4, ALT_RED);
+            alt_disc(x - 9, 14, 2, ALT_BG);
+        }
+        cv_text_r(231, 26, ALT_FS, q ? e->name : ALT_MODE_NAME[m], ALT_DIM, ALT_BG);
+#if ALTER_CPU_SHOW
+        if (alt_sys[10])
+            alt_cpu_line();
+#endif
+    }
+    for (i = 0; i < AS_NCIRC; i++) {             /* the rings: thin grey; the chosen one red, thicker */
+        int32_t r = ALT_R[i];
+        if (!alt_band(r - 4, r + 4) && !alt_band(ALT_CY - r - 3, ALT_CY + r + 3))
+            continue;
+        if (i == au.sel) {
+            uint16_t rc = au.cfg[i].mute ? ALT_GREY : ALT_SPLIT_RED;
+            alt_aaring16(ALT_CX * 16, ALT_CY * 16, r * 16 - 8, rc);
+            alt_aaring16(ALT_CX * 16, ALT_CY * 16, r * 16 + 8, rc);
+        } else
+            alt_aaring16(ALT_CX * 16, ALT_CY * 16, r * 16, alt_mixc(ALT_BG, ALT_INK, au.cfg[i].mute ? 25 : 55));
+    }
+    if (song.playing) {                          /* the hands: the others thin grey, the chosen one red over them */
+        uint32_t k;
+        for (k = 0; k < AS_NCIRC; k++) {
+            uint32_t ci = (au.sel + 1u + k) % AS_NCIRC;
+            int32_t hx, hy;
+            uint16_t col = ci == au.sel ? (au.cfg[ci].mute ? ALT_GREY : ALT_SPLIT_RED) : alt_mixc(ALT_BG, ALT_INK, au.cfg[ci].mute ? 20 : 45);
+            if (ALT_SMOOTH)
+                alt_alid16c(ci, alt_sm_ang[ci], &hx, &hy);
+            else {
+                const as_circ_t *c = &alt_seq.c[ci];
+                uint32_t len = c->cfg.len ? c->cfg.len : 1u, now = (c->pos + len - 1u) % len;
+                alt_at((uint32_t)(((uint64_t)now << 32) / len), alt_hand_r(ci), &hx, &hy);
+                hx *= 16, hy *= 16;
+            }
+            alt_aaline16(ALT_CX * 16, ALT_CY * 16, hx, hy, col);
+            if (ci != au.sel)
+                continue;
+            if ((hx > ALT_CX * 16 ? hx - ALT_CX * 16 : ALT_CX * 16 - hx) > (hy > ALT_CY * 16 ? hy - ALT_CY * 16 : ALT_CY * 16 - hy))
+                alt_aaline16(ALT_CX * 16, ALT_CY * 16 + 16, hx, hy + 16, col);
+            else
+                alt_aaline16(ALT_CX * 16 + 16, ALT_CY * 16, hx + 16, hy, col);
+        }
+    }
+    for (i = 0; i < AS_NCIRC; i++) {             /* the steps */
+        const as_circ_t *c = &alt_seq.c[i];
+        uint32_t len = c->cfg.len ? c->cfg.len : 1u, now = (c->pos + len - 1u) % len;
+        int32_t r = ALT_R[i], big = i == 0u ? 4 : 3;
+        uint16_t on_c = au.cfg[i].mute ? ALT_GREY : ALT_INK, off_c = alt_mixc(ALT_BG, ALT_INK, au.cfg[i].mute ? 25 : 45);
+        if (!alt_band(ALT_CY - r - 12, ALT_CY + r + 12))
+            continue;
+        for (j = 0; j < len; j++) {
+            int on = (int)((c->pat >> j) & 1u);
+            int32_t g = on && (ALT_SMOOTH ? j == alt_hit_step[i] : song.playing && j == now) ? (ALT_SMOOTH ? alt_sm_g[i] : ((flash >> i) & 1u) * 2) : 0;
+            alt_step_xy(i, len, j, &x, &y);
+            if (!on) {
+                cv_rect(x - 1, y - 1, 2, 2, off_c);
+                continue;
+            }
+            alt_disc(x, y, big + 2 + g, ALT_BG);  /* (a contour: the dot apart from its ring) */
+            alt_disc(x, y, big + g, on_c);
+        }
+        if (c->die) {                            /* a draw on: a small triangle at the circle's left, pointing in */
+            int32_t k2;
+            alt_at(0xC0000000u, r, &x, &y);
+            for (k2 = 0; k2 < 7; k2++)
+                cv_rect(x - 16 + k2, y - (6 - k2), 1, 2 * (6 - k2) + 1, ALT_INK);
+        }
+    }
+    if (au.msg && fm1_ms - au.msg_ms < 900u) {   /* the middle: the key held or tapped, else a dot */
+        int32_t w = text_w(ALT_FS, au.msg);
+        cv_rect(ALT_CX - w / 2 - 6, ALT_CY - 10, w + 12, 20, ALT_INK);
+        cv_text_on(ALT_CX - w / 2, ALT_CY - 7, ALT_FS, au.msg, ALT_BG, ALT_INK);
+    } else if (alt_band(ALT_CY - 4, ALT_CY + 4))
+        alt_disc(ALT_CX, ALT_CY, 2, ALT_INK);
+    if (sg_on && asg.n >= 2u) {                  /* SONG's chain (as in NIGHT), on the right */
+        uint32_t k, nn = asg.n < 8u ? asg.n : 8u;
+        for (k = 0; k < nn; k++) {
+            int32_t sx = 222, sy = 48 + (int32_t)k * 17;
+            int on = k == sg_link;
+            char nm[2] = {(char)('A' + (asg.chain[k] & 3u)), 0};
+            if (on)
+                cv_rect(sx, sy, 13, 14, ALT_INK);
+            else
+                cv_frame(sx, sy, 13, 14, ALT_GREY);
+            cv_text_on(sx + 7 - text_w(ALT_FS, nm) / 2, sy + 1, ALT_FS, nm, on ? ALT_BG : ALT_DIM, on ? ALT_INK : ALT_BG);
+        }
+    }
+    if ((int32_t)cv_h - cv_oy > 192)             /* (the knobs: from row 194 down) */
+        alt_foot(q);
+    alt_split_turn();
+    alt_mono = 0;
+}
+
 static void alt_scene(uint32_t q, uint32_t flash)
 {
     const track_t *t = &trk[au.sel];
@@ -4227,6 +4401,10 @@ static void alt_scene(uint32_t q, uint32_t flash)
     }
     if (au.mn == QP_SONG) {
         alt_sg_scene();
+        return;
+    }
+    if (ALT_SPLIT) {                             /* (v1.09: the PLAY view in black and white) */
+        alt_split_scene(q, flash);
         return;
     }
     /* the card's engraving: rays from the centre (under everything, kept off the knobs) */
@@ -5102,13 +5280,13 @@ static void alter_draw(void)
             sig = sig * 31u + alm_sig();
     }
     if (au.mn == QP_SYS)
-        sig = sig * 31u + alt_sys_top * 5u + alt_sys_tab * 7u + alt_sys[1] * 11u + alt_sys[2] * 13u + alt_sys[8] * 3u + alt_sys[10] * 19u + alt_sys[9] * 29u + (uint32_t)song.g[G_CLOCK] * 17u +
+        sig = sig * 31u + alt_sys_top * 5u + alt_sys_tab * 7u + alt_sys[1] * 11u + alt_sys[2] * 13u + alt_sys[8] * 3u + alt_sys[10] * 19u + alt_sys[11] * 31u + alt_sys[9] * 29u + (uint32_t)song.g[G_CLOCK] * 17u +
               (uint32_t)song.g[G_ROUTE] * 19u + (uint32_t)batt_shown() * 23u
 #if FELUCCA_CPU2
               + menu_get(MI_CPU2) * 29u
 #endif
               ;
-    sig = sig * 31u + au.mn * 61u + au.set_row * 67u + (uint32_t)ALT_DAY * 71u + au.cfg[au.sel % AS_NCIRC].chord * 73u;
+    sig = sig * 31u + au.mn * 61u + au.set_row * 67u + (uint32_t)ALT_DAY * 71u + alt_sys[11] * 79u + au.cfg[au.sel % AS_NCIRC].chord * 73u;
 
     sig = sig * 31u + (uint32_t)ar_on * 89u + (ar_n[au.sel % AS_NCIRC] != 0) * 97u;
     sig = sig * 31u + sg_play * 3u + sg_link * 5u + sg_on * 7u + (asg.q ? asg.q * 11u + ((fm1_ms >> 7) & 1u) : 0u) +
@@ -5375,6 +5553,9 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
         break;
     case 32: alt_sys[9] = (uint8_t)(b & ALT_RFX_ALL); break;   /* (a test, v0.66: the effects CHAOS TOTAL leaves alone) */
     case 33: alt_seq.c[a % AS_NCIRC].locks = (uint8_t)b; break;   /* (a test, v0.68: circle a's LOCKS) */
+    case 36:                                     /* (a test, v1.09: THEME a = 0 NIGHT, 1 DAY, 2 SPLIT) */
+        alt_theme_set(a);
+        break;
     case 35:                                     /* (a test, v0.74: the screen asleep now, the seal breathing) */
         scrn.st = SCR_SEAL;
         scrn.t = fm1_ms;
