@@ -104,21 +104,30 @@ static struct {                          /* HALL's state (in the pool: no .bss) 
  * broken digital fuzz). State per part (track_t dist_*). */
 static void track_dist(track_t *t, int32_t *b, uint32_t n)
 {
-    int32_t d = t->p[P_DIST], i, g, k, mk, bias = 2400, b0;
+    int32_t d = t->p[P_DIST], i, g, k, mk, bias = 2400, b0, ws;
     if (!d)
         return;                                         /* states kept: switching on does not click */
     g = 4096 + d * d * 2;                                /* Q12: 1x .. ~9x, gentle at first */
     k = 32000 - d * 95;                                  /* tone: transparent at low drive .. ~3 kHz, Q15 */
     mk = 30000 - d * 120;                                /* make-up */
+    /* ALTER v1.03 (Romain 22/11: DRIVE 0 -> 1 sounded like an on/off, then nothing moved until ~20): the low cut and
+     * the clipper took ~3 dB (5 dB of bass) at once. Now DRIVE 1..DIST_XF blends the clean sound into the distorted
+     * one (1 = 1/32 wet), and the make-up is raised at low drive so the wet path sits at the dry level; from
+     * DIST_XF up it is the old DIST, a little louder at the bottom (same at 64 and above) */
+#define DIST_XF 32
+    if (d < 64)
+        mk += mulq15(mk, (64 - d) * 160);               /* +~2.6 dB at 1 .. 0 dB at 64 */
+    ws = d >= DIST_XF ? 32768 : d * (32768 / DIST_XF);   /* the wet share, Q15 */
     b0 = softclip(bias);
     for (i = 0; i < (int32_t)n; i++) {
-        int32_t x = b[i], y;
+        int32_t x = b[i], y, dry = x;
         t->dist_hp += (x - t->dist_hp + 64) >> 7;           /* ~55 Hz low cut: keep the bass out of the clipper */
         x = clamp(x - t->dist_hp, -230000, 230000);         /* (x >> 2) * g fits 32 bits; the clip is flat out there */
         y = softclip((((x >> 2) * g) >> 10) + bias) - b0;   /* >> 2 first: no overflow for loud poly */
         t->dist_lp1 += mulq15(y - t->dist_lp1, k);         /* two poles: tames the fizz */
         t->dist_lp2 += mulq15(t->dist_lp1 - t->dist_lp2, k);
-        b[i] = mulq15(t->dist_lp2, mk);
+        y = mulq15(t->dist_lp2, mk);
+        b[i] = ws == 32768 ? y : dry + mulq16(y - dry, (uint32_t)ws << 1);   /* (as pf_mix: no overflow on a loud dry) */
     }
 }
 
