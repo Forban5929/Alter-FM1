@@ -9,6 +9,7 @@
 set -e
 SRC=$(cd "$1" && pwd); OUT="$2"; KIND="$3"; REF="$4"; ZIP="$5"
 HERE=$(cd "$(dirname "$0")" && pwd)
+ZIP=$(cd "$(dirname "$ZIP")" && pwd)/$(basename "$ZIP")
 mkdir -p "$OUT"; OUT=$(cd "$OUT" && pwd)
 cd "$SRC"
 VER=$(sed -n 's/^#define FELUCCA_VERSION "\([^"]*\)".*/\1/p' firmware/src/felucca.c | head -n 1)
