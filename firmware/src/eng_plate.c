@@ -6,17 +6,18 @@
  *   exciter -> the four lines (+ - + -) -> damping -> Hadamard x RES -> (DIRT: a tanh, a fold) -> back ; out: their sum
  *
  * The four main knobs follow the new engines' grammar (MATTER, SPREAD, RESONANCE, DIRT, as RESO's):
- * MATR  what strikes it: 0..42 a mallet (a soft, dark thump), 43..84 a hard hit (a bright noise burst), 85..127 a
- *       scrape that lasts while the note is held (sparse crackle -> rough noise): sheet metal being rubbed
+ * MATR  what strikes it (v1.08, Romain 22/11: the scrape over 84 was a shrill white noise, out; the knob is scaled
+ *       to 0..84): 0..42 a mallet (a soft, dark thump), then harder and brighter up to a hard hit (a bright noise
+ *       burst) at 84, without the old jump at 43
  * SPRD  the lines' lengths: 0 four close ones (a tuned gong, beating) -> harmonic (1 1/2 1/3 1/4) -> a plate (golden
  *       ratios) -> cracked (wide, dissonant)
  * RES   how long it rings: a dead knock (50 ms) -> a gong that hangs on (10 s), the same at every pitch
  * DIRT  a drive inside the loop: 0 clean; up the middle the ringing thickens (trash metal); past ~90 a fold too: it
  *       breaks up, screams, buzzes
- * TONE  the damping: dark (felt, rust) .. bright (a crash, a hi-hat's sizzle)
+ * TONE  the damping: dark (felt, rust) .. bright (a crash, a hi-hat's sizzle), exponential (v1.08: the bottom jumped)
  * DCAY  the exciter's length (0.2 .. 80 ms)
  * BEND  the pitch falls after the hit (a gong's swoop, a thunder sheet): 0 none .. an octave and a half
- * HIT   how much of the strike itself is heard over the ring (the click)
+ * HIT   how much of the strike itself is heard over the ring (the click; v1.08: x 4, it was not heard)
  * The track's SHP moves MATR, FLT moves TONE, as on every engine; the ADSR on top (a long SUS keeps it ringing).
  *
  * Monophonic (a new hit strikes the same plate: the ring carries on). The lines in the part's engine memory, 16 bits:
@@ -91,7 +92,7 @@ static void plate_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
     per16 = m->inc > 0x20000u ? (uint32_t)((1ull << 48) / m->inc) : (uint32_t)(PL_LEN - 8) << 16;
     while (per16 > (uint32_t)(PL_LEN - 8) << 15 && per16 > (64u << 16))   /* (x 1.013 and the bend: half the line) */
         per16 >>= 1;
-    mt = clamp((p[P_E0] << 8) + m->shape - (64 << 8), 0, 127 << 8) >> 8;   /* MATR (+ SHP) */
+    mt = (clamp((p[P_E0] << 8) + m->shape - (64 << 8), 0, 127 << 8) >> 8) * 84 / 127;   /* MATR (+ SHP): 0..84 */
     sp = p[P_E1] * 3 * 256 / 127;                /* SPRD: between two of the four sets, Q8 */
     seg = sp >> 8 > 2 ? 2 : sp >> 8;
     frac = sp - seg * 256;
@@ -124,12 +125,12 @@ static void plate_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
     drv = 4096 + dirt * 64;                      /* DIRT: the drive into the loop's tanh, 1 .. 3, Q12 */
     fold = dirt > 90 ? (dirt - 90) * 700 : 0;    /* (past 90: a fold as well, Q15 of the signal) */
     tone = clamp(p[P_E4] * 256 + m->cutoff, 0, 127 << 8);   /* TONE (+ FLT, an offset around 0) */
-    tone = 1200 + tone;                          /* (the damping low-pass, Q15: ~250 Hz .. nearly none) */
-    if (tone > 32767)
-        tone = 32767;
+    tone = (int32_t)((32767u * reso_exp2(-(int32_t)(((int64_t)((127 << 8) - tone) * 19540) / (127 << 8)))) >> 16);
+    /* (the damping low-pass, Q15: ~250 Hz .. nearly none, 4.77 octaves even over the knob; v1.08, was linear) */
     rate = 10 + p[P_E5] * p[P_E5] * 3500 / 16129;   /* DCAY: the exciter's time constant, samples */
     hit = p[P_E7];
-    xa = mt < 43 ? 900 + mt * 200 : 32767;        /* the mallet: a dark burst; harder above 42 */
+    xa = mt <= 42 ? 900 + mt * 200 : 9300 + (mt - 42) * 558;   /* the mallet: a dark burst; harder up to 84 (v1.08:
+                                                  * continuous, was a jump at 43) */
     xg = 64 + 16384 / (rate + 16) + (32767 - xa) / 90;   /* (the exciter's gain, Q6: short and dark strikes louder) */
     mdrv = dvm_make((uint32_t)drv, 42u);         /* (|z << 12| < 2^27, drv < 2^14: 2^41 < 2^42) */
     mrate = dvm_make((uint32_t)rate, 32u);       /* (env < 2^17, rate <= 3510: < 2^29) */
@@ -142,13 +143,6 @@ static void plate_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
             int32_t nz = (int32_t)(noise32(&rng) >> 16) - 32768;
             x = (int32_t)(((int64_t)nz * (env >> 1)) >> 15);
             env -= dvm_div(env, mrate, 32u) + 1;
-        }
-        if (mt > 84 && v->gate) {                 /* the scrape: crackle, then rough noise, while held */
-            int32_t r = (int32_t)(noise32(&rng) >> 16), dens = (mt - 84) * 1500;
-            if (dens >= 60000)
-                x += (r - 32768) >> 2;
-            else if (r < dens)
-                x += (int32_t)(noise32(&rng) >> 17) - 16384;
         }
         x = clamp((int32_t)(((int64_t)x * xg) >> 6), -32767, 32767);   /* (a short strike as strong as a long one) */
         S->xlp += (int32_t)(((int64_t)(x - S->xlp) * xa) >> 15);
@@ -182,7 +176,7 @@ static void plate_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
             }
             S->buf[k][w] = (int16_t)clamp(z, -32767, 32767);
         }
-        y = y * 3 + (int32_t)(((int64_t)x * hit) >> 7);   /* the ring (x 6: a strike's energy spreads over 6000 samples) and a part of the strike (HIT) */
+        y = y * 3 + (int32_t)(((int64_t)x * hit) >> 5);   /* the ring (x 6: a strike's energy spreads over 6000 samples) and a part of the strike (HIT) */
         S->dc = y - S->dcx + (int32_t)(((int64_t)S->dc * 32604) >> 15);   /* the DC blocker (~8 Hz) */
         S->dcx = y;
         out[i] += voice_amp(soft_knee(clamp(S->dc * 13 / 16, -(1 << 20), 1 << 20), 22000), m, i);   /* (-1.8 dB, Romain 05/11) */
@@ -194,21 +188,21 @@ static void plate_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
 
 /* {MATR SPRD RES DIRT TONE DCAY BEND HIT} (ALTER's sounds: alter_sounds.c ALT_PRE) */
 static const preset_t PLATE_PRESETS[] = {
-    {"GONG", {20, 15, 115, 10, 70, 20, 50, 10}, {0, 110, 127, 110}, 0, 0, FX(0, 0, 10, 30)},
+    {"GONG", {30, 15, 115, 10, 106, 20, 50, 3}, {0, 110, 127, 110}, 0, 0, FX(0, 0, 10, 30)},
 };
 
 static const engine_t ENG_PLATE = {
     .name = "PLATE",
     .page_title = {"MAIN", "MORE"},
     .edit = {
-        {"MATR", F_PCT, 0, 127, 20, 0, 0},
+        {"MATR", F_PCT, 0, 127, 30, 0, 0},
         {"SPRD", F_PCT, 0, 127, 64, 0, 0},
         {"RES", F_PCT, 0, 127, 100, 0, 0},
         {"DIRT", F_PCT, 0, 127, 0, 0, 0},
-        {"TONE", F_PCT, 0, 127, 80, 0, 0},
+        {"TONE", F_PCT, 0, 127, 111, 0, 0},
         {"DCAY", F_PCT, 0, 127, 15, 0, 0},
         {"BEND", F_PCT, 0, 127, 0, 0, 0},
-        {"HIT", F_PCT, 0, 127, 20, 0, 0},
+        {"HIT", F_PCT, 0, 127, 5, 0, 0},
     },
     .presets = PLATE_PRESETS,
     .npresets = NELEM(PLATE_PRESETS),

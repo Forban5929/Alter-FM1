@@ -11,7 +11,9 @@
  *       metal) -> far apart (a robot, a siren's whine)
  * RES   the filter's resonance: a wide colour -> a sharp, whistling peak
  * DIRT  a valve: 0 clean; up the middle warm, then torn (asymmetric: even harmonics, a growl)
- * RADIO the radio's troubles: 0 none; static crackle, the level fading in and out, B's carrier drifting off tune
+ * RADIO an AM radio (v1.08, Romain 22/11: "it does little"): 0 none; the band narrows (a transistor, a telephone:
+ *       the lows and the highs go), static crackle, the level fading in and out, B's carrier drifting off tune, and
+ *       past the middle a tuning whistle; gentle up to ~10, then clearly heard
  * TONE  where the filter sits: a multiple of the note, low (a muffled hum) .. high (a hiss, a whistle)
  * BLND  the ring alone (0: no fundamental, only the sum and difference) .. A over it (127: the note under the ring)
  * SWEP  B starts high and falls to its ratio at each hit (up to 3 octaves): zaps, lasers, dropping bombs
@@ -46,8 +48,10 @@ static inline int32_t ring_wave(uint32_t ph, int32_t mt, uint32_t pw)
     switch (seg) {
     case 0: a = sine_i(ph), b = osc_tri(ph); break;
     case 1: a = osc_tri(ph), b = (int32_t)(ph >> 16) - 32768; break;
-    case 2: a = (int32_t)(ph >> 16) - 32768, b = ph < 0x80000000u ? 24000 : -24000; break;
-    default: a = ph < 0x80000000u ? 24000 : -24000, b = ph < pw ? 24000 : -24000; break;
+    case 2: a = (int32_t)(ph >> 16) - 32768, b = ph < 0x80000000u ? -24000 : 24000; break;
+    default: a = ph < 0x80000000u ? -24000 : 24000, b = ph < pw ? -24000 : 24000; break;
+    /* (v1.08: the squares upside down, in phase with the saw: the saw -> square blend no longer cancels itself,
+     * a hole of -15 dB around MATR 72-80; a ring of two upside-down waves is the same ring above 96) */
     }
     return a + (int32_t)(((int64_t)(b - a) * fr) >> 13);
 }
@@ -59,14 +63,22 @@ static const int16_t RING_SPR[8] = {12, 300, 2397, 4096, 5984, 7453, 9834, 11660
 static void ring_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
-    int32_t mt, sp, seg, frac, ob, q, fq, dirt, bias, sbias, dd, radio, blnd, rng, i, lo, bd;
+    int32_t mt, sp, seg, frac, ob, q, fq, dirt, bias, sbias, dd, radio, blnd, rng, i, lo, bd, rk, lpk, hpk, whs;
+    uint32_t whi;
     uint32_t inca, incb, incf, pw, mdd;
     mt = clamp((p[P_E0] << 8) + m->shape - (64 << 8), 0, (127 << 8) - 1);   /* MATR (+ SHP) */
     sp = p[P_E1] * 7 * 256 / 127;                /* SPRD: between two of the eight ratios, Q8 */
     seg = sp >> 8 > 6 ? 6 : sp >> 8;
     frac = sp - seg * 256;
     ob = RING_SPR[seg] + (RING_SPR[seg + 1] - RING_SPR[seg]) * frac / 256 + v->s[2];
-    radio = p[P_E4] * 70 / 127;                  /* RDIO: the knob at full = 70 (Romain 05/11: more was too much) */
+    rk = p[P_E4] <= 10 ? p[P_E4] * 3 / 2 : 15 + (p[P_E4] - 10) * 112 / 117;   /* RDIO's curve (v1.08): 0..10 gentle */
+    radio = rk * 70 / 127;                       /* (the crackle, the fading, the drift: at full = 70, Romain 05/11) */
+    lpk = (int32_t)((32767u * ring_exp2(-rk * 6100 / 127)) >> 16);   /* the band: highs from open to ~2.5 kHz */
+    hpk = (int32_t)((32u * ring_exp2(rk * 23000 / 127)) >> 16);      /* .. lows from ~7 Hz to ~350 Hz */
+    if (hpk < 32)
+        hpk = 32;
+    whs = rk > 64 ? (rk - 64) * 40 : 0;          /* past the middle: a tuning whistle (up to ~-24 dB) */
+    whi = 120000u * (1103u + (uint32_t)((v->s[4] >> 4) & 255u));   /* (~3 kHz, wobbling with the drift) */
     rng = v->s[5];
     if (radio) {                                 /* the carrier wanders (a random walk, slow) */
         v->s[4] += (int32_t)((noise32(&rng) >> 22) & 1023) - 512;
@@ -129,8 +141,15 @@ static void ring_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
                 v->s[3] += (tg - v->s[3]) >> 4;
             }
             x = (int32_t)(((int64_t)x * v->s[3]) >> 15);
+            v->s[7] += (int32_t)(((int64_t)(x - v->s[7]) * lpk) >> 15);   /* (the band's top) */
+            x = v->s[7];
+            if (whs) {
+                x += (int32_t)(((int64_t)sine_i(v->ph[2]) * whs) >> 15);
+                v->ph[2] += whi;
+            }
         }
-        v->s[6] += (x - v->s[6]) >> 10;          /* (the DC out) */
+        v->s[6] += (int32_t)(((int64_t)(x - v->s[6]) * (radio ? hpk : 32)) >> 15);   /* (the DC out; RDIO: the band's
+                                                  * bottom, up to ~350 Hz) */
         x -= v->s[6];
         out[i] += voice_amp(soft_knee(clamp(x * 2, -(1 << 20), 1 << 20), 22000), m, (uint32_t)i);
     }

@@ -615,7 +615,9 @@ static void alt_trig_now(uint32_t n)
         if (alt_trig_tot[c] == alt_trig_seen[c])
             continue;
         alt_trig_seen[c] = alt_trig_tot[c];
-        alt_on(c, alt_note[c][0] ? alt_note[c][0] : as_note(&alt_seq, sc->cfg.root, 0), 112, 0, 0);
+        alt_on(c, alt_note[c][0] ? alt_note[c][0] : as_note(&alt_seq, sc->cfg.root, 0),
+               sc->cfg.len ? as_svel(sc, sc->pos % sc->cfg.len) : AS_VEL[AS_NORMAL], 0, 0);   /* (v1.08, Romain: as the
+                                                  * sequence sounds: the next step's velocity, not 112) */
         if (alt_gate_left[c] < 1u)
             alt_gate_left[c] = 1;
         alt_trig_left[c] = (int32_t)p;

@@ -254,10 +254,15 @@ static __attribute__((noinline)) void px_modal_exciter(px_modal_blk_t *B, px_mod
     uint64_t fr;
     int32_t ex;
     /* exciter low-pass: cutoff = min(f 2^((b (2 - b) - 0.5) range / 12), 0.499) */
-    ex = (int32_t)(((int64_t)px_m(b, 131072 - b, 16) - 32768) * (bow ? 36 : 60) / 12);   /* octaves, Q16 */
-    fr = ((uint64_t)f0c * (bow ? 4u : 2u) * px_exp2(ex)) >> 16;
+    /* ALTER v1.08 (Romain 22/11: BOW lost up to 20 dB as soon as it left 0): bowed and struck are no longer two
+     * worlds: w (Q16) goes 0 -> 1 over the first half of BOW's range, the exciter's filter moves from the strike's
+     * to the bow's with it, and the strike stays whole under the Dust (no level drop) */
+    int32_t w = bow >= 13081 ? 65536 : (int32_t)(((int64_t)bow << 16) / 13081);
+    ex = (int32_t)(((int64_t)px_m(b, 131072 - b, 16) - 32768) * (60 - px_m(24, w, 16)) / 12);   /* octaves, Q16 */
+    fr = ((uint64_t)f0c * px_exp2(ex)) >> 16;
+    fr = (fr * (uint32_t)(131072 + w * 2)) >> 16;       /* (x 2 struck .. x 4 bowed) */
     cut = fr > 2143260078u ? 2143260078u : fr < 65536u ? 65536u : (uint32_t)fr;
-    px_svf_coef(&B->ex, cut, bow ? 179u : 384u);         /* q 0.7 / 1.5 */
+    px_svf_coef(&B->ex, cut, (uint32_t)(384 - px_m(205, w, 16)));   /* q 0.7 .. 1.5 */
     B->strike = 0;
     B->dust_thr = 0;
     if (bow) {                                           /* Dust: density 0.3 (5e-5 + (1 - 5e-5) b^4) */
@@ -268,14 +273,15 @@ static __attribute__((noinline)) void px_modal_exciter(px_modal_blk_t *B, px_mod
         B->dust_inv = (uint32_t)(((uint64_t)1 << 47) / B->dust_thr);
         B->dust_gain = px_m(px_m(px_m(262144 - 3 * df, accent, 16), bow, 16), (int32_t)px_exp2(-px_m(d, 217579, 16)), 16);
         B->dust_dc = (int32_t)(((uint64_t)B->dust_thr * (uint32_t)B->dust_gain) >> 29);
-    } else if (M->trig) {                                /* the strike: amplitude 2^(2 cut^2) / cut */
+    }
+    if (M->trig) {                          /* the strike: amplitude 2^(2 cut^2) / cut (x (1 - w)) */
         int32_t amp = px_m(7864 + px_m(5243, accent, 16), 65536 - (d >> 1), 16);   /* (0.12 + 0.08 a)(1 - d / 2) */
         uint32_t c2 = (uint32_t)(((uint64_t)cut * cut) >> 32);
         uint64_t v = ((uint64_t)(uint32_t)amp * px_exp2((int32_t)(c2 >> 15))) << 16;   /* Q48 */
         v /= cut;                                        /* Q16 */
         B->strike = v > 0x7FFFFFFFu ? 0x7FFFFFFF : (int32_t)v;
-        M->trig = 0;
     }
+    M->trig = 0;
 }
 
 /* the Q of the lowest mode (Q8) and its factor from one mode to the next (*ql, Q16): DaisySP's Resonator,
@@ -417,9 +423,9 @@ static void px_modal_run(const px_modal_blk_t *B, px_modal_t *M, int32_t *out, i
                 uint32_t u = px_rand(&rs);
                 if (u < B->dust_thr)
                     in = (int64_t)(((((uint64_t)u * B->dust_inv) >> 32) * (uint32_t)B->dust_gain) >> 7);   /* Q24 */
-            } else if (!i && B->strike) {
-                in = (int64_t)B->strike << 8;
             }
+            if (!i && B->strike)                         /* (ALTER v1.08: the strike under the Dust too, fading) */
+                in += (int64_t)B->strike << 8;
             t = (int32_t)((ex.gh * (in - px_m(ex.rpg, e1, 28) - e2)) >> 30);
             bp = e1 + t;
             e1 = bp + t;
@@ -510,7 +516,8 @@ static __attribute__((noinline)) void px_string_block(px_string_blk_t *B, px_str
     if (S->trig || bow) {
         int32_t oct = (int32_t)(((int64_t)px_m(b, 131072 - b, 16) - 32768) * 6);   /* * 72 / 12 */
         uint64_t c = ((uint64_t)f * 4u * px_exp2(oct)) >> 16;
-        px_csvf_coef(&S->exc, c > 2143260078u ? 2143260078u : (uint32_t)c, bow ? 65536 : 32768, 32768);
+        int32_t w = bow >= 13081 ? 65536 : (int32_t)(((int64_t)bow << 16) / 13081);   /* (ALTER v1.08: as MODAL's) */
+        px_csvf_coef(&S->exc, c > 2143260078u ? 2143260078u : (uint32_t)c, 32768 + (w >> 1), 32768);
         if (S->trig) {                                   /* a burst one period long */
             uint32_t per = px_period(f);
             S->bk = 0;
@@ -606,9 +613,10 @@ static void px_string_excite(const px_string_blk_t *B, px_string_t *S, int32_t *
             uint32_t u = px_rand(&S->rng);
             if (u < B->dust_thr)
                 x = (int32_t)(((((uint64_t)u * B->dust_inv) >> 32) * (uint32_t)B->dust_gain) >> 11);   /* Q20 */
-        } else if (bk < bend) {                          /* rand in -1..1; with a pluck position, the */
+        }
+        if (bk < bend) {                                 /* (ALTER v1.08: the pluck under the Dust too) */                          /* rand in -1..1; with a pluck position, the */
             if (bk < S->bn)                              /* half of it minus its half pos / 2 periods */
-                x = (int32_t)(px_rand(&S->nz_a) >> (S->bd ? 12 : 11)) - (S->bd ? 1 << 19 : 1 << 20);   /* later */
+                x += (int32_t)(px_rand(&S->nz_a) >> (S->bd ? 12 : 11)) - (S->bd ? 1 << 19 : 1 << 20);   /* later */
             if (S->bd && bk >= S->bd)
                 x -= (int32_t)(px_rand(&S->nz_b) >> 12) - (1 << 19);
             bk++;

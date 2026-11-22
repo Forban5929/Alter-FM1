@@ -38,8 +38,11 @@
  * 256-sample sympathetic lines, 16-bit), 12 slots in all. Voice amplitude: the track's ADSR as for every
  * engine; the presets hold SUS at 127 so the model's own decay is heard and REL damps it after the key.
  * Cost (host, 8 notes asked = 3 voices): see the README and cpu_baseline.txt. */
+#include "eng_curve.h"
 #include "phys_dsp.c"
 #include "phys_symp.c"
+
+static int32_t px_exc_gain(int32_t k) { int32_t c = alt_curve(k); return c * c * c; }
 
 enum { PM_MODAL, PM_STRING, PM_MEMB, PM_SYMP, PM_COUNT };
 #define PHYS_POLY 3
@@ -166,10 +169,17 @@ static void phys_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     uint32_t md = (uint32_t)p[P_E0] % PM_COUNT, i, f0 = m->inc;
     int32_t y[CTL], ax[CTL];
     int32_t strc = p[P_E1] * 516, brit = clamp(p[P_E2] * 516 + m->cutoff * 2, 0, 65536);   /* Q16 0..1 */
-    int32_t damp = p[P_E3] * 516, pos = p[P_E4], exc = p[P_E7] * 258;   /* exc Q15 */
+    int32_t damp = p[P_E3] * 516, pos = p[P_E4], exc = px_exc_gain(p[P_E7]);   /* exc Q15 (ALTER v1.08, Romain: it did
+                                                          * nothing heard: a cube of alt_curve, x 0.002 at 1, x 2 at 10, x 62 at 127) */
     int32_t bow = p[P_E6] * 206;                         /* BOW: Dust at up to 0.4 (DaisySP's sustain: 1) */
     int32_t acc = clamp(p[P_E5] * v->vel * 4, 0, 65536);   /* ACC at full velocity, Q16 */
     int32_t g = PHYS_GAIN[md];
+    {   /* ALTER v1.08 (audit, Romain: BRIT / DAMP low lost 6..22 dB): a smooth make-up, measured on the factory
+         * sounds: DAMP 0 +12 dB fading to 0 at 80, BRIT 0 +6 dB fading to 0 at 40 (2^oct, 6 dB per octave) */
+        int32_t oc = (p[P_E3] < 80 ? (80 - p[P_E3]) * 1638 : 0) + (p[P_E2] < 40 ? (40 - p[P_E2]) * 1638 : 0);
+        if (oc)
+            g = (int32_t)(((int64_t)g * px_exp2(oc)) >> 16);
+    }
     if (!S)
         return;
     if (n > CTL)
@@ -222,11 +232,11 @@ static void phys_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
  * 98 1 : 3.57 : 7.65, 116 1 : 4.0 : 9.0 (a tuned bar: 1 : 4 : 10) */
 static const preset_t PHYS_PRESETS[] = {
     /* name, {MODEL, STRC, BRIT, DAMP, POS, ACC, BOW, EXC}, {A D S R}, fenv, mono */
-    {"BELL TREE", {PM_MODAL, 70, 100, 106, 12, 100, 0, 6}, {0, 100, 127, 96}, 0, 0, FX(0, 20, 30, 60), PAT(7)},
-    {"MARIMBA", {PM_MODAL, 116, 38, 40, 24, 90, 0, 30}, {0, 90, 127, 52}, 0, 0, FX(0, 0, 15, 30), PAT(6)},
+    {"BELL TREE", {PM_MODAL, 70, 100, 106, 12, 100, 0, 2}, {0, 100, 127, 96}, 0, 0, FX(0, 20, 30, 60), PAT(7)},
+    {"MARIMBA", {PM_MODAL, 116, 38, 40, 24, 90, 0, 8}, {0, 90, 127, 52}, 0, 0, FX(0, 0, 15, 30), PAT(6)},
     {"PLUCK", {PM_STRING, 56, 72, 84, 40, 96, 0, 0}, {0, 100, 127, 58}, 0, 0, FX(0, 10, 30, 30), PAT(3)},
     {"BOWED METAL", {PM_MODAL, 98, 70, 112, 10, 80, 90, 0}, {60, 90, 127, 90}, 0, 0, FX(0, 40, 20, 70), PAT(5)},
-    {"KALIMBA", {PM_MODAL, 34, 16, 56, 100, 90, 0, 48}, {0, 100, 127, 60}, 0, 0, FX(0, 10, 20, 40), PAT(7)},
+    {"KALIMBA", {PM_MODAL, 34, 16, 56, 100, 90, 0, 12}, {0, 100, 127, 60}, 0, 0, FX(0, 10, 20, 40), PAT(7)},
     /* MEMB: {MODEL, HARM, BRIT, DAMP, POS, ACC, BEND, EXC} */
     {"HAND DRUM", {PM_MEMB, 112, 76, 56, 44, 100, 14, 24}, {0, 100, 127, 64}, 0, 0, FX(0, 0, 10, 30), PAT(6)},
     {"TOMS", {PM_MEMB, 0, 52, 40, 30, 100, 40, 30}, {0, 100, 127, 70}, 0, 0, FX(0, 0, 0, 40), PAT(2)},

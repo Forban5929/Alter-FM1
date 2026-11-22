@@ -16,7 +16,11 @@
  *       ~90 the ring sings by itself (larsen, screams, unstable)
  * OUT   MIX the rings and a part of the exciter (the impact); NTCH the exciter minus the rings (hollow, phase
  *       cancelled); LOW their low-pass outputs (bodies, thuds)
- * DCAY  the exciter's length (impact, burst: 0.2 .. 80 ms; and the sweep's)
+ * DCAY  the exciter's length (impact, burst: 0.2 .. 80 ms, exponential since v1.08: the first steps jumped; and the
+ *       sweep's)
+ * v1.08 (Romain 22/11, the knob audit): MATR's rubbing past 84 gentler (a quadratic density, its noise -6 dB); RES no
+ * longer climbs ~11 dB from 88 to 112 on MIX (a make-up); DIRT through alt_curve (0..10 gentle, then where it was
+ * heard: it did nothing up to ~50)
  * PING  which filters a hit strikes: ALL, CYCL (one after the other), RAND (one at random), 1..4 (that one)
  * SWEP  the filters start above the note and fall to it at the hit (up to 4 octaves): zaps, kicks, lasers
  * The track's SHP moves MATR, FLT moves the tunings (+-2 octaves), as on every engine: the ADSR on top.
@@ -25,6 +29,7 @@
  * table, four divisions). */
 
 #include "eng_dvm.h"
+#include "eng_curve.h"
 
 #define RESO_NF 4
 #define RESO_POLY 2
@@ -103,7 +108,7 @@ static void reso_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     uint32_t inc[RESO_NF], k, einc, on = 0;
     if (!S)
         return;
-    dirt = p[P_E3];
+    dirt = alt_curve(p[P_E3]);
     outm = p[P_E4] % RESO_NOUT;
     /* RES: k = 2 (a knock) .. 0.006 (a long ring) */
     kq = (int32_t)(((int64_t)(127 - p[P_E2]) * (127 - p[P_E2]) << 25) / (127 * 127)) + 100000;
@@ -117,7 +122,7 @@ static void reso_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     seg = sp >> 8 > 2 ? 2 : sp >> 8;
     frac = sp - seg * 256;
     /* DCAY: the exciter's fall (its time constant, 0.2 .. 80 ms in samples) */
-    rate = 10 + p[P_E5] * p[P_E5] * 3500 / 16129;
+    rate = (int32_t)((10u * reso_exp2(p[P_E5] * 34611 / 127)) >> 16);   /* 10 .. 3500 samples, 8.45 octaves even */
     mrate = dvm_make((uint32_t)rate, 32u);       /* (v0.75: env < 2^17, rate <= 3510: the division as a multiply) */
     for (k = 0; k < RESO_NF; k++) {
         int32_t o = 2 * 4096 + RESO_SET[seg][k] + (RESO_SET[seg + 1][k] - RESO_SET[seg][k]) * frac / 256 + S->sw +
@@ -138,15 +143,18 @@ static void reso_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         }
         on |= 1u << k;
     }
-    S->sw -= S->sw / (5 + p[P_E5] * p[P_E5] * 115 / 16129) + 1;   /* the sweep falls over ~4 .. 90 ms (DCAY) */
+    S->sw -= S->sw / (5 + (rate - 10) * 115 / 3500) + 1;   /* the sweep falls over ~4 .. 90 ms (DCAY; v1.08: from
+                                                  * the exciter's length, as before its curve changed) */
     if (S->sw < 0)
         S->sw = 0;
     einc = m->inc * 3u;
     /* the rubbing (MATR past 84): crackle -> full noise, while the note is held */
     rub = mt > 84 ? (v->gate ? 1 : 0) : 0;
-    dens = mt > 84 ? (mt - 84) * 1500 : 0;      /* (of 65536: a crackle's chance a sample) */
+    dens = mt > 84 ? (mt - 84) * (mt - 84) * 35 : 0;   /* (of 65536: a crackle's chance a sample; quadratic, v1.08) */
     /* the level: louder as the rings get thin (high Q) */
-    gain = outm == RESO_LOW ? 6 : 12;
+    gain = (outm == RESO_LOW ? 6 : 12) << 12;     /* (Q12) */
+    if (outm == RESO_MIX && p[P_E2] > 84)        /* (v1.08: RES 88..112 climbed ~11 dB on MIX: taken back) */
+        gain = (int32_t)(((uint64_t)(uint32_t)gain * reso_exp2(-(clamp(p[P_E2], 84, 112) - 84) * 267)) >> 16);
     rng = S->rng;
     env = S->env;
     for (i = 0; i < (int32_t)n; i++) {
@@ -170,9 +178,9 @@ static void reso_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         if (rub) {                               /* the rubbing: crackle, then noise */
             int32_t r = (int32_t)(noise32(&rng) >> 16);
             if (dens >= 60000)
-                x += (r - 32768) >> 2;
+                x += (r - 32768) >> 3;
             else if (r < dens)
-                x += ((int32_t)(noise32(&rng) >> 17) - 16384);
+                x += ((int32_t)(noise32(&rng) >> 18) - 8192);   /* (v1.08: -6 dB, it was too much) */
         }
         if (fb && env <= 16 && !rub)
             x += (int32_t)(noise32(&rng) >> 28) - 8;   /* (a breath: a singing ring starts on its own) */
@@ -206,7 +214,7 @@ static void reso_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
             y = xs;
         else if (outm == RESO_MIX)
             y += x >> 3;                         /* (the impact itself: the hit) */
-        y = soft_knee(clamp(y, -(1 << 20), 1 << 20) * gain / 4, 22000);
+        y = soft_knee((int32_t)(((int64_t)clamp(y, -(1 << 20), 1 << 20) * gain) >> 14), 22000);
         out[i] += voice_amp(y, m, (uint32_t)i);
     }
     S->env = env;
@@ -215,9 +223,9 @@ static void reso_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
 
 /* {MATR SPRD RES DIRT OUT DCAY PING SWEP} */
 static const preset_t RESO_PRESETS[] = {
-    {"ZAP", {10, 50, 90, 30, RESO_MIX, 10, RP_ALL, 90}, {0, 80, 0, 60}, 0, 0, FX(10, 0, 10, 20)},
-    {"HOLLOW", {70, 60, 95, 30, RESO_NOTCH, 35, RP_ALL, 0}, {0, 80, 127, 60}, 0, 0, FX(10, 0, 20, 30)},
-    {"LARSEN", {20, 10, 110, 115, RESO_MIX, 8, RP_ALL, 0}, {10, 90, 110, 60}, 0, 0, FX(10, 0, 10, 20)},
+    {"ZAP", {10, 50, 90, 8, RESO_MIX, 25, RP_ALL, 90}, {0, 80, 0, 60}, 0, 0, FX(10, 0, 10, 20)},
+    {"HOLLOW", {70, 60, 95, 8, RESO_NOTCH, 72, RP_ALL, 0}, {0, 80, 127, 60}, 0, 0, FX(10, 0, 20, 30)},
+    {"LARSEN", {20, 10, 110, 111, RESO_MIX, 19, RP_ALL, 0}, {10, 90, 110, 60}, 0, 0, FX(10, 0, 10, 20)},
 };
 
 static const engine_t ENG_RESO = {

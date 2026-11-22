@@ -55,7 +55,7 @@ async function version() {
       fileVer = /^v\d/.test(t) ? t.split(/\s+/)[0] : "?";
     } catch { fileVer = "?"; }
   }
-  return fileVer + " (page)";
+  return fileVer;                                     // (the site's version: no FM-1 answered yet)
 }
 function engines() {
   const e = [...document.querySelectorAll("[data-eng]")].map((x) => x.textContent.trim()).filter(Boolean);

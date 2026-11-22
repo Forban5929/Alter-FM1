@@ -21,7 +21,7 @@ static uint8_t eng_mem_owner[NPART];       /* engine index + 1 whose state is in
 #define ENG_MEM(p) ((void *)eng_mem[p].b)  /* part p's region (p < NPART) */
 #define ENG_MEM_FITS(name, size) _Static_assert((size) <= ENG_MEM_PART, name " state over ENG_MEM_PART")
 
-#include "../engines/src/eng_noise.c"   /* Felucca-Engines (MIT): NOISE */
+#include "eng_noise.c"                 /* NOISE: ALTER's copy of Felucca-Engines' (MIT), v1.08: DENS, DRFT curves */
 #include "eng_phys.c"           /* PHYS: DaisySP physical models (phys_dsp.c, MIT) */
 #include "eng_alter.c"          /* ALTER: six struck oscillators (after the Basimilus Iteritas Alter) */
 #include "eng_reso.c"           /* RESO: four struck resonant filters (after a QMMF) */

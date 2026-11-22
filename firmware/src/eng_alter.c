@@ -12,11 +12,16 @@
  * TILT  centre: all six follow the ADSR; left: the upper ones die first (bright -> dark); right: the lower
  *       ones die first (thin, ringing)
  * DRFT  a slow random wander of each oscillator's pitch, up to about a semitone
+ * v1.08 (Romain 22/11, the knob audit): NOIS and DRFT through alt_curve (eng_curve.h: gentle 0..10, then heard from
+ * there; they did little below ~50); TILT closer to linear (its centre did nearly nothing) and the lowest
+ * oscillator takes a small share of a strong left TILT (a single-oscillator sound such as THUD did not move)
  * The track's SHP moves MRPH, FLT moves HARM. Amplitude: the track's ADSR, as every engine.
  *
  * Polyphony 3 per part (engine_t.poly): a hit rings on under the next, a chord sounds whole. Each voice 0..2 has a
  * state slot in the part's engine memory (engines.c eng_mem): the six phases, decays and drifts.
  * Fixed point only: phases are 32-bit turns, levels Q15, decays Q16; ratios and coefficients once a block. */
+
+#include "eng_curve.h"
 
 #define ALT_NOSC 6
 #define ALT_POLY 3
@@ -91,7 +96,7 @@ static void alt_note_on(track_t *t, voice_t *v)
 {
     alt_slot_t *S = alt_slot_of(t, v);
     uint32_t k, seed = (v->note + 1u) * 0x9E3779B9u ^ v->age * 0x85EBCA6Bu;
-    int32_t a = t->p[P_E4], nz = t->p[P_E5];
+    int32_t a = t->p[P_E4], nz = alt_curve(t->p[P_E5]);
     if (!S)
         return;
     if (v->env_out > 512) {                             /* a voice still sounding taken again (a DRONE's layers): */
@@ -146,11 +151,12 @@ static void alt_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const v
     /* TILT: each oscillator's decay a block, Q16; HARM slows the upper ones' (up to half) */
     tilt = p[P_E6];
     for (k = 0; k < ALT_NOSC; k++) {
-        int32_t r = 0;
+        int32_t r = 0, at = tilt < 0 ? -tilt : tilt, bt = at * 1600 * (at + 64) / (128 * 64);   /* (v1.08: half linear;
+                                                  * the same 1600 at the end) */
         if (tilt < 0)
-            r = ((int32_t)k * tilt * tilt * 1600) / (5 * 64 * 64);
+            r = k ? bt * (int32_t)(4u * k) / 21 : bt * at / (84 * 127);   /* (the lowest: a small share, only far left) */
         else if (tilt > 0)
-            r = ((int32_t)(5u - k) * tilt * tilt * 1600) / (5 * 63 * 63);
+            r = bt * (int32_t)(4u * (5u - k) + 1u) / 21;
         if (k)
             r = (r * (256 - (hh >> 8))) >> 8;
         S->env[k] -= (S->env[k] * r) >> 16;
@@ -158,7 +164,7 @@ static void alt_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const v
     /* DRFT: a new random target for each oscillator every 0.2 .. 1 s, followed with a lag */
     rng = S->rng;
     if (p[P_E7]) {
-        int32_t range = p[P_E7] * p[P_E7] * 245 / (127 * 127);   /* up to ~6 % (a semitone) */
+        int32_t dr = alt_curve(p[P_E7]), range = dr * dr * 245 / (127 * 127);   /* up to ~6 % (a semitone) */
         if (--S->dcnt <= 0) {
             for (k = 0; k < ALT_NOSC; k++)
                 S->dtgt[k] = (int32_t)(noise32(&rng) % (uint32_t)(2 * range + 1)) - range;
@@ -202,7 +208,7 @@ static void alt_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const v
         fmd = amt * amt * 8;                            /* the phase offset per unit of the one above: up to ~2 turns */
     /* the noise burst: longer as NOIS rises (tau ~23 .. 40 ms) */
     nlvl = S->nenv;
-    nrate = 2600 - p[P_E5] * 10;
+    nrate = 2600 - alt_curve(p[P_E5]) * 10;
     /* (v0.58, measured on the FM-1: one ALTER circle took up to half a block) only the oscillators heard: one at level 0
      * adds nothing, and outside METAL nothing reads it (its phase is moved on after the block); and at a crossfade's
      * start (frac 0) only its first wave. The same samples, bit for bit */
@@ -273,12 +279,12 @@ static void alt_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const v
 
 /* {MRPH, SPRD, HARM, MODE, AMNT, NOIS, TILT, DRFT} */
 static const preset_t ALTER_PRESETS[] = {
-    {"THUD", {0, 0, 8, ALT_LIQUID, 90, 15, -40, 0}, {0, 60, 0, 45}, 0, 0, FX(10, 0, 0, 10)},
-    {"BELL", {8, 70, 90, ALT_SKIN, 15, 0, 30, 4}, {0, 95, 0, 90}, 0, 0, FX(0, 0, 25, 50)},
-    {"CLANG", {30, 100, 75, ALT_METAL, 60, 25, 0, 0}, {0, 72, 0, 60}, 0, 0, FX(15, 0, 20, 35)},
-    {"SNAP", {20, 40, 50, ALT_LIQUID, 40, 110, -30, 0}, {0, 45, 0, 35}, 0, 0, FX(20, 0, 0, 25)},
-    {"STAB", {110, 15, 80, ALT_SKIN, 40, 10, -45, 0}, {0, 55, 0, 40}, 0, 0, FX(25, 0, 30, 20)},
-    {"RUST", {70, 120, 110, ALT_METAL, 100, 0, 10, 60}, {30, 127, 127, 85}, 0, 0, FX(30, 0, 30, 60)},
+    {"THUD", {0, 0, 8, ALT_LIQUID, 90, 4, -40, 0}, {0, 60, 0, 45}, 0, 0, FX(10, 0, 0, 10)},
+    {"BELL", {8, 70, 90, ALT_SKIN, 15, 0, 30, 1}, {0, 95, 0, 90}, 0, 0, FX(0, 0, 25, 50)},
+    {"CLANG", {30, 100, 75, ALT_METAL, 60, 6, 0, 0}, {0, 72, 0, 60}, 0, 0, FX(15, 0, 20, 35)},
+    {"SNAP", {20, 40, 50, ALT_LIQUID, 40, 104, -30, 0}, {0, 45, 0, 35}, 0, 0, FX(20, 0, 0, 25)},
+    {"STAB", {110, 15, 80, ALT_SKIN, 40, 2, -45, 0}, {0, 55, 0, 40}, 0, 0, FX(25, 0, 30, 20)},
+    {"RUST", {70, 120, 110, ALT_METAL, 100, 0, 10, 37}, {30, 127, 127, 85}, 0, 0, FX(30, 0, 30, 60)},
 };
 
 static const engine_t ENG_ALTER = {

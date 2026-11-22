@@ -97,7 +97,7 @@ Each circle has its own sound: an **engine** plus its settings, an envelope, eff
 | RESO | four resonant filters in a feedback ring: they growl, beat, scream (played by hand: the dice leave it out) |
 | PLATE | a struck metal sheet: plate, cymbal, gong, cracked bell |
 | CORDE | a mistreated metal string: it clangs, screams, buzzes |
-| RING | a ring modulator through a resonant filter and a valve drive, with radio troubles: bells, sirens, robots |
+| RING | a ring modulator through a resonant filter and a valve drive, with an AM radio (RDIO: a band-limited, crackling radio with a whistle near the top): bells, sirens, robots |
 
 On PLATE, CORDE and RING, KNOB 1-4 are MATR (material), SPRD (spread), RES (ring time: the same length at every pitch) and
 DIRT. **PRESETS** steps through the sounds of every engine; **EDIT** tapped gives the engine's four other settings; **EDIT held**
@@ -144,7 +144,7 @@ REVERB; all on by default). CHAOS switches every effect off (DIST, INSERT, the s
   (−64..+63; the recipe's name then reads with a *). The MACRO moves the settings from where they are and gives them back
   at 0; a setting you turn by hand meanwhile keeps its new place. Kept with the scene (USER slots, patch files); CHAOS,
   CHAOS TOTAL, NEW and the factory scenes start it at 0. Also in MIDI LEARN (GLOBAL › MACRO).
-- **TRIGGER**: a hit of the chosen circle at once. **REC held + TRIGGER**: the hit is added to its pattern.
+- **TRIGGER**: a hit of the chosen circle at once, played like its next step (same velocity). **REC held + TRIGGER**: the hit is added to its pattern.
 - **Fills** (upper keys, held): DUB DELAY, DUB REVERB, DESTROY, ROLL 1/16, ROLL 1/8 on the chosen circle as long as you
   hold them. With REC on, they are written.
 - **REC** (overdub): the knobs you turn are written on the steps and play back in a loop. REC held 1 s clears the chosen

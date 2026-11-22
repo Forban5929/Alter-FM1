@@ -6,15 +6,17 @@
  *   exciter -> line (one period) -> allpasses (SPRD) -> low-pass (TONE) -> BUZZ -> DIRT -> x RES -> back ; out: the line
  *
  * The four main knobs follow the new engines' grammar (MATTER, SPREAD, RESONANCE, DIRT):
- * MATR  what sets it going (the knob scaled to 0..90, 05/11): 0..42 a soft pluck (a dark burst), 43..84 a hard pick
- *       (bright, a click), 85..90 a bow or a scrape that lasts while the note is held (friction: a crackle)
+ * MATR  what sets it going (the knob scaled to 0..90, 05/11): 0..42 a soft pluck (a dark burst), then brighter with a
+ *       growing click up to a hard pick at 84 (v1.08, Romain 22/11: 43..84 was one fixed pick, nothing moved), 85..90
+ *       a bow or a scrape that lasts while the note is held (friction: a crackle)
  * SPRD  the stiffness: 0 a plain string (in tune, harmonic) .. a piano wire .. a cable, a spring (inharmonic, clanging)
  * RES   how long it rings: a muted thud (0.1 s) -> a wire that sustains (15 s), the same at every pitch
  * DIRT  a drive in the loop: 0 clean; up the middle it thickens and distorts; past ~90 a fold too: it screams,
  *       feeds back, comes apart
  * TONE  the loop's low-pass: dull (nylon, rust) .. bright (steel)
  * DCAY  the exciter's length (0.2 .. 80 ms)
- * BUZZ  the bridge: 0 none .. a sitar's jawari .. a rattle (one side of the wave clipped, in the loop)
+ * BUZZ  the bridge: 0 none .. a sitar's jawari .. a rattle (one side of the wave clipped, in the loop); v1.08: its
+ *       ceiling falls exponentially (it was too high: the string hardly reached it), gentle up to 10
  * BEND  the pitch falls after the hit (a slack string struck hard): 0 none .. an octave
  * The track's SHP moves MATR, FLT moves TONE; the ADSR on top (a long SUS keeps it ringing).
  *
@@ -105,8 +107,10 @@ static void corde_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
     rate = 10 + p[P_E5] * p[P_E5] * 3500 / 16129;   /* DCAY (at least half a period: the burst fills the string) */
     if (rate < (int32_t)(len16 >> 17))
         rate = (int32_t)(len16 >> 17);
-    buzz = p[P_E6] ? 30000 - p[P_E6] * 200 : 0;  /* BUZZ: the ceiling one side of the wave hits (Q15) */
-    xa = mt < 43 ? 1500 + mt * 300 : 32767;       /* the pluck dark; the pick bright */
+    buzz = !p[P_E6] ? 0 : p[P_E6] <= 10 ? 30000 - p[P_E6] * 1000   /* BUZZ: the ceiling one side of the wave hits (Q15) */
+           : (int32_t)((20000u * reso_exp2(-(p[P_E6] - 10) * 22528 / 117)) >> 16);   /* (20000 .. ~440, 5.5 oct.) */
+    xa = mt <= 42 ? 1500 + mt * 300 : mt <= 84 ? 14100 + (mt - 42) * 444 : 32767;   /* the pluck dark; brighter to the
+                                                  * pick (v1.08: continuous, was a jump at 43) */
     xg = 64 + 16384 / (rate + 16) + (32767 - xa) / 90;   /* (the exciter's gain, Q6: short and dark strikes louder) */
     mdrv = dvm_make((uint32_t)drv, 42u);         /* (|z << 12| < 2^27, drv < 2^14) */
     mrate = dvm_make((uint32_t)rate, 32u);       /* (env < 2^17, rate < 2^13: the half period's at most 1020) */
@@ -119,7 +123,7 @@ static void corde_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
             int32_t nz = (int32_t)(noise32(&rng) >> 16) - 32768;
             x = (int32_t)(((int64_t)nz * (env >> 1)) >> 15);
             if (mt >= 43 && mt <= 84 && env > 60000)
-                x += 12000;                       /* (the pick's click) */
+                x += (mt - 42) * 12000 / 42;      /* (the pick's click, growing to 84) */
             env -= dvm_div(env, mrate, 32u) + 1;
         }
         if (mt > 84 && v->gate) {                 /* the bow, the scrape: friction while held */
@@ -148,7 +152,7 @@ static void corde_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
         S->lp += (int32_t)(((int64_t)(a1 - S->lp) * tone) >> 15);   /* the damping */
         z = (int32_t)(((int64_t)S->lp * g) >> 15);
         if (buzz && z > buzz)                     /* BUZZ: the bridge, one side */
-            z = buzz + ((z - buzz) >> 3);
+            z = buzz + ((z - buzz) >> 4);
         if (dirt) {                               /* DIRT: a tanh (the small-signal gain kept), then a fold */
             z = (int32_t)(((int64_t)z * drv) >> 12);
             z = softclip(clamp(z, -65535, 65535));
@@ -178,7 +182,7 @@ static void corde_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
 
 /* {MATR SPRD RES DIRT TONE DCAY BUZZ BEND} (ALTER's sounds: alter_sounds.c ALT_PRE) */
 static const preset_t CORDE_PRESETS[] = {
-    {"WIRE", {85, 40, 110, 20, 90, 10, 0, 0}, {0, 100, 127, 80}, 0, 0, FX(0, 0, 10, 20)},
+    {"WIRE", {118, 40, 110, 20, 90, 10, 0, 0}, {0, 100, 127, 80}, 0, 0, FX(0, 0, 10, 20)},   /* (v1.08: 118 = the pick) */
 };
 
 static const engine_t ENG_CORDE = {

@@ -28,7 +28,14 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    `alter_knob_report.mjs a.json b.json` ; résultat = onglet **« Audit knobs »** du Sheet (31 lignes, colonne « À corriger ? »
    remplie par Romain) → corriger ce qu'il marque Oui. Mesure = volume/brillance/longueur (pas la hauteur ni la stéréo).
    Pires : RING MATR (trou −15 dB vers 72-80), PHYS BOW (−20 dB dès 0→16), PHYS BRIT/DAMP, PLATE MATR/TONE, NOISE DENS.
-   Petit reste page : feedback.js envoie « v1.07 (page) » → étiquette « v-v1.07page » (à nettoyer au prochain envoi). balance des niveaux des sons d'usine, moteurs plus différents
+   **v1.08 (corrections de l'audit, choix de Romain)** : `eng_curve.h` `alt_curve` (0..10 doux = 4x, puis 40..127) sur
+   ALTER NOIS/DRFT, NOISE DENS/DRFT (`eng_noise.c` = notre copie MIT), RESO DIRT ; PHYS EXC = alt_curve³ (×62 max) ;
+   PHYS BOW : la frappe/pincée reste sous l'archet (phys_dsp.c), plus de chute ; BRIT/DAMP bas : +6/+12 dB de compensation ;
+   PLATE MATR 0..84 seulement + SCRAPE refait, TONE/HIT ; CORDE MATR/BUZZ ; RESO DCAY/RES (niveau) ; ALTER TILT plus linéaire
+   (le plus grave ne meurt qu'avec TILT fort à gauche : sinon LENGTH ne prolonge plus, test emu) ; RING : trou MATR comblé,
+   **RDIO = radio AM** (bande étroite + sifflement en haut) ; TRIGGER = vélocité du prochain pas. Presets convertis
+   (alter_sounds.c). Reste mesuré : RING SIREN 0..52 faible, NOISE DENS sur sons DENS 0, TILT gauche sur THUD léger (1 osc).
+   **Rien écouté à l'oreille** : WAV / FM-1 par Romain. balance des niveaux des sons d'usine, moteurs plus différents
    (écoutes WAV d'abord), **RUMBLE à refaire** (2-3 variantes WAV à écouter). 4. Vu ailleurs (Felucca 1.0, fm1-dock,
    ChoralRoot) : backup complet depuis la page, mise à jour qui garde scènes/réglages, MIDI Bluetooth.
 
@@ -60,7 +67,7 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.07 » (22/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.08 » (22/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. **Deux sites (v1.02, 22/11)** : pousser sur `etape-3d` → pages.yml construit (tools/alter/site_build.sh, 2 fois) :
    **racine = dernière Release** (tag vX.YY le plus haut ; ce que voient les gens) et **/beta/ = etape-3d** (bandeau rouge
