@@ -352,7 +352,7 @@ int main(void)
             worst = n > worst ? n : worst;
         }
         printf("  ratchet at DOSE 127 in 2000 draws: %u with one (%u x3), at most %u per circle\n", with, x3, worst);
-        check("die: no ratchet any more (v1.10, Romain: RATCH taken out)", with == 0u && x3 == 0u && worst == 0u);
+        check("die: no ratchet any more (v1.11, Romain: RATCH taken out)", with == 0u && x3 == 0u && worst == 0u);
     }
     {
         as_seq_t w;

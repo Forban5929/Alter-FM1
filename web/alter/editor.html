@@ -718,7 +718,7 @@ function drawControls(c) {
         row.className = "p enum";
         row.innerHTML = `<label for="${uid}">${d.label}</label><select id="${uid}"></select>`;
         const s = row.querySelector("select");
-        d.names.forEach((nm, i) => {                 // (v1.10: SOFT HARD FUZZ left the INSERT: hidden, an old scene's still shown)
+        d.names.forEach((nm, i) => {                 // (v1.11: SOFT HARD FUZZ left the INSERT: hidden, an old scene's still shown)
           const op = new Option(nm, d.min + i);
           if (d.label === "INSRT" && /^(SOFT|HARD|FUZZ)$/.test(nm)) op.hidden = true;
           s.append(op);
@@ -1091,7 +1091,7 @@ const PLACE = {
 };   // (the CONSOLE: the MIXER tab, 10/11, mixerBuild)
 const LANE_LIM = [[1, 127], [0, 127], [0, 127], [0, 127], [-7, 7], [0, 3]];   // (alter_ui.c alt_lane_lim)
 const LANE_SHORT = ["VELO", "CHNC", "DLY", "REV", "PITCH", "RATCH"];
-const LANE_ORD = [0, 4, 1, 2, 3];                   // (v1.10: RATCH gone, PITCH second; the lanes keep their numbers)
+const LANE_ORD = [0, 4, 1, 2, 3];                   // (v1.11: RATCH gone, PITCH second; the lanes keep their numbers)
 const NOTE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 let v2 = null, currentTab = "sons";
 const vctl = [[], [], [], []];                      // the controls of circle 0..2's settings, [3] the shared ones

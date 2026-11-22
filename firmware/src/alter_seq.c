@@ -267,7 +267,7 @@ static void as_draw_w(as_seq_t *q, uint32_t i, uint32_t w)
             for (k = 0; k < AS_MAXLEN; k++)
                 if (as_coin(s, d * 2))
                     c->flam[k] = 1;
-            /* (v1.10, Romain 22/11: no more ratchet drawn: RATCH taken out) */
+            /* (v1.11, Romain 22/11: no more ratchet drawn: RATCH taken out) */
         }
     }
     hits = as_bits(c->pat & (c->cfg.len >= 32u ? 0xFFFFFFFFu : (1u << c->cfg.len) - 1u));
@@ -663,7 +663,7 @@ static void as_step(as_seq_t *q, as_event_t ev[AS_NCIRC])
             e->gate = 1;
             e->dly = (uint8_t)as_rng(q, c, 2u, l, c->sdly[l]);
             e->rev = (uint8_t)as_rng(q, c, 3u, l, c->srev[l]);
-            e->rat = 0;                          /* (v1.10: RATCH taken out, its lane and the die's no longer played) */
+            e->rat = 0;                          /* (v1.11: RATCH taken out, its lane and the die's no longer played) */
             if (c->cfg.type == AS_T_TURING)
                 deg += as_tpitch(c, k);
             if (c->die) {

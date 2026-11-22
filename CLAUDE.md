@@ -39,7 +39,7 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    **v1.09 (Romain : « DIRT ne marche que sur RING BELL », choix « les deux »)** : `eng_dirt.h` = étage DIRT de sortie commun
    RING/PLATE/CORDE (tanh ×1..×26 via alt_curve, make-up 1/(1+(G−1)/14) ; > 90 : grain = bits en moins, échantillons tenus,
    craquements ≤ 4 %) ; le DIRT dans la boucle reste. Mesuré : ±3 dB de 0 à 96, −5..−9 dB à 127 (les queues partent).
-   **v1.10 (Romain 22/11 : « trop de doublons dirt/saturation/dst/ins »)** : **RATCH retiré** (lane gardée dans les scènes, à 0 ;
+   **v1.11 (Romain 22/11 : « trop de doublons dirt/saturation/dst/ins »)** : **RATCH retiré** (lane gardée dans les scènes, à 0 ;
    `alt_rat_draw` vide, dé sans ratchet, lecture `rep` = fills seulement) ; SEQ = **VELO PITCH CHNC DLY REV** (`ALT_LANE_ORD`,
    touches noires 1 3 5 8 10 ; ⚠ `ALT_NTAB` existe déjà = onglets SAVE : nom pris `ALT_NLTAB`) ; **INSERT sans SOFT/HARD/FUZZ**
    (alt_take les saute, une vieille scène garde le sien ; presets WARM/CRUNCH = DIST seul, FUZZ/SCREAM = DIST + FOLD ; page :
@@ -84,7 +84,7 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.10 » (22/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.11 » (22/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. **Deux sites (v1.02, 22/11)** : pousser sur `etape-3d` → pages.yml construit (tools/alter/site_build.sh, 2 fois) :
    **racine = dernière Release** (tag vX.YY le plus haut ; ce que voient les gens) et **/beta/ = etape-3d** (bandeau rouge

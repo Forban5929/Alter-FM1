@@ -786,7 +786,7 @@ static void alt_mtx_turn(uint32_t i, int32_t s)
 enum { LN_VELO, LN_CHANCE, LN_DLY, LN_REV, LN_PITCH, LN_RATCH, LN_N };
 static const char *const ALT_LANE_NAME[LN_N] = {"VELO", "CHANCE", "DELAY", "REVERB", "PITCH", "RATCH"};
 static const char *const ALT_LANE_TAB[LN_N] = {"VELO", "CHNC", "DLY", "REV", "PITCH", "RATCH"};
-/* v1.10 (Romain 22/11): RATCH gone, PITCH second; the lanes keep their numbers (the RANGE masks are by lane) and the
+/* v1.11 (Romain 22/11): RATCH gone, PITCH second; the lanes keep their numbers (the RANGE masks are by lane) and the
  * tabs are shown in this order */
 #define ALT_NLTAB 5
 static const uint8_t ALT_LANE_ORD[ALT_NLTAB] = {LN_VELO, LN_PITCH, LN_CHANCE, LN_DLY, LN_REV};
@@ -893,7 +893,7 @@ static void alt_lane_flat(uint32_t ln)
 /* two steps held + KNOB 2: the lane shown drawn anew on its 16 steps, hits or not, single values (no RANGE), over its
  * whole height but VELO and CHANCE kept audible (30 % and up) */
 static uint32_t alt_cr(uint32_t n);              /* (below: CHAOS's draws) */
-/* circle c's RATCH lane emptied (v1.10, Romain 22/11: RATCH taken out of ALTER; the lane stays in the scenes' layout,
+/* circle c's RATCH lane emptied (v1.11, Romain 22/11: RATCH taken out of ALTER; the lane stays in the scenes' layout,
  * always 0, and nothing plays it) */
 static void alt_rat_draw(as_circ_t *sc, uint32_t pct)
 {
@@ -981,7 +981,7 @@ static void alt_seq_type(int32_t s)
 enum { ASK_LANE = 0, ASK_TYPE = 100, ASK_PREV, ASK_NEXT, ASK_NONE = 255 };
 static const uint8_t ALT_SEQ_BK[27] = {
     [0 ... 26] = ASK_NONE,
-    [1] = LN_VELO, [3] = LN_PITCH, [5] = LN_CHANCE, [8] = LN_DLY, [10] = LN_REV,   /* (v1.10: the tabs' order, no RATCH) */
+    [1] = LN_VELO, [3] = LN_PITCH, [5] = LN_CHANCE, [8] = LN_DLY, [10] = LN_REV,   /* (v1.11: the tabs' order, no RATCH) */
     [15] = ASK_TYPE, [20] = ASK_PREV, [22] = ASK_NEXT,
 };
 /* the SEQ menu has this frame: the step keys, the lanes, the knobs (no fills here) */
@@ -1643,7 +1643,7 @@ static void alt_total_chaos(void)
         for (k = 0; k < 4u; k++)                 /* ATK DEC SUS REL */
             t->p[P_ATK + k] = (int16_t)alt_cr(128u);
         t->p[P_DIST] = (int16_t)alt_cr(128u);
-        {                                        /* (v1.10: no SOFT HARD FUZZ: OFF FOLD CRUSH and the swept ones) */
+        {                                        /* (v1.11: no SOFT HARD FUZZ: OFF FOLD CRUSH and the swept ones) */
             static const uint8_t IT_OK[6] = {IT_OFF, IT_FOLD, IT_CRUSH, IT_PHASER, IT_FLANGER, IT_CHORUS};
             t->p[P_ITYPE] = (int16_t)IT_OK[alt_cr(6u)];
         }
@@ -2929,7 +2929,7 @@ static void alt_seq_scene(void)
                                                   * ALGORITHM) at the right */
     alt_chip();                                  /* (the sound at the right, the engine of the rhythm at the left) */
     alt_eng_tag("X", AS_TYPE_NAME[cf->type % AS_NTYPE], col);
-    alt_tabs(23, ALT_TAB_ORD, ALT_NLTAB, alt_lane_pos(ln), col);   /* the lanes (ALGORITHM; v1.10: VELO PITCH CHNC DLY REV) */
+    alt_tabs(23, ALT_TAB_ORD, ALT_NLTAB, alt_lane_pos(ln), col);   /* the lanes (ALGORITHM; v1.11: VELO PITCH CHNC DLY REV) */
     if (ln == LN_PITCH)
         cv_rect(x, mid, 224, 1, ALT_DARK);
     for (k = 0; k < 16u; k++) {                  /* the steps: a bar each, their lane's value */

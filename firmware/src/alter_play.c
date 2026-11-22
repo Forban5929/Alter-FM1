@@ -392,7 +392,7 @@ static void alt_take(void)
                                                   * blend 0..INS_XF (fx.c track_insert) brings it in */
         }
         alt_move(q.c % AS_NCIRC, q.p, q.d);
-        if (q.p == P_ITYPE) {                    /* v1.10 (Romain 22/11): SOFT HARD FUZZ left the INSERT (DIST does
+        if (q.p == P_ITYPE) {                    /* v1.11 (Romain 22/11): SOFT HARD FUZZ left the INSERT (DIST does
                                                   * them): a turn passes over them; a scene stored with one keeps it
                                                   * until TYPE is turned (fx.c IT_*) */
             int32_t v = t->p[P_ITYPE];
@@ -711,7 +711,7 @@ static void alter_step(void)
                 alt_on(c, v->note, v->vel, v->glide, v->chord);
             alt_gate_left[c] = (uint8_t)(gate > 1u ? gate - 1u : 0u);
         }
-        rep = 0u;                                /* repeats: only the fills now (v1.10: RATCH taken out; an old SONG's
+        rep = 0u;                                /* repeats: only the fills now (v1.11: RATCH taken out; an old SONG's
                                                   * ratchets are not played) */
         if (fill) {
             uint32_t f = (h >> AF_RAT3) & 1u ? 2u : (h >> AF_RAT2) & 1u ? 1u : 0u;

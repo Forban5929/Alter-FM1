@@ -171,7 +171,7 @@ check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().
   const h16 = notes(20), h8 = notes(22);
   check(`ROLL 1/16 ~ 16 attacks; ROLL 1/8 half as many notes as 1/16 (${n["ROLL 1/16"]}; ${h16} -> ${h8})`,
         n["ROLL 1/16"] >= 14 && h16 > 0 && Math.abs(2 * h8 - h16) <= 2);
-  // v1.10: RATCH taken out: black key 13 no longer opens a lane; step 1 held + KNOB 1 up (VELO) adds no attack
+  // v1.11: RATCH taken out: black key 13 no longer opens a lane; step 1 held + KNOB 1 up (VELO) adds no attack
   {
     const seqTap = (hold) => { ex.web_buttons(1 << SEQB); render(hold); ex.web_buttons(0); render(2000); };
     const a0 = attacks(bar().audio, FS * 0.012).length;

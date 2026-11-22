@@ -34,7 +34,7 @@ typedef struct { const char *name; uint8_t v[AMX_N]; } afx_mst_t;
  * LPF) and MIX. Row 0: the sound's own (its DIST, no insert) */
 static const afx_dist_t AFX_DIST[] = {
     {"SOUND", 0, 0, 0, 0, 0, 0},
-    {"WARM", 30, 0, 0, 0, 0, 0},                     /* (v1.10: SOFT HARD FUZZ left the INSERT: DIST alone, or + FOLD) */
+    {"WARM", 30, 0, 0, 0, 0, 0},                     /* (v1.11: SOFT HARD FUZZ left the INSERT: DIST alone, or + FOLD) */
     {"CRUNCH", 60, 0, 0, 0, 0, 0},
     {"FOLD", 10, IT_FOLD, 70, 100, 98, 100},
     {"FUZZ", 55, IT_FOLD, 40, 70, 100, 100},
