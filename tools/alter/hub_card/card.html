@@ -1,0 +1,54 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+@font-face{font-family:Pagella;src:url(pagella-bold.woff);font-weight:700}
+@font-face{font-family:Inter;src:url(intertight.woff);font-weight:100 900}
+@font-face{font-family:Plex;src:url(plexmono-bold.woff);font-weight:700}
+html,body{margin:0;background:#0e0c10}svg{display:block}
+</style></head><body><svg id="s" width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg"></svg>
+<script>
+const V=new URLSearchParams(location.search).get('v')||'a';
+const BG='#0e0c10',INK='#ebd9a8',GOLD='#c9a24d',RIM='#6f5a30',RIB='#4a1a1f',C=['#c9504a','#4fa88c','#d4ae52'];
+const s=document.getElementById('s');let h='';
+const eu=(k,n,r=0)=>{const o=[];for(let i=0;i<n;i++)o.push(((i*k)%n)<k);return o.map((_,i)=>o[(i+r)%n])};
+const P=(cx,cy,r,i,n)=>{const a=-Math.PI/2+i*2*Math.PI/n;return[cx+r*Math.cos(a),cy+r*Math.sin(a)]};
+function ring(cx,cy,r,k,n,col,rot,w=3,dot=14){
+  h+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${GOLD}" stroke-width="${w}"/>`;
+  h+=`<circle cx="${cx}" cy="${cy}" r="${r-10}" fill="none" stroke="${RIM}" stroke-width="1.5"/>`;
+  for(let i=0;i<n*4;i++){const[a,b]=P(cx,cy,r,i,n*4),[c,d]=P(cx,cy,r-(i%4?8:18),i,n*4);h+=`<line x1="${a}" y1="${b}" x2="${c}" y2="${d}" stroke="${i%4?RIM:GOLD}" stroke-width="${i%4?1.5:3}"/>`;}
+  const e=eu(k,n,rot),pts=[];
+  e.forEach((on,i)=>{const[x,y]=P(cx,cy,r,i,n);if(on)pts.push([x,y]);});
+  h+=`<polygon points="${pts.map(p=>p.join(',')).join(' ')}" fill="${col}" fill-opacity=".10" stroke="${col}" stroke-width="${w+1}" stroke-linejoin="round"/>`;
+  e.forEach((on,i)=>{const[x,y]=P(cx,cy,r,i,n);h+=on?`<circle cx="${x}" cy="${y}" r="${dot}" fill="${BG}" stroke="${col}" stroke-width="${w+2}"/><circle cx="${x}" cy="${y}" r="${dot*.45}" fill="${col}"/>`:`<circle cx="${x}" cy="${y}" r="${dot*.3}" fill="${RIM}"/>`;});
+}
+function frame(){h+=`<rect x="22" y="22" width="980" height="980" fill="none" stroke="${GOLD}" stroke-width="4"/><rect x="36" y="36" width="952" height="952" fill="none" stroke="${RIM}" stroke-width="1.5"/>`;
+ for(const[x,y]of[[22,22],[1002,22],[22,1002],[1002,1002]])h+=`<rect x="${x-9}" y="${y-9}" width="18" height="18" fill="${BG}" stroke="${GOLD}" stroke-width="3" transform="rotate(45 ${x} ${y})"/>`;}
+function ribbon(cx,cy,w,txt,fs){const hh=fs*1.25;
+ h+=`<path d="M${cx-w/2-60},${cy-hh/2+14} L${cx-w/2},${cy-hh/2+14} L${cx-w/2},${cy+hh/2+14} L${cx-w/2-60},${cy+hh/2+14} L${cx-w/2-30},${cy+14} Z" fill="#2e0f12" stroke="${GOLD}" stroke-width="3"/>`;
+ h+=`<path d="M${cx+w/2+60},${cy-hh/2+14} L${cx+w/2},${cy-hh/2+14} L${cx+w/2},${cy+hh/2+14} L${cx+w/2+60},${cy+hh/2+14} L${cx+w/2+30},${cy+14} Z" fill="#2e0f12" stroke="${GOLD}" stroke-width="3"/>`;
+ h+=`<rect x="${cx-w/2}" y="${cy-hh/2}" width="${w}" height="${hh}" fill="${RIB}" stroke="${GOLD}" stroke-width="4"/>`;
+ h+=`<text x="${cx}" y="${cy+fs*.36}" text-anchor="middle" font-family="Pagella" font-weight="700" font-size="${fs}" letter-spacing="${fs*.12}" fill="${INK}">${txt}</text>`;}
+if(V==='a'){ // the seal: the boot animation's three engraved circles
+ frame();
+ ring(512,440,330,5,16,C[0],0,4,18);ring(512,440,232,3,8,C[1],1,4,16);ring(512,440,138,4,7,C[2],0,4,14);
+ h+=`<path d="M512,${440-38} L${512+33},${440+19} L${512-33},${440+19} Z" fill="none" stroke="${GOLD}" stroke-width="4"/><circle cx="512" cy="440" r="5" fill="${GOLD}"/>`;
+ ribbon(512,858,470,'ALTER',104);
+}else if(V==='b'){ // three circles, the companion page's cards
+ frame();
+ h+=`<text x="512" y="200" text-anchor="middle" font-family="Pagella" font-weight="700" font-size="150" letter-spacing="22" fill="${INK}">ALTER</text>`;
+ h+=`<line x1="150" y1="248" x2="874" y2="248" stroke="${GOLD}" stroke-width="3"/><rect x="503" y="239" width="18" height="18" fill="${BG}" stroke="${GOLD}" stroke-width="3" transform="rotate(45 512 248)"/>`;
+ const R=[['I',5,16,0],['II',3,8,1],['III',7,12,0]];
+ R.forEach(([n,k,m,r],i)=>{const cx=188+i*324,cy=560;ring(cx,cy,128,k,m,C[i],r,3,13);
+  h+=`<text x="${cx}" y="${cy+12}" text-anchor="middle" font-family="Pagella" font-weight="700" font-size="40" fill="${GOLD}">${n}</text>`;});
+ h+=`<text x="512" y="842" text-anchor="middle" font-family="Inter" font-weight="600" font-size="46" letter-spacing="9" fill="${INK}">EUCLIDEAN GROOVE</text>`;
+ h+=`<text x="512" y="910" text-anchor="middle" font-family="Plex" font-weight="700" font-size="34" letter-spacing="6" fill="${GOLD}">M-VAVE FM-1 · INDUSTRIAL</text>`;
+}else{ // the wordmark, cut by CHAOS's glitch
+ const cx=512,cy=470;
+ ring(cx,cy,400,7,16,C[0],2,3,15);
+ h+=`<circle cx="${cx}" cy="${cy}" r="300" fill="none" stroke="${RIM}" stroke-width="2" stroke-dasharray="4 14"/>`;
+ h+=`<defs><clipPath id="t1"><rect x="0" y="0" width="1024" height="452"/></clipPath><clipPath id="t2"><rect x="0" y="452" width="1024" height="40"/></clipPath><clipPath id="t3"><rect x="0" y="492" width="1024" height="600"/></clipPath></defs>`;
+ const W=(dx,col,clip)=>`<text clip-path="url(#${clip})" x="${cx+dx}" y="${cy+68}" text-anchor="middle" font-family="Pagella" font-weight="700" font-size="210" letter-spacing="16" fill="${col}">ALTER</text>`;
+ h+=W(0,INK,'t1')+W(-26,C[1],'t2')+W(20,C[0],'t2')+W(-2,INK,'t2')+W(6,INK,'t3');
+ for(const[y,x,w,c]of[[300,180,140,C[1]],[640,650,190,C[0]],[662,250,90,GOLD],[318,720,70,C[0]]])h+=`<rect x="${x}" y="${y}" width="${w}" height="9" fill="${c}"/>`;
+ h+=`<text x="512" y="930" text-anchor="middle" font-family="Plex" font-weight="700" font-size="32" letter-spacing="7" fill="${GOLD}">FM-1 · EUCLIDEAN · INDUSTRIAL</text>`;
+}
+s.innerHTML=h;
+</script></body></html>
