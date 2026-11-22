@@ -4,10 +4,13 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
 
 ## >>> v1.1 (décidé par Romain le 22/11) <<<
 Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand la liste est finie.** Entre deux : BETA seulement.
-1. ~~Site BETA~~ FAIT v1.02. 2. **Bouton Feedback** dans la page compagnon → **relais Vercel → GitHub Issues** (étiquettes
-   `a-trier` + version ; aucun compte pour l'utilisateur ; le token GitHub fine-grained Issues:write est créé PAR ROMAIN et
-   collé dans Vercel, jamais dans la page). En début de session : résumer les Issues `a-trier` à Romain, ajouter au Sheet ce
-   qu'il accepte. 3. **Son** : insert DIST (saut on/off entre 0 et 1, cause pas encore vérifiée), audit de tous les knobs
+**Sheet de la liste : https://claude.ai/artifact/FhZkHbyXGPKKUxAC4wwPVi** (Sheets, nœud `af8de520-948a`, onglet « v1.1 » :
+# Besoin Statut Catégorie Priorité Source « Fait en » Notes ; lire avant de coder, mettre à jour en fin de session).
+1. ~~Site BETA~~ FAIT v1.02. 2. **Bouton Feedback** (v1.02, `web/alter/feedback.js`, BETA seulement jusqu'à la v1.1) →
+   relais Vercel `https://alter-feedback.vercel.app/api/feedback` (`tools/alter/feedback-relay/`, projet alter-feedback,
+   équipe rominou1) → Issue `a-trier` + `feedback` + `cat-…` + `v-…`. **Le relais répond `configured:false` tant que Romain
+   n'a pas mis `GITHUB_TOKEN`** (fine-grained, alter-fm1 seul, Issues R/W) dans Vercel ; puis redéployer. En début de session :
+   `gh api 'repos/Forban5929/alter-fm1/issues?labels=a-trier'`, résumer à Romain, ajouter au Sheet ce qu'il accepte, retirer `a-trier`. 3. **Son** : insert DIST (saut on/off entre 0 et 1, cause pas encore vérifiée), audit de tous les knobs
    (sauts, zones mortes ; montrer la liste avant de corriger), balance des niveaux des sons d'usine, moteurs plus différents
    (écoutes WAV d'abord), **RUMBLE à refaire** (2-3 variantes WAV à écouter). 4. Vu ailleurs (Felucca 1.0, fm1-dock,
    ChoralRoot) : backup complet depuis la page, mise à jour qui garde scènes/réglages, MIDI Bluetooth.
