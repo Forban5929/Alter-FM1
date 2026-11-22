@@ -39,8 +39,8 @@ static const afx_dist_t AFX_DIST[] = {
     {"FOLD", 10, IT_FOLD, 70, 100, 98, 100},
     {"FUZZ", 35, IT_FUZZ, 90, 70, 100, 100},
     {"SCREAM", 90, IT_FUZZ, 127, 60, 94, 100},
-    {"BITS", 0, IT_CRUSH, 40, 70, 95, 100},
-    {"DESTROY", 70, IT_CRUSH, 16, 30, 70, 100},
+    {"BITS", 0, IT_CRUSH, 85, 70, 95, 100},          /* (v1.05: A = CRUSH 0..127, 85 = the old 6 bits) */
+    {"DESTROY", 70, IT_CRUSH, 127, 30, 70, 100},     /* (127 = 2 bits: the old 3 bits and a little more) */
 };
 /* DELAY: TIME (params.c N_DTIME: 0 1/4 1 1/8 2 1/16 10 1/8D; Romain 04/11: only these four), FDBK (0..120),
  * COLOR (dark .. bright), its return level, MODE (fx.c DM_*: ECHO, PING-PONG, GHOST), TAPE (fx.c: saturation).

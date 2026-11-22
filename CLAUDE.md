@@ -13,7 +13,9 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    `gh api 'repos/Forban5929/alter-fm1/issues?labels=a-trier'`, résumer à Romain, ajouter au Sheet ce qu'il accepte, retirer `a-trier`. 3. **Son** : ~~insert DIST~~ **v1.03** (fx.c `track_dist` : DRIVE 1..32 = fondu sec→saturé `DIST_XF`, make-up +2,6 dB à 1 → 0 à 64 ;
    0→1 = 0,1 dB au lieu de −2,5 dB ; **validé par Romain « smooth »**) ; ~~INSERT DRIVE~~ **v1.04** (track_insert : SOFT..FUZZ, A 0..`INS_XF` 32 = fondu,
    A 0 = rien ne tourne ; presets ≥ 40 inchangés ; reste : creux −4 dB vers A 20-32 sur sons brillants avec TONE/LEVEL par défaut 96 ;
-   CRUSH : A = BITS, à l'envers et par marches → à demander). Mesures : `node tools/alter/alter_param_probe.mjs wasm SON "id=v,…" ID v1,v2`
+   ~~CRUSH~~ **v1.05** (Romain : « inverser + lisser ») : A = CRUSH 0 propre → 127 = 2 bits, pas continu `ins_crush_q` (16..8192,
+   exponentiel ; 1/pas calculé 1 fois par bloc), fondu A 0..32 aussi ; presets BITS 85, DESTROY 127 ; scènes USER sauvées avec
+   l'ancien BITS : sens inversé, à refaire à la main). Mesures : `node tools/alter/alter_param_probe.mjs wasm SON "id=v,…" ID v1,v2`
    (P_DIST 33, P_ITYPE 96, P_IA 97, P_IB 98, P_IC 99, P_IMIX 100), audit de tous les knobs
    (sauts, zones mortes ; montrer la liste avant de corriger), balance des niveaux des sons d'usine, moteurs plus différents
    (écoutes WAV d'abord), **RUMBLE à refaire** (2-3 variantes WAV à écouter). 4. Vu ailleurs (Felucca 1.0, fm1-dock,
@@ -47,7 +49,7 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.04 » (22/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.05 » (22/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. **Deux sites (v1.02, 22/11)** : pousser sur `etape-3d` → pages.yml construit (tools/alter/site_build.sh, 2 fois) :
    **racine = dernière Release** (tag vX.YY le plus haut ; ce que voient les gens) et **/beta/ = etape-3d** (bandeau rouge

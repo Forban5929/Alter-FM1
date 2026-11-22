@@ -59,9 +59,8 @@ static const char *const N_SLCR[] = {"OFF", "GATE", "STUT"};             /* SL_O
 static const char *const N_SLDIV[] = {"1/8", "1/16", "1/32", "8T", "16T", "32T"};   /* SL_DEN */
 /* the INSERT's types (1.5, fx.c IT_*; append-only: stored). Its three values A B C mean what the type says (ins_desc) */
 static const char *const N_ITYPE[] = {"OFF", "SOFT", "HARD", "FOLD", "FUZZ", "CRUSH", "PHASR", "FLANG", "CHOR"};
-/* CRUSH: BITS 1..16 and RATE (the held sample's rate, fx.c INS_HOLD) over the range in 16 even parts (0-terminated) */
-static const char *const N_IBITS[] = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15",
-                                      "16", 0};
+/* CRUSH: RATE (the held sample's rate, fx.c INS_HOLD) over the range in 16 even parts (0-terminated); its A is CRUSH
+ * 0..127 since ALTER v1.05 (fx.c ins_crush_q: 0 clean .. 127 one bit; was BITS 1..16) */
 static const char *const N_IRATE[] = {"689", "919", "1.1k", "1.4k", "1.8k", "2.2k", "2.8k", "3.7k", "4.4k", "5.5k",
                                       "7.4k", "8.8k", "11k", "15k", "22k", "44k", 0};
 /* modulation matrix (mod.c): sources, destinations (E1..E8 = P_E0..P_E7: shown with the engine's labels).
@@ -169,7 +168,7 @@ static const param_desc_t TP[P_COUNT] = {
 #define PU(l, f, df, n, u) {l, f, 0, 127, df, n, u}
 static const param_desc_t INS_DESC[3][3] = {
     {PU("DRIVE", F_PCT, 64, 0, 0), PU("TONE", F_CUTOFF, 96, 0, 0), PU("LEVEL", F_DB, 96, 0, 0)},
-    {PU("BITS", F_INT, 64, N_IBITS, 0), PU("RATE", F_INT, 96, N_IRATE, "Hz"), PU("LPF", F_CUTOFF, 96, 0, 0)},
+    {PU("CRUSH", F_PCT, 64, 0, 0), PU("RATE", F_INT, 96, N_IRATE, "Hz"), PU("LPF", F_CUTOFF, 96, 0, 0)},
     {PU("RATE", F_LFOHZ, 64, 0, 0), PU("DEPTH", F_PCT, 96, 0, 0), PU("FDBK", F_PCT, 96, 0, 0)},
 };
 #undef PU

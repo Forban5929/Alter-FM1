@@ -469,8 +469,8 @@ static void afp_dist_pic(int32_t y0, int32_t h, uint16_t col)   /* one cycle of 
             int32_t f = (int32_t)(((int64_t)v * ga) >> 13), p = (f + 16384) & 65535;
             w = (p < 32768 ? p - 16384 : 49151 - p) * 2;
         } else if (ty == IT_CRUSH) {
-            int32_t sh = 15 - (t->p[P_IA] >> 3);
-            w = (v >> sh) << sh;
+            int32_t q = ins_crush_q(t->p[P_IA]);          /* (v1.05: as fx.c) */
+            w = (v / q) * q;
         }
         if (ty == IT_FUZZ && w < 0)
             w /= 2;

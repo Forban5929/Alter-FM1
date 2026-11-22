@@ -764,18 +764,25 @@ static inline int32_t ins_shape(uint32_t ty, int32_t v, uint32_t sh)
     }
     case IT_FUZZ:
         return v > 0 ? (v > 20000 ? 20000 : v) : softclip(v) >> 1;
-    case IT_CRUSH:                                      /* sh: 16 - BITS; to the nearest step */
-        return sh ? ((v + (1 << (sh - 1u))) >> sh) << sh : v;
     default:
         return v;
     }
 }
-static inline uint32_t ins_bits_sh(int32_t a) { return 15u - (uint32_t)(clamp(a, 0, 127) >> 3); }   /* BITS 1..16 */
+/* CRUSH (ALTER v1.05, Romain 22/11: "inverser + lisser"): A is CRUSH 0..127 = the step of the held sample, from 16
+ * (12 bits) up to 8192 (2 bits) of a voice's full scale, exponential and continuous (no more 16 stairs: BITS 1..16
+ * went cleaner as the knob rose and jumped ~5 dB at 10; 1 bit silenced a quiet sound). A 0 is clean anyway (the
+ * blend: track_insert). The step is linear between octaves */
+static inline int32_t ins_crush_q(int32_t a)
+{
+    int32_t e = 4 * 256 + clamp(a, 0, 127) * (9 * 256) / 127;   /* octaves, Q8: 4 .. 13 */
+    return ((1 << (e >> 8)) * (256 + (e & 255))) >> 8;
+}
 
 /* SOFT .. FUZZ: low cut -> DRIVE -> shape -> TONE -> LEVEL -> DC blocker; CRUSH: held sample -> bits -> LPF */
 static __attribute__((noinline)) void ins_drive(ins_t *s, const track_t *t, int32_t *b, uint32_t n, int32_t tw)
 {
-    uint32_t i, ty = s->type, crush = ty == IT_CRUSH, sh = ins_bits_sh(t->p[P_IA]);
+    uint32_t i, ty = s->type, crush = ty == IT_CRUSH, sh = (uint32_t)ins_crush_q(t->p[P_IA]);
+    uint32_t inv = (1u << 24) / sh;                     /* CRUSH: 1 / step, Q24, once per block (no divide per sample) */
     uint32_t hold = INS_HOLD[clamp(t->p[P_IB], 0, 127) >> 3];
     int32_t a = t->p[P_IA], g = 4096 + a * a * 3;       /* DRIVE, Q12: 1x .. 12.8x, gentle at first */
     int32_t k = ins_lpk(crush ? t->p[P_IC] : t->p[P_IB]), lvl = crush ? 4096 : LEVEL_Q12[t->p[P_IC] & 127];
@@ -784,7 +791,8 @@ static __attribute__((noinline)) void ins_drive(ins_t *s, const track_t *t, int3
         s->w += clamp(tw - s->w, -SL_SLOPE, SL_SLOPE);
         if (crush) {
             if (!s->cnt) {
-                s->hold = ins_shape(IT_CRUSH, clamp(x, -262144, 262143), sh);
+                int32_t c = clamp(x, -262144, 262143);   /* to the nearest step (sh 1: as it was) */
+                s->hold = sh > 1u ? (int32_t)((((int64_t)(c + (int32_t)(sh >> 1)) * inv) >> 24) * (int64_t)sh) : c;
                 s->cnt = (uint8_t)hold;
             }
             s->cnt--;
@@ -884,7 +892,7 @@ static __attribute__((noinline)) void track_insert(track_t *t, int32_t *b, uint3
      * TONE and LEVEL come in with it), from INS_XF up as before (every factory DIST preset is above it). A 0: nothing
      * runs (Romain: off costs nothing) */
 #define INS_XF 32
-    if (ty >= IT_SOFT && ty <= IT_FUZZ && t->p[P_IA] < INS_XF)
+    if (ty >= IT_SOFT && ty <= IT_CRUSH && t->p[P_IA] < INS_XF)   /* (v1.05: CRUSH too, its A now 0 = clean) */
         tw = (tw * (clamp(t->p[P_IA], 0, INS_XF) * (32768 / INS_XF))) >> 15;
     if (!s->w) {
         if (!tw) {
