@@ -24,6 +24,7 @@
  * 4 x 1536 samples (the note an octave up while its lines would not fit: C1..B1 ring an octave higher). */
 
 #include "eng_dvm.h"
+#include "eng_dirt.h"
 
 #define PL_NL 4
 #define PL_LEN 1536
@@ -84,6 +85,8 @@ static void plate_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
     plate_t *S = plate_of(t);
     const int16_t *p = t->p;
     uint32_t len[PL_NL], k, i, per16, w;
+    int32_t edh = 0, edc = 0;
+    edirt_t ed;
     int32_t gk[PL_NL], mt, sp, seg, frac, g, drv, dirt, fold, tone, rate, hit, env, rng, xa, xg;
     uint32_t mdrv, mrate;                        /* (v0.75: the divisions as multiplies, eng_dvm.h) */
     if (!S)
@@ -136,6 +139,7 @@ static void plate_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
     mrate = dvm_make((uint32_t)rate, 32u);       /* (env < 2^17, rate <= 3510: < 2^29) */
     env = S->env;
     rng = S->rng;
+    edirt_set(&ed, dirt);                        /* (v1.09: DIRT's output stage, eng_dirt.h) */
     w = S->w;
     for (i = 0; i < n; i++) {
         int32_t x = 0, s[PL_NL], h0, h1, h2, h3, y;
@@ -179,7 +183,7 @@ static void plate_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
         y = y * 3 + (int32_t)(((int64_t)x * hit) >> 5);   /* the ring (x 6: a strike's energy spreads over 6000 samples) and a part of the strike (HIT) */
         S->dc = y - S->dcx + (int32_t)(((int64_t)S->dc * 32604) >> 15);   /* the DC blocker (~8 Hz) */
         S->dcx = y;
-        out[i] += voice_amp(soft_knee(clamp(S->dc * 13 / 16, -(1 << 20), 1 << 20), 22000), m, i);   /* (-1.8 dB, Romain 05/11) */
+        out[i] += voice_amp(soft_knee(clamp(edirt_run(&ed, S->dc * 13 / 16, &edh, &edc, &rng), -(1 << 20), 1 << 20), 22000), m, i);   /* (-1.8 dB, Romain 05/11) */
     }
     S->env = env;
     S->rng = rng;

@@ -40,6 +40,7 @@ static uint32_t ring_exp2(int32_t o)
 }
 
 #include "eng_dvm.h"
+#include "eng_dirt.h"
 
 /* the wave at phase ph: MATR (0..127 << 8) from sine to a shaken square (pw: the shaken width) */
 static inline int32_t ring_wave(uint32_t ph, int32_t mt, uint32_t pw)
@@ -63,6 +64,8 @@ static const int16_t RING_SPR[8] = {12, 300, 2397, 4096, 5984, 7453, 9834, 11660
 static void ring_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
+    int32_t edh = 0, edc = 0;
+    edirt_t ed;
     int32_t mt, sp, seg, frac, ob, q, fq, dirt, bias, sbias, dd, radio, blnd, rng, i, lo, bd, rk, lpk, hpk, whs;
     uint32_t whi;
     uint32_t inca, incb, incf, pw, mdd;
@@ -108,6 +111,7 @@ static void ring_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     dd = 4096 + dirt * 40;
     mdd = dvm_make((uint32_t)dd, 42u);           /* (v0.75: |x << 12| < 2^28, dd < 2^14) */
     blnd = p[P_E6];
+    edirt_set(&ed, dirt);                        /* (v1.09: DIRT's output stage, eng_dirt.h) */
     lo = v->s[0];
     bd = v->s[1];
     pw = 0x80000000u;
@@ -151,7 +155,7 @@ static void ring_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         v->s[6] += (int32_t)(((int64_t)(x - v->s[6]) * (radio ? hpk : 32)) >> 15);   /* (the DC out; RDIO: the band's
                                                   * bottom, up to ~350 Hz) */
         x -= v->s[6];
-        out[i] += voice_amp(soft_knee(clamp(x * 2, -(1 << 20), 1 << 20), 22000), m, (uint32_t)i);
+        out[i] += voice_amp(soft_knee(clamp(edirt_run(&ed, x * 2, &edh, &edc, &rng), -(1 << 20), 1 << 20), 22000), m, (uint32_t)i);
     }
     v->s[0] = lo;
     v->s[1] = bd;

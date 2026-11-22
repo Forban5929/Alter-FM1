@@ -24,6 +24,7 @@
  * delay is taken off the line's length, so a stiff string stays (about) in tune. */
 
 #include "eng_dvm.h"
+#include "eng_dirt.h"
 
 #define CD_POLY 2
 #define CD_LEN 2048
@@ -66,6 +67,8 @@ static void corde_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
     corde_t *S = corde_of(t, v);
     const int16_t *p = t->p;
     uint32_t i, w, len16, di, f;
+    int32_t edh = 0, edc = 0;
+    edirt_t ed;
     int32_t mt, c, apd, g, dirt, drv, fold, tone, rate, buzz, env, rng, xa, xg;
     uint32_t mdrv, mrate;                        /* (v0.75: the divisions as multiplies, eng_dvm.h) */
     if (!S)
@@ -116,6 +119,7 @@ static void corde_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
     mrate = dvm_make((uint32_t)rate, 32u);       /* (env < 2^17, rate < 2^13: the half period's at most 1020) */
     env = S->env;
     rng = S->rng;
+    edirt_set(&ed, dirt);                        /* (v1.09: DIRT's output stage, eng_dirt.h) */
     w = S->w;
     for (i = 0; i < n; i++) {
         int32_t x = 0, r, z, a0, a1;
@@ -173,7 +177,7 @@ static void corde_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
         S->buf[w] = (int16_t)clamp(z, -32767, 32767);
         S->dc = r - S->dcx + (int32_t)(((int64_t)S->dc * 32604) >> 15);   /* the output's DC blocker */
         S->dcx = r;
-        out[i] += voice_amp(soft_knee(clamp(S->dc * 3 / 2, -(1 << 20), 1 << 20), 22000), m, i);
+        out[i] += voice_amp(soft_knee(clamp(edirt_run(&ed, S->dc * 3 / 2, &edh, &edc, &rng), -(1 << 20), 1 << 20), 22000), m, i);
     }
     S->env = env;
     S->rng = rng;
