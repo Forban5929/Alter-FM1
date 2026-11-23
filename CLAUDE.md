@@ -59,9 +59,9 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    firmware) : actuel 70/127, B DARK ROOM (réverbe ~2,5 s saturée, LP 110 Hz, pompe), C ROLL (sinus à la hauteur du kick
    ~65 Hz, gonfle entre les coups), D GROWL (bruit brun, LP résonant à la hauteur du kick, pompe) → **v1.15 : Romain = DARK ROOM**
    (« la pompe est parfaite », sans le clic d'attaque, knob continu LOW ~40 MID ~80 HIGH 127) : alter_fx.c `rmb_part` refait
-   (4 combs 11 kHz ~100 ms fb 0.93 + LP dans la boucle, tanh ×4..×10,4, LP 110 Hz 2 pôles, HP 30 Hz, pompe sur `beat_samples()`
+   (4 combs 11 kHz ~80 ms fb 0.944 + LP dans la boucle, tanh ×4..×10,4, LP 110 Hz 2 pôles, HP 30 Hz, pompe sur `beat_samples()`
    déclenchée par l'enveloppe du kick > ½ crête, gain lissé ~1,5 ms = plus de clic ; `RMB_GAIN` 24 : 70 ≈ MID, 127 ≈ HIGH +3 dB) ;
-   tampon .pool 9,1 Ko (était 3,6 : **+5,5 Ko de pool, à vérifier par le CI**). balance des niveaux des sons d'usine, moteurs plus différents
+   tampon .pool 7,3 Ko (était 3,6 ; à 9,1 Ko le CI refusait : marge pool 6,9 < 8 Ko ; **reste ~8,8 Ko**). balance des niveaux des sons d'usine, moteurs plus différents
    (écoutes WAV d'abord), **RUMBLE à refaire** (2-3 variantes WAV à écouter). 4. Vu ailleurs (Felucca 1.0, fm1-dock,
    ChoralRoot) : backup complet depuis la page, mise à jour qui garde scènes/réglages, MIDI Bluetooth.
 5. ~~THEME SPLIT~~ (v1.10, retiré en **v1.13** : Romain 23/11 « on reste sur notre DA ») ; `alt_sys[11]` peut valoir 1 sur

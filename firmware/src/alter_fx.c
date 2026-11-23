@@ -81,7 +81,7 @@ static const afx_mst_t AFX_MST[] = {
 #define AFX_NMST (sizeof AFX_MST / sizeof AFX_MST[0])
 
 /* ---- RUMBLE: DARK ROOM (v1.15, Romain 23/11 after the listening page: "Dark room, réglage low mid high, la pompe est
- * parfaite", without the click on the attack). The kick into a long dark reverb (4 combs at 11 kHz, ~100 ms, feedback 0.93,
+ * parfaite", without the click on the attack). The kick into a long dark reverb (4 combs at 11 kHz, ~80 ms, feedback 0.944,
  * a low-pass in each loop: ~2.5 s), driven hard (tanh, x 4 .. 10 with the knob), low-passed at 110 Hz (two poles), a 30 Hz
  * high-pass, and PUMPED by the kick: pulled down to 5 % at each hit, back up over the beat (a square curve, up again just
  * before the next). The pump's gain glides (~1.5 ms): no step, no click. Added to the circle's sound after its DIST /
@@ -90,8 +90,8 @@ static const afx_mst_t AFX_MST[] = {
 static volatile uint8_t alt_rmb[4];               /* each circle's RUMBLE 0..127 (alter_ui.c: the KICK's knob 4) */
 #define RMB_GAIN 24                               /* the level at 127 (measured against the sketch's HIGH) */
 #define RMB_N 4u
-static const uint16_t RMB_LEN[RMB_N] = {1168, 1213, 1118, 1067};   /* (11.025 kHz: 97 .. 110 ms) */
-static int16_t rmb_buf[1168 + 1213 + 1118 + 1067] __attribute__((section(".pool")));
+static const uint16_t RMB_LEN[RMB_N] = {934, 970, 894, 854};   /* (11.025 kHz: 77 .. 88 ms; the pool's headroom) */
+static int16_t rmb_buf[934 + 970 + 894 + 854] __attribute__((section(".pool")));
 static struct {
     uint16_t w[RMB_N];
     int32_t lp[RMB_N], acc, l1, l2, hp, env, prev, now, gn, pk, gs, since;
@@ -172,7 +172,8 @@ static __attribute__((noinline)) void rmb_part(uint32_t c, int32_t *b, uint32_t 
                 int16_t *ln = rmb_buf + base;
                 int32_t v = ln[rmb.w[k]];
                 rmb.lp[k] += ((v - rmb.lp[k]) * 11) >> 4;   /* (dark: each pass duller) */
-                ln[rmb.w[k]] = (int16_t)clamp(in + ((rmb.lp[k] * 30474) >> 15), -32767, 32767);   /* (fb 0.93) */
+                ln[rmb.w[k]] = (int16_t)clamp(in + ((rmb.lp[k] * 30924) >> 15), -32767, 32767);   /* (fb 0.944: the same
+                                                                                              * ~2.5 s with shorter lines) */
                 if (++rmb.w[k] >= RMB_LEN[k])
                     rmb.w[k] = 0;
                 s += v;
