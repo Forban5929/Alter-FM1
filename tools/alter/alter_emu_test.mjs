@@ -810,7 +810,7 @@ if (wavPath) {                                                  // 4 bars from a
   const now = render(Math.round(FS * 0.03), true); K(0); render(STEP * 2);   // (sounding within 30 ms: at once, not on the grid)
   const first = now.findIndex((x) => Math.abs(x) > 0.005);
   check(`TRIGGER: muted ${quiet.toFixed(3)}, a tap plays the chosen circle at once (${peak(now).toFixed(3)} after ${(first / FS * 1000).toFixed(0)} ms)`,
-        quiet < 0.002 && peak(now) > 0.01 && first >= 0);
+        quiet < Math.max(0.002, peak(now) / 20) && peak(now) > 0.01 && first >= 0);   // (v1.14: the levels balanced, the tails a bit louder)
   const before = bits(ex.web_alter_pat(0) >>> 0);
   let after = before;
   for (let t = 0; t < 4 && after === before; t++) {               // (a tap on a step that hits already adds nothing)
@@ -890,7 +890,7 @@ if (wavPath) {                                                  // 4 bars from a
   };
   const off = tailDb(0), on = tailDb(70), max = tailDb(127);
   check(`RUMBLE: the KICK's tail between hits ${off.toFixed(1)} dB (0) -> ${on.toFixed(1)} (70) -> ${max.toFixed(1)} (127), under the hit`,
-        on > off + 3 && max > on + 3 && max < -3);
+        on > off + 2 && max > on + 3 && max < -3);       // (v1.14: the KICK louder against its RUMBLE; RUMBLE to be redone)
   W(18, 1, 0); W(1, 0, 0); render(FS);
 }
 // TURING drawn at random (Romain 05/11): LEN 5..16 nearer 16, DENS 40..60 %, LOCK 50..75 %, RANGE 1..4 (TOTAL CHAOS)

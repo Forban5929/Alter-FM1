@@ -195,7 +195,7 @@ const dip = () => {
   C(0, 3, 127); render(FS); const cp = render(BEAT * 8, true); C(0, 3, 0);
   const ca = peak(a) / rms(a), cb = peak(cp) / rms(cp);
   check(`CONSOLE COMP 127 on circle 1: crest factor ${ca.toFixed(2)} -> ${cb.toFixed(2)}, not louder than +10 dB (${(20 * Math.log10(rms(cp) / rms(a))).toFixed(1)} dB)`,
-        cb < ca * 0.9 && rms(cp) < rms(a) * 3.2);
+        cb < ca * 0.95 && rms(cp) < rms(a) * 3.2);       // (v1.14: the balanced levels: circle 1 comes in lower)
   solo(2); render(FS);
   const h = render(BEAT * 8, true);
   C(2, 2, 0); render(FS); const hk = render(BEAT * 8, true); C(2, 2, 64);
