@@ -73,7 +73,11 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    → Romain : **tables CLANG RUST SHRED FEEDBACK** ; WARP façon Serum (MODE + AMNT) ; knobs plan A = TABLE · POS · MODE ·
    AMNT · POS ENV · WARP ENV · SUB · SPRD. Tour 4 https://claude.ai/artifact/4EXmb1BDvTyGQpboz29Wqw
    (`tools/alter/alter_wave_warp.py` : 4 tables × DRY SYNC BEND PWM MIRROR FM RING FOLD BITS, enveloppes POS + WARP)
-   → attendre les MODES gardés, puis coder (tables maison + mips, `eng_xform.h` pour RING/FOLD, vérifier CPU + taille). balance des niveaux des sons d'usine, moteurs plus différents
+   → Romain garde **SYNC BEND FM RING FOLD BITS** (PWM MIRROR non). **v1.16 : moteur WAVE codé** (`eng_wave.c`, ENGI_WAVE 5,
+   ALT_ENGS index 7 ; tables `eng_wave_tab.h` générées par `tools/alter/alter_wave_tables.py` : 4 × 16 images × mips 256/128/64/32,
+   int8 + gain par image, ~31 Ko flash) ; knobs TABL(enum) POS MODE(enum) AMNT PENV WENV SUB SPRD ; SHP → POS, FLT → AMNT ;
+   AMNT 0 = aucun warp ; alt_sys[1] = 8 bits (WAVE = 0x80, migration alt_sys[7] = 2) ; sons HAMMER BENDER CORRODE WAVE RING
+   SHREDDER HOWL (−28 LUFS ; SHREDDER court de 0,5 dB). Audit knobs : pas de saut. **Pas écouté, CPU pas mesuré sur la FM-1.** balance des niveaux des sons d'usine, moteurs plus différents
    (écoutes WAV d'abord), **RUMBLE à refaire** (2-3 variantes WAV à écouter). 4. Vu ailleurs (Felucca 1.0, fm1-dock,
    ChoralRoot) : backup complet depuis la page, mise à jour qui garde scènes/réglages, MIDI Bluetooth.
 5. ~~THEME SPLIT~~ (v1.10, retiré en **v1.13** : Romain 23/11 « on reste sur notre DA ») ; `alt_sys[11]` peut valoir 1 sur
@@ -107,7 +111,7 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.15 » (23/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.16 » (23/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. **Deux sites (v1.02, 22/11)** : pousser sur `etape-3d` → pages.yml construit (tools/alter/site_build.sh, 2 fois) :
    **racine = dernière Release** (tag vX.YY le plus haut ; ce que voient les gens) et **/beta/ = etape-3d** (bandeau rouge
@@ -136,8 +140,8 @@ CONSOLE** (EQ + COMP par cercle, appelée dans fx.c mix_part/mix_spread après D
 MASTER FILTER · `alter_lfo.c` · `alter_sounds.c` sons + scènes d'usine · `alter_store.c` SAVE/LOAD · `alter_persist.c`
 réglages flash · `eng_alter.c` / `eng_reso.c` moteurs · `fx.c` (Felucca + nos ajouts : delay MODE/TAPE, glisse des envois,
 gain MASTER + vumètre). Moteurs (numéro, index ALT_ENGS) : ALTER 14 (0), PHYS 9 (1), NOISE 11 (2), RESO 10 (3),
-**PLATE 12 (4)** `eng_plate.c`, **CORDE 2 (5)** `eng_corde.c`, **RING 3 (6)** `eng_ring.c` (05/11 ; NENGINES 15 fixe, libres :
-0 1 4-8 13 — 13 = alt_sys en flash, ne pas prendre ; 1 = DIGITAL réservé). Knobs 1-4 des nouveaux = MATR SPRD RES DIRT ;
+**PLATE 12 (4)** `eng_plate.c`, **CORDE 2 (5)** `eng_corde.c`, **RING 3 (6)** `eng_ring.c`, **WAVE 5 (7)** `eng_wave.c` (NENGINES 15 fixe, libres :
+0 1 4 6-8 13 — 13 = alt_sys en flash, ne pas prendre ; 1 = DIGITAL réservé). Knobs 1-4 des nouveaux = MATR SPRD RES DIRT ;
 RES en durée (même longueur à toutes les notes, via reso_exp2). Ajouter un moteur : core.h ENGI_x + NENG_SHOWN, engines.c
 (include + table + ENGINE_ORDER), alter_ui.c ALT_ENGS/ALT_NENG, alter_play.c ALT_TIMB_x, sons à la FIN d'ALT_PRE,
 alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.c (liste).

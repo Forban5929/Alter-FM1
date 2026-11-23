@@ -12,7 +12,7 @@
 
 typedef struct {
     const char *name;
-    uint8_t eng;                 /* 0 ALTER, 1 PHYS, 2 NOISE, 3 RESO, 4 PLATE, 5 CORDE, 6 RING (alter_ui.c ALT_ENGS) */
+    uint8_t eng;                 /* 0 ALTER, 1 PHYS, 2 NOISE, 3 RESO, 4 PLATE, 5 CORDE, 6 RING, 7 WAVE (alter_ui.c ALT_ENGS) */
     int8_t e[8];
     uint8_t env[4];              /* ATK DEC SUS REL */
     uint8_t fx[4];               /* DIST CHOR DLY REV */
@@ -84,6 +84,14 @@ static const alt_pre_t ALT_PRE[] = {
     {"RING BELL", 6, {0, 70, 30, 0, 0, 90, 0, 0}, {0, 90, 0, 70}, {0, 0, 10, 30}, 112, 1},
     {"LASER", 6, {64, 60, 90, 0, 0, 60, 30, 110}, {0, 70, 0, 50}, {0, 0, 10, 20}, 118, 1},
     {"SIREN", 6, {70, 118, 105, 0, 13, 75, 70, 50}, {60, 100, 127, 110}, {10, 0, 10, 30}, 100, 0},
+    /* WAVE {TABL POS MODE AMNT PENV WENV SUB SPRD} (eng_wave.c, v1.16): TABL 0 CLNG 1 RUST 2 SHRD 3 FDBK; MODE 0 SYNC
+     * 1 BEND 2 FM 3 RING 4 FOLD 5 BITS */
+    {"HAMMER", 7, {0, 30, 0, 20, 90, 70, 40, 0}, {0, 60, 0, 45}, {10, 0, 10, 20}, 109, 1},
+    {"BENDER", 7, {0, 80, 1, 30, 70, 100, 60, 0}, {0, 70, 0, 50}, {0, 0, 15, 25}, 113, 1},
+    {"CORRODE", 7, {1, 60, 4, 50, 30, 30, 0, 40}, {10, 100, 90, 70}, {0, 10, 20, 40}, 109, 3},
+    {"WAVE RING", 7, {1, 20, 3, 90, 60, 30, 20, 0}, {0, 80, 0, 55}, {0, 0, 10, 30}, 114, 1},
+    {"SHREDDER", 7, {2, 40, 5, 60, 50, 60, 30, 0}, {0, 70, 40, 45}, {10, 0, 20, 20}, 127, 2},
+    {"HOWL", 7, {3, 70, 2, 40, 20, 20, 0, 60}, {30, 110, 110, 80}, {0, 10, 20, 45}, 105, 0},
 };
 #define ALT_NPRE (sizeof ALT_PRE / sizeof ALT_PRE[0])
 

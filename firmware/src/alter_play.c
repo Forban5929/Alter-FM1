@@ -180,11 +180,12 @@ static const uint8_t ALT_TIMB_NOISE[AS_NTIMB] = {P_E1, P_E2, P_E3, P_E5};   /* C
 static const uint8_t ALT_TIMB_PLATE[AS_NTIMB] = {P_E0, P_E1, P_E4, P_E6};   /* MATR SPRD TONE BEND (05/11) */
 static const uint8_t ALT_TIMB_CORDE[AS_NTIMB] = {P_E0, P_E1, P_E4, P_E6};   /* MATR SPRD TONE BUZZ */
 static const uint8_t ALT_TIMB_RING[AS_NTIMB] = {P_E0, P_E1, P_E5, P_E6};    /* MATR SPRD TONE BLND */
+static const uint8_t ALT_TIMB_WAVE[AS_NTIMB] = {P_E1, P_E3, P_E4, P_E5};    /* POS AMNT PENV WENV (v1.16) */
 static const uint8_t *alt_timb_p(const track_t *t)
 {
     const engine_t *e = ENGINES[eng_idx(t->eng_req)];
     return e == &ENG_ALTER ? ALT_TIMB_ALTER : e == &ENG_PHYS ? ALT_TIMB_PHYS : e == &ENG_NOISE ? ALT_TIMB_NOISE :
-           e == &ENG_PLATE ? ALT_TIMB_PLATE : e == &ENG_CORDE ? ALT_TIMB_CORDE : e == &ENG_RING ? ALT_TIMB_RING : 0;
+           e == &ENG_PLATE ? ALT_TIMB_PLATE : e == &ENG_CORDE ? ALT_TIMB_CORDE : e == &ENG_RING ? ALT_TIMB_RING : e == &ENG_WAVE ? ALT_TIMB_WAVE : 0;
 }
 
 /* a parameter's slot in alt_applied, -1 = none */

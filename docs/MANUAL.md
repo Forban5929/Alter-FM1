@@ -98,6 +98,7 @@ Each circle has its own sound: an **engine** plus its settings, an envelope, eff
 | PLATE | a struck metal sheet: plate, cymbal, gong, cracked bell |
 | CORDE | a mistreated metal string: it clangs, screams, buzzes |
 | RING | a ring modulator through a resonant filter, with a wave folder (FOLD) and an AM radio (RDIO: a band-limited, crackling radio with a whistle near the top): bells, sirens, robots |
+| WAVE | an industrial wavetable (v1.16): four tables (CLANG, RUST, SHRED, FEEDBACK), POS moves through each; MODE picks a warp (SYNC, BEND, FM, RING, FOLD, BITS) and AMNT how much (0: none); PENV and WENV push POS and AMNT up at each hit; SUB adds a sine an octave down; SPRD a detuned second copy |
 
 On PLATE, CORDE and RING, KNOB 1-4 are MATR (material), SPRD (spread), RES (ring time: the same length at every pitch) and
 a fourth knob. Each engine has its own transformation (v1.12): **RING** (a ring modulator following the note: mixed in up

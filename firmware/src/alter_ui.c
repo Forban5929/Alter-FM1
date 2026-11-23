@@ -172,8 +172,8 @@ static void alt_say(const char *s)
 }
 
 /* the presets of the three engines in a row: the n-th as (engine, preset); the place of (engine, preset) */
-#define ALT_NENG 7u
-static const uint8_t ALT_ENGS[ALT_NENG] = {ENGI_ALTER, ENGI_PHYS, 11, ENGI_RESO, ENGI_PLATE, ENGI_CORDE, ENGI_RING};   /* 11:
+#define ALT_NENG 8u
+static const uint8_t ALT_ENGS[ALT_NENG] = {ENGI_ALTER, ENGI_PHYS, 11, ENGI_RESO, ENGI_PLATE, ENGI_CORDE, ENGI_RING, ENGI_WAVE};   /* 11:
                                                   * NOISE (engines.c ENGINES); 4 5 6 PLATE CORDE RING (05/11) */
 /* circle c's added steps set (the UI's; alter_seq.c as_circ_t.add, TRIGGER + REC) (a scene loaded, REC held 1 s: cleared) */
 static void alt_add_set(uint32_t c, uint32_t m)
@@ -1117,13 +1117,15 @@ static void alt_sys_init(void)
         for (k = 0; k < 32u; k++)
             alt_sys[k] = 0;
         alt_sys[0] = ALT_SYS_OK;
-        alt_sys[1] = 0x77u;                      /* ALTER PHYS NOISE, PLATE CORDE RING (RESO off) */
-        alt_sys[7] = 1u;
+        alt_sys[1] = 0xF7u;                      /* ALTER PHYS NOISE, PLATE CORDE RING WAVE (RESO off) */
+        alt_sys[7] = 2u;
         alt_sys[2] = 7u;                         /* FREE PERC STAB */
     }
-    if (alt_sys[7] != 1u) {                      /* (stored before PLATE CORDE RING, 05/11: they join the random) */
+    if (alt_sys[7] < 1u)                         /* (stored before PLATE CORDE RING, 05/11: they join the random) */
         alt_sys[1] |= 0x70u;
-        alt_sys[7] = 1u;
+    if (alt_sys[7] < 2u) {                       /* (.. before WAVE, v1.16: it joins too) */
+        alt_sys[1] |= 0x80u;
+        alt_sys[7] = 2u;
     }
     if (alt_sys[3])
         song.g[G_CLOCK] = (int16_t)(alt_sys[3] - 1u);
@@ -1137,7 +1139,7 @@ static void alt_sys_init(void)
 static uint8_t alt_die_w[AS_NCIRC];               /* what each DICE key draws, from the OCT held at its press */
 static uint32_t alt_rand_pre(void)
 {
-    uint32_t pi = 0, n, ok = alt_sys[0] == ALT_SYS_OK && (alt_sys[1] & 127u) ? alt_sys[1] & 127u : 0x77u;
+    uint32_t pi = 0, n, ok = alt_sys[0] == ALT_SYS_OK && (alt_sys[1] & 255u) ? alt_sys[1] & 255u : 0xF7u;
     for (n = 0; n < 200u; n++) {
         pi = alt_cr(ALT_NPRE);
         if (((ok >> (ALT_PRE[pi].eng % ALT_NENG)) & 1u) && !ALT_PRE[pi].hide)
@@ -3544,7 +3546,7 @@ static const uint8_t SYS_AROW[] = {MI_CLICK, MI_CLKLVL, MI_LOWCUT, MI_USB, MI_TU
 };
 #define SYS_NAUD ((uint32_t)NELEM(SYS_AROW))
 #define SYS_NRE ALT_NENG                         /* (RANDOM: the engines' rows, then the three modes') */
-static const char *const SYS_RROW[ALT_NENG + 3u + 4u] = {"ALTER", "PHYS", "NOISE", "RESO", "PLATE", "CORDE", "RING",
+static const char *const SYS_RROW[ALT_NENG + 3u + 4u] = {"ALTER", "PHYS", "NOISE", "RESO", "PLATE", "CORDE", "RING", "WAVE",
                                                     "FREE", "PERC", "STAB",
                                                     "ALL FX", "DIST INSERT", "DELAY", "REVERB"};   /* (v0.66, Romain 11/11:
                                                   * the effects CHAOS TOTAL may draw; CHAOS never draws them) */
@@ -3638,7 +3640,7 @@ static void alt_sys_turn(uint32_t r, int32_t s)
         alt_sys[9] = (uint8_t)(d > 0 ? alt_sys[9] & ~bit : alt_sys[9] | bit);
     } else if (alt_sys_tab == SYS_TRAND) {
         uint8_t *b = &alt_sys[r < SYS_NRE ? 1 : 2];
-        uint32_t bit = 1u << (r < SYS_NRE ? r : r - SYS_NRE), all = r < SYS_NRE ? 127u : 7u, v = d > 0 ? *b | bit : *b & ~bit;
+        uint32_t bit = 1u << (r < SYS_NRE ? r : r - SYS_NRE), all = r < SYS_NRE ? 255u : 7u, v = d > 0 ? *b | bit : *b & ~bit;
         if (v & all)                             /* (one stays on) */
             *b = (uint8_t)v;
     } else if (alt_sys_tab == SYS_TAUD) {
