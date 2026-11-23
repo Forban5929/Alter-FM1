@@ -167,7 +167,7 @@ const dip = () => {
   F(1, 127); const r1 = take();                                  // .. RES 127: the band at the cutoff comes up
   const band = (a) => rms(hp(hp(lp(lp(a, 1300), 1300), 800), 800));
   check(`FILTER RES 127: a peak at the cutoff (${db(band(r0)).toFixed(1)} -> ${db(band(r1)).toFixed(1)} dB)`,
-        db(band(r1)) - db(band(r0)) > 5);   // (v1.18: the scene now on SHORT, not HALL: 5.9 dB)
+        db(band(r1)) - db(band(r0)) > 6);
   for (let c = 0; c < 3; c++) W(2, c, 1);                        // silence
   render(FS * 2);
   const osc = render(FS, true);

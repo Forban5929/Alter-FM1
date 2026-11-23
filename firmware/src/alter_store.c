@@ -378,7 +378,12 @@ static void alt_load_scene(uint32_t n)
     song.g[G_SWING] = sc->swing;
     alt_seq.scale = sc->scale;
     afp_dly_apply(sc->dpre);                     /* the FX page's shared ones (each circle's DIST: its sound's) */
-    afp_rev_apply(sc->rpre);
+    {                                            /* (v1.20, Romain 23/11: a factory scene is a save already made, it keeps
+                                                  * its reverb: rpre counts in the list as it was before v1.18, HALL first) */
+        static const uint8_t OLD_REV[8] = {6, 7, 8, 8, 0, 1, 0, 0};   /* HALL BRIGHT HALL CLOUD ENDLESS SHORT BOX GATED
+                                                  * LONG GATE -> today's (ENDLESS: CLOUD; the gates: SHORT) */
+        afp_rev_apply(OLD_REV[sc->rpre & 7u]);
+    }
     afp_mst_apply(sc->mpre);
     alt_gl_reset();
     for (c = 0; c < AS_NCIRC; c++) {

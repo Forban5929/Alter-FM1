@@ -119,7 +119,8 @@ typedef struct {
         uint8_t phold, pdec;     /* PERC: its HOLD and DECAY (0: the defaults, alter_lfo.c AE_DEF) */
         uint8_t lstep, ldly;     /* step lstep - 1 sent ldly more into the delay (the SEQ menu's DELAY lane; 0: none) */
     } c[AS_NCIRC];
-    uint8_t dpre, rpre, mpre;    /* the FX page's DELAY, REVERB and MASTER presets (alter_fx.c AFX_DLY AFX_REV AFX_MST):
+    uint8_t dpre, rpre, mpre;    /* the FX page's DELAY, REVERB (v1.20: in the list before v1.18, HALL first: alter_store.c
+                                  * OLD_REV) and MASTER presets (alter_fx.c AFX_DLY AFX_REV AFX_MST):
                                   * all 0 (Felucca's own: ECHO, HALL, FLAT), Romain's choice, the effects his to add */
     const uint8_t *user;         /* not 0: a USER scene of Romain's instead, whole (alter_user_*.h, alter_store.c) */
 } alt_scene_t;
