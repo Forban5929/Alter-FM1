@@ -6,7 +6,8 @@
  * GPL-3.0: an integer table oscillator with mip levels, its BEND warp) and from Shrub (ideas only); the tables are
  * our own (eng_wave_tab.h, tools/alter/alter_wave_tables.py: 4 tables x 16 frames x 4 mips, int8, ~31 KB).
  *
- * TABL  the table: CLANG (bells, anvils), RUST (tuned noise), SHRED (sample-and-hold steps), FEEDBACK (a howl)
+ * TABL  the table: CLANG (bells, anvils), RUST (four noises, sparse to dense: v1.23), SHRED (sample-and-hold steps),
+ *       FEEDBACK (a howling pair of partials that POS climbs up the harmonics: v1.23)
  * POS   where in the table (16 frames, blended); the track's SHP moves it too
  * MODE  the warp: SYNC (the cycle read faster, reset: x1 .. x8), BEND (the phase bent: p^1 .. p^5), FM (the phase
  *       pushed by a sine at twice the note), RING (eng_xform.h: x0.5 mixed in, then the carrier up to x2.71),
