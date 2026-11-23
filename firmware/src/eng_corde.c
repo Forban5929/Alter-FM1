@@ -180,7 +180,7 @@ static void corde_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
         S->buf[w] = (int16_t)clamp(z, -32767, 32767);
         S->dc = r - S->dcx + (int32_t)(((int64_t)S->dc * 32604) >> 15);   /* the output's DC blocker */
         S->dcx = r;
-        out[i] += voice_amp(soft_knee(clamp(ering_run(&er, S->dc * 3 / 2, &S->rph, rinc), -(1 << 20), 1 << 20), 22000), m, i);
+        out[i] += voice_amp(soft_knee(clamp(ering_run(&er, S->dc * 3 / 2, &S->rph, rinc), -(1 << 20), 1 << 20), 22000), m, i) << 1;   /* (v1.17: +6 dB, BROKEN) */
     }
     S->env = env;
     S->rng = rng;

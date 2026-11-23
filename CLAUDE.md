@@ -54,7 +54,10 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    **v1.14 (Romain 23/11 : balance « par familles », « au milieu »)** : LEVEL des 41 sons d'usine réglés en LUFS
    (`tools/alter/alter_balance.py` : devant −25 KICK THUD TOMS GROWL WARM, derrière −31 HAT OPEN HAT RAIN WIND CRUSH METAL
    ARCADE, le reste −28) ; moteur ALTER +6 dB (`voice_amp << 1`, ses sons −6 dB de LEVEL). Reste : CRUSH −6 dB, WARM −2,4,
-   BROKEN −3 (LEVEL déjà à 127). Tests relâchés : TRIGGER (traîne), RUMBLE (+2 dB), CONSOLE COMP (crest × 0,95).
+   BROKEN −3 (LEVEL déjà à 127) → **v1.17 (Romain)** : gain des moteurs NOISE ×2,5 (+8 dB), CORDE ×2, RESO ×2, ALTER ×3 (était ×2),
+   PHYS ×3 (était ×2), LEVEL de tous les sons rééquilibrés (3 passes) ; restent courts ≤ 1,7 dB (CRUSH WARM LARSEN SHREDDER : leurs crêtes
+   touchent le limiteur MASTER `LIM_T`, plus de gain n'y fait rien) ; scènes USER avec ces moteurs = plus fortes (LEVEL absolu
+   sauvé) ; alter_fx_test : COMP et MID +12 mesurés avec 12 dB de marge (op 17 LEVEL −24). Tests relâchés : TRIGGER (traîne), RUMBLE (+2 dB), CONSOLE COMP (crest × 0,95).
    **RUMBLE (23/11)** : écoute https://claude.ai/artifact/N9BUje7vdzx4TAz4AKEYQF (`tools/alter/alter_rumble_wav.mjs`, hors
    firmware) : actuel 70/127, B DARK ROOM (réverbe ~2,5 s saturée, LP 110 Hz, pompe), C ROLL (sinus à la hauteur du kick
    ~65 Hz, gonfle entre les coups), D GROWL (bruit brun, LP résonant à la hauteur du kick, pompe) → **v1.15 : Romain = DARK ROOM**
@@ -77,7 +80,7 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    ALT_ENGS index 7 ; tables `eng_wave_tab.h` générées par `tools/alter/alter_wave_tables.py` : 4 × 16 images × mips 256/128/64/32,
    int8 + gain par image, ~31 Ko flash) ; knobs TABL(enum) POS MODE(enum) AMNT PENV WENV SUB SPRD ; SHP → POS, FLT → AMNT ;
    AMNT 0 = aucun warp ; alt_sys[1] = 8 bits (WAVE = 0x80, migration alt_sys[7] = 2) ; sons HAMMER BENDER CORRODE WAVE RING
-   SHREDDER HOWL (−28 LUFS ; SHREDDER court de 0,5 dB). Audit knobs : pas de saut. CI vert ; marge image ~64 Ko (était ~110). Écoute : https://claude.ai/artifact/BvvHvBSGMBZwXTuNWZ6WqW. **Pas écouté, CPU pas mesuré sur la FM-1.** balance des niveaux des sons d'usine, moteurs plus différents
+   SHREDDER HOWL (−28 LUFS). Audit knobs : pas de saut. CI vert ; marge image ~64 Ko (était ~110). Écoute : https://claude.ai/artifact/BvvHvBSGMBZwXTuNWZ6WqW. **Pas écouté, CPU pas mesuré sur la FM-1.** balance des niveaux des sons d'usine, moteurs plus différents
    (écoutes WAV d'abord), **RUMBLE à refaire** (2-3 variantes WAV à écouter). 4. Vu ailleurs (Felucca 1.0, fm1-dock,
    ChoralRoot) : backup complet depuis la page, mise à jour qui garde scènes/réglages, MIDI Bluetooth.
 5. ~~THEME SPLIT~~ (v1.10, retiré en **v1.13** : Romain 23/11 « on reste sur notre DA ») ; `alt_sys[11]` peut valoir 1 sur
@@ -111,7 +114,7 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.16 » (23/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.17 » (23/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. **Deux sites (v1.02, 22/11)** : pousser sur `etape-3d` → pages.yml construit (tools/alter/site_build.sh, 2 fois) :
    **racine = dernière Release** (tag vX.YY le plus haut ; ce que voient les gens) et **/beta/ = etape-3d** (bandeau rouge

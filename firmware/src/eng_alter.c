@@ -237,7 +237,7 @@ static void alt_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const v
             y += (r * (nlvl >> 1)) >> 14;
         }
         y = soft_knee(ering_run(&er, y, &S->rph, rinc), 20000);
-        out[i] += voice_amp(y, m, i) << 1;          /* (v1.14: +6 dB, the level balance: ALTER was the quietest) */
+        out[i] += voice_amp(y, m, i) * 3;           /* (v1.14: +6 dB, the level balance: ALTER was the quietest; v1.17: x 3, WARM) */
     }
     for (; i < n; i++) {
         int32_t acc = 0, mod = 0, y;
@@ -271,7 +271,7 @@ static void alt_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const v
             y += (r * (nlvl >> 1)) >> 14;
         }
         y = soft_knee(ering_run(&er, y, &S->rph, rinc), 20000);
-        out[i] += voice_amp(y, m, i) << 1;          /* (v1.14: +6 dB, the level balance: ALTER was the quietest) */
+        out[i] += voice_amp(y, m, i) * 3;           /* (v1.14: +6 dB, the level balance: ALTER was the quietest; v1.17: x 3, WARM) */
     }
     for (k = 0; k < ALT_NOSC; k++)                      /* (the oscillators not run: their phase on, as if run) */
         if (!fmd && !w[k])

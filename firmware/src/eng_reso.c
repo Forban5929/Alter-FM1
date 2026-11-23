@@ -219,7 +219,7 @@ static void reso_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         else if (outm == RESO_MIX)
             y += x >> 3;                         /* (the impact itself: the hit) */
         y = soft_knee(efold_run(&fo, (int32_t)(((int64_t)clamp(y, -(1 << 20), 1 << 20) * gain) >> 14)), 22000);
-        out[i] += voice_amp(y, m, (uint32_t)i);
+        out[i] += voice_amp(y, m, (uint32_t)i) << 1;   /* (v1.17: +6 dB, LARSEN CLANK were short at LEVEL 127) */
     }
     S->env = env;
     S->rng = rng;

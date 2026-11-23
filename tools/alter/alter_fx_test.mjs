@@ -74,11 +74,14 @@ const solo = (c) => { for (let i = 0; i < 3; i++) W(2, i, i === c || c < 0 ? 0 :
 }
 // COMP 127 on the whole mix: the peaks come nearer the average (a lower crest factor)
 {
+  const lv0 = [0, 1, 2].map((c) => ex.web_alter_peek(c, 100));   // (v1.17: the louder engines: 12 dB of headroom, the
+  for (let c = 0; c < 3; c++) W(17, c, Math.max(0, lv0[c] - 24));  // master limiter out of the way of the measure)
   solo(-1); render(BEAT * 2);
   const a = render(BEAT * 8, true), ca = peak(a) / rms(a);
   W(8, 3, 127); render(FS);
   const b = render(BEAT * 8, true), cb = peak(b) / rms(b);
   W(8, 3, 0);
+  for (let c = 0; c < 3; c++) W(17, c, lv0[c]);
   check(`COMP 127: crest factor down (${ca.toFixed(2)} -> ${cb.toFixed(2)})`, cb < ca * 0.9);
 }
 // CLIP 127: nothing over half scale (its top), louder on average
@@ -196,12 +199,15 @@ const dip = () => {
   const ca = peak(a) / rms(a), cb = peak(cp) / rms(cp);
   check(`CONSOLE COMP 127 on circle 1: crest factor ${ca.toFixed(2)} -> ${cb.toFixed(2)}, not louder than +10 dB (${(20 * Math.log10(rms(cp) / rms(a))).toFixed(1)} dB)`,
         cb < ca * 0.95 && rms(cp) < rms(a) * 3.2);       // (v1.14: the balanced levels: circle 1 comes in lower)
+  const lv2 = ex.web_alter_peek(2, 100);
+  W(17, 2, Math.max(0, lv2 - 24));                      // (v1.17: CRUSH, louder: 12 dB under the master limiter)
   solo(2); render(FS);
   const h = render(BEAT * 8, true);
   C(2, 2, 0); render(FS); const hk = render(BEAT * 8, true); C(2, 2, 64);
   check(`CONSOLE HIGH KILL on circle 3: highs ${highs(h).toFixed(4)} -> ${highs(hk).toFixed(4)}`, highs(hk) < highs(h) * 0.4);
   C(2, 1, 127); render(FS); const mb = render(BEAT * 8, true); C(2, 1, 64);
   check(`CONSOLE MID +12 on circle 3: louder (${(20 * Math.log10(rms(mb) / rms(h))).toFixed(1)} dB)`, rms(mb) > rms(h) * 1.2);
+  W(17, 2, lv2);
   solo(-1);
   // flat again: circle 1 as loud as before it went through the console (its code skips a flat strip: bit for bit)
   solo(0); render(FS * 2);

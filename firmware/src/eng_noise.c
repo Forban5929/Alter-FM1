@@ -234,7 +234,7 @@ static void noise_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
             }
             y = (int32_t)reg;
         }
-        out[i] += voice_amp(efold_run(&fo, y), m, i);
+        out[i] += (voice_amp(efold_run(&fo, y), m, i) * 5) >> 1;   /* (v1.17: +8 dB, CRUSH was short at LEVEL 127) */
     }
     v->s[0] = ic1;
     v->s[1] = ic2;
