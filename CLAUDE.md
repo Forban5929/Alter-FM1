@@ -61,7 +61,8 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    **v1.18 (Romain 23/11)** : REVERB presets = **SHORT BOX HALL BRIGHT HALL CLOUD** (ENDLESS GATED LONG GATE retirés ; SHORT = index 0 =
    démarrage, NEW, scènes d'usine) ; modèle GATED retiré (fx.c : G_RTYPE 1 joue SHORT ; page FX le saute ; page compagnon le cache ;
    params.c G_RTYPE défaut 0) ; CHAOS TOTAL : 65 % SHORT, sinon HALL/CLOUD SIZE ≤ 89 ; **sons d'usine secs** (alter_ui.c `alt_pre_fx` :
-   fx[] seulement dans une scène d'usine). Prochain : 2-3 reverbs courtes « convolution bizarre » (boîte, tuyau, métal) **à écouter d'abord**.
+   fx[] seulement dans une scène d'usine). Reverbs courtes « convolution bizarre » : écoute https://claude.ai/artifact/HaH9apsi9KLoXDBJ8hGAU1
+   (`tools/alter/alter_shortverb_wav.py` : CAN PIPE METAL SHARDS vs SHORT BOX) → attendre le choix de Romain.
    **RUMBLE (23/11)** : écoute https://claude.ai/artifact/N9BUje7vdzx4TAz4AKEYQF (`tools/alter/alter_rumble_wav.mjs`, hors
    firmware) : actuel 70/127, B DARK ROOM (réverbe ~2,5 s saturée, LP 110 Hz, pompe), C ROLL (sinus à la hauteur du kick
    ~65 Hz, gonfle entre les coups), D GROWL (bruit brun, LP résonant à la hauteur du kick, pompe) → **v1.15 : Romain = DARK ROOM**
