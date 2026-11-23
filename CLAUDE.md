@@ -70,7 +70,10 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    Tour 2 https://claude.ai/artifact/WpH1CCp77DC3Nz6NTTFtCu : CLANG + RUST GEAR SHRED STATIC SCREECH FEEDBACK, note martelée,
    × sec / JITTER / SYNC → Romain : **JITTER non** ; « du wave folding et du ring en plus de bouger dans la table ».
    Tour 3 https://claude.ai/artifact/FqS95yySDFK5fxTvpF2Qo5 : les 7 tables × sec / FOLD / RING ×2,71 / FOLD+RING (POS balaie)
-   → attendre le choix des tables (FOLD et RING = 2 knobs du moteur, réutiliser `eng_xform.h`). balance des niveaux des sons d'usine, moteurs plus différents
+   → Romain : **tables CLANG RUST SHRED FEEDBACK** ; WARP façon Serum (MODE + AMNT) ; knobs plan A = TABLE · POS · MODE ·
+   AMNT · POS ENV · WARP ENV · SUB · SPRD. Tour 4 https://claude.ai/artifact/4EXmb1BDvTyGQpboz29Wqw
+   (`tools/alter/alter_wave_warp.py` : 4 tables × DRY SYNC BEND PWM MIRROR FM RING FOLD BITS, enveloppes POS + WARP)
+   → attendre les MODES gardés, puis coder (tables maison + mips, `eng_xform.h` pour RING/FOLD, vérifier CPU + taille). balance des niveaux des sons d'usine, moteurs plus différents
    (écoutes WAV d'abord), **RUMBLE à refaire** (2-3 variantes WAV à écouter). 4. Vu ailleurs (Felucca 1.0, fm1-dock,
    ChoralRoot) : backup complet depuis la page, mise à jour qui garde scènes/réglages, MIDI Bluetooth.
 5. ~~THEME SPLIT~~ (v1.10, retiré en **v1.13** : Romain 23/11 « on reste sur notre DA ») ; `alt_sys[11]` peut valoir 1 sur

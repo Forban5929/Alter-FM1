@@ -196,4 +196,5 @@ def main():
     (out / "list.json").write_text(json.dumps(lst, indent=1))
 
 
-main()
+if __name__ == "__main__":
+    main()
