@@ -61,7 +61,12 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    (« la pompe est parfaite », sans le clic d'attaque, knob continu LOW ~40 MID ~80 HIGH 127) : alter_fx.c `rmb_part` refait
    (4 combs 11 kHz ~80 ms fb 0.944 + LP dans la boucle, tanh ×4..×10,4, LP 110 Hz 2 pôles, HP 30 Hz, pompe sur `beat_samples()`
    déclenchée par l'enveloppe du kick > ½ crête, gain lissé ~1,5 ms = plus de clic ; `RMB_GAIN` 24 : 70 ≈ MID, 127 ≈ HIGH +3 dB) ;
-   tampon .pool 7,3 Ko (était 3,6 ; à 9,1 Ko le CI refusait : marge pool 6,9 < 8 Ko ; **reste ~8,8 Ko**). balance des niveaux des sons d'usine, moteurs plus différents
+   tampon .pool 7,3 Ko (était 3,6 ; à 9,1 Ko le CI refusait : marge pool 6,9 < 8 Ko ; **reste ~8,8 Ko**).
+   **Moteur WAVE (23/11, Romain : wavetable indus, « inspire-toi de Shrub / TastyWaves »)** : Shrub = propriétaire (pas de code) ;
+   **TastyWaves = GPL-3.0** (github.com/marksweiss/tastywaves, Mark Weiss : `firmware/src/synth.h` oscillateur entier,
+   mip levels, Catmull-Rom, BEND ph + A sin ; ses 12 tables = 391 Ko, trop gros pour nous : ~110 Ko de marge image) → nos
+   tables maison. Écoute https://claude.ai/artifact/GEnhZSqZQgztEGfF9bNTdT (`tools/alter/alter_wave_wav.py`, 16 images,
+   64 harmoniques) : CLANG GRIND ROBOT TEAR × sec/BEND/SYNC/BITS → attendre le choix (tables, déformations, place du moteur). balance des niveaux des sons d'usine, moteurs plus différents
    (écoutes WAV d'abord), **RUMBLE à refaire** (2-3 variantes WAV à écouter). 4. Vu ailleurs (Felucca 1.0, fm1-dock,
    ChoralRoot) : backup complet depuis la page, mise à jour qui garde scènes/réglages, MIDI Bluetooth.
 5. ~~THEME SPLIT~~ (v1.10, retiré en **v1.13** : Romain 23/11 « on reste sur notre DA ») ; `alt_sys[11]` peut valoir 1 sur
