@@ -65,13 +65,68 @@ def t_tear(f):                                    # a hard-synced saw, its slave
     return band(1 - 2 * ((TH / (2 * np.pi) * r) % 1))
 
 
-TABLES = {"CLANG": t_clang, "GRIND": t_grind, "ROBOT": t_robot, "TEAR": t_tear}
+def _rng(seed):
+    return np.random.default_rng(seed)
+
+
+def t_rust(f):                                    # tuned noise: every harmonic, random phases and spiky amplitudes
+    r = _rng(11)
+    a = r.pareto(1.5, HMAX) * (K ** -(1.2 - 0.9 * f))
+    ph = r.uniform(0, 2 * np.pi, HMAX) + f * r.uniform(-3, 3, HMAX)
+    return band(sum(a[k - 1] * np.sin(k * TH + ph[k - 1]) for k in K))
+
+
+def t_gear(f):                                    # a mechanism: uneven clicks inside the cycle, more and harder
+    r = _rng(23)
+    n = int(2 + f * 14)
+    x = np.zeros(HIRES)
+    pos = np.sort(r.uniform(0, 1, 16))[:n]
+    amp = r.uniform(-1, 1, 16)[:n]
+    for p_, a_ in zip(pos, amp):
+        i = int(p_ * HIRES)
+        w = int(HIRES * (0.02 - 0.015 * f))
+        x[i:i + w] += a_ * np.exp(-np.arange(min(w, HIRES - i)) / (w / 4 + 1))
+    return band(x)
+
+
+def t_shred(f):                                   # a cycle cut into random steps (sample and hold noise), fewer and wider
+    r = _rng(31)
+    n = int(48 - 44 * f)
+    v = r.uniform(-1, 1, n)
+    return band(np.repeat(v, HIRES // n + 1)[:HIRES])
+
+
+def t_static(f):                                  # a noise cycle, dark rumble -> white static
+    r = _rng(41)
+    a = r.normal(0, 1, HMAX) * np.exp(-K / (2 + f * 70))
+    ph = r.uniform(0, 2 * np.pi, HMAX)
+    return band(sum(a[k - 1] * np.sin(k * TH + ph[k - 1]) for k in K))
+
+
+def t_screech(f):                                 # metal scraped: a narrow band of high harmonics that wanders up
+    r = _rng(53)
+    c = 12 + f * 46
+    a = np.exp(-((K - c) / (3 + 4 * (1 - f))) ** 2) * r.uniform(0.3, 1, HMAX) + 0.15 * (K == 1)
+    ph = r.uniform(0, 2 * np.pi, HMAX)
+    return band(sum(a[k - 1] * np.sin(k * TH + ph[k - 1]) for k in K))
+
+
+def t_feedback(f):                                # a howl: two close partials beating, driven harder and harder
+    k1, k2 = 9, 10
+    x = np.sin(k1 * TH) + 0.8 * np.sin(k2 * TH) + 0.4 * np.sin(TH)
+    return band(np.tanh(x * (1 + f * 12)))
+
+
+TABLES = {"CLANG": t_clang, "RUST": t_rust, "GEAR": t_gear, "SHRED": t_shred, "STATIC": t_static,
+          "SCREECH": t_screech, "FEEDBACK": t_feedback}
 
 
 def voice(tab, warp, amt):
     bpm, bars = 130, 4
     step = int(FS * 60 / bpm / 4)
-    riff = [36, 36, 48, 36, 39, 36, 46, 36, 36, 43, 36, 48, 36, 39, 34, 36]    # C minor, low
+    riff = [36, 36, 36, 36, 36, 36, 37, 36, 36, 36, 36, 36, 36, 30, 36, 36]    # one note, hammered (round 2: less melodic)
+    rng = np.random.default_rng(5)
+    jf, jp = 0.0, 0.0
     n = step * 16 * bars
     out = np.zeros(n)
     ph = 0.0
@@ -81,12 +136,16 @@ def voice(tab, warp, amt):
         f0 = 440 * 2 ** ((riff[s % 16] - 69) / 12)
         for i in range(step):
             j = s * step + i
-            pos = j / n * (FRAMES - 1)
+            pos = min(max(j / n * (FRAMES - 1) + (jf if warp == "JITTER" else 0), 0), FRAMES - 1)
             fa = int(pos)
             fb = min(fa + 1, FRAMES - 1)
             x = pos - fa
-            ph = (ph + f0 / FS) % 1.0
-            p = ph
+            nph = ph + f0 / FS
+            if warp == "JITTER" and nph >= 1.0:   # each new cycle: another frame and phase nearby (not periodic)
+                jf = rng.uniform(-1, 1) * amt * 5
+                jp = rng.uniform(0, 1) * amt * 0.5
+            ph = nph % 1.0
+            p = (ph + (jp if warp == "JITTER" else 0)) % 1.0
             if warp == "BEND":
                 p = (p + amt * 0.15 * np.sin(2 * np.pi * p)) % 1.0
             elif warp == "SYNC":
@@ -123,7 +182,7 @@ def main():
     lst = []
     for name, fn in TABLES.items():
         tab = [fn(f / (FRAMES - 1)) for f in range(FRAMES)]
-        for warp, amt in (("DRY", 0), ("BEND", 1), ("SYNC", 0.7), ("BITS", 0.8)):
+        for warp, amt in (("DRY", 0), ("JITTER", 0.8), ("SYNC", 0.7)):
             fname = f"{name}_{warp}"
             write(out / f"{fname}.wav", voice(tab, warp, amt))
             lst.append({"table": name, "warp": warp, "file": fname})
