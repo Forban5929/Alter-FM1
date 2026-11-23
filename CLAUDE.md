@@ -53,13 +53,8 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    Mesuré : pas de saut, volume ±3..10 dB sur la course ; scènes USER avec ces knobs ≠ 0 sonnent autrement. balance des niveaux des sons d'usine, moteurs plus différents
    (écoutes WAV d'abord), **RUMBLE à refaire** (2-3 variantes WAV à écouter). 4. Vu ailleurs (Felucca 1.0, fm1-dock,
    ChoralRoot) : backup complet depuis la page, mise à jour qui garde scènes/réglages, MIDI Bluetooth.
-5. **v1.10 (Romain 22/11) : THEME SPLIT** (SYSTEM › SETUP › THEME : NIGHT / DAY / SPLIT ; `alt_sys[11]` = 1, palette NIGHT
-   dessous). Vue PLAY seule pour l'instant (`alt_split_scene` avant alt_scene) : tout en blanc/gris sur noir (`alt_mono` : les
-   macros ALT_* passent en gris), puis `alt_split_turn` retourne la moitié gauche (x < 120) et rend les gris neutres (5-6-5 : le
-   vert fait foi) ; le rouge (`ALT_SPLIT_RED`, anneau + aiguille du cercle choisi) est recalé sur blanc à gauche. Pas de rayons,
-   carte ni figures. Boutons = lunes d'`alt_foot` en gris. Test op **36** = THEME (0/1/2). Maquettes : canvas
-   https://claude.ai/artifact/BYCHi6JSFNoxxGFRJ721Pe (A Split, B Noir, C Blanc). **Pas mesuré sur la FM-1** (coût du retournement :
-   une passe sur chaque morceau dessiné). Suite si Romain valide : WHITE / BLACK, puis les autres pages.
+5. ~~THEME SPLIT~~ (v1.10, retiré en **v1.13** : Romain 23/11 « on reste sur notre DA ») ; `alt_sys[11]` peut valoir 1 sur
+   la FM-1 de Romain (inutilisé : le remettre à 0 avant de le reprendre). Maquettes gardées : https://claude.ai/artifact/BYCHi6JSFNoxxGFRJ721Pe.
 
 ## Utilisateur
 - Romain, non-développeur, techno live indus (Analog Rytm pour les drums). Français simple, honnêteté (vérifié / pas vérifié).
@@ -89,7 +84,7 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.12 » (22/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.13 » (23/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. **Deux sites (v1.02, 22/11)** : pousser sur `etape-3d` → pages.yml construit (tools/alter/site_build.sh, 2 fois) :
    **racine = dernière Release** (tag vX.YY le plus haut ; ce que voient les gens) et **/beta/ = etape-3d** (bandeau rouge
@@ -308,7 +303,7 @@ fichier patch entier, MIXER de la page, MIDI LEARN (BCR32), TRS MIDI (câble en 
    `main` rattrapé le 10/11 (avance rapide). 12/11 : notes de version complétées (Live safety, Known limits), README statut
    v0.7x, message à Leo rédigé (Romain l'envoie). RESTE : la Release v1.0 **après** le test d'installation du Hub.
    **The Firmware Hub (21/11, v0.79)** : https://thefirmwarehub.com/submit/ ; identité `FM-1_956` (depuis v1.01) ; `fmhub.json` à la racine
-   (kinds groove, image `assets/fmhub.png` 1024×512 = artwork « Day/Night », source : canvas https://claude.ai/artifact/FZkborqU2gZQoNpSKcL3J4, rendu PNG par Playwright + polices Google Fonts du dépôt google/fonts ; changer l’image = commit sur main puis merge main dans etape-3d ; liens play/editor/guide) ; pas de fichier son dans le dépôt.
+   (kinds groove, image `assets/fmhub.png` **1024×1024** = artwork « Day/Night » (**le Hub n'accepte que du carré** 240..1024, ≤ 300 Ko ; le 1024×512 a été refusé ; Felucca 1200×600 = fiche gérée par le Hub, pas de fmhub.json), source : canvas https://claude.ai/artifact/FZkborqU2gZQoNpSKcL3J4, rendu PNG par Playwright + polices Google Fonts du dépôt google/fonts ; changer l’image = commit sur main puis merge main dans etape-3d ; liens play/editor/guide) ; pas de fichier son dans le dépôt.
    Test d'installation OK (21/11, v0.79) ; Release v1.0 publiée (tag v1.0, identité 929 = prise !) → v1.01 (956) ;
    le tag ne peut pas être poussé d'ici : Romain (ou Claude in Chrome, connecté) crée la Release sur github.com
    (releases/new?tag=vX&target=main), firmware.yml remplit titre, notes et fichiers (`--release` accepte X.YY depuis v1.01).
