@@ -54,7 +54,10 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    **v1.14 (Romain 23/11 : balance « par familles », « au milieu »)** : LEVEL des 41 sons d'usine réglés en LUFS
    (`tools/alter/alter_balance.py` : devant −25 KICK THUD TOMS GROWL WARM, derrière −31 HAT OPEN HAT RAIN WIND CRUSH METAL
    ARCADE, le reste −28) ; moteur ALTER +6 dB (`voice_amp << 1`, ses sons −6 dB de LEVEL). Reste : CRUSH −6 dB, WARM −2,4,
-   BROKEN −3 (LEVEL déjà à 127). Tests relâchés : TRIGGER (traîne), RUMBLE (+2 dB), CONSOLE COMP (crest × 0,95). balance des niveaux des sons d'usine, moteurs plus différents
+   BROKEN −3 (LEVEL déjà à 127). Tests relâchés : TRIGGER (traîne), RUMBLE (+2 dB), CONSOLE COMP (crest × 0,95).
+   **RUMBLE (23/11)** : écoute https://claude.ai/artifact/N9BUje7vdzx4TAz4AKEYQF (`tools/alter/alter_rumble_wav.mjs`, hors
+   firmware) : actuel 70/127, B DARK ROOM (réverbe ~2,5 s saturée, LP 110 Hz, pompe), C ROLL (sinus à la hauteur du kick
+   ~65 Hz, gonfle entre les coups), D GROWL (bruit brun, LP résonant à la hauteur du kick, pompe) → attendre le choix. balance des niveaux des sons d'usine, moteurs plus différents
    (écoutes WAV d'abord), **RUMBLE à refaire** (2-3 variantes WAV à écouter). 4. Vu ailleurs (Felucca 1.0, fm1-dock,
    ChoralRoot) : backup complet depuis la page, mise à jour qui garde scènes/réglages, MIDI Bluetooth.
 5. ~~THEME SPLIT~~ (v1.10, retiré en **v1.13** : Romain 23/11 « on reste sur notre DA ») ; `alt_sys[11]` peut valoir 1 sur
