@@ -129,8 +129,9 @@ console.log(`hits ${on.length}, kick pitch ~${f0.toFixed(1)} Hz`);
 const list = [];
 const put = (name, label, s) => { wav(`${out}/${name}.wav`, s); list.push({ name, label }); };
 put("0_DRY", "KICK sec", dry);
-put("A_NOW_70", "Actuel 70", await render(70));
-put("A_NOW_127", "Actuel 127", await render(127));
+put("A_NOW_40", "Firmware LOW 40", await render(40));
+put("A_NOW_80", "Firmware MID 80", await render(80));
+put("A_NOW_127", "Firmware HIGH 127", await render(127));
 for (const [lv, tag] of [[0.45, "MID"], [0.8, "HIGH"]]) {
   put(`B_DARK_${tag}`, `DARK ROOM ${tag}`, mix(dry, darkRoom(dry, on, lv), lv));
   put(`C_ROLL_${tag}`, `ROLL ${tag}`, mix(dry, roll(dry, on, f0, lv), lv));

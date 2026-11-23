@@ -92,14 +92,15 @@ static const afx_mst_t AFX_MST[] = {
  * INSERT, before its LEVEL. One knob, continuous: 0 nothing runs, LOW ~40, MID ~80, HIGH 127. One unit: the first circle
  * whose RUMBLE is above 0 (the KICK's knob 4). Sketch: tools/alter/alter_rumble_wav.mjs (B DARK ROOM). */
 static volatile uint8_t alt_rmb[4];               /* each circle's RUMBLE 0..127 (alter_ui.c: the KICK's knob 4) */
-#define RMB_GAIN 24                               /* the level at 127 (measured against the sketch's HIGH) */
+#define RMB_GAIN 6                                /* the level at 127 = the sketch's HIGH (v1.22: measured on the rumble alone,
+                                                   * against the kick: 24 was ~10 dB over it) */
 #define RMB_N 4u
 static const uint16_t RMB_LEN[RMB_N] = {934, 970, 894, 854};   /* (11.025 kHz: 77 .. 88 ms; the pool's headroom) */
 static int16_t rmb_buf[934 + 970 + 894 + 854] __attribute__((section(".pool")));
 static struct {
     uint16_t w[RMB_N];
     int32_t lp[RMB_N], acc, l1, l2, hp, env, prev, now, gn, pk, gs, since;
-    uint8_t ph, owner;
+    uint8_t ph, owner, ph2;                       /* (ph2: the hit detector armed) */
 } rmb;
 static int32_t rmb_tail;                          /* samples of tail left after the knob went to 0 or the kick stopped */
 static uint8_t rmb_mute;                          /* (the browser build's tests: no rumble, web_alter op 18) */
@@ -161,10 +162,17 @@ static __attribute__((noinline)) void rmb_part(uint32_t c, int32_t *b, uint32_t 
         if (a > rmb.env)
             rmb.env += (a - rmb.env) >> 3;
         else
-            rmb.env -= (rmb.env >> 10) + ((rmb.env - a) >> 10);
-        if (rmb.env > (ref >> 1) && (uint32_t)rmb.since > (beat >> 1))
+            rmb.env -= ((rmb.env - a) >> 9) + (rmb.env > a);   /* (v1.22: it fell to 1023 and stayed: no floor now) */
+        /* (v1.22, Romain: "ne sonne pas comme l'extrait": the old envelope stuck at 1023 gave a false hit every half beat,
+         * and the true one came ~50 ms late, the rumble loud on the kick's attack. Now a hit = the envelope going UP
+         * through a quarter of the peak (armed again once it fell under an eighth), a quarter of a beat at least after
+         * the last) */
+        if (rmb.env < (ref >> 3))
+            rmb.ph2 = 1;
+        if (rmb.ph2 && rmb.env > (ref >> 2) && (uint32_t)rmb.since > (beat >> 2)) {
             rmb.since = 0;
-        else if (rmb.since < (1 << 30))
+            rmb.ph2 = 0;
+        } else if (rmb.since < (1 << 30))
             rmb.since++;
         rmb.acc += x;
         if (++rmb.ph >= 4u) {                     /* every 4th sample: the reverb at 11 kHz */
@@ -205,8 +213,9 @@ static __attribute__((noinline)) void rmb_part(uint32_t c, int32_t *b, uint32_t 
             gp = 32767;
         rmb.gs += (gp - rmb.gs) >> 6;             /* (~1.5 ms: the pump glides, no click) */
         y = (int32_t)(((int64_t)y * rmb.gs) >> 15);
-        rmb.gn += (g - rmb.gn) >> 9;              /* (the knob glides: no step, and a fade to 0) */
-        b[i] += (int32_t)(((int64_t)y * rmb.gn) >> 6);
+        rmb.gn += ((g << 8) - rmb.gn) >> 9;       /* (the knob glides: no step, and a fade to 0; v1.22: Q8, it stopped
+                                                   * 511 short of the knob before: LOW was almost nothing) */
+        b[i] += (int32_t)(((int64_t)y * rmb.gn) >> 14);
     }
     }
 }
