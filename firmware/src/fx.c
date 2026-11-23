@@ -901,6 +901,9 @@ static inline int32_t ins_crush_q(int32_t a)
     return ((1 << (e >> 8)) * (256 + (e & 255))) >> 8;
 }
 
+#ifndef FOLD_MK
+#define FOLD_MK 70                               /* (FOLD's make-up, x 1/16) */
+#endif
 /* SOFT .. FUZZ: low cut -> DRIVE -> shape -> TONE -> LEVEL -> DC blocker; CRUSH: held sample -> bits -> LPF */
 static __attribute__((noinline)) void ins_drive(ins_t *s, const track_t *t, int32_t *b, uint32_t n, int32_t tw)
 {
@@ -923,7 +926,12 @@ static __attribute__((noinline)) void ins_drive(ins_t *s, const track_t *t, int3
         } else {
             s->hp += ((x << 8) - s->hp) >> 8;            /* ~27 Hz low cut (Q8: no offset left by the rounding) */
             v = clamp(x - (s->hp >> 8), -230000, 230000);
-            y = ins_shape(ty, ((v >> 3) * g) >> 9, 0);    /* (>> 3 first: 32 bits) */
+            if (ty == IT_FOLD)                          /* (v1.24, Romain: "le début du INS enlève trop de volume": the
+                                                         * voices are louder since v1.17, they folded at once and lost
+                                                         * ~12 dB by A 32. In at a quarter, out with a make-up) */
+                y = (ins_shape(ty, ((v >> 5) * g) >> 9, 0) * FOLD_MK) >> 4;
+            else
+                y = ins_shape(ty, ((v >> 3) * g) >> 9, 0);    /* (>> 3 first: 32 bits) */
         }
         y <<= 4;                                        /* (x16: the low cutoffs' rounding leaves no offset) */
         v = mulq16(y - s->lp1, (uint32_t)k);             /* TONE / LPF: two one-pole low-passes */

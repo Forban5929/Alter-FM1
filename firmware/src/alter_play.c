@@ -625,12 +625,28 @@ static void alt_trig_now(uint32_t n)
         if (alt_trig_tot[c] == alt_trig_seen[c])
             continue;
         alt_trig_seen[c] = alt_trig_tot[c];
-        alt_on(c, alt_note[c][0] ? alt_note[c][0] : as_note(&alt_seq, sc->cfg.root, 0),
-               sc->cfg.len ? as_svel(sc, sc->pos % sc->cfg.len) : AS_VEL[AS_NORMAL], 0, 0);   /* (v1.08, Romain: as the
-                                                  * sequence sounds: the next step's velocity, not 112) */
-        if (alt_gate_left[c] < 1u)
-            alt_gate_left[c] = 1;
-        alt_trig_left[c] = (int32_t)p;
+        {                                        /* (v1.24, Romain: "le TRIGGER ne passe pas par ENV": now as a step's hit,
+                                                  * the ENV page's mode and settings: PERC's HOLD, STAB's 2 steps, FREE's,
+                                                  * DRONE's layer) */
+            uint32_t m = alt_emode[c] % AM_N, gate, note = alt_note[c][0] ? alt_note[c][0] : as_note(&alt_seq,
+                     sc->cfg.root, 0), vel = sc->cfg.len ? as_svel(sc, sc->pos % sc->cfg.len) : AS_VEL[AS_NORMAL];
+            alt_env_apply(c, m, 0);
+            if (m == AM_DRONE)
+                alt_on_drone(c, note, vel, 0);
+            else
+                alt_on(c, note, vel, 0, 0);     /* (v1.08: the next step's velocity, as the sequence sounds) */
+            if (m == AM_PERC || m == AM_DRONE)
+                gate = 255u;                     /* (PERC: its HOLD lets it go, alt_gl_tick; DRONE: until the next) */
+            else if (m == AM_STAB)
+                gate = 2u;
+            else if (m == AM_FREE)
+                gate = alt_free_steps(c) > 1u ? alt_free_steps(c) - 1u : 1u;
+            else
+                gate = 1u;
+            alt_gate_left[c] = (uint8_t)(gate > 1u ? gate - 1u : 1u);
+            /* stopped: let go after its gate (PERC and FREE: by their own timers; DRONE: after 8 sixteenths) */
+            alt_trig_left[c] = m == AM_PERC || m == AM_FREE ? 0 : (int32_t)p * (m == AM_DRONE ? 8 : (int32_t)gate);
+        }
         if (add && alt_run && sc->cfg.len) {
             uint32_t len = sc->cfg.len, k;
             if (alt_pos * 2u < alt_len(p))
