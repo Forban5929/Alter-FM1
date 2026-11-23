@@ -65,7 +65,7 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    (`tools/alter/alter_shortverb_wav.py` : CAN PIPE METAL SHARDS vs SHORT BOX) → **v1.19 : Romain garde les 4** : fx.c `rev_odd` (RV_CAN 4..
    RV_SHARDS 7, 44,1 kHz dans rev_comb/rev_ap, état `ro` .pool ~120 o ; SIZE = feedback, DAMP = passe-bas ; `RO_OUT` calé à la
    même sonie que SHORT, limiteur évité : niveaux −12 dB) ; `rev_run` = HALL ou rev_odd ; presets SHORT BOX CAN PIPE METAL SHARDS
-   HALL BRIGHT HALL CLOUD ; CHAOS TOTAL : les courtes = SHORT/CAN/PIPE/METAL/SHARDS au hasard. Coût ≈ HALL (wasm, bruité ; FM-1 pas mesuré).
+   HALL BRIGHT HALL CLOUD ; CHAOS TOTAL : les courtes = SHORT/CAN/PIPE/METAL/SHARDS au hasard. Coût ≈ HALL (wasm, bruité ; FM-1 pas mesuré). CI vert ; **pool libre 8,6 Ko = 444 o au-dessus du seuil CI 8 Ko** (ne plus rien ajouter en .pool sans libérer). Écoute firmware : https://claude.ai/artifact/YPjm6P9y7VqDJdUiwwapGf.
    **RUMBLE (23/11)** : écoute https://claude.ai/artifact/N9BUje7vdzx4TAz4AKEYQF (`tools/alter/alter_rumble_wav.mjs`, hors
    firmware) : actuel 70/127, B DARK ROOM (réverbe ~2,5 s saturée, LP 110 Hz, pompe), C ROLL (sinus à la hauteur du kick
    ~65 Hz, gonfle entre les coups), D GROWL (bruit brun, LP résonant à la hauteur du kick, pompe) → **v1.15 : Romain = DARK ROOM**
