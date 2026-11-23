@@ -58,6 +58,10 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    PHYS ×3 (était ×2), LEVEL de tous les sons rééquilibrés (3 passes) ; restent courts ≤ 1,7 dB (CRUSH WARM LARSEN SHREDDER : leurs crêtes
    touchent le limiteur MASTER `LIM_T`, plus de gain n'y fait rien) ; scènes USER avec ces moteurs = plus fortes (LEVEL absolu
    sauvé) ; alter_fx_test : COMP et MID +12 mesurés avec 12 dB de marge (op 17 LEVEL −24). Tests relâchés : TRIGGER (traîne), RUMBLE (+2 dB), CONSOLE COMP (crest × 0,95).
+   **v1.18 (Romain 23/11)** : REVERB presets = **SHORT BOX HALL BRIGHT HALL CLOUD** (ENDLESS GATED LONG GATE retirés ; SHORT = index 0 =
+   démarrage, NEW, scènes d'usine) ; modèle GATED retiré (fx.c : G_RTYPE 1 joue SHORT ; page FX le saute ; page compagnon le cache ;
+   params.c G_RTYPE défaut 0) ; CHAOS TOTAL : 65 % SHORT, sinon HALL/CLOUD SIZE ≤ 89 ; **sons d'usine secs** (alter_ui.c `alt_pre_fx` :
+   fx[] seulement dans une scène d'usine). Prochain : 2-3 reverbs courtes « convolution bizarre » (boîte, tuyau, métal) **à écouter d'abord**.
    **RUMBLE (23/11)** : écoute https://claude.ai/artifact/N9BUje7vdzx4TAz4AKEYQF (`tools/alter/alter_rumble_wav.mjs`, hors
    firmware) : actuel 70/127, B DARK ROOM (réverbe ~2,5 s saturée, LP 110 Hz, pompe), C ROLL (sinus à la hauteur du kick
    ~65 Hz, gonfle entre les coups), D GROWL (bruit brun, LP résonant à la hauteur du kick, pompe) → **v1.15 : Romain = DARK ROOM**
@@ -114,7 +118,7 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.17 » (23/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.18 » (23/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. **Deux sites (v1.02, 22/11)** : pousser sur `etape-3d` → pages.yml construit (tools/alter/site_build.sh, 2 fois) :
    **racine = dernière Release** (tag vX.YY le plus haut ; ce que voient les gens) et **/beta/ = etape-3d** (bandeau rouge

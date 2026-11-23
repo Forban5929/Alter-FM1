@@ -30,7 +30,7 @@ static uint32_t afp_fx_pos(void)
             return i;
     return 2u;
 }
-static const char *const AFP_RTYPE[4] = {"SHORT", "GATED", "HALL", "CLOUD"};
+static const char *const AFP_RTYPE[4] = {"SHORT", "SHORT", "HALL", "CLOUD"};   /* (v1.18: 1, GATED, plays SHORT) */
 /* the delay's times, short to long (params.c N_DTIME's ids) */
 static const uint8_t AFP_DT[] = {2, 1, 10, 0};   /* 1/16 1/8 1/8D 1/4 (Romain 04/11) */
 #define AFP_NDT sizeof AFP_DT
@@ -142,7 +142,10 @@ static void afp_turn(uint32_t i, int32_t s)
         return;
     case AFP_REV:
         if (i == 0u)
-            song.g[G_RTYPE] = (int16_t)clamp(song.g[G_RTYPE] + (s > 0 ? 1 : -1), 0, 3);
+        {                                        /* (v1.18: SHORT HALL CLOUD, GATED gone: stepped over) */
+            int16_t r = (int16_t)clamp(song.g[G_RTYPE] + (s > 0 ? 1 : -1), 0, 3);
+            song.g[G_RTYPE] = r == 1 ? (int16_t)(s > 0 ? 2 : 0) : r;
+        }
         else if (i == 1u)
             afp_g(G_RSIZE, s, 0, 127);
         else if (i == 2u)

@@ -384,7 +384,9 @@ static void alt_load_scene(uint32_t n)
     for (c = 0; c < AS_NCIRC; c++) {
         as_cfg_t *cf = &au.cfg[c];
         alt_rhy_t r;
+        alt_pre_fx = 1;                          /* (v1.18: a factory scene keeps its sounds' sends) */
         alt_load_sound(c, alt_pre_find(sc->c[c].pre));
+        alt_pre_fx = 0;
         trk[c].p[P_LEVEL] = (int16_t)clamp(trk[c].p[P_LEVEL] + sc->c[c].gain, 1, 127);
         if (sc->c[c].dly)
             trk[c].p[P_DLY] = sc->c[c].dly;

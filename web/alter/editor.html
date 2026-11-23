@@ -1136,7 +1136,11 @@ function varRow(d, uid, onSet) {
     row.className = "p w enum";
     row.innerHTML = `<label for="${uid}" title="${d.name}">${d.name}</label><select id="${uid}"></select>`;
     const s = row.querySelector("select");
-    d.names.forEach((nm, i) => s.append(new Option(nm, d.min + i)));
+    d.names.forEach((nm, i) => {                     // (v1.18: the reverb's GATED left: hidden, it plays SHORT)
+      const op = new Option(nm, d.min + i);
+      if (d.label === "TYPE" && nm === "GATED") op.hidden = true;
+      s.append(op);
+    });
     s.onchange = () => onSet(+s.value);
     return { row, input: s, d, set(v) { s.value = v; } };
   }

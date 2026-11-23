@@ -652,6 +652,8 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
     }
     rt = song.g[G_RTYPE];
     rt = rt >= 0 && rt < RV_N ? rt : RV_HALL;
+    if (rt == RV_GATED)
+        rt = RV_SHORT;                                  /* (v1.18, Romain 23/11: GATED gone; a scene stored with it: SHORT) */
     hl.side = 0;
     if (rt != fx.rtype) {
         rev_switch(rev_in, wet, n, rt);

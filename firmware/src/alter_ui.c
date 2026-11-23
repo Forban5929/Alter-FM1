@@ -208,6 +208,8 @@ static void alt_cal_to(uint32_t c, int32_t g)
     alt_cal_cnt[c % AS_NCIRC]++;
 }
 
+static uint8_t alt_pre_fx;                       /* (v1.18, Romain 23/11: "les presets n'ont pas d'effet de base": a sound
+                                                  * loads dry, its fx[] sends only inside a factory scene, alter_store.c) */
 static void alt_load_sound(uint32_t c, uint32_t i)
 {
     track_t *t = &trk[c];
@@ -227,7 +229,7 @@ static void alt_load_sound(uint32_t c, uint32_t i)
     t->p[P_SUS] = pr->env[2];
     t->p[P_REL] = pr->env[3];
     for (j = 0; j < 4u; j++)
-        t->p[P_DIST + j] = pr->fx[j];
+        t->p[P_DIST + j] = alt_pre_fx ? pr->fx[j] : 0;
     t->p[P_LEVEL] = pr->level;
     alt_rmb[c] = pr->rumble;                     /* (its RUMBLE: the KICK's, 04/11) */
     t->p[P_VOICE] = V_POLY;
@@ -1613,7 +1615,11 @@ static void alt_total_chaos(void)
                                                   * (the same draws either way: the rest of the scene does not change) */
         int16_t dt = ALT_DT[alt_cr(sizeof ALT_DT)], fb = (int16_t)alt_cr(101u), col = (int16_t)alt_cr(128u);
         int16_t mx = (int16_t)(40u + alt_cr(88u)), md = (int16_t)alt_cr(3u), tp = (int16_t)alt_cr(100u);
-        int16_t rt = (int16_t)alt_cr(4u), rs = (int16_t)alt_cr(128u), rd = (int16_t)alt_cr(128u);
+        int16_t rt = (int16_t)alt_cr(100u), rh = (int16_t)alt_cr(2u), rs = (int16_t)alt_cr(128u), rd = (int16_t)alt_cr(128u);
+        if (rt < 65)                             /* (v1.18, Romain 23/11: ~2 times in 3 a short one, SHORT's size 0..127 */
+            rt = 0;                              /* = a box .. a room; else HALL or CLOUD, smaller: size 0..89) */
+        else
+            rt = rh ? 2 : 3, rs = (int16_t)(rs * 90 / 128);
         if (!(alt_sys[9] & ALT_RFX_DLY)) {
             song.g[G_DTIME] = dt;
             song.g[G_DFDBK] = fb;
@@ -1624,7 +1630,7 @@ static void alt_total_chaos(void)
             afx_edit |= 1u << AFX_S_DLY;
         }
         if (!(alt_sys[9] & ALT_RFX_REV)) {
-            song.g[G_RTYPE] = rt;                /* SHORT GATED HALL CLOUD */
+            song.g[G_RTYPE] = rt;                /* SHORT HALL CLOUD (GATED gone, v1.18) */
             song.g[G_RSIZE] = rs;
             song.g[G_RDAMP] = rd;
             afx_edit |= 1u << AFX_S_REV;

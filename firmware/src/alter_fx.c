@@ -54,15 +54,15 @@ static const afx_dly_t AFX_DLY[] = {
     {"TAPE", 0, 75, 60, 95, 0, 110},
 };
 /* REVERB: TYPE (0 SHORT 1 GATED 2 HALL 3 CLOUD: fx.c RV_*), SIZE, DAMP (8 presets: the page's PRESETS) */
+/* (v1.18, Romain 23/11: SHORT first = the power-on, NEW and the factory scenes; ENDLESS, GATED, LONG GATE gone, and
+ * the GATED model with them: fx.c plays a stored 1 as SHORT. A USER scene keeps its reverb's values, only the name
+ * shown may differ) */
 static const afx_rev_t AFX_REV[] = {
+    {"SHORT", 0, 60, 40},
+    {"BOX", 0, 20, 90},
     {"HALL", 2, 90, 60},                 /* (Felucca's power-on) */
     {"BRIGHT HALL", 2, 100, 10},
     {"CLOUD", 3, 80, 50},
-    {"ENDLESS", 3, 120, 70},             /* (SIZE 120: ~40 s, almost a freeze) */
-    {"SHORT", 0, 60, 40},
-    {"BOX", 0, 20, 90},
-    {"GATED", 1, 30, 40},                /* (SIZE: the gate open 160 ms) */
-    {"LONG GATE", 1, 90, 70},
 };
 /* MASTER: LOW MID HIGH COMP DUCK SRC SHAPE CLIP */
 static const afx_mst_t AFX_MST[] = {
