@@ -77,7 +77,7 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    ALT_ENGS index 7 ; tables `eng_wave_tab.h` générées par `tools/alter/alter_wave_tables.py` : 4 × 16 images × mips 256/128/64/32,
    int8 + gain par image, ~31 Ko flash) ; knobs TABL(enum) POS MODE(enum) AMNT PENV WENV SUB SPRD ; SHP → POS, FLT → AMNT ;
    AMNT 0 = aucun warp ; alt_sys[1] = 8 bits (WAVE = 0x80, migration alt_sys[7] = 2) ; sons HAMMER BENDER CORRODE WAVE RING
-   SHREDDER HOWL (−28 LUFS ; SHREDDER court de 0,5 dB). Audit knobs : pas de saut. **Pas écouté, CPU pas mesuré sur la FM-1.** balance des niveaux des sons d'usine, moteurs plus différents
+   SHREDDER HOWL (−28 LUFS ; SHREDDER court de 0,5 dB). Audit knobs : pas de saut. CI vert ; marge image ~64 Ko (était ~110). Écoute : https://claude.ai/artifact/BvvHvBSGMBZwXTuNWZ6WqW. **Pas écouté, CPU pas mesuré sur la FM-1.** balance des niveaux des sons d'usine, moteurs plus différents
    (écoutes WAV d'abord), **RUMBLE à refaire** (2-3 variantes WAV à écouter). 4. Vu ailleurs (Felucca 1.0, fm1-dock,
    ChoralRoot) : backup complet depuis la page, mise à jour qui garde scènes/réglages, MIDI Bluetooth.
 5. ~~THEME SPLIT~~ (v1.10, retiré en **v1.13** : Romain 23/11 « on reste sur notre DA ») ; `alt_sys[11]` peut valoir 1 sur
