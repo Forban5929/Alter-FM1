@@ -172,6 +172,10 @@ says which chord. **SCL held**: the SCALES page.
 **FX tapped**: the chosen circle's DIST, INSERT, DELAY send, REVERB send. **FX held**: the FX page — tabs REVERB (TYPE
 SIZE DAMP SEND), DELAY (TIME, FEEDBK, TAPE mode, SEND) and DIST: KNOB 1 DRIVE, KNOB 2 INS (the insert's amount, 0 = none),
 KNOB 3 TYPE (OFF FOLD CRUSH: the plain drives are DIST's), KNOB 4 TONE. The insert is always full (no MIX).
+REVERB types and presets (v1.19): **SHORT** (a small dense room, the default), **CAN** (a tin can), **PIPE** (hollow,
+almost a note), **METAL** (the "boing" of a sheet), **SHARDS** (broken, granular reflections), **HALL**, **CLOUD**; presets SHORT BOX
+CAN PIPE METAL SHARDS HALL BRIGHT HALL CLOUD. The factory sounds load dry (no sends); CHAOS TOTAL picks a short one about 2 times
+in 3.
 
 **GLO held** opens the **MIXER**:
 - tab **MIX**: KNOB 1 2 3 the three circles' levels, KNOB 4 the MASTER, and the output meter;

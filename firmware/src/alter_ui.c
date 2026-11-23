@@ -1615,9 +1615,11 @@ static void alt_total_chaos(void)
                                                   * (the same draws either way: the rest of the scene does not change) */
         int16_t dt = ALT_DT[alt_cr(sizeof ALT_DT)], fb = (int16_t)alt_cr(101u), col = (int16_t)alt_cr(128u);
         int16_t mx = (int16_t)(40u + alt_cr(88u)), md = (int16_t)alt_cr(3u), tp = (int16_t)alt_cr(100u);
+        static const uint8_t RSH[5] = {0, 4, 5, 6, 7};   /* (v1.19: SHORT CAN PIPE METAL SHARDS) */
         int16_t rt = (int16_t)alt_cr(100u), rh = (int16_t)alt_cr(2u), rs = (int16_t)alt_cr(128u), rd = (int16_t)alt_cr(128u);
-        if (rt < 65)                             /* (v1.18, Romain 23/11: ~2 times in 3 a short one, SHORT's size 0..127 */
-            rt = 0;                              /* = a box .. a room; else HALL or CLOUD, smaller: size 0..89) */
+        int16_t ry = (int16_t)alt_cr(5u);
+        if (rt < 65)                             /* (v1.18, Romain 23/11: ~2 times in 3 a short one, its size 0..127 */
+            rt = RSH[ry];                        /* = a box .. a room; else HALL or CLOUD, smaller: size 0..89) */
         else
             rt = rh ? 2 : 3, rs = (int16_t)(rs * 90 / 128);
         if (!(alt_sys[9] & ALT_RFX_DLY)) {
@@ -1630,7 +1632,7 @@ static void alt_total_chaos(void)
             afx_edit |= 1u << AFX_S_DLY;
         }
         if (!(alt_sys[9] & ALT_RFX_REV)) {
-            song.g[G_RTYPE] = rt;                /* SHORT HALL CLOUD (GATED gone, v1.18) */
+            song.g[G_RTYPE] = rt;                /* SHORT HALL CLOUD CAN PIPE METAL SHARDS (GATED gone, v1.18) */
             song.g[G_RSIZE] = rs;
             song.g[G_RDAMP] = rd;
             afx_edit |= 1u << AFX_S_REV;

@@ -30,7 +30,7 @@ static uint32_t afp_fx_pos(void)
             return i;
     return 2u;
 }
-static const char *const AFP_RTYPE[4] = {"SHORT", "SHORT", "HALL", "CLOUD"};   /* (v1.18: 1, GATED, plays SHORT) */
+static const char *const AFP_RTYPE[8] = {"SHORT", "SHORT", "HALL", "CLOUD", "CAN", "PIPE", "METAL", "SHARDS"};   /* (v1.18: 1, GATED, plays SHORT; v1.19: + 4) */
 /* the delay's times, short to long (params.c N_DTIME's ids) */
 static const uint8_t AFP_DT[] = {2, 1, 10, 0};   /* 1/16 1/8 1/8D 1/4 (Romain 04/11) */
 #define AFP_NDT sizeof AFP_DT
@@ -143,7 +143,7 @@ static void afp_turn(uint32_t i, int32_t s)
     case AFP_REV:
         if (i == 0u)
         {                                        /* (v1.18: SHORT HALL CLOUD, GATED gone: stepped over) */
-            int16_t r = (int16_t)clamp(song.g[G_RTYPE] + (s > 0 ? 1 : -1), 0, 3);
+            int16_t r = (int16_t)clamp(song.g[G_RTYPE] + (s > 0 ? 1 : -1), 0, 7);
             song.g[G_RTYPE] = r == 1 ? (int16_t)(s > 0 ? 2 : 0) : r;
         }
         else if (i == 1u)
@@ -425,7 +425,7 @@ static void afp_kv(uint32_t k, const char **name, char *txt, int32_t *fill)
     case 6: v = song.g[G_DTAPE]; break;
     case 7: v = t->p[P_DLY]; break;
     case 8: {
-        const char *s = AFP_RTYPE[clamp(song.g[G_RTYPE], 0, 3)];
+        const char *s = AFP_RTYPE[clamp(song.g[G_RTYPE], 0, 7)];
         uint32_t n = 0;
         while (s[n])
             txt[n] = s[n], n++;

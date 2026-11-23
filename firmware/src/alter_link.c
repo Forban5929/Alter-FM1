@@ -212,7 +212,7 @@ static const lk_var_t LK_V[] = {
     LKV_G(LV_G, G_DTIME, GR_DLY, "TIME", 0, (int16_t)(sizeof N_DTIME / sizeof N_DTIME[0]) - 1, N_DTIME),
     LKV_G(LV_G, G_DFDBK, GR_DLY, "FEEDBACK", 0, 120, 0),
     LKV_G(LV_G, G_DCOLOR, GR_DLY, "COLOR", 0, 127, 0),
-    LKV_G(LV_G, G_RTYPE, GR_REV, "TYPE", 0, 3, N_RTYPE),
+    LKV_G(LV_G, G_RTYPE, GR_REV, "TYPE", 0, 7, N_RTYPE),
     LKV_G(LV_G, G_RSIZE, GR_REV, "SIZE", 0, 127, 0),
     LKV_G(LV_G, G_RDAMP, GR_REV, "DAMP", 0, 127, 0),
     LKV_G(LV_AMX, AMX_LOW, GR_MST, "LOW", 0, 127, 0), LKV_G(LV_AMX, AMX_MID, GR_MST, "MID", 0, 127, 0),

@@ -54,6 +54,9 @@ static struct {
  *   3 CLOUD  twice HALL's lines, 4 diffusers, a deeper and slower drift: huge and moving; SIZE 127 ~ a minute
  * (G_RTYPE's numbers: 0 and 1 were ROOM and SPRING, a scene stored with them plays SHORT and GATED.) */
 enum { RV_SHORT, RV_GATED, RV_HALL, RV_CLOUD, RV_N };
+/* ALTER v1.19 (Romain 23/11, after the listening page: "j'adore les shorts verb genre convolution bizarre"): four short,
+ * strange ones, not on HALL's network (rev_odd, at 44.1 kHz in the same buffers): CAN, PIPE, METAL, SHARDS */
+enum { RV_CAN = RV_N, RV_PIPE, RV_METAL, RV_SHARDS, RV_NALL };
 typedef struct {
     uint16_t len[HL_NL];                 /* the lines, mutually prime-ish, rising (+1 each in rev_comb: the mirror) */
     uint16_t ap[HL_MAXAP];               /* the diffusers' lengths */
@@ -465,11 +468,133 @@ static __attribute__((noinline)) void rev_hall(const int32_t *rev_in, int32_t *o
     hl.side = 1;
 }
 
+/* ALTER v1.19: the four short strange reverbs (sketches: tools/alter/alter_shortverb_wav.py), each a small network at
+ * 44.1 kHz in rev_comb (circular lines, no mirror) and rev_ap, left and right lines a little apart (the stereo: mid into
+ * the wet bus, side into rev_side as HALL's):
+ *   CAN     four very short combs a side (1.1 .. 3.1 ms) ringing together, band-passed: a tin can
+ *   PIPE    two combs a side (7 and 11 ms) with a low-pass in their loops: hollow, almost a note
+ *   METAL   six short all-passes (a dispersion: the "boing" of a sheet) into two combs a side, bright
+ *   SHARDS  14 sparse reflections (15 .. 140 ms, SIZE stretches them x 0.5 .. 1.5) of one line, each through its own
+ *           low- or high-pass, odd ones left, even right: a broken, granular room
+ * SIZE: the combs' feedback (CAN PIPE METAL: longer), DAMP: darker. Each comb's input is scaled by 1 - feedback
+ * (its resonances' peak stays at the input's level). Integers; no division per sample. */
+#define RO_NL 8u                         /* lines at most (4 a side) */
+static const uint16_t RO_LEN[3][RO_NL] = {
+    {50, 75, 101, 135, 52, 72, 106, 129},              /* CAN: 4 left, 4 right */
+    {322, 490, 0, 0, 335, 472, 0, 0},                  /* PIPE: 2 left, 2 right */
+    {587, 789, 0, 0, 622, 736, 0, 0},                  /* METAL: after the all-passes */
+};
+static const uint8_t RO_AP[6] = {14, 21, 32, 45, 66, 93};   /* METAL's all-passes (271 samples of rev_ap) */
+#define RO_SHL 6174u                     /* SHARDS: its line (140 ms) */
+static const uint16_t RO_TAP[14] = {688, 1720, 870, 3310, 2295, 4120, 1290, 5015, 2830, 3730, 4630, 1060, 5600, 2470};
+static const int16_t RO_TG[14] = {26000, -21000, 23000, 15000, -17000, -11000, 20000, 8000, -13000, 10000, -7000,
+                                  -19000, 6000, 12000};   /* (signs at random, smaller the later) */
+static const int16_t RO_TK[14] = {9000, -6000, 22000, -9000, 4000, 12000, -20000, 7000, -4000, 26000, -12000, 5000,
+                                  15000, -7000};   /* (each tap's one pole, Q15: > 0 a low-pass, < 0 a high-pass) */
+static struct {
+    uint16_t w[RO_NL], aw[6], sw;        /* the lines' write places, the all-passes', SHARDS' */
+    int32_t lp[RO_NL];                   /* PIPE's loop low-passes */
+    int32_t ol[2], oh[2];                /* the outputs' low-pass and high-pass, left and right */
+    int32_t tp[14];                      /* SHARDS: each tap's pole */
+} ro __attribute__((section(".pool")));
+_Static_assert(50 + 75 + 101 + 135 + 52 + 72 + 106 + 129 <= REV_LINES && 587 + 789 + 622 + 736 <= REV_LINES &&
+               RO_SHL * 3u / 2u <= REV_LINES && 14 + 21 + 32 + 45 + 66 + 93 <= REV_APS, "the strange reverbs' lines");
+static const uint8_t RO_OUT[4] = {19, 28, 23, 7};   /* the outputs' gain (measured: their loudness near SHORT's) */
+static __attribute__((noinline)) int32_t rev_odd(const int32_t *rev_in, int32_t *out, uint32_t n, uint32_t mi)
+{
+    uint32_t i, k, m = mi - RV_CAN, nl = m == 0u ? 4u : 2u;
+    int32_t sz = song.g[G_RSIZE], dp = song.g[G_RDAMP], pk = 0, fb, xs, kl, kh, ga = RO_OUT[m & 3u];
+    int16_t *b = rev_comb;
+    fb = m == 0u ? 26214 + sz * 4915 / 127 : m == 1u ? 27853 + sz * 3604 / 127 : 25559 + sz * 4588 / 127;   /* (0.8 .. 0.95,
+                                                  * 0.85 .. 0.96, 0.78 .. 0.92) */
+    xs = 32768 - fb;
+    kl = 32767 - dp * (m == 1u ? 150 : 200);     /* (DAMP: the output's low-pass, open .. ~1.5 kHz) */
+    kh = m == 1u ? 560 : m == 2u ? 1850 : m == 0u ? 3200 : 300;   /* (the output's high-pass: 120 / 400 / 700 / 50 Hz) */
+    if (m == 3u)
+        kl = 32767 - dp * 150;
+    for (i = 0; i < n; i++) {
+        int32_t x = mulq15(clamp(rev_in[i], -262143, 262143), 2580), s[2] = {0, 0}, c;
+        if (m == 3u) {                           /* SHARDS: one line, 14 taps */
+            uint32_t L = RO_SHL * (uint32_t)(64 + sz) / 128u, w = ro.sw;
+            b[w] = (int16_t)clamp(x, -32767, 32767);
+            for (k = 0; k < 14u; k++) {
+                int32_t t = (int32_t)w - (int32_t)((uint32_t)RO_TAP[k] * (uint32_t)(64 + sz) >> 7), v, kk = RO_TK[k];
+                if (t < 0)
+                    t += (int32_t)L;
+                v = (b[t] * RO_TG[k]) >> 15;
+                if (kk > 0)
+                    ro.tp[k] += ((v - ro.tp[k]) * kk) >> 15, v = ro.tp[k];
+                else
+                    ro.tp[k] += ((v - ro.tp[k]) * -kk) >> 15, v -= ro.tp[k];
+                s[k & 1u] += v;
+            }
+            ro.sw = (uint16_t)(w + 1u >= L ? 0u : w + 1u);
+        } else {
+            int16_t *q = b;
+            if (m == 2u) {                       /* METAL: the all-passes first */
+                int16_t *a = rev_ap;
+                for (k = 0; k < 6u; k++) {
+                    int32_t d = a[ro.aw[k]], y = d - (int32_t)(((int64_t)x * 23593) >> 15);
+                    a[ro.aw[k]] = (int16_t)clamp(x + (int32_t)(((int64_t)y * 23593) >> 15), -32767, 32767);
+                    ro.aw[k] = (uint16_t)(ro.aw[k] + 1u >= RO_AP[k] ? 0u : ro.aw[k] + 1u);
+                    a += RO_AP[k];
+                    x = y;
+                }
+            }
+            x = (x * xs) >> 15;
+            for (c = 0; c < 2; c++)
+                for (k = 0; k < nl; k++) {
+                    uint32_t j = (uint32_t)c * 4u + k, len = RO_LEN[m][j], w = ro.w[j];
+                    int32_t v = q[w], f;
+                    if (m == 1u) {                       /* (PIPE: the loop darker each time round) */
+                        ro.lp[j] += ((v - ro.lp[j]) * 21299) >> 15;
+                        f = ro.lp[j];
+                    } else
+                        f = v;
+                    q[w] = (int16_t)clamp(x + ((f * fb) >> 15), -32767, 32767);
+                    ro.w[j] = (uint16_t)(w + 1u >= len ? 0u : w + 1u);
+                    q += len;
+                    s[c] += v;
+                }
+        }
+        for (c = 0; c < 2; c++) {                /* the output's colour: a low-pass (DAMP), a high-pass */
+            ro.ol[c] += (int32_t)(((int64_t)(s[c] - ro.ol[c]) * kl) >> 15);
+            ro.oh[c] += ((ro.ol[c] - ro.oh[c]) * kh) >> 15;
+            s[c] = ro.ol[c] - ro.oh[c];
+            pk |= s[c] < 0 ? -s[c] : s[c];
+        }
+        out[i] += (s[0] + s[1]) * ga;
+        rev_side[i] = (s[0] - s[1]) * ga;
+    }
+    hl.side = 1;
+    return pk;
+}
+/* a block of the reverb running (model mi): HALL's network or one of the strange ones; how loud its tail is */
+static int32_t rev_run(const int32_t *rev_in, int32_t *out, uint32_t n, uint32_t mi)
+{
+    int32_t pk = 0;
+    uint32_t i;
+    if (mi >= RV_CAN)
+        return rev_odd(rev_in, out, n, mi);
+    rev_hall(rev_in, out, n, mi);
+    for (i = 0; i < HL_NC; i++) {
+        int32_t a = hl.l[i] < 0 ? -hl.l[i] : hl.l[i], b2 = hl.r[i] < 0 ? -hl.r[i] : hl.r[i];
+        pk |= a | b2;
+    }
+    return pk;
+}
+
 static uint32_t rev_quiet;              /* ALTER: samples with nothing sent and a silent tail */
 static uint8_t rev_off;                 /* ALTER: the reverb idle (not run) */
 /* the reverb's buffers and states to silence (the model changed) */
 static void rev_clear(void)
 {
+    {                                            /* (v1.19: the strange ones' states) */
+        uint8_t *z = (uint8_t *)&ro;
+        uint32_t q;
+        for (q = 0; q < sizeof ro; q++)
+            z[q] = 0;
+    }
     uint32_t i;
     for (i = 0; i < sizeof rev_comb / 2u; i++)
         rev_comb[i] = 0;
@@ -521,7 +646,7 @@ static __attribute__((noinline)) void rev_switch(const int32_t *rev_in, int32_t 
     uint32_t i;
     for (i = 0; i < n; i++)
         t[i] = 0;
-    rev_hall(rev_in, t, n, fx.rtype);
+    (void)rev_run(rev_in, t, n, fx.rtype);
     for (i = 0; i < n; i++, g -= d) {
         wet[i] += mulq16(t[i], (uint32_t)g);
         rev_side[i] = mulq16(rev_side[i], (uint32_t)g);   /* (HALL only: hl.side set) */
@@ -651,7 +776,7 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
         wet[i] = y;
     }
     rt = song.g[G_RTYPE];
-    rt = rt >= 0 && rt < RV_N ? rt : RV_HALL;
+    rt = rt >= 0 && rt < RV_NALL ? rt : RV_HALL;
     if (rt == RV_GATED)
         rt = RV_SHORT;                                  /* (v1.18, Romain 23/11: GATED gone; a scene stored with it: SHORT) */
     hl.side = 0;
@@ -670,13 +795,9 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
             }
         if (rev_off && in0) {
         } else {
-            int32_t pk = 0;
+            int32_t pk;
             rev_off = 0;
-            rev_hall(rev_in, wet, n, (uint32_t)rt);
-            for (i = 0; i < HL_NC; i++) {
-                int32_t a = hl.l[i] < 0 ? -hl.l[i] : hl.l[i], b2 = hl.r[i] < 0 ? -hl.r[i] : hl.r[i];
-                pk |= a | b2;
-            }
+            pk = rev_run(rev_in, wet, n, (uint32_t)rt);
             rev_quiet = in0 && pk < 4 ? rev_quiet + n : 0u;
             if (rev_quiet >= 3u * FS) {
                 rev_clear();

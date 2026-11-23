@@ -60,6 +60,10 @@ static const afx_dly_t AFX_DLY[] = {
 static const afx_rev_t AFX_REV[] = {
     {"SHORT", 0, 60, 40},
     {"BOX", 0, 20, 90},
+    {"CAN", 4, 60, 30},                  /* (v1.19, Romain 23/11: the strange short ones, fx.c rev_odd) */
+    {"PIPE", 5, 60, 40},
+    {"METAL", 6, 60, 20},
+    {"SHARDS", 7, 64, 40},
     {"HALL", 2, 90, 60},                 /* (Felucca's power-on) */
     {"BRIGHT HALL", 2, 100, 10},
     {"CLOUD", 3, 80, 50},
