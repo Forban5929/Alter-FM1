@@ -11,7 +11,7 @@
  * MODE  the warp: SYNC (the cycle read faster, reset: x1 .. x8), BEND (the phase bent: p^1 .. p^5), FM (the phase
  *       pushed by a sine at twice the note), RING (eng_xform.h: x0.5 mixed in, then the carrier up to x2.71),
  *       FOLD (eng_xform.h's folder), BITS (fewer levels, samples held)
- * AMNT  how much warp; the track's FLT moves it too. 0: no warp runs
+ * AMNT  how much warp; the track's FLT and WENV move it too, in proportion to it. 0: no warp at all (v1.21)
  * PENV  a hit pushes POS up, falling back over ~0.15 s (a bright attack, a sweep through the table)
  * WENV  a hit pushes AMNT up the same way (a zap of warp at each hit)
  * SUB   a sine one octave down, under the warp (weight)
@@ -83,7 +83,9 @@ static void wave_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     ff = fp & 255;
     g = WV_GAIN[tab][fr] + (((WV_GAIN[tab][fr + 1] - WV_GAIN[tab][fr]) * ff) >> 8);
     /* AMNT (+ FLT, + WENV), Q15 */
-    ak = clamp((p[P_E3] << 8) + m->cutoff + ((v->s[1] * p[P_E5]) >> 7), 0, 127 << 8);
+    ak = p[P_E3] ? clamp((p[P_E3] << 8) + (m->cutoff + ((v->s[1] * p[P_E5]) >> 7)) * p[P_E3] / 127, 0, 127 << 8) : 0;
+                                                 /* (v1.21, Romain: AMNT 0 = no warp at all; FLT and WENV push it in
+                                                  * proportion to AMNT) */
     a = ak + (ak >> 7);                          /* (0 .. 32766) */
     v->s[0] = (v->s[0] * WV_ENVK) >> 15;
     v->s[1] = (v->s[1] * WV_ENVK) >> 15;
