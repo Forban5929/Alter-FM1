@@ -61,7 +61,10 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    **v1.18 (Romain 23/11)** : REVERB presets = **SHORT BOX HALL BRIGHT HALL CLOUD** (ENDLESS GATED LONG GATE retirés ; SHORT = index 0 =
    démarrage, NEW, scènes d'usine) ; modèle GATED retiré (fx.c : G_RTYPE 1 joue SHORT ; page FX le saute ; page compagnon le cache ;
    params.c G_RTYPE défaut 0 ; **v1.20 : les scènes d'usine gardent leur reverb d'avant = HALL** (Romain : « des saves déjà faites » ;
-   alter_store.c `OLD_REV` : rpre = l'ancienne liste) ; SHORT = NEW + sons ; démarrage = scène TECHNO donc HALL) ; CHAOS TOTAL : 65 % SHORT, sinon HALL/CLOUD SIZE ≤ 89 ; **sons d'usine secs** (alter_ui.c `alt_pre_fx` :
+   alter_store.c `OLD_REV` : rpre = l'ancienne liste) ; SHORT = NEW + sons ; démarrage = scène TECHNO donc HALL ; **+ mix des
+   scènes d'usine comme en v1.13** (Romain : « revient sur les effets de HOUSE TECHNO autant que possible ») : `alt_scene_fix` = LEVEL
+   par cercle `fix[]` (ALT_SCENE, mesuré cercle par cercle v1.13 vs aujourd'hui, `tools/alter/alter_scene_fix.mjs`, RUMBLE coupé ;
+   reste ±0,6 dB) + dans AMBIENT (scène stockée entière) les knobs devenus RING/FOLD remis à 0 ; RUMBLE du KICK = DARK ROOM) ; CHAOS TOTAL : 65 % SHORT, sinon HALL/CLOUD SIZE ≤ 89 ; **sons d'usine secs** (alter_ui.c `alt_pre_fx` :
    fx[] seulement dans une scène d'usine). Reverbs courtes « convolution bizarre » : écoute https://claude.ai/artifact/HaH9apsi9KLoXDBJ8hGAU1
    (`tools/alter/alter_shortverb_wav.py` : CAN PIPE METAL SHARDS vs SHORT BOX) → **v1.19 : Romain garde les 4** : fx.c `rev_odd` (RV_CAN 4..
    RV_SHARDS 7, 44,1 kHz dans rev_comb/rev_ap, état `ro` .pool ~120 o ; SIZE = feedback, DAMP = passe-bas ; `RO_OUT` calé à la

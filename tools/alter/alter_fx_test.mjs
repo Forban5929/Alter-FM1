@@ -191,6 +191,8 @@ const dip = () => {
   const lows = (a) => rms(lp(lp(lp(lp(a, 100), 100), 100), 100)), highs = (a) => rms(hp(hp(hp(hp(a, 6000), 6000), 6000), 6000));
   const C = (c, k, v) => W(20, c | k << 8, v);
   W(1, 0, 0); render(FS);
+  const lv0c = ex.web_alter_peek(0, 100);
+  W(17, 0, Math.max(0, lv0c - 24));                     // (v1.20: the KICK as loud as before 22/11: 12 dB under the limiter)
   solo(0); render(FS);
   const a = render(BEAT * 8, true);
   C(0, 0, 0); render(FS); const lo = render(BEAT * 8, true); C(0, 0, 64);
@@ -214,6 +216,7 @@ const dip = () => {
   const back = render(BEAT * 8, true);
   const dd = 20 * Math.log10(rms(back) / rms(a));
   check(`CONSOLE flat again: circle 1 as before (${dd.toFixed(2)} dB)`, Math.abs(dd) < 1);
+  W(17, 0, lv0c);
   solo(-1);
   // a USER scene keeps it; a factory scene loads flat
   const row = (n) => { enc(0, -25); enc(0, n); };

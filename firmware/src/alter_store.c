@@ -342,6 +342,31 @@ static void alt_scene_put(const alt_scene_rec_t *s, const alt_rhy_t *rhy)
     alt_gl.amt[0] = (int8_t)clamp(s->gamt, -64, 63);
 }
 
+/* (v1.20, Romain 23/11: "les scènes d'usine sont des saves déjà faites", their effects and mix as before the engines'
+ * changes of 22-23/11): each circle's LEVEL corrected (fix, 0.5 dB steps, measured: tools/alter/alter_scene_fix.mjs, the
+ * v1.13 renders against today's), and in a scene stored whole (user) the knobs that became RING or FOLD in v1.12 put at
+ * 0 (they were NOIS, DIRT, EXC, DRFT: there is no such knob any more) */
+static void alt_scene_fix(const alt_scene_t *sc)
+{
+    uint32_t c;
+    fm1_irq_off();
+    for (c = 0; c < AS_NCIRC; c++) {
+        track_t *t = &trk[c];
+        uint32_t e = t->eng_req;
+        if (sc->user) {
+            if (e == ENGI_ALTER)
+                t->p[P_E5] = 0;
+            else if (e == ENGI_NOISE)
+                t->p[P_E6] = 0;
+            else if (e == ENGI_PHYS)
+                t->p[P_E7] = 0;
+            else if (e == ENGI_CORDE || e == ENGI_RING || e == ENGI_RESO)
+                t->p[P_E3] = 0;
+        }
+        t->p[P_LEVEL] = (int16_t)clamp(t->p[P_LEVEL] + sc->fix[c], 1, 127);
+    }
+    fm1_irq_on();
+}
 /* factory scene n (alter_sounds.c ALT_SCENE) */
 static void alt_load_scene(uint32_t n)
 {
@@ -372,6 +397,7 @@ static void alt_load_scene(uint32_t n)
         for (c = 0; c < AS_NCIRC; c++)
             for (k = 0; k < AE_N; k++)
                 alt_envp[c][k] = b[0] ? b[1 + c * AE_N + k] : AE_DEF[k];
+        alt_scene_fix(sc);
         return;
     }
     song.g[G_BPM] = sc->bpm;
@@ -411,6 +437,7 @@ static void alt_load_scene(uint32_t n)
         if (sc->c[c].lstep)
             alt_seq.c[c].sdly[(sc->c[c].lstep - 1u) % AS_NLANE] = sc->c[c].ldly;
     }
+    alt_scene_fix(sc);
 }
 
 /* NEW SCENE: the three engines' first sounds, no hits, FREE, 120 BPM, minor */
