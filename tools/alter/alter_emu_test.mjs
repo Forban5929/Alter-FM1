@@ -890,7 +890,7 @@ if (wavPath) {                                                  // 4 bars from a
   };
   const off = tailDb(0), on = tailDb(70), max = tailDb(127);
   check(`RUMBLE: the KICK's tail between hits ${off.toFixed(1)} dB (0) -> ${on.toFixed(1)} (70) -> ${max.toFixed(1)} (127), under the hit`,
-        on > off + 2 && max > on + 3 && max < -3);       // (v1.14: the KICK louder against its RUMBLE; RUMBLE to be redone)
+        on > off + 3 && max > on + 3 && max < -3);
   W(18, 1, 0); W(1, 0, 0); render(FS);
 }
 // TURING drawn at random (Romain 05/11): LEN 5..16 nearer 16, DENS 40..60 %, LOCK 50..75 %, RANGE 1..4 (TOTAL CHAOS)

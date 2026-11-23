@@ -103,7 +103,11 @@ On PLATE, CORDE and RING, KNOB 1-4 are MATR (material), SPRD (spread), RES (ring
 a fourth knob. Each engine has its own transformation (v1.12): **RING** (a ring modulator following the note: mixed in up
 to the middle at half the note, then its carrier rises to rough, then metal) on ALTER (in place of NOIS) and CORDE; **FOLD**
 (a wave folder: the sound folds over itself, brighter and brighter) on RING, RESO, PHYS (in place of EXC) and NOISE (in
-place of DRFT); PLATE keeps **DIRT** (saturation, then grain past 90). 0 always means off; 0-10 stays subtle. **PRESETS** steps through the sounds of every engine; **EDIT** tapped gives the engine's four other settings; **EDIT held**
+place of DRFT); PLATE keeps **DIRT** (saturation, then grain past 90). 0 always means off; 0-10 stays subtle.
+
+The factory **KICK** has a **RUMBLE** on KNOB 4 (v1.15, "DARK ROOM"): the kick into a long dark reverb, driven hard,
+kept under 110 Hz and pumped by the kick (gone under each hit, back up just before the next). 0 = off, then LOW, MID, HIGH
+in one continuous turn. **PRESETS** steps through the sounds of every engine; **EDIT** tapped gives the engine's four other settings; **EDIT held**
 opens **DEEP**, every setting of the circle as one list (SOUND, ENV, FX, MIX; MIX ends with **DICE DOSE**: how far the dice
 may move this circle).
 

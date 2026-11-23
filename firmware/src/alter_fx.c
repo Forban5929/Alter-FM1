@@ -80,22 +80,22 @@ static const afx_mst_t AFX_MST[] = {
 #define AFX_NREV (sizeof AFX_REV / sizeof AFX_REV[0])
 #define AFX_NMST (sizeof AFX_MST / sizeof AFX_MST[0])
 
-/* ---- RUMBLE (Romain 04/11): the techno rumble in one knob, for the KICK sound -------------------------------------
- * The kick into a dark reverb (4 combs + 1 diffuser at 11 kHz, ~1 s, its own memory: not the shared reverb), the
- * reverb driven into a tanh (the distorted texture), low-passed (~180 Hz, two poles), and ducked by the kick itself
- * (an envelope of the dry kick: the rumble falls under each hit and swells back after it). Added to the circle's sound
- * after its DIST / INSERT, before its LEVEL (so the MIXER, the sends and the alignment take it as the kick's). One
- * unit: the first circle whose RUMBLE is above 0. 0 = nothing runs (the circle bit for bit as before) */
+/* ---- RUMBLE: DARK ROOM (v1.15, Romain 23/11 after the listening page: "Dark room, réglage low mid high, la pompe est
+ * parfaite", without the click on the attack). The kick into a long dark reverb (4 combs at 11 kHz, ~100 ms, feedback 0.93,
+ * a low-pass in each loop: ~2.5 s), driven hard (tanh, x 4 .. 10 with the knob), low-passed at 110 Hz (two poles), a 30 Hz
+ * high-pass, and PUMPED by the kick: pulled down to 5 % at each hit, back up over the beat (a square curve, up again just
+ * before the next). The pump's gain glides (~1.5 ms): no step, no click. Added to the circle's sound after its DIST /
+ * INSERT, before its LEVEL. One knob, continuous: 0 nothing runs, LOW ~40, MID ~80, HIGH 127. One unit: the first circle
+ * whose RUMBLE is above 0 (the KICK's knob 4). Sketch: tools/alter/alter_rumble_wav.mjs (B DARK ROOM). */
 static volatile uint8_t alt_rmb[4];               /* each circle's RUMBLE 0..127 (alter_ui.c: the KICK's knob 4) */
+#define RMB_GAIN 24                               /* the level at 127 (measured against the sketch's HIGH) */
 #define RMB_N 4u
-static const uint16_t RMB_LEN[RMB_N] = {331, 409, 457, 491};   /* (11.025 kHz: 30 .. 45 ms, no common factor) */
-#define RMB_AP 113u
-static int16_t rmb_buf[331 + 409 + 457 + 491] __attribute__((section(".pool")));
-static int16_t rmb_apb[RMB_AP] __attribute__((section(".pool")));
+static const uint16_t RMB_LEN[RMB_N] = {1168, 1213, 1118, 1067};   /* (11.025 kHz: 97 .. 110 ms) */
+static int16_t rmb_buf[1168 + 1213 + 1118 + 1067] __attribute__((section(".pool")));
 static struct {
-    uint16_t w[RMB_N], apw;
-    int32_t lp[RMB_N], acc, l1, l2, env, prev, now, gn, pk;
-    uint8_t ph, owner, live;
+    uint16_t w[RMB_N];
+    int32_t lp[RMB_N], acc, l1, l2, hp, env, prev, now, gn, pk, gs, since;
+    uint8_t ph, owner;
 } rmb;
 static int32_t rmb_tail;                          /* samples of tail left after the knob went to 0 or the kick stopped */
 static uint8_t rmb_mute;                          /* (the browser build's tests: no rumble, web_alter op 18) */
@@ -112,8 +112,8 @@ static uint32_t rmb_who(void)                     /* the circle with the rumble,
 static int rmb_busy(uint32_t c) { return c == rmb.owner && rmb_tail > 0; }
 static __attribute__((noinline)) void rmb_part(uint32_t c, int32_t *b, uint32_t n)
 {
-    uint32_t i, k, amt = alt_rmb[c & 3u];
-    int32_t g, fb = 27500;                        /* (each comb ~0.84: about a second at 11 kHz) */
+    uint32_t i, k, amt = alt_rmb[c & 3u], beat;
+    int32_t g, drv, ibeat;
     if (c != rmb_who()) {
         if (c == rmb.owner && rmb_tail > 0)
             amt = 0;                              /* (its tail runs out) */
@@ -124,19 +124,23 @@ static __attribute__((noinline)) void rmb_part(uint32_t c, int32_t *b, uint32_t 
         uint32_t j;
         for (j = 0; j < sizeof rmb_buf / sizeof rmb_buf[0]; j++)
             rmb_buf[j] = 0;
-        for (j = 0; j < RMB_AP; j++)
-            rmb_apb[j] = 0;
         for (j = 0; j < sizeof rmb; j++)
             ((uint8_t *)&rmb)[j] = 0;
         rmb.owner = (uint8_t)c;
+        rmb.gs = 32767;
+        rmb.since = 1 << 30;
     }
     if (amt)
-        rmb_tail = FS * 2;
+        rmb_tail = FS * 3;
     else if ((rmb_tail -= (int32_t)n) <= 0)
         return;
-    g = (int32_t)amt * 40;                        /* (127: ~1.2 x the drive's output, then the duck) */
-    {                                             /* the kick's level (a slow peak): the drive is relative to it, so
-                                                   * the rumble follows the kick's LEVEL, whatever it is */
+    g = (int32_t)amt * RMB_GAIN;                  /* (the level: 127 = HIGH) */
+    drv = 4 * 256 + (int32_t)amt * 1638 / 127;   /* (Q8: x 4 .. x 10.4 at 127) */
+    beat = beat_samples();
+    beat = beat < 4000u ? 4000u : beat;
+    ibeat = (int32_t)((1u << 30) / beat);         /* (Q30 / beat: the beat's phase, Q14, without a division a sample) */
+    {                                             /* the kick's level (a slow peak): the drive and the hit detection
+                                                   * are relative to it, so the rumble follows the kick's LEVEL */
         int32_t m = 0;
         for (i = 0; i < n; i++) {
             int32_t a = b[i] >> 3;
@@ -148,48 +152,54 @@ static __attribute__((noinline)) void rmb_part(uint32_t c, int32_t *b, uint32_t 
     {
     int32_t ref = rmb.pk + 64, inv = (int32_t)((1u << 28) / (uint32_t)ref);   /* (Q14 / ref, Q14 later) */
     for (i = 0; i < n; i++) {
-        int32_t x = b[i] >> 3, a = x < 0 ? -x : x, y;
-        /* the duck: the kick's envelope (fast up, ~60 ms down), the rumble pulled under it */
+        int32_t x = b[i] >> 3, a = x < 0 ? -x : x, y, gp, ph;
+        /* the hit: the kick's envelope going over half its peak, half a beat at least after the last one */
         if (a > rmb.env)
             rmb.env += (a - rmb.env) >> 3;
         else
             rmb.env -= (rmb.env >> 10) + ((rmb.env - a) >> 10);
+        if (rmb.env > (ref >> 1) && (uint32_t)rmb.since > (beat >> 1))
+            rmb.since = 0;
+        else if (rmb.since < (1 << 30))
+            rmb.since++;
         rmb.acc += x;
         if (++rmb.ph >= 4u) {                     /* every 4th sample: the reverb at 11 kHz */
-            int32_t in = rmb.acc >> 2, s = 0, o = 0;
+            int32_t in = rmb.acc >> 2, s = 0;
             uint32_t base = 0;
             rmb.ph = 0;
             rmb.acc = 0;
             for (k = 0; k < RMB_N; k++) {
                 int16_t *ln = rmb_buf + base;
                 int32_t v = ln[rmb.w[k]];
-                rmb.lp[k] += (v - rmb.lp[k]) >> 2;   /* (dark: each echo duller) */
-                ln[rmb.w[k]] = (int16_t)clamp(in + ((rmb.lp[k] * fb) >> 15), -32767, 32767);
+                rmb.lp[k] += ((v - rmb.lp[k]) * 11) >> 4;   /* (dark: each pass duller) */
+                ln[rmb.w[k]] = (int16_t)clamp(in + ((rmb.lp[k] * 30474) >> 15), -32767, 32767);   /* (fb 0.93) */
                 if (++rmb.w[k] >= RMB_LEN[k])
                     rmb.w[k] = 0;
                 s += v;
                 base += RMB_LEN[k];
             }
-            s >>= 1;
-            o = rmb_apb[rmb.apw];                    /* one diffuser */
-            rmb_apb[rmb.apw] = (int16_t)clamp(s + (o >> 1), -32767, 32767);
-            if (++rmb.apw >= RMB_AP)
-                rmb.apw = 0;
             rmb.prev = rmb.now;
-            rmb.now = o - (s >> 1);
+            rmb.now = s >> 2;
         }
         y = rmb.prev + (((rmb.now - rmb.prev) * (int32_t)rmb.ph) >> 2);   /* (back to 44.1 kHz between samples) */
         y = (int32_t)(((int64_t)y * inv) >> 14);  /* (the tail over the kick's peak, Q14) */
-        y = softclip(clamp(y * 3, -65535, 65535)); /* the drive: the texture */
+        y = softclip(clamp((int32_t)(((int64_t)y * 2 * drv) >> 8), -65535, 65535));   /* the drive (tanh) */
         y = (int32_t)(((int64_t)y * ref) >> 15);  /* (back to the kick's scale) */
-        rmb.l1 += (y - rmb.l1) >> 5;              /* ~180 Hz, two poles */
-        rmb.l2 += (rmb.l1 - rmb.l2) >> 5;
-        y = rmb.l2;
-        {
-            int32_t dk = (int32_t)(((int64_t)rmb.env * inv) >> 11);   /* (the kick's envelope over its peak, x 8) */
-            dk = dk > 16384 ? 16384 : dk;          /* (an eighth of its peak or more: down to 6 %) */
-            y = (int32_t)(((int64_t)y * (32768 - ((dk * 30720) >> 14))) >> 15);
-        }
+        rmb.l1 += (y - rmb.l1) >> 6;              /* 110 Hz, two poles */
+        rmb.l2 += (rmb.l1 - rmb.l2) >> 6;
+        rmb.hp += (rmb.l2 - rmb.hp) >> 8;         /* (30 Hz high-pass) */
+        y = rmb.l2 - rmb.hp;
+        /* the pump: 5 % for the first 8 % of the beat, then back up as a square, full at 63 % */
+        ph = (int32_t)(((int64_t)rmb.since * ibeat) >> 16);   /* (the beat's phase, Q14) */
+        if (ph < 1311)
+            gp = 32767 - 31129;
+        else if (ph < 1311 + 9011) {
+            int32_t r = 16384 - (((ph - 1311) << 14) / 9011);   /* (1 .. 0, Q14; a constant divisor: a multiplication) */
+            gp = 32767 - (int32_t)(((int64_t)31129 * ((r * r) >> 14)) >> 14);
+        } else
+            gp = 32767;
+        rmb.gs += (gp - rmb.gs) >> 6;             /* (~1.5 ms: the pump glides, no click) */
+        y = (int32_t)(((int64_t)y * rmb.gs) >> 15);
         rmb.gn += (g - rmb.gn) >> 9;              /* (the knob glides: no step, and a fade to 0) */
         b[i] += (int32_t)(((int64_t)y * rmb.gn) >> 6);
     }
