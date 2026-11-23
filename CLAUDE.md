@@ -68,7 +68,9 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    tables maison. Écoute https://claude.ai/artifact/GEnhZSqZQgztEGfF9bNTdT (`tools/alter/alter_wave_wav.py`, 16 images,
    64 harmoniques) : CLANG GRIND ROBOT TEAR × sec/BEND/SYNC/BITS → Romain : **CLANG oui, le reste trop mélodique / sage**.
    Tour 2 https://claude.ai/artifact/WpH1CCp77DC3Nz6NTTFtCu : CLANG + RUST GEAR SHRED STATIC SCREECH FEEDBACK, note martelée,
-   × sec / **JITTER** (nouveau : autre image + autre phase au hasard à chaque cycle) / SYNC → attendre le choix. balance des niveaux des sons d'usine, moteurs plus différents
+   × sec / JITTER / SYNC → Romain : **JITTER non** ; « du wave folding et du ring en plus de bouger dans la table ».
+   Tour 3 https://claude.ai/artifact/FqS95yySDFK5fxTvpF2Qo5 : les 7 tables × sec / FOLD / RING ×2,71 / FOLD+RING (POS balaie)
+   → attendre le choix des tables (FOLD et RING = 2 knobs du moteur, réutiliser `eng_xform.h`). balance des niveaux des sons d'usine, moteurs plus différents
    (écoutes WAV d'abord), **RUMBLE à refaire** (2-3 variantes WAV à écouter). 4. Vu ailleurs (Felucca 1.0, fm1-dock,
    ChoralRoot) : backup complet depuis la page, mise à jour qui garde scènes/réglages, MIDI Bluetooth.
 5. ~~THEME SPLIT~~ (v1.10, retiré en **v1.13** : Romain 23/11 « on reste sur notre DA ») ; `alt_sys[11]` peut valoir 1 sur

@@ -127,6 +127,7 @@ def voice(tab, warp, amt):
     riff = [36, 36, 36, 36, 36, 36, 37, 36, 36, 36, 36, 36, 36, 30, 36, 36]    # one note, hammered (round 2: less melodic)
     rng = np.random.default_rng(5)
     jf, jp = 0.0, 0.0
+    rph = 0.0
     n = step * 16 * bars
     out = np.zeros(n)
     ph = 0.0
@@ -157,6 +158,11 @@ def voice(tab, warp, amt):
             ya = tabs[fa][k0] * (1 - fr) + tabs[fa][k1] * fr
             yb = tabs[fb][k0] * (1 - fr) + tabs[fb][k1] * fr
             y = ya * (1 - x) + yb * x
+            if "FOLD" in warp:                   # (round 3, Romain: fold and ring while POS moves)
+                y = np.sin(np.pi / 2 * 4.0 * y / 1.6) / 1.2
+            if "RING" in warp:
+                rph += f0 * 2.71 / FS
+                y = y * np.cos(2 * np.pi * rph) * 1.414
             if warp == "BITS":
                 q = 2 ** (6 - 4 * amt)
                 y = np.round(y * q) / q
@@ -182,8 +188,8 @@ def main():
     lst = []
     for name, fn in TABLES.items():
         tab = [fn(f / (FRAMES - 1)) for f in range(FRAMES)]
-        for warp, amt in (("DRY", 0), ("JITTER", 0.8), ("SYNC", 0.7)):
-            fname = f"{name}_{warp}"
+        for warp, amt in (("DRY", 0), ("FOLD", 1), ("RING", 1), ("FOLD+RING", 1)):
+            fname = f"{name}_{warp.replace('+', '_')}"
             write(out / f"{fname}.wav", voice(tab, warp, amt))
             lst.append({"table": name, "warp": warp, "file": fname})
             print(fname, flush=True)
