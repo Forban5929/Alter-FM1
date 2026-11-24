@@ -257,6 +257,20 @@ check("trames étrangères ou fausses : aucune réponse", send([0xf0, 0x7d, 0x46
         (one(req.learnClearAll()), one(req.learnList(4)).used === 0));
 }
 
+// ---- USER sounds (v1.26): circle 2's sound stored as U03, listed by INFO, loaded on circle 3 by SOUND
+{
+  const i0 = one(req.info()), nf = i0.sounds.length - 16;
+  check(`USND : INFO liste ${nf} sons d'usine + 16 USER vides`, i0.sounds.slice(nf).every((s) => s.name === ""));
+  one(req.sound(1, 0)); const E3 = i0.ids[2]; ex.web_alter(17, 1 | (E3 << 8), 77);   // (circle 2's E3 = 77)
+  const st = one(req.usnd(1, 2, "GRIT"));
+  check(`USND : rangé en U03 (rc ${st?.rc})`, st?.rc === 1 && st.place === 2);
+  const i1 = one(req.info());
+  check(`USND : INFO dit « ${i1.sounds[nf + 2].name} »`, i1.sounds[nf + 2].name === "U03 GRIT");
+  const sd = one(req.sound(2, nf + 2));
+  check(`USND : chargé sur le cercle 3 (son ${sd?.sound}, E3 ${ex.web_alter_peek(2, 100 + E3)})`, sd?.sound === nf + 2 && ex.web_alter_peek(2, 100 + E3) === 77);
+  check("USND : place 16 refusée", one(req.usnd(0, 16, "X"))?.rc === 0);
+}
+
 // ---- BACKUP (v1.25): read a part, write it back elsewhere, read it again; LEARN and SYSTEM round trip
 {
   const readPart = (kind, id) => {

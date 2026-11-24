@@ -21,7 +21,9 @@ enum { LKC_INFO = 1, LKC_STATE, LKC_DESC, LKC_SET, LKC_SOUND, LKC_SCENE, LKC_WAT
        /* v0.76 (12/11): MIDI LEARN from the page (lk_learn) */
        LKC_LEARN,
        /* v1.25 (24/11): the whole machine to and from a backup file (lk_bak) */
-       LKC_BACKUP };
+       LKC_BACKUP,
+       /* v1.26 (24/11): a circle's sound stored as a USER sound (alter_usnd.c) */
+       LKC_USND };
 
 /* the sound's parameters, in this order (STATE): the engine's eight, then what a USER scene keeps (ALT_SP) */
 static const uint8_t LK_IDS[] = {P_E0, P_E1, P_E2, P_E3, P_E4, P_E5, P_E6, P_E7, P_ATK, P_DEC, P_SUS, P_REL,
@@ -125,7 +127,7 @@ static void lk_state(uint32_t c)
     lk_begin(LKC_STATE);
     lk_b(c);
     lk_b(lk_engi(c));
-    lk_b(au.pre[c]);
+    lk_b(alt_pre_pos(au.pre[c]));                 /* (v1.26: the USER sounds after the factory ones) */
     lk_b(alt_emode[c]);
     lk_b(LK_NID);
     for (k = 0; k < LK_NID; k++)
@@ -697,7 +699,7 @@ static void lk_blob(const uint8_t *a, uint32_t na)
 /* BACKUP (v1.25, Romain 24/11: "backup complet depuis la page", restoring chosen parts): the page reads every part of the
  * machine's memory one at a time through alt_ub (alter_store.c: the USER scenes' 3.8 KB buffer; the transport is
  * stopped first, nothing else uses it then), and writes back the parts chosen. Bytes packed as BLOB's.
- *   0 kind id      the part into the buffer (kind 0: flash object id: 10..13 SONG, 14..29 32..39 USER scenes; 1: the
+ *   0 kind id      the part into the buffer (kind 0: flash object id: 10..13 SONG, 14..29 32..39 USER scenes, 31 USER sounds; 1: the
  *                  MIDI LEARN links, favorites.factory[5..8]; 2: SYSTEM, factory[13])  -> 0, kind, id, size, sum (0 0: none)
  *   1 off          its bytes from off                                     -> 1, off, n, n bytes packed
  *   2 off, data    bytes into the buffer at off                           -> 2, off, n written
@@ -706,7 +708,7 @@ static void lk_blob(const uint8_t *a, uint32_t na)
 #define LK_BAK_MAX (sizeof alt_ub)
 _Static_assert(sizeof alt_ub < 8192u, "BACKUP: sizes and offsets in a value");
 static uint32_t lk_bak_n;                        /* the buffer's size now */
-static int lk_bak_obj(uint32_t id) { return (id >= 10u && id <= 29u) || (id >= 32u && id <= 39u); }
+static int lk_bak_obj(uint32_t id) { return (id >= 10u && id <= 29u) || (id >= 32u && id <= 39u) || id == ALT_OBJ_SND; }
 static uint32_t lk_bak_sum(uint32_t n)
 {
     uint32_t k, sm = 0;
@@ -760,6 +762,8 @@ static void lk_bak(const uint8_t *a, uint32_t na)
                     rc = st_save(id, b, sz) == 0 ? 1u : 2u;
                     if (id <= 13u)
                         alt_sg_boot();
+                    else if (id == ALT_OBJ_SND)
+                        aus_load();              /* (v1.26: the USER sounds) */
                     else
                         alt_banks_load();
                 } else if (kind == 1u && sz == 4u * 32u) {
@@ -942,17 +946,18 @@ static void lk_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         lk_b(ALT_NENG);
         for (k = 0; k < ALT_NENG; k++)
             lk_str(ENGINES[eng_idx(ALT_ENGS[k])]->name);
-        lk_b(ALT_NPRE);
-        for (k = 0; k < ALT_NPRE; k++) {
-            lk_b(ALT_PRE[k].eng);
-            lk_str(ALT_PRE[k].name);
+        lk_b(ALT_NPRE_ALL);                          /* (v1.26: then the 16 USER sounds; an empty one: no name) */
+        for (k = 0; k < ALT_NPRE_ALL; k++) {
+            const alt_pre_t *pr = alt_pre(alt_pre_at(k));
+            lk_b(pr->eng);
+            lk_str(k >= ALT_NPRE && !aus_used(k - ALT_NPRE) ? "" : pr->name);
         }
         lk_b(ALT_NUSER);
         lk_b(LK_NID);
         for (k = 0; k < LK_NID; k++)
             lk_b(LK_IDS[k]);
-        for (k = 0; k < ALT_NPRE; k++)               /* (08/11, appended: each sound has a RUMBLE, 1, or not) */
-            lk_b(ALT_PRE[k].rumble != 0);
+        for (k = 0; k < ALT_NPRE_ALL; k++)           /* (08/11, appended: each sound has a RUMBLE, 1, or not) */
+            lk_b(alt_pre(alt_pre_at(k))->rumble != 0);
         lk_send();
         return;
     case LKC_STATE:                                   /* circle */
@@ -999,10 +1004,29 @@ static void lk_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         lk_send();
         return;
     }
+    case LKC_USND:                                    /* circle, place 0..15, 4 characters: circle's sound stored as
+                                                      * that USER sound -> place, rc (1 done, 0 refused, 2 the flash
+                                                      * failed); then the page asks INFO again for the names */
+    {
+        uint32_t rc = 0;
+        if (na == 6u && a[0] < AS_NCIRC && a[1] < ALT_NUSND) {
+            char nm[4];
+            for (k = 0; k < 4u; k++)
+                nm[k] = alt_nm_idx((char)a[2u + k]) || a[2u + k] == ' ' ? (char)a[2u + k] : ' ';
+            rc = aus_store(a[0], a[1], nm) ? 1u : 2u;
+            if (rc == 1u)
+                au.pre[a[0]] = (uint8_t)(ALT_UPRE0 + a[1]);
+        }
+        lk_begin(LKC_USND);
+        lk_b(na >= 2u ? a[1] : 0u);
+        lk_b(rc);
+        lk_send();
+        return;
+    }
     case LKC_SOUND:                                   /* circle, sound (ALT_PRE): loaded as PRESETS does; STATE back */
-        if (na != 2u || a[0] >= AS_NCIRC || a[1] >= ALT_NPRE)
+        if (na != 2u || a[0] >= AS_NCIRC || a[1] >= ALT_NPRE_ALL)
             return;
-        alt_load_sound(a[0], a[1]);
+        alt_load_sound(a[0], alt_pre_at(a[1]));
         lk_state(a[0]);
         return;
     case LKC_SCENE:                                   /* the USER scenes (lk_user) */

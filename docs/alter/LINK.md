@@ -119,6 +119,15 @@ Somme = `(s*31 + octet) & 0x1FFF` (comme BLOB). La lecture arrête le transport.
 (= vide pour le firmware). Page : boutons Backup… / Restore… (fichier JSON `alter-backup`, cases à cocher A B C SONG LEARN
 SYSTEM). Test : `alter_link_test.mjs` (7 tests BACKUP).
 
+## v1.26 (24/11) — sons USER
+
+| cmd | requête | réponse |
+| --- | --- | --- |
+| 26 USND | `c u n0 n1 n2 n3` : le son du cercle c rangé comme son USER u (0..15), nom 4 caractères (A-Z 0-9 - espace) | 26, u, rc (1 ok, 0 refusé, 2 flash en échec) |
+INFO : la liste des sons = les sons d'usine puis **16 sons USER** (« U03 GRIT » ; une place vide = nom vide) ; STATE/SOUND
+comptent dans cette liste (firmware : `au.pre` = 200 + u, `alt_pre_pos` / `alt_pre_at`). BACKUP : objet 31 = les 16 sons
+USER (`alter_usnd.c`). Page : groupe « USER » dans la liste des sons, bouton Store… par cercle. Test : alter_link_test (5).
+
 ## Banc de test (11/11, v0.55) — versions de test seulement
 | cmd | requête | réponse |
 | --- | --- | --- |

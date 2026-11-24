@@ -282,7 +282,7 @@ static void alt_chip_txt(const char *t, uint16_t tc)
 }
 static void alt_chip(void)                       /* the chosen circle's sound by name (Romain: "which instrument am I on?") */
 {
-    alt_chip_txt(ALT_PRE[au.pre[au.sel % AS_NCIRC] % ALT_NPRE].name, ALT_INK);
+    alt_chip_txt(alt_pre(au.pre[au.sel % AS_NCIRC])->name, ALT_INK);
 }
 /* the chosen circle's engine, small, after the arcana's numeral (the sub-menus) */
 static void alt_eng_tag(const char *num, const char *t, uint16_t c)

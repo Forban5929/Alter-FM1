@@ -194,6 +194,7 @@ static void alt_fxr_put(uint32_t c, const uint8_t *b)
 }
 
 #include "alter_sounds.c"
+#include "alter_usnd.c"             /* (v1.26) the 16 USER sounds */
 
 /* circle c's sound: ALT_PRE[i] on its part (the engine, its defaults, then the sound's values) */
 /* the circles' level alignment (alter_fx.c): measure anew after a random draw, or a gain as it is (Q15, 0 dB = AC_UNITY) */
@@ -213,9 +214,9 @@ static uint8_t alt_pre_fx;                       /* (v1.18, Romain 23/11: "les p
 static void alt_load_sound(uint32_t c, uint32_t i)
 {
     track_t *t = &trk[c];
-    const alt_pre_t *pr = &ALT_PRE[i % ALT_NPRE];
+    const alt_pre_t *pr = alt_pre(i);
     uint32_t e = ALT_ENGS[pr->eng % ALT_NENG], j;
-    au.pre[c] = (uint8_t)(i % ALT_NPRE);
+    au.pre[c] = (uint8_t)alt_pre_ok(i);
     if (t->eng_req != e)
         set_engine_of(t, e);                     /* (the IRQ off inside: the engine and its values together) */
     fm1_irq_off();                               /* (the ISR's offsets and the sound's values together) */
@@ -248,11 +249,13 @@ static void alt_load_sound(uint32_t c, uint32_t i)
 /* PRESETS: circle c's sound s on */
 static void alt_preset_step(uint32_t c, int32_t s)
 {
-    uint32_t i = (uint32_t)(((int32_t)au.pre[c] + s % (int32_t)ALT_NPRE + (int32_t)ALT_NPRE) % (int32_t)ALT_NPRE), n;
-    for (n = 0; ALT_PRE[i].hide && n < ALT_NPRE; n++)   /* (a hidden one: the next in the turn's way) */
-        i = (uint32_t)(((int32_t)i + (s < 0 ? -1 : 1) + (int32_t)ALT_NPRE) % (int32_t)ALT_NPRE);
-    alt_load_sound(c, i);
-    alt_say(ALT_PRE[i].name);
+    const int32_t N = (int32_t)ALT_NPRE_ALL;     /* (v1.26: the factory ones, then the USER ones) */
+    uint32_t i = (uint32_t)(((int32_t)alt_pre_pos(au.pre[c]) + s % N + N) % N), n;
+    for (n = 0; alt_pre(alt_pre_at(i))->hide && n < (uint32_t)N; n++)   /* (a hidden one, an empty USER one: the next in
+                                                                     * the turn's way) */
+        i = (uint32_t)(((int32_t)i + (s < 0 ? -1 : 1) + N) % N);
+    alt_load_sound(c, alt_pre_at(i));
+    alt_say(alt_pre(alt_pre_at(i))->name);
 }
 
 #define AMC_REC 15u                              /* (alter_macro.c: the MACRO kept with a scene, its bytes) */
@@ -266,13 +269,15 @@ static void amc_input(uint32_t keys);
  * B: B01..B16; C: C01..C16. A tab's row r as a row of alt_row_* */
 #define ALT_ROWS_A (1u + ALT_NFACT + 16u)
 #define ALT_NTAB (ALT_NUSER / 16u)
-static uint32_t alt_tab_n(uint32_t tab) { return tab ? 16u : ALT_ROWS_A; }
+#define ALT_TAB_SND ALT_NTAB                     /* (v1.26) the 4th tab: the USER sounds */
+#define ALT_NTAB_ALL (ALT_NTAB + 1u)
+static uint32_t alt_tab_n(uint32_t tab) { return tab == ALT_TAB_SND ? ALT_NUSND : tab ? 16u : ALT_ROWS_A; }
 static uint32_t alt_tab_row(uint32_t tab, uint32_t r) { return tab ? ALT_ROWS_A + (tab - 1u) * 16u + r : r; }
 /* the NAME page (Romain 05/11): SAVE held on a USER row opens it; KNOB 1 2 3 the three characters, SAVE stores, HOME
  * leaves (nothing stored) */
 static const char ALT_NM_CH[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-";
 #define ALT_NM_N ((int32_t)sizeof ALT_NM_CH - 1)
-static struct { uint8_t open, t, r, ch[3]; } anm;
+static struct { uint8_t open, t, r, ch[4]; } anm;   /* (t ALT_TAB_SND: a USER sound, r its place, 4 characters) */
 static uint32_t alt_nm_idx(char c)               /* a character's place in ALT_NM_CH (else the space) */
 {
     uint32_t k;
@@ -297,12 +302,26 @@ static void alt_nm_open(uint32_t t, uint32_t r)  /* its NAME, or one to start fr
             uint32_t h = au.cfg[k].hits;
             c = (char)(h > 9u ? 'A' + (h - 10u) : '0' + h);
         } else {
-            const char *pn = ALT_PRE[au.pre[0] % ALT_NPRE].name;
+            const char *pn = alt_pre(au.pre[0])->name;
             uint32_t j;
             for (j = 0; j < k && pn[j]; j++)
                 ;
             c = pn[j] ? pn[j] : ' ';
         }
+        anm.ch[k] = (uint8_t)alt_nm_idx(c);
+    }
+}
+static void aus_nm_open(uint32_t u)              /* (v1.26) a USER sound's NAME: its own, or the chosen circle's sound's */
+{
+    const char *nm = aus_used(u) ? aus_bank.s[u].nm : alt_pre(au.pre[au.sel % AS_NCIRC])->name;
+    uint32_t k, e = 0;
+    anm.open = 1;
+    anm.t = (uint8_t)ALT_TAB_SND;
+    anm.r = (uint8_t)u;
+    for (k = 0; k < 4u; k++) {
+        char c = e ? ' ' : nm[k];
+        if (!c)
+            e = 1, c = ' ';
         anm.ch[k] = (uint8_t)alt_nm_idx(c);
     }
 }
@@ -590,7 +609,7 @@ static uint32_t alt_qk(uint32_t q, uint32_t i)
     const engine_t *e = ENGINES[eng_idx(trk[au.sel].eng_req)];
     uint32_t id = ALT_QP_K[q][i];
     if (id == QK_ENG)                            /* (a sound with a RUMBLE: KNOB 4 is it, 04/11; the KICK's MODE stays) */
-        return i == 3u && ALT_PRE[au.pre[au.sel % AS_NCIRC] % ALT_NPRE].rumble ? QK_RUMBLE : e->knob[i];
+        return i == 3u && alt_pre(au.pre[au.sel % AS_NCIRC])->rumble ? QK_RUMBLE : e->knob[i];
     if (id == QK_ENGX) {                         /* the engine's E1..E8 its four knobs leave, in order */
         uint32_t k, j, n = 0;
         for (k = 0; k < 8u; k++) {
@@ -1824,6 +1843,7 @@ static int alter_ui_input(uint32_t pressed)
         acx_reset();                             /* (no CHAOS waiting: the browser's machine keeps its memory) */
         alt_select(song.sel < AS_NCIRC ? song.sel : 0u);
         alt_banks_load();                        /* the USER slots, from the flash */
+        aus_load();                              /* (v1.26) the USER sounds */
         alt_sg_boot();                           /* SONG's slots and chain, from the flash */
         if (!alt_crash_back() || !alt_live_back())
             alt_load_scene(0);                   /* power-on: the first scene */
@@ -1909,6 +1929,20 @@ static int alter_ui_input(uint32_t pressed)
         if ((pressed >> panel.btn[B_SAVE]) & 1u) {
             uint32_t k;
             int rc;
+            if (anm.t == ALT_TAB_SND) {          /* (v1.26) a USER sound: the chosen circle's */
+                char nm[4];
+                for (k = 0; k < 4u; k++)
+                    nm[k] = ALT_NM_CH[anm.ch[k] % (uint32_t)ALT_NM_N];
+                rc = aus_store(au.sel, anm.r, nm);
+                if (rc)
+                    au.pre[au.sel % AS_NCIRC] = (uint8_t)(ALT_UPRE0 + anm.r);   /* (the circle plays it now) */
+                anm.open = 0;
+                au.save_t0 = fm1_ms | 1u;
+                au.save_done = 1;
+                alt_say(rc ? "SOUND SAVED" : "SAVE FAILED");
+                au.keys = keys;
+                return 1;
+            }
             for (k = 0; k < 3u; k++)
                 alt_nm_new[k] = ALT_NM_CH[anm.ch[k] % (uint32_t)ALT_NM_N];
             if (alt_nm_new[0] == ' ' && alt_nm_new[1] == ' ' && alt_nm_new[2] == ' ')
@@ -1928,13 +1962,24 @@ static int alter_ui_input(uint32_t pressed)
             au.save_done = 0;
         } else if (dn && au.save_t0 && !au.save_done && (int32_t)(fm1_ms - au.save_t0) >= (int32_t)ALT_SAVE_HOLD_MS) {
             au.save_done = 1;
-            if (r > ALT_NFACT) {
+            if (au.tab == ALT_TAB_SND) {         /* (v1.26) a USER sound: its NAME, then SAVE stores */
+                aus_nm_open(au.row[au.tab] % ALT_NUSND);
+                alt_say("NAME");
+            } else if (r > ALT_NFACT) {
                 alt_nm_open(t, r);
                 alt_say("NAME");
             } else
                 alt_say("PROTECTED");
         } else if (!dn && au.save_t0) {
-            if (!au.save_done) {
+            if (!au.save_done && au.tab == ALT_TAB_SND) {   /* (v1.26) a USER sound on the chosen circle */
+                uint32_t u = au.row[au.tab] % ALT_NUSND;
+                if (aus_used(u)) {
+                    alt_load_sound(au.sel, ALT_UPRE0 + u);
+                    alt_say(aus_name[u]);
+                    au.scene_open = 0;
+                } else
+                    alt_say("EMPTY");
+            } else if (!au.save_done) {
                 static char nb[12];                  /* (the middle shows it a while: kept) */
                 if (alt_row_load(t, r)) {
                     alt_say(alt_row_name(t, r, nb));
@@ -1947,7 +1992,7 @@ static int alter_ui_input(uint32_t pressed)
     }
     if (au.scene_open && anm.open) {             /* the NAME page: KNOB 1 2 3 its characters */
         for (i = 0; i < 4u; i++)
-            if ((s = panel_enc(EN_K1 + i)) != 0 && i < 3u)
+            if ((s = panel_enc(EN_K1 + i)) != 0 && i < (anm.t == ALT_TAB_SND ? 4u : 3u))
                 anm.ch[i] = (uint8_t)(((int32_t)anm.ch[i] + (s > 0 ? 1 : -1) + ALT_NM_N) % ALT_NM_N);
         (void)panel_enc(EN_SELECT);
         (void)panel_enc(EN_ALGO);
@@ -1960,7 +2005,7 @@ static int alter_ui_input(uint32_t pressed)
         if ((s = panel_enc(EN_SELECT)) != 0)
             au.row[au.tab] = (uint8_t)clamp((int32_t)au.row[au.tab] + s, 0, (int32_t)alt_tab_n(au.tab) - 1);
         if ((s = panel_enc(EN_ALGO)) != 0)
-            au.tab = (uint8_t)clamp((int32_t)au.tab + (s > 0 ? 1 : -1), 0, (int32_t)ALT_NTAB - 1);   /* (SCENES A B C) */
+            au.tab = (uint8_t)clamp((int32_t)au.tab + (s > 0 ? 1 : -1), 0, (int32_t)ALT_NTAB_ALL - 1);   /* (SCENES A B C, SOUNDS) */
         for (i = 0; i < 4u; i++)
             (void)panel_enc(EN_K1 + i);
         (void)panel_enc(EN_PRESET);
@@ -2635,10 +2680,36 @@ static void alt_locks_scene(void)
 
 static void alt_scenes_scene(void)
 {
-    static const char *const TAB[ALT_NTAB] = {"SCENES A", "SCENES B", "SCENES C"};
-    uint32_t t = 0, r = au.row[au.tab % ALT_NTAB], i, top, n = alt_tab_n(au.tab);
+    static const char *const TAB[ALT_NTAB_ALL] = {"SCENES A", "B", "C", "SOUNDS"};
+    uint32_t t = 0, r = au.row[au.tab % ALT_NTAB_ALL], i, top, n = alt_tab_n(au.tab);
     char nb[12];
     alt_card("SAVE", "XX");
+    if (anm.open && anm.t == ALT_TAB_SND) {      /* (v1.26) a USER sound's NAME page: 4 characters */
+        uint32_t k, u = anm.r % ALT_NUSND, c = au.sel % AS_NCIRC;
+        char hd[24] = "SOUND U00 . CIRCLE ", one[2] = {0, 0};
+        hd[7] = (char)('0' + (u + 1u) / 10u);
+        hd[8] = (char)('0' + (u + 1u) % 10u);
+        hd[19] = (char)('1' + c);
+        hd[20] = 0;
+        cv_text(120 - text_w(ALT_FM, hd) / 2, 40, ALT_FM, hd, ALT_INK);
+        for (k = 0; k < 4u; k++) {
+            int32_t x = 14 + (int32_t)k * 54;
+            char kn[8] = "KNOB 1";
+            one[0] = ALT_NM_CH[anm.ch[k] % (uint32_t)ALT_NM_N];
+            cv_rect(x, 76, 46, 64, alt_gold_line(16));
+            cv_frame(x, 76, 46, 64, ALT_COL[k % 3u]);
+            if (one[0] == ' ')
+                cv_rect(x + 13, 124, 20, 2, ALT_GREY);
+            else
+                cv_text(x + 23 - text_w(ALT_FL, one) / 2, 94, ALT_FL, one, ALT_INK);
+            kn[5] = (char)('1' + k);
+            cv_text(x + 23 - text_w(ALT_FS, kn) / 2, 146, ALT_FS, kn, ALT_COL[k % 3u]);
+        }
+        cv_text(8, 178, ALT_FS, alt_pre(au.pre[c])->name, ALT_COL[c]);
+        cv_text(8, 196, ALT_FS, "A-Z 0-9 -  OR A SPACE", ALT_DIM);
+        cv_text(8, 214, ALT_FS, "SAVE: STORE   HOME: CANCEL", ALT_INK);
+        return;
+    }
     if (anm.open) {                              /* the NAME page */
         uint32_t k, u = (anm.r - 1u - ALT_NFACT) % ALT_NUSER;
         char hd[24], one[2] = {0, 0};
@@ -2668,11 +2739,50 @@ static void alt_scenes_scene(void)
         cv_text(8, 214, ALT_FS, "SAVE: STORE   HOME: CANCEL", ALT_INK);
         return;
     }
-    alt_tabs(23, TAB, ALT_NTAB, au.tab, ALT_COL[0]);
+    alt_tabs(23, TAB, ALT_NTAB_ALL, au.tab, ALT_COL[0]);
     if (au.msg && fm1_ms - au.msg_ms < 1500u)   /* SAVED, PROTECTED, EMPTY .. */
         cv_text(8, 214, ALT_FS, au.msg, ALT_COL[1]);
     else
         cv_text(8, 214, ALT_FS, "SELECT  SAVE: LOAD  HOLD: STORE", ALT_DIM);
+    if (au.tab == ALT_TAB_SND) {                 /* (v1.26) the USER sounds: U01..U16, loaded on the chosen circle */
+        top = r < 2u ? 0u : r - 2u;
+        if (top > n - 5u)
+            top = n - 5u;
+        for (i = 0; i < 5u; i++) {
+            uint32_t u = top + i, used = aus_used(u);
+            int32_t y = 48 + (int32_t)i * 30, on = u == r;
+            uint16_t rb = on ? alt_gold_line(16) : ALT_BG;
+            char ab[32];
+            if (on) {
+                cv_rect(6, y - 3, 228, 29, rb);
+                alt_diamond(12, y + 5, 3, 3, ALT_COL[au.sel % AS_NCIRC]);
+            }
+            if (used) {
+                const char *en = ENGINES[eng_idx(ALT_ENGS[aus_bank.s[u].eng % ALT_NENG])]->name;
+                uint32_t j = 0, lv = aus_bank.s[u].level;
+                while (*en && j < 12u)
+                    ab[j++] = *en++;
+                for (en = " . LEVEL "; *en; )
+                    ab[j++] = *en++;
+                if (lv >= 100u)
+                    ab[j++] = (char)('0' + lv / 100u);
+                if (lv >= 10u)
+                    ab[j++] = (char)('0' + lv / 10u % 10u);
+                ab[j++] = (char)('0' + lv % 10u);
+                ab[j] = 0;
+            }
+            cv_text_on(22, y - 1, ALT_FS, used ? aus_name[u] : "", on ? ALT_INK : ALT_DIM, rb);
+            if (!used) {
+                char e[10] = "U00 EMPTY";
+                e[1] = (char)('0' + (u + 1u) / 10u);
+                e[2] = (char)('0' + (u + 1u) % 10u);
+                cv_text_on(22, y - 1, ALT_FS, e, ALT_GREY, rb);
+            }
+            cv_text_in(22, y + 11, 192, ALT_FS, used ? ab : on ? "HOLD SAVE: THE CIRCLE'S SOUND HERE" : "",
+                       on ? ALT_COL[au.sel % AS_NCIRC] : ALT_GREY, rb);
+        }
+        return;
+    }
     top = r < 2u ? 0u : r - 2u;                  /* five rows, the chosen one second or third */
     if (top > n - 5u)
         top = n - 5u;
@@ -3350,7 +3460,7 @@ static void alt_mx_strip(uint32_t c)             /* circle c's CONSOLE strip */
     uint32_t r, i;
     uint16_t col = ALT_COL[c], hl = alt_gold_line(16);
     char b[12];
-    cv_text_r(232, 24, ALT_FS, ALT_PRE[au.pre[c] % ALT_NPRE].name, col, ALT_BG);   /* (whose sound) */
+    cv_text_r(232, 24, ALT_FS, alt_pre(au.pre[c])->name, col, ALT_BG);   /* (whose sound) */
     for (r = 0; r < 2u; r++) {
         int32_t y = 66 + (int32_t)r * 64, on = r == alt_mx_row;
         uint16_t bg = on ? hl : ALT_BG;
@@ -3787,7 +3897,7 @@ static const char *const DP_ENVN[] = {"ATTACK", "DECAY", "SUSTAIN", "RELEASE"};
 static const char *const DP_FXN[] = {"DIST", "INSERT", "", "", "", "INSERT MIX", "CHORUS", "DELAY", "REVERB", "RUMBLE"};
 static const char *const DP_MIXN[] = {"LEVEL", "PAN", "GLIDE", "DICE DOSE"};
 static uint8_t alt_dp_tab, alt_dp_top;
-static int alt_dp_rumble(void) { return ALT_PRE[au.pre[au.sel % AS_NCIRC] % ALT_NPRE].rumble != 0; }
+static int alt_dp_rumble(void) { return alt_pre(au.pre[au.sel % AS_NCIRC])->rumble != 0; }
 static uint32_t alt_dp_rows(void)
 {
     return alt_dp_tab == DP_SND ? 8u : alt_dp_tab == DP_ENV ? 4u : alt_dp_tab == DP_MIX ? 4u :
@@ -3885,7 +3995,7 @@ static void alt_deep_scene(void)
     uint16_t col = ALT_COL[c], hl = alt_gold_line(16);
     char txt[16];
     alt_card("DEEP", "XVII");
-    cv_text_r(232, 24, ALT_FS, ALT_PRE[au.pre[c] % ALT_NPRE].name, col, ALT_BG);   /* (whose sound) */
+    cv_text_r(232, 24, ALT_FS, alt_pre(au.pre[c])->name, col, ALT_BG);   /* (whose sound) */
     alt_tabs(40, DP_TAB, DP_NT, alt_dp_tab, col);
     for (r = alt_dp_top; r < n && r < alt_dp_top + DP_VIS; r++) {
         int32_t y = 60 + (int32_t)(r - alt_dp_top) * 19, fill;
@@ -4284,7 +4394,7 @@ static void alt_scene(uint32_t q, uint32_t flash)
         static const char *const ARC[QP_N] = {"XIV", "X", "XIII", "XVI", "XVIII", "I", "XVII", "XXI"};
         uint32_t bpm = (uint32_t)song.g[G_BPM], n = 0, m = alt_emode[au.sel] % AM_N;
         int32_t x;
-        alt_card(ALT_PRE[au.pre[au.sel] % ALT_NPRE].name, ARC[q % QP_N]);
+        alt_card(alt_pre(au.pre[au.sel])->name, ARC[q % QP_N]);
         if (q)
             cv_text(9, 19, ALT_FS, alt_qp_name(q), ALT_COL[au.sel]);
         if (bpm >= 100u)
@@ -5088,7 +5198,7 @@ static void alter_draw(void)
         alt_sm_footk[i] = sk;
         sfoot = sfoot * 31u + sk;
     }
-    sig = sig * 31u + anm.open * 3u + anm.ch[0] * 5u + anm.ch[1] * 7u + anm.ch[2] * 11u;   /* (the NAME page) */
+    sig = sig * 31u + anm.open * 3u + anm.ch[0] * 5u + anm.ch[1] * 7u + anm.ch[2] * 11u + anm.ch[3] * 13u;   /* (the NAME page) */
     sig = sig * 31u + alt_emode[au.sel] * 37u + alt_seq.scale * 41u + au.scene_open * 43u + au.row[au.tab] * 47u + au.tab * 59u +
           au.pre[au.sel] * 53u;
     sig = sig * 31u + (au.mat_open ? alt_mat_sig() * 2u + 1u : 0u) + (au.seq_open ? alt_seq_sig() * 4u + 3u : 0u) +
@@ -5331,6 +5441,13 @@ static int32_t alt_peek(uint32_t c, uint32_t w)
         return (int32_t)(au.cfg[c].type | au.cfg[c].len << 8 | au.cfg[c].tdens << 16 | (uint32_t)au.cfg[c].tlock << 24);
     if (w == 10u)
         return au.cfg[c].trange;
+    if (w == 24u)                                /* (v1.26: circle c's sound index | the USER sounds used << 8) */
+    {
+        uint32_t u, m = 0;
+        for (u = 0; u < ALT_NUSND; u++)
+            m |= (uint32_t)aus_used(u) << u;
+        return (int32_t)(au.pre[c] | m << 8);
+    }
     if (w == 19u)                                /* (v0.77: the MACRO: value | recipe << 8 | edited << 15 | shown << 16) */
         return (int32_t)(amc.val | amc.rcp << 8 | amc.edited << 15 | (uint32_t)amc.show << 16);
     if (w >= 20u && w < 20u + AMC_NS)            /* (v0.77: row w - 20: target | circle << 8 | (amount + 64) << 16) */
@@ -5438,7 +5555,7 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
     case 21: au.cfg[a % AS_NCIRC].len = (uint8_t)clamp((int32_t)b, 1, 32); alt_post_circle(a % AS_NCIRC); break;   /* (a test: circle a's LEN) */
     case 3: alt_emode[a % AS_NCIRC] = am_ok(b); break;
     case 4: song.g[G_BPM] = (int16_t)clamp((int32_t)a, 40, 240); break;
-    case 5: alt_emode[a % AS_NCIRC] = am_ok(ALT_PRE[au.pre[a % AS_NCIRC]].mode); break;
+    case 5: alt_emode[a % AS_NCIRC] = am_ok(alt_pre(au.pre[a % AS_NCIRC])->mode); break;
     case 6: pat_load(&trk[a % NPART], b); break;   /* (a test: Felucca's own phrase b on part a) */
     case 7:                                      /* the FX page's preset b of slot a (0..2 a circle's DIST, 3 DELAY, 4 REVERB, 5 MASTER) */
         if (a < AS_NCIRC) afp_dist_apply(a, b); else if (a == AFX_S_DLY) afp_dly_apply(b);

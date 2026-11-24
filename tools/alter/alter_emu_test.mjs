@@ -690,7 +690,7 @@ play();
   W(15, 0, 16 | 5 << 8); render(FS);
   B(7); enc(1, -3); enc(1, 1); enc(0, -25); enc(0, 4); store();             // SCENES B, B05
   W(15, 0, 16 | 10 << 8); render(FS);
-  B(7); enc(1, 3); enc(0, -25); enc(0, 1); store();                          // PATTERNS B, B02
+  B(7); enc(1, 1); enc(0, -25); enc(0, 1); store();                          // PATTERNS B, B02
   W(15, 0, 16 | 2 << 8); render(FS);
   const nor = new Uint8Array(mem.buffer, ex.web_nor(), ex.web_nor_size()).slice();
   const { instance: i5 } = await WebAssembly.instantiate(wasm, {}); const e5 = i5.exports;
@@ -702,7 +702,7 @@ play();
   r5(FS * 2);
   B5(7); enc5(1, -3); enc5(1, 1); enc5(0, -25); enc5(0, 4); B5(7); r5(FS);
   const sc = bits(e5.web_alter_pat(0));
-  B5(7); enc5(1, 2); enc5(0, -25); enc5(0, 1); B5(7); r5(FS);
+  B5(7); enc5(1, 1); enc5(0, -25); enc5(0, 1); B5(7); r5(FS);
   const pt = bits(e5.web_alter_pat(0));
   B5(7); enc5(1, -1); enc5(0, -25); enc5(0, 8); B5(7); r5(FS);               // PATTERNS A, A04: empty
   check(`USER bank B after power-off: scene B05 (${sc} hits, 5 stored), pattern B02 (${pt}, 10), A04 empty (${bits(e5.web_alter_pat(0))})`,
@@ -943,6 +943,31 @@ if (wavPath) {                                                  // 4 bars from a
   tap(21); render(BAR * 2); const inB = bits(ex.web_alter_pat(0));
   tap(19); render(BAR * 2); const backA = bits(ex.web_alter_pat(0));
   check(`SONG: an edit while A plays stays in A (B ${inB} hits, A again ${backA}: 11)`, inB === 7 && backA === 11);
+}
+// USER sounds (v1.26): the SAVE page's 4th tab SOUNDS; SAVE held = NAME (4 characters), SAVE stores the chosen circle's
+// sound; PRESETS turns to it after the factory ones; a tap on its row loads it; the flash keeps it
+{
+  ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
+  const pk = (c) => ex.web_alter_peek(c, 24) >>> 0;
+  B(7); enc(1, 5); enc(0, -25); enc(0, 2);                       // SOUNDS, U03
+  ex.web_buttons(1 << 7); render(FS * 1.2); ex.web_buttons(0); render(2000);   // held: NAME
+  enc(6, 2);                                                     // KNOB 4 +2
+  B(7);                                                          // SAVE: stored
+  const a = pk(0);
+  B(7); enc(0, -25); enc(0, 2); B(7);                            // the row tapped: loaded on circle 1 again
+  B(7); enc(1, -5); B(6);                                       // (back to SCENES A, closed: the tests after)
+  const nor = new Uint8Array(mem.buffer, ex.web_nor(), ex.web_nor_size()).slice();
+  const { instance: i7 } = await WebAssembly.instantiate(wasm, {}); const e7 = i7.exports;
+  e7._initialize(); e7.web_nor_erase(); new Uint8Array(e7.memory.buffer, e7.web_nor(), e7.web_nor_size()).set(nor); e7.web_boot();
+  for (let k = 0; k < FS * 2; k += 128) e7.web_render(128);
+  const b = e7.web_alter_peek(0, 24) >>> 0;
+  e7.web_alter(0, 0, 46); for (let k = 0; k < 4000; k += 128) e7.web_render(128);   // (the last factory sound)
+  e7.web_enc(2, 1); for (let k = 0; k < 4000; k += 128) e7.web_render(128);         // PRESETS +1: U03 (the empty ones skipped)
+  const p1 = e7.web_alter_peek(0, 24) & 255;
+  e7.web_enc(2, 1); for (let k = 0; k < 4000; k += 128) e7.web_render(128);         // +1: around to the first factory one
+  const p2 = e7.web_alter_peek(0, 24) & 255;
+  check(`USER SOUNDS: U03 stored from circle 1 (sound ${a & 255}, used ${(a >> 8).toString(2)}), after power-off still there (${(b >> 8).toString(2)}); PRESETS 46 -> ${p1} -> ${p2}`,
+        (a & 255) === 202 && (a >> 8) === 4 && (b >> 8) === 4 && p1 === 202 && p2 === 0);
 }
 console.log(fails ? `alter: ${fails} FAIL` : "alter: all ok");
 process.exit(fails ? 1 : 0);

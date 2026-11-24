@@ -53,7 +53,7 @@ static void afp_dist_apply(uint32_t c, uint32_t i)
     afx_edit &= (uint8_t)~(1u << c);
     fm1_irq_off();
     if (!afx_sel[c]) {                           /* SOUND: its own DIST, no insert */
-        t->p[P_DIST] = ALT_PRE[au.pre[c % AS_NCIRC]].fx[0];
+        t->p[P_DIST] = alt_pre(au.pre[c % AS_NCIRC])->fx[0];
         t->p[P_ITYPE] = 0;
         t->p[P_IMIX] = 0;
     } else {

@@ -145,6 +145,10 @@ select:hover { border-color: var(--gold); }
 /* ---- the strips of settings ---- */
 .strips { max-width: 1180px; margin: 0 auto; padding: 16px 0; display: grid; gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .sound { width: 100%; margin: 2px 0 4px; }
+.btn.sm { padding: 3px 8px; font-size: 12px; white-space: nowrap; }
+.sndRow { display: flex; gap: 6px; align-items: center; }
+.sndRow .sound { flex: 1; min-width: 0; }
+#usName { width: 6em; text-transform: uppercase; letter-spacing: .2em; }
 fieldset { border: 0; border-top: 1px solid var(--dark); margin: 14px 0 0; padding: 10px 0 0; }
 fieldset.first { border-top: 0; margin-top: 0; }
 legend { color: var(--goldtx); padding: 0 8px 0 0; font: 700 14px var(--serif); letter-spacing: .08em; text-transform: uppercase; }
@@ -483,6 +487,14 @@ legend { font-size: 13px; }
 </div>
 </div>
 
+<dialog id="usDlg">
+  <p id="usText">Store this sound as a USER sound:</p>
+  <div class="bakList">
+    <label>Place <select id="usPlace"></select></label>
+    <label>Name (4 letters) <input id="usName" maxlength="4" size="6" autocomplete="off" spellcheck="false"></label>
+  </div>
+  <div class="dlgBtns"><button class="btn" id="usNo">Cancel</button><button class="btn main" id="usOk">Store</button></div>
+</dialog>
 <dialog id="bakDlg">
   <p id="bakText">Restore from this backup (it replaces what the FM-1 holds there):</p>
   <div class="bakList">
@@ -490,6 +502,7 @@ legend { font-size: 13px; }
     <label><input type="checkbox" data-part="B" checked> USER scenes, bank B</label>
     <label><input type="checkbox" data-part="C" checked> USER scenes, bank C</label>
     <label><input type="checkbox" data-part="SONG" checked> SONG: slots A B C and the chain</label>
+    <label><input type="checkbox" data-part="SOUNDS" checked> USER sounds (16)</label>
     <label><input type="checkbox" data-part="LEARN" checked> MIDI LEARN links</label>
     <label><input type="checkbox" data-part="SYSTEM" checked> SYSTEM settings (some after a restart)</label>
   </div>
@@ -676,6 +689,54 @@ function lost() {
 }
 
 /* ---------- the three strips ---------- */
+// (v1.26) the USER sounds: the last 16 of INFO's list ("U03 GRIT"; an empty place has no name), in their own group
+const isUser = (n) => info.sounds.length - n <= 16 && /^U\d\d/.test(info.sounds[n].name);
+function fillSounds(sel) {
+  const keep = sel.value;
+  sel.innerHTML = "";
+  info.engines.forEach((e, ei) => {
+    const g = document.createElement("optgroup"); g.label = e;
+    info.sounds.forEach((so, n) => { if (so.eng === ei && so.name && !isUser(n)) g.append(new Option(so.name, n)); });
+    sel.append(g);
+  });
+  const u = document.createElement("optgroup"); u.label = "USER";
+  info.sounds.forEach((so, n) => { if (so.name && isUser(n)) u.append(new Option(`${so.name} (${info.engines[so.eng] ?? ""})`, n)); });
+  if (u.children.length) sel.append(u);
+  if (keep !== "") sel.value = keep;
+}
+function storeSound(c) {
+  if (!port || !info) return say("Connect the FM-1 first.", true);
+  const nU = 16, base = info.sounds.length - nU;
+  if (base < 0 || !info.sounds.slice(base).every((so) => !so.name || /^U\d\d/.test(so.name)))
+    return say("This FM-1's firmware has no USER sounds: update it (v1.26 or later).", true);
+  const d = $("usDlg"), pl = $("usPlace"), nm = $("usName");
+  pl.innerHTML = "";
+  for (let u = 0; u < nU; u++) {
+    const so = info.sounds[base + u];
+    pl.append(new Option(so.name ? so.name : `U${String(u + 1).padStart(2, "0")} (empty)`, u));
+  }
+  const firstFree = info.sounds.slice(base).findIndex((so) => !so.name);
+  pl.value = String(firstFree < 0 ? 0 : firstFree);
+  const cur = info.sounds[circ[c].state?.sound]?.name ?? "";
+  nm.value = (/^U\d\d /.test(cur) ? cur.slice(4) : cur).toUpperCase().replace(/[^A-Z0-9 -]/g, "").slice(0, 4);
+  $("usText").textContent = `Store circle ${ROMAN[c]}'s sound (${cur || "its sound"}) as a USER sound on the FM-1:`;
+  const close = () => { d.close(); $("usOk").onclick = $("usNo").onclick = null; };
+  $("usNo").onclick = close;
+  $("usOk").onclick = async () => {
+    const u = +pl.value, name = nm.value.toUpperCase().replace(/[^A-Z0-9 -]/g, " ").padEnd(4, " ").slice(0, 4);
+    close();
+    try {
+      const r = await ask(req.usnd(c, u, name), 4000);
+      if (r.rc !== 1) return say(r.rc === 2 ? "The FM-1 could not write its flash: try again." : "The FM-1 refused this place.", true);
+      info = await ask(req.info());
+      for (let k = 0; k < 3; k++) if (circ[k].el) fillSounds(circ[k].el.querySelector("[data-sound]"));
+      await refresh(c);
+      say(`Stored: ${info.sounds[base + u].name}. PRESETS on the FM-1 finds it after the factory sounds.`);
+    } catch { soft(); }
+  };
+  d.showModal();
+  nm.focus();
+}
 function build() {
   const root = $("strips");
   root.innerHTML = "";
@@ -683,15 +744,13 @@ function build() {
     const s = document.createElement("section");
     s.className = "strip tc";
     s.innerHTML = `<div class="rib"><span data-eng></span></div><span class="num">${ROMAN[c]}</span><span class="tag" data-mode></span>
-      <select class="sound" data-sound aria-label="Sound of circle ${c + 1}"></select>
+      <div class="sndRow"><select class="sound" data-sound aria-label="Sound of circle ${c + 1}"></select>
+      <button class="btn sm" data-store title="Store this circle's sound as one of the 16 USER sounds (on the FM-1)">Store…</button></div>
       <div class="gcols" data-groups></div>`;
     const sel = s.querySelector("[data-sound]");
-    info.engines.forEach((e, ei) => {
-      const g = document.createElement("optgroup"); g.label = e;
-      info.sounds.forEach((so, n) => { if (so.eng === ei) g.append(new Option(so.name, n)); });
-      sel.append(g);
-    });
+    fillSounds(sel);
     sel.onchange = () => chooseSound(c, +sel.value);
+    s.querySelector("[data-store]").onclick = () => storeSound(c);
     root.append(s);
     circ[c].el = s;
   }
@@ -909,6 +968,7 @@ const BAK_PARTS = [
   ...Array.from({ length: 8 }, (_, k) => ({ kind: 0, id: 14 + k, group: "A" })),
   ...Array.from({ length: 8 }, (_, k) => ({ kind: 0, id: 22 + k, group: "B" })),
   ...Array.from({ length: 8 }, (_, k) => ({ kind: 0, id: 32 + k, group: "C" })),
+  { kind: 0, id: 31, group: "SOUNDS" },   // (v1.26: the 16 USER sounds; an older FM-1: an empty part)
   { kind: 1, id: 0, group: "LEARN" }, { kind: 2, id: 0, group: "SYSTEM" },
 ];
 async function bakRead(kind, id) {                   // a part's bytes ([] = nothing stored there; null = failed)
@@ -940,7 +1000,7 @@ async function backupSave() {
   const url = URL.createObjectURL(new Blob([JSON.stringify(file)], { type: "application/json" }));
   Object.assign(document.createElement("a"), { href: url, download: nm }).click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-  say(`Backup saved: ${nm} (in your Downloads): every USER scene, SONG, MIDI LEARN and SYSTEM.`);
+  say(`Backup saved: ${nm} (in your Downloads): every USER scene and sound, SONG, MIDI LEARN and SYSTEM.`);
 }
 function bakChoose(file) {                           // the parts to put back (a Set of groups) or null
   return new Promise((done) => {
@@ -976,6 +1036,10 @@ async function backupRestore(f) {
     }
   } catch { return say("Restore stopped: the FM-1 stopped answering. Some parts may be written, others not: try again.", true); }
   await listUser("scene").catch(() => {});
+  if (pick.has("SOUNDS")) try {                       // (v1.26: the USER sounds' names in the lists)
+    info = await ask(req.info());
+    for (let k = 0; k < 3; k++) if (circ[k].el) fillSounds(circ[k].el.querySelector("[data-sound]"));
+  } catch {}
   const sysNote = pick.has("SYSTEM") ? " Restart the FM-1 to finish the SYSTEM settings." : "";
   say(bad ? `Restore done, but ${bad} part(s) refused or the flash failed: try again.` : `Restore done: ${[...pick].join(", ")}.${sysNote}`, !!bad);
 }

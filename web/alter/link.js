@@ -4,7 +4,7 @@
 export const HDR = [0x7d, 0x41, 0x4c];
 export const CMD = { INFO: 1, STATE: 2, DESC: 3, SET: 4, SOUND: 5, SCENE: 6, WATCH: 7, CHANGED: 8, RELOAD: 9, PING: 10,
   VLIST: 11, VDESC: 12, VALL: 13, VSET: 14, LANE: 15, LSET: 16, ACT: 17, PLAY: 18, VCHANGED: 19, LCHANGED: 20,
-  PAT: 21, SONG: 22, BLOB: 23, LEARN: 24, BACKUP: 25 };
+  PAT: 21, SONG: 22, BLOB: 23, LEARN: 24, BACKUP: 25, USND: 26 };
 // the actions (alter_link.c LA_*): a circle's, then CHAOS / TOTAL (any circle number)
 export const ACT = { MUTE: 0, DIE: 1, CLEAN: 2, DENSM: 3, DENSP: 4, SHL: 5, SHR: 6, TRIG: 7, RANDOM: 8, LANES: 9,
   FLATALL: 10, SHUF0: 11, FLAT0: 17, CHAOS: 23, TOTAL: 24, SELECT: 25, PLAY: 26, STOP: 27, REC: 28 };
@@ -61,6 +61,8 @@ export const req = {
   bakGet: (kind, id) => frame(CMD.BACKUP, 0, kind, id),
   bakBytes: (off) => frame(CMD.BACKUP, 1, off & 127, (off >> 7) & 127),
   bakPut: (off, bytes) => frame(CMD.BACKUP, 2, off & 127, (off >> 7) & 127, ...pack7(bytes)),
+  // v1.26: circle c's sound stored as USER sound u (0..15), a 4-character name (A-Z 0-9 - space)
+  usnd: (c, u, name) => frame(CMD.USND, c, u, ...[...(name + "    ").slice(0, 4)].map((ch) => ch.charCodeAt(0) & 127)),
   bakWrite: (kind, id, size, sum) => frame(CMD.BACKUP, 3, kind, id, size & 127, (size >> 7) & 127, sum & 127, (sum >> 7) & 127),
 };
 export const BLOB_PUT = 49;   // (bytes a BLOB put frame carries: the synth reads 64 bytes of a frame)
@@ -139,6 +141,7 @@ export function parse(f) {
       if (op === 2) return { cmd, op, off: v(), n: v() };
       return { cmd, op, ok: b() };
     }
+    case CMD.USND: return { cmd, place: b(), rc: b() };
     case CMD.BACKUP: {
       const op = b();
       if (op === 0) return { cmd, op, kind: b(), id: b(), size: v(), sum: v() };
