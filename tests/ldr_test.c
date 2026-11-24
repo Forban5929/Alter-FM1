@@ -185,6 +185,13 @@ int main(int argc, char **argv)
         memcpy(nor + 0xA0F00, r, sizeof r);
         memcpy(user, nor + 0xA0000, sizeof user);
     }
+    /* ALTER (v1.28, Romain 24/11: "la mise à jour garde tout"): every user byte, scenes, sounds, SONG 0x97000..0xE0000 and the
+     * settings + MIDI LEARN 0xFC000..0xFF000, filled with a pattern: it must all be there, unchanged, after the install */
+    static uint8_t keep[0xE0000 - 0x97000], keep2[0x3000];
+    for (i = 0x97000; i < 0xE0000; i++) if (i < 0xA0000 || i >= 0xA1000) nor[i] = (uint8_t)(i * 13u + (i >> 11));
+    for (i = 0xFC000; i < 0xFF000; i++) nor[i] = (uint8_t)(i * 5u + 3u);
+    memcpy(keep, nor + 0x97000, sizeof keep);
+    memcpy(keep2, nor + 0xFC000, sizeof keep2);
     /* 1.6.1: flash.bin must be exactly this board's [0, app area end): a package with another board's size (an
      * SMK-37's app area ends at 0x9D000, the FM-1's at 0x93000; one byte short too) is refused before any erase */
     {
@@ -226,6 +233,8 @@ int main(int argc, char **argv)
                  record_cleared && nor[0xE4F06] == 0xFF && nor[0xE8F06] == 0xFF);
     bad += check("user data in Felucca's store that looks like a record is kept", !memcmp(nor + 0xA0000, user, sizeof user));
     bad += check("no write outside the allowed windows", bad_range == 0);
+    bad += check("ALTER: every user byte kept (0x97000..0xE0000, 0xFC000..0xFF000)",
+                 !memcmp(nor + 0x97000, keep, sizeof keep) && !memcmp(nor + 0xFC000, keep2, sizeof keep2));
     /* same package again: nothing to erase */
     erases = 0; requests = 0;
     rc = ldr_session();

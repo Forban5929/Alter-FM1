@@ -89,6 +89,14 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    PROPOSED: … » avec le son en JSON. **En début de session** : `python3 tools/alter/alter_sound_intake.py` (lit les Issues
    a-trier, écrit la ligne ALT_PRE) → montrer à Romain, l'intégrer tel quel (remplacer : garder fx[] et la place ; nouveau : à
    la fin d'ALT_PRE), tests, fermer l'Issue. (La version envoyée = /version.txt du site, pas la machine.)
+   **v1.28 : « la mise à jour garde tout » vérifié** : le loader (firmware/loader/ldr_core.c) n'écrit que l'app
+   [0x4000, 0x93000) + la zone de transit 0xE0000..0xE4FFF ; nos données = 0x97000..0xDBFFF (objets 1..39) et 0xFC000..0xFDFFF
+   (réglages, LEARN, SYSTEM) ; le kit de secours garde aussi tout (fm1_recover.py `saved_data_unchanged`). Tests ajoutés :
+   `tests/ldr_test.c` (toutes nos zones remplies → intactes ; CI firmware.yml : dernière Release → ce paquet) et
+   `tools/alter/alter_upgrade_test.mjs OLD.wasm NEW.wasm` (scènes A/B/C + réglages des sons, NOM, SONG, LEARN, sons USER vides ;
+   lancé par site_build.sh beta avec `ALTER_OLD_WASM` = le wasm de la Release publique). Local : `git worktree add /tmp/old vX.YY`
+   + build_emu ; `.fwsc` d'une Release : `gh api -H "Accept: application/octet-stream" repos/…/releases/assets/ID` (gh release
+   download refusé ici : GraphQL).
    **RUMBLE (23/11)** : écoute https://claude.ai/artifact/N9BUje7vdzx4TAz4AKEYQF (`tools/alter/alter_rumble_wav.mjs`, hors
    firmware) : actuel 70/127, B DARK ROOM (réverbe ~2,5 s saturée, LP 110 Hz, pompe), C ROLL (sinus à la hauteur du kick
    ~65 Hz, gonfle entre les coups), D GROWL (bruit brun, LP résonant à la hauteur du kick, pompe) → **v1.15 : Romain = DARK ROOM**
@@ -121,7 +129,7 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    (`tools/alter/alter_wave_tab2.py` : RUST SWEEP/MORPH, FDBK CLIMB/SCREAM) → **v1.23 : RUST = RUST MORPH, FEEDBACK = FDBK CLIMB** (alter_wave_tables.py `FN`) ;
    HOWL LEVEL 116 ; écoute https://claude.ai/artifact/UzhVq4BXkkMMUXfAir8zaF. Audit knobs : pas de saut. CI vert ; marge image ~64 Ko (était ~110). Écoute : https://claude.ai/artifact/BvvHvBSGMBZwXTuNWZ6WqW. **Pas écouté, CPU pas mesuré sur la FM-1.** balance des niveaux des sons d'usine, moteurs plus différents
    (écoutes WAV d'abord), **RUMBLE à refaire** (2-3 variantes WAV à écouter). 4. Vu ailleurs (Felucca 1.0, fm1-dock,
-   ChoralRoot) : ~~backup complet depuis la page~~ (v1.25), mise à jour qui garde scènes/réglages, MIDI Bluetooth.
+   ChoralRoot) : ~~backup complet depuis la page~~ (v1.25), ~~mise à jour qui garde scènes/réglages~~ (v1.28), MIDI Bluetooth.
 5. ~~THEME SPLIT~~ (v1.10, retiré en **v1.13** : Romain 23/11 « on reste sur notre DA ») ; `alt_sys[11]` peut valoir 1 sur
    la FM-1 de Romain (inutilisé : le remettre à 0 avant de le reprendre). Maquettes gardées : https://claude.ai/artifact/BYCHi6JSFNoxxGFRJ721Pe.
 
@@ -153,7 +161,7 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.27 » (24/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.28 » (24/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. **Deux sites (v1.02, 22/11)** : pousser sur `etape-3d` → pages.yml construit (tools/alter/site_build.sh, 2 fois) :
    **racine = dernière Release** (tag vX.YY le plus haut ; ce que voient les gens) et **/beta/ = etape-3d** (bandeau rouge

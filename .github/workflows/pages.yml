@@ -95,6 +95,8 @@ jobs:
       - name: Site public (dernière Release)
         run: sh beta-src/tools/alter/site_build.sh pub-src site public "${{ steps.rel.outputs.tag }}" rescue/alter-fm1-secours-windows.zip
       - name: Site BETA (etape-3d)
+        env:
+          ALTER_OLD_WASM: ${{ github.workspace }}/pub-src/build/emu/felucca.wasm
         run: sh beta-src/tools/alter/site_build.sh beta-src site/beta beta etape-3d rescue/alter-fm1-secours-windows.zip
       - name: Résumé
         run: |

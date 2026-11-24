@@ -44,6 +44,16 @@ jobs:
           cc -std=gnu99 -O1 -g -w -fsanitize=thread -DFELUCCA_CPU2=1 -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests \
               -Ifirmware/bsp/chip -Ifirmware/bsp/boards/fm1 tests/dualcore_test.c -o build/host/dualcore_test -lpthread -lm
           TSAN_OPTIONS="halt_on_error=1 report_signal_unsafe=0" build/host/dualcore_test | tail -3
+      - name: "Mise à jour : la dernière Release → ce firmware ne touche à aucune donnée (scènes, sons, SONG, réglages)"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          REL="$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1 --json tagName -q '.[0].tagName')"
+          gh release download "$REL" --repo "$GITHUB_REPOSITORY" --pattern 'alter-*.fwsc' --dir /tmp/rel
+          cc -std=gnu99 -O1 -w -Ifirmware/bsp/chip -Ifirmware/src tests/ldr_test.c -o build/host/ldr_test
+          echo "de $REL vers ce firmware :"
+          build/host/ldr_test /tmp/rel/alter-*.fwsc build/felucca.fwsc
       - name: Tailles
         if: always()
         run: |

@@ -22,6 +22,10 @@ if [ "$KIND" = beta ]; then
   node tools/alter/alter_emu_test.mjs build/emu/felucca.wasm build/emu/alter_play.wav
   node tools/alter/alter_link_test.mjs build/emu/felucca.wasm
   node tools/alter/alter_learn_test.mjs build/emu/felucca.wasm
+  # (v1.28) la dernière Release → cette version : scènes, NOMS, SONG, MIDI LEARN gardés (ALTER_OLD_WASM : pages.yml)
+  if [ -n "$ALTER_OLD_WASM" ] && [ -f "$ALTER_OLD_WASM" ]; then
+    node tools/alter/alter_upgrade_test.mjs "$ALTER_OLD_WASM" build/emu/felucca.wasm
+  fi
 fi
 mkdir -p "$OUT/fonts" "$OUT/editor"
 cp build/emu/index.html build/emu/felucca.wasm build/emu/worklet.js "$OUT/"
