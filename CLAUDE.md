@@ -2,158 +2,27 @@
 Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes) : `docs/alter/HISTORIQUE.md`
 (archives en bas : CLAUDE.md complet au 04/11 et au 10/11 soir = commandes détaillées + journal jour par jour). Mettre à jour CE fichier à chaque session, en le gardant court.
 
-## >>> v1.1 (décidé par Romain le 22/11) <<<
-Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand la liste est finie.** Entre deux : BETA seulement.
-**Sheet de la liste : https://claude.ai/artifact/FhZkHbyXGPKKUxAC4wwPVi** (Sheets, nœud `af8de520-948a`, onglet « v1.1 » :
-# Besoin Statut Catégorie Priorité Source « Fait en » Notes ; lire avant de coder, mettre à jour en fin de session).
-1. ~~Site BETA~~ FAIT v1.02. 2. **Bouton Feedback** (v1.02, `web/alter/feedback.js`, BETA seulement jusqu'à la v1.1) →
-   relais Vercel `https://alter-feedback.vercel.app/api/feedback` (`tools/alter/feedback-relay/`, projet alter-feedback,
-   équipe rominou1) → Issue `a-trier` + `feedback` + `cat-…` + `v-…`. `GITHUB_TOKEN` mis par Romain le 22/11.
-   **Redéployer = nouveau déploiement avec le fichier** (un « redeploy » d'un ancien déploiement garde ses anciennes variables). En début de session :
-   `gh api 'repos/Forban5929/alter-fm1/issues?labels=a-trier'`, résumer à Romain, ajouter au Sheet ce qu'il accepte, retirer `a-trier`. 3. **Son** : ~~insert DIST~~ **v1.03** (fx.c `track_dist` : DRIVE 1..32 = fondu sec→saturé `DIST_XF`, make-up +2,6 dB à 1 → 0 à 64 ;
-   0→1 = 0,1 dB au lieu de −2,5 dB ; **validé par Romain « smooth »**) ; ~~INSERT DRIVE~~ **v1.04** (track_insert : SOFT..FUZZ, A 0..`INS_XF` 32 = fondu,
-   A 0 = rien ne tourne ; presets ≥ 40 inchangés ; reste : creux −4 dB vers A 20-32 sur sons brillants avec TONE/LEVEL par défaut 96 ;
-   ~~CRUSH~~ **v1.05** (Romain : « inverser + lisser ») : A = CRUSH 0 propre → 127 = 2 bits, pas continu `ins_crush_q` (16..8192,
-   exponentiel ; 1/pas calculé 1 fois par bloc), fondu A 0..32 aussi ; presets BITS 85, DESTROY 127 ; scènes USER sauvées avec
-   l'ancien BITS : sens inversé, à refaire à la main). **v1.06** : la vraie cause du « on/off » d'AMNT (Romain) = alter_play.c
-   `alt_take` : AMNT tourné avec TYPE OFF allume FOLD à fond **depuis l'AMNT restant** (50) → maintenant depuis 0 ; page FX : AMNT
-   affiche 0 si TYPE OFF (`tools/alter/alter_insert_click.mjs` : 1er cran = −0,2 dB).
-   **v1.07 (Romain)** : page FX = onglets **REVERB DELAY DIST** (`AFP_FXT`) ; DIST = **DRIVE · INS · TYPE · TONE** (TONE = P_IB,
-   CRUSH : P_IC ; pas de MIX : MIX < 127 d'une scène → fondu dans INS au 1er geste sur l'insert, alter_play.c `alt_take`) ;
-   **MASTER + FILTER déplacés dans GLO tenu** (MIXER : MIX I II III MASTER FILTER, `ALT_MX_GEN` ; même code `afp_ctl` /
-   `afp_gen_scene`, tête sur une ligne `afp_hy` 62) ; P_IA défaut 0, libellé « INS » ; page compagnon : MIX d'insert caché
-   (GROUPS Effects 12..18). TYPE depuis OFF = INS 0. Les éditions par la page compagnon ne font pas ce fondu MIX→INS. Mesures : `node tools/alter/alter_param_probe.mjs wasm SON "id=v,…" ID v1,v2`
-   (P_DIST 33, P_ITYPE 96, P_IA 97, P_IB 98, P_IC 99, P_IMIX 100). **Audit des knobs FAIT (22/11, v1.07)** :
-   `tools/alter/alter_knob_audit.mjs wasm OUT.json [sons]` (41 sons × E1..E8 par pas de 4, ~2 min en 2 moitiés) puis
-   `alter_knob_report.mjs a.json b.json` ; résultat = onglet **« Audit knobs »** du Sheet (31 lignes, colonne « À corriger ? »
-   remplie par Romain) → corriger ce qu'il marque Oui. Mesure = volume/brillance/longueur (pas la hauteur ni la stéréo).
-   Pires : RING MATR (trou −15 dB vers 72-80), PHYS BOW (−20 dB dès 0→16), PHYS BRIT/DAMP, PLATE MATR/TONE, NOISE DENS.
-   **v1.08 (corrections de l'audit, choix de Romain)** : `eng_curve.h` `alt_curve` (0..10 doux = 4x, puis 40..127) sur
-   ALTER NOIS/DRFT, NOISE DENS/DRFT (`eng_noise.c` = notre copie MIT), RESO DIRT ; PHYS EXC = alt_curve³ (×62 max) ;
-   PHYS BOW : la frappe/pincée reste sous l'archet (phys_dsp.c), plus de chute ; BRIT/DAMP bas : +6/+12 dB de compensation ;
-   PLATE MATR 0..84 seulement + SCRAPE refait, TONE/HIT ; CORDE MATR/BUZZ ; RESO DCAY/RES (niveau) ; ALTER TILT plus linéaire
-   (le plus grave ne meurt qu'avec TILT fort à gauche : sinon LENGTH ne prolonge plus, test emu) ; RING : trou MATR comblé,
-   **RDIO = radio AM** (bande étroite + sifflement en haut) ; TRIGGER = vélocité du prochain pas. Presets convertis
-   (alter_sounds.c). Reste mesuré : RING SIREN 0..52 faible, NOISE DENS sur sons DENS 0, TILT gauche sur THUD léger (1 osc).
-   **Rien écouté à l'oreille** : WAV / FM-1 par Romain.
-   **v1.09 (Romain : « DIRT ne marche que sur RING BELL », choix « les deux »)** : `eng_dirt.h` = étage DIRT de sortie commun
-   RING/PLATE/CORDE (tanh ×1..×26 via alt_curve, make-up 1/(1+(G−1)/14) ; > 90 : grain = bits en moins, échantillons tenus,
-   craquements ≤ 4 %) ; le DIRT dans la boucle reste. Mesuré : ±3 dB de 0 à 96, −5..−9 dB à 127 (les queues partent).
-   **v1.11 (Romain 22/11 : « trop de doublons dirt/saturation/dst/ins »)** : **RATCH retiré** (lane gardée dans les scènes, à 0 ;
-   `alt_rat_draw` vide, dé sans ratchet, lecture `rep` = fills seulement) ; SEQ = **VELO PITCH CHNC DLY REV** (`ALT_LANE_ORD`,
-   touches noires 1 3 5 8 10 ; ⚠ `ALT_NTAB` existe déjà = onglets SAVE : nom pris `ALT_NLTAB`) ; **INSERT sans SOFT/HARD/FUZZ**
-   (alt_take les saute, une vieille scène garde le sien ; presets WARM/CRUNCH = DIST seul, FUZZ/SCREAM = DIST + FOLD ; page :
-   options cachées). **Décidé : le knob DIRT des moteurs sera remplacé par RING MOD ou FOLD selon le moteur**, après écoute :
-   page https://claude.ai/artifact/GCqAHt17EWzZaXNypcQbtm (`tools/alter/alter_rmfold_wav.mjs` : 15 sons × sec, RING ×0,5 ×1,5
-   ×2,71 700 Hz, FOLD léger/moyen/fort, hors firmware) → **v1.12 (choix de Romain)** : `eng_xform.h` (`ering_*` : ≤ 64 mélange à ×0,5 la note (vmod inc), puis ×0,5 → ×2,71 ;
-   `efold_*` : sin(π/2·g·x/131072), g 1..24, make-up `EFOLD_MK` 25 ; PHYS ×2 + make-up 60). **RING** : ALTER (E5, était NOIS :
-   plus de bruit d'attaque), CORDE (E3, était DIRT) ; **FOLD** : RING (E3), RESO (E3 : feedback/drive de l'ancien DIRT coupés),
-   PHYS (E7, était EXC), NOISE (E6, était DRFT) ; **PLATE garde DIRT**. Presets/sons : ces knobs à 0, LEVEL des sons RESO/RING/
-   CORDE remonté (±1 dB d'avant). Perdu : LARSEN/FRICTION ne « chantent » plus (feedback de DIRT), bruit d'attaque de SNAP/GRIND.
-   Mesuré : pas de saut, volume ±3..10 dB sur la course ; scènes USER avec ces knobs ≠ 0 sonnent autrement.
-   **v1.14 (Romain 23/11 : balance « par familles », « au milieu »)** : LEVEL des 41 sons d'usine réglés en LUFS
-   (`tools/alter/alter_balance.py` : devant −25 KICK THUD TOMS GROWL WARM, derrière −31 HAT OPEN HAT RAIN WIND CRUSH METAL
-   ARCADE, le reste −28) ; moteur ALTER +6 dB (`voice_amp << 1`, ses sons −6 dB de LEVEL). Reste : CRUSH −6 dB, WARM −2,4,
-   BROKEN −3 (LEVEL déjà à 127) → **v1.17 (Romain)** : gain des moteurs NOISE ×2,5 (+8 dB), CORDE ×2, RESO ×2, ALTER ×3 (était ×2),
-   PHYS ×3 (était ×2), LEVEL de tous les sons rééquilibrés (3 passes) ; restent courts ≤ 1,7 dB (CRUSH WARM LARSEN SHREDDER : leurs crêtes
-   touchent le limiteur MASTER `LIM_T`, plus de gain n'y fait rien) ; scènes USER avec ces moteurs = plus fortes (LEVEL absolu
-   sauvé) ; alter_fx_test : COMP et MID +12 mesurés avec 12 dB de marge (op 17 LEVEL −24). Tests relâchés : TRIGGER (traîne), RUMBLE (+2 dB), CONSOLE COMP (crest × 0,95).
-   **v1.18 (Romain 23/11)** : REVERB presets = **SHORT BOX HALL BRIGHT HALL CLOUD** (ENDLESS GATED LONG GATE retirés ; SHORT = index 0 =
-   démarrage, NEW, scènes d'usine) ; modèle GATED retiré (fx.c : G_RTYPE 1 joue SHORT ; page FX le saute ; page compagnon le cache ;
-   params.c G_RTYPE défaut 0 ; **v1.20 : les scènes d'usine gardent leur reverb d'avant = HALL** (Romain : « des saves déjà faites » ;
-   alter_store.c `OLD_REV` : rpre = l'ancienne liste) ; SHORT = NEW + sons ; démarrage = scène TECHNO donc HALL ; **+ mix des
-   scènes d'usine comme en v1.13** (Romain : « revient sur les effets de HOUSE TECHNO autant que possible ») : `alt_scene_fix` = LEVEL
-   par cercle `fix[]` (ALT_SCENE, mesuré cercle par cercle v1.13 vs aujourd'hui, `tools/alter/alter_scene_fix.mjs`, RUMBLE coupé ;
-   reste ±0,6 dB) + dans AMBIENT (scène stockée entière) les knobs devenus RING/FOLD remis à 0 ; RUMBLE du KICK = DARK ROOM) ; CHAOS TOTAL : 65 % SHORT, sinon HALL/CLOUD SIZE ≤ 89 ; **sons d'usine secs** (alter_ui.c `alt_pre_fx` :
-   fx[] seulement dans une scène d'usine). Reverbs courtes « convolution bizarre » : écoute https://claude.ai/artifact/HaH9apsi9KLoXDBJ8hGAU1
-   (`tools/alter/alter_shortverb_wav.py` : CAN PIPE METAL SHARDS vs SHORT BOX) → **v1.19 : Romain garde les 4** : fx.c `rev_odd` (RV_CAN 4..
-   RV_SHARDS 7, 44,1 kHz dans rev_comb/rev_ap, état `ro` .pool ~120 o ; SIZE = feedback, DAMP = passe-bas ; `RO_OUT` calé à la
-   même sonie que SHORT, limiteur évité : niveaux −12 dB) ; `rev_run` = HALL ou rev_odd ; presets SHORT BOX CAN PIPE METAL SHARDS
-   HALL BRIGHT HALL CLOUD ; CHAOS TOTAL : les courtes = SHORT/CAN/PIPE/METAL/SHARDS au hasard. Coût ≈ HALL (wasm, bruité ; FM-1 pas mesuré). CI vert ; **pool libre 8,6 Ko = 444 o au-dessus du seuil CI 8 Ko** (ne plus rien ajouter en .pool sans libérer). Écoute firmware : https://claude.ai/artifact/YPjm6P9y7VqDJdUiwwapGf.
-   **v1.24 (Romain 23/11)** : TRIGGER passe par l'ENV (alter_play.c `alt_trig_now` : `alt_env_apply` + porte selon le mode comme un
-   pas ; arrêté : PERC/FREE par leurs minuteries, STAB 2 doubles-croches, DRONE 8) ; INSERT FOLD : entrée ÷4 + make-up `FOLD_MK` 70
-   (fx.c ins_drive : il repliait tout de suite depuis les gains v1.17, −12 dB à INS 32 → creux ≤ 2 dB ; en haut +3..+9 dB) ;
-   AMBIENT : description « TWO PAD DRONES . RAIN » (plus son prénom).
-   **v1.25 (Romain 24/11 : « backup complet », restaurer = choisir)** : LINK 25 BACKUP (alter_link.c `lk_bak` : lire/écrire
-   objets 10..13, 14..29, 32..39 + LEARN + SYSTEM par le tampon `alt_ub`, somme BLOB ; LINK.md) ; page : boutons **Backup… /
-   Restore…** (fichier `alter-backup` JSON, dialogue `bakDlg` à cases A B C SONG LEARN SYSTEM ; place vide = 4 octets à 0) ;
-   7 tests dans alter_link_test ; essayé dans Chrome headless (?demo). **Pas essayé sur la FM-1.**
-   **v1.26 (Romain 24/11) : 16 sons USER** (`alter_usnd.c`, objet flash 31, ~950 o de RAM .bss, pas de pool) : moteur, E1..E8,
-   ENV, LEVEL, RUMBLE, nom 4 lettres ; `au.pre` = `ALT_UPRE0` 200 + u (fixe : ajouter des sons d'usine ne décale rien) ;
-   `alt_pre(i)` remplace `ALT_PRE[i % ALT_NPRE]` partout ; PRESETS = usine puis USER (`alt_pre_pos/at`, vides sautés) ;
-   page SAVE : 4e onglet **SOUNDS** (tap = charger sur le cercle choisi, SAVE tenu = NOM 4 lettres KNOB 1-4 puis SAVE) ;
-   LINK 26 USND + INFO liste usine + 16 USER (vides = nom vide) ; page : groupe USER + bouton **Store…** ; backup : partie
-   SOUNDS (objet 31). Tests : emu « USER SOUNDS », link USND (5). Tirages (CHAOS) : sons d'usine seulement. **Pas sur la FM-1.**
-   **v1.27 : bouton « Propose… »** (page BETA seulement, `PROPOSE_ON` ; `?propose` pour l'essayer en local) à côté de Store… :
-   nom, « nouveau son » ou « remplace X », note → relais Feedback (cat sound, **relais inchangé**) → Issue « [son] SOUND
-   PROPOSED: … » avec le son en JSON. **En début de session** : `python3 tools/alter/alter_sound_intake.py` (lit les Issues
-   a-trier, écrit la ligne ALT_PRE) → montrer à Romain, l'intégrer tel quel (remplacer : garder fx[] et la place ; nouveau : à
-   la fin d'ALT_PRE), tests, fermer l'Issue. (La version envoyée = /version.txt du site, pas la machine.)
-   **v1.28 : « la mise à jour garde tout » vérifié** : le loader (firmware/loader/ldr_core.c) n'écrit que l'app
-   [0x4000, 0x93000) + la zone de transit 0xE0000..0xE4FFF ; nos données = 0x97000..0xDBFFF (objets 1..39) et 0xFC000..0xFDFFF
-   (réglages, LEARN, SYSTEM) ; le kit de secours garde aussi tout (fm1_recover.py `saved_data_unchanged`). Tests ajoutés :
-   `tests/ldr_test.c` (toutes nos zones remplies → intactes ; CI firmware.yml : dernière Release → ce paquet) et
-   `tools/alter/alter_upgrade_test.mjs OLD.wasm NEW.wasm` (scènes A/B/C + réglages des sons, NOM, SONG, LEARN, sons USER vides ;
-   lancé par site_build.sh beta avec `ALTER_OLD_WASM` = le wasm de la Release publique). Local : `git worktree add /tmp/old vX.YY`
-   + build_emu ; `.fwsc` d'une Release : `gh api -H "Accept: application/octet-stream" repos/…/releases/assets/ID` (gh release
-   download refusé ici : GraphQL).
-   **v1.29 : MIDI OUT par USB** (Romain 24/11, après un utilisateur : « on peut envoyer du MIDI à la FM-1 mais pas l'inverse ») :
-   SYSTEM › SETUP › **MIDI OUT** OFF/CLOCK/NOTES/ALL (`alt_sys[12]`, OFF par défaut ; aide en bas « USB ONLY ») ; alter_play.c
-   `amo_*` (seul écrivain de l'anneau USB : l'ISR audio ; `midi_out_try` = rien sans ordinateur) : CLOCK = F8 ×24/temps
-   (`beat_samples`, tourne aussi à l'arrêt) + FA/FC, seulement si CLOCK = INT (pas de renvoi d'une clock reçue) ; NOTES = chaque
-   coup (`amo_hit` dans alt_on / alt_on_drone, accords compris) sur canaux 1 2 3, fin après ¾ de double-croche ou au coup
-   suivant. TRS = entrée seulement (midi_uart.c : RX). Test `tools/alter/alter_midiout_test.mjs` (op 36, `web_mo_host`/`web_mo_take`),
-   lancé par site_build.sh. Autres firmwares : Felucca 1.0 envoie les notes des touches (pas de clock) ; Melodee 1.6.1, ORBIT 0.10
-   envoient la clock. **Pas essayé sur la FM-1 / un DAW.**
-   **v1.30-v1.32 (Romain 24/11 : filmer une jam)** : page compagnon, bouton **JAM** (ou `editor/?jam`) = **l'écran PLAY de la FM-1
-   redessiné en vectoriel** (v1.32 ; v1.30-31 = 3 cadrans + NOW/MOVES, retirés : réagissaient aux REC de mouvements), carré noir plein
-   écran, nourri par les poussées (drawPlay → `JAM.play` ; sons, valeurs, RUMBLE du KICK ; knob tourné = doré + valeur 1,2 s via
-   `JAM.turn`) ; `jamScreen()` copie alter_ui.c/alter_look.c (rayons, cercles 80 60 40, sigils, pas, aiguilles, prisme, ruban,
-   tempo, MODE, 4 knobs + lunes). Bandeau BETA caché. Esc ou JAM = sortir. Essayé Chrome headless (?demo&jam) à côté d'une capture
-   emu : quasi identique. **v1.33** : le bas suit la machine (PLAY poussé + page rapide `alt_page()` + 4 knobs `alt_kv` : nom, texte,
-   lune, tourné `alt_dial_live` ; LINK.md) ; Romain : **bandeau seulement**, les pages tenues (LFO, FX…) ne sont PAS redessinées (la copie
-   reste sur PLAY). OBS ALTER JAM réglé 24/11 : caméra 1760×990 centrée, copie 210×210 à (704,309) sur l'écran réel, cadre
-   `ALTER_JAM_frame.png` (video/jam_frame.py). **Pas encore filmé avec la FM-1.** OBS de Romain (layout `ALTER-OBS`, caméra Sony A7C II tournée 180°,
-   son « ALTER FM-1 » USB) : prochain layout voulu = caméra presque plein cadre, la réplique posée SUR l'écran réel, joli cadre autour.
-   **Stems USB (idée, REPORTÉE par Romain 24/11)** : mode MASTER (2 canaux) ou SPLIT = 3 cercles stéréo + EFFETS stéréo (8 can.),
-   pistes = son + DIST + CONSOLE. Possible avec le felucca-bsp amont (`FELUCCA_UAC_CH` 4..10, `uac_ch_frame`, 44,1 kHz seul,
-   16 bits ; bsp actuel 5942e68, amont 2bd9dbe = +16 000 lignes) ; anneau MC = 384 trames × N × 2 o (8 can. ≈ 6 Ko, remplace
-   l'anneau stéréo 2 Ko) ; RAM .data+.bss 63,2/72 Ko (CI veut 4 Ko libres), pool quasi plein.
-   **RUMBLE (23/11)** : écoute https://claude.ai/artifact/N9BUje7vdzx4TAz4AKEYQF (`tools/alter/alter_rumble_wav.mjs`, hors
-   firmware) : actuel 70/127, B DARK ROOM (réverbe ~2,5 s saturée, LP 110 Hz, pompe), C ROLL (sinus à la hauteur du kick
-   ~65 Hz, gonfle entre les coups), D GROWL (bruit brun, LP résonant à la hauteur du kick, pompe) → **v1.15 : Romain = DARK ROOM**
-   (« la pompe est parfaite », sans le clic d'attaque, knob continu LOW ~40 MID ~80 HIGH 127) : alter_fx.c `rmb_part` refait
-   (4 combs 11 kHz ~80 ms fb 0.944 + LP dans la boucle, tanh ×4..×10,4, LP 110 Hz 2 pôles, HP 30 Hz, pompe sur `beat_samples()`
-   déclenchée par l'enveloppe du kick > ½ crête, gain lissé ~1,5 ms = plus de clic ; `RMB_GAIN` 24 : 70 ≈ MID, 127 ≈ HIGH +3 dB) ;
-   tampon .pool 7,3 Ko (était 3,6 ; à 9,1 Ko le CI refusait : marge pool 6,9 < 8 Ko ; **reste ~8,8 Ko**).
-   **v1.22 (Romain : « ne sonne pas comme l'extrait »)** : 3 bugs de `rmb_part` trouvés (harnais C /tmp/rh = rmb_part seul) :
-   enveloppe bloquée à 1023 → fausse pompe à chaque demi-temps + vraie pompe ~50 ms en retard (rumble fort sur l'attaque) ;
-   glisse du knob `gn` bloquée à 511 sous la cible (LOW ≈ rien) ; niveau ~10 dB trop fort. Corrigé : détection = montée de
-   l'enveloppe au-dessus de ¼ du pic (réarmée sous ⅛, ≥ ¼ de temps), `gn` en Q8, `RMB_GAIN` 6 (80 ≈ MID, 127 ≈ HIGH −1 dB).
-   Écoute extrait vs firmware : https://claude.ai/artifact/S6pfjPgXUjJ3bhXCqaTqzR. Reste : 4 combs à 11 kHz (l'esquisse : 6 à
-   44,1 kHz), creux de pompe ~17 dB (esquisse ~24).
-   **Moteur WAVE (23/11, Romain : wavetable indus, « inspire-toi de Shrub / TastyWaves »)** : Shrub = propriétaire (pas de code) ;
-   **TastyWaves = GPL-3.0** (github.com/marksweiss/tastywaves, Mark Weiss : `firmware/src/synth.h` oscillateur entier,
-   mip levels, Catmull-Rom, BEND ph + A sin ; ses 12 tables = 391 Ko, trop gros pour nous : ~110 Ko de marge image) → nos
-   tables maison. Écoute https://claude.ai/artifact/GEnhZSqZQgztEGfF9bNTdT (`tools/alter/alter_wave_wav.py`, 16 images,
-   64 harmoniques) : CLANG GRIND ROBOT TEAR × sec/BEND/SYNC/BITS → Romain : **CLANG oui, le reste trop mélodique / sage**.
-   Tour 2 https://claude.ai/artifact/WpH1CCp77DC3Nz6NTTFtCu : CLANG + RUST GEAR SHRED STATIC SCREECH FEEDBACK, note martelée,
-   × sec / JITTER / SYNC → Romain : **JITTER non** ; « du wave folding et du ring en plus de bouger dans la table ».
-   Tour 3 https://claude.ai/artifact/FqS95yySDFK5fxTvpF2Qo5 : les 7 tables × sec / FOLD / RING ×2,71 / FOLD+RING (POS balaie)
-   → Romain : **tables CLANG RUST SHRED FEEDBACK** ; WARP façon Serum (MODE + AMNT) ; knobs plan A = TABLE · POS · MODE ·
-   AMNT · POS ENV · WARP ENV · SUB · SPRD. Tour 4 https://claude.ai/artifact/4EXmb1BDvTyGQpboz29Wqw
-   (`tools/alter/alter_wave_warp.py` : 4 tables × DRY SYNC BEND PWM MIRROR FM RING FOLD BITS, enveloppes POS + WARP)
-   → Romain garde **SYNC BEND FM RING FOLD BITS** (PWM MIRROR non). **v1.16 : moteur WAVE codé** (`eng_wave.c`, ENGI_WAVE 5,
-   ALT_ENGS index 7 ; tables `eng_wave_tab.h` générées par `tools/alter/alter_wave_tables.py` : 4 × 16 images × mips 256/128/64/32,
-   int8 + gain par image, ~31 Ko flash) ; knobs TABL(enum) POS MODE(enum) AMNT PENV WENV SUB SPRD ; SHP → POS, FLT → AMNT ;
-   AMNT 0 = aucun warp (**v1.21** : WENV et FLT poussent en proportion d'AMNT, Romain) ; alt_sys[1] = 8 bits (WAVE = 0x80, migration alt_sys[7] = 2) ; sons HAMMER BENDER CORRODE WAVE RING
-   SHREDDER HOWL (−28 LUFS). Tour 5 (Romain : « POS de RUST et FDBK ne change pas grand-chose ») : https://claude.ai/artifact/QnuUM9pxLwLHpWqeyuT76y
-   (`tools/alter/alter_wave_tab2.py` : RUST SWEEP/MORPH, FDBK CLIMB/SCREAM) → **v1.23 : RUST = RUST MORPH, FEEDBACK = FDBK CLIMB** (alter_wave_tables.py `FN`) ;
-   HOWL LEVEL 116 ; écoute https://claude.ai/artifact/UzhVq4BXkkMMUXfAir8zaF. Audit knobs : pas de saut. CI vert ; marge image ~64 Ko (était ~110). Écoute : https://claude.ai/artifact/BvvHvBSGMBZwXTuNWZ6WqW. **Pas écouté, CPU pas mesuré sur la FM-1.** balance des niveaux des sons d'usine, moteurs plus différents
-   (écoutes WAV d'abord), **RUMBLE à refaire** (2-3 variantes WAV à écouter). 4. Vu ailleurs (Felucca 1.0, fm1-dock,
-   ChoralRoot) : ~~backup complet depuis la page~~ (v1.25), ~~mise à jour qui garde scènes/réglages~~ (v1.28), MIDI Bluetooth.
-5. ~~THEME SPLIT~~ (v1.10, retiré en **v1.13** : Romain 23/11 « on reste sur notre DA ») ; `alt_sys[11]` peut valoir 1 sur
-   la FM-1 de Romain (inutilisé : le remettre à 0 avant de le reprendre). Maquettes gardées : https://claude.ai/artifact/BYCHi6JSFNoxxGFRJ721Pe.
+## >>> v1.2 (en cours) — v1.1 PUBLIÉE le 24/11 <<<
+Règle (Romain 22/11) : **une liste de besoins par version (Sheet) ; on publie (Release) quand la liste est finie.** Entre deux : BETA seulement.
+**Sheet : https://claude.ai/artifact/FhZkHbyXGPKKUxAC4wwPVi** (Sheets, nœud `af8de520-948a` ; onglets **« v1.2 »** = la liste
+en cours, « v1.1 » = fait, « Audit knobs » ; colonnes # Besoin Statut Catégorie Priorité Source « Fait en » Notes ;
+lire avant de coder, mettre à jour en fin de session ; l'outil Claude_Docs sait l'éditer : guide topic.sheets).
+**Liste v1.2 (24/11)** : balance des niveaux (restes), moteurs plus différents (écoutes WAV d'abord), RUMBLE à finir,
+MIDI Bluetooth (à décider), stems USB (à décider, voir plus bas), **SIDECHAIN** (un cercle, ex. KICK, fait pomper les
+autres : source + cible + quantité, à préciser), **SONG mode A B C à revoir** (demander à Romain ce qui ne va pas),
+essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01→v1.1, Backup/Restore, sons USER, MIDI OUT, CPU WAVE).
+- **v1.1 = BETA v1.33** (Romain a choisi de publier sans essai FM-1 préalable). Détail v1.02-v1.33 : `docs/alter/HISTORIQUE.md`
+  (section « Journal v1.1 ») ; notes publiques : `docs/RELEASE-NOTES.md` « ## v1.1 ». Public : Feedback visible ; **Propose… = BETA seulement**.
+- **Feedback** : `web/alter/feedback.js` → relais Vercel `https://alter-feedback.vercel.app/api/feedback` (`tools/alter/feedback-relay/`,
+  projet alter-feedback, équipe rominou1) → Issue `a-trier` + `feedback` + `cat-…` + `v-…`. Redéployer = nouveau déploiement
+  avec le fichier. **En début de session** : `gh api 'repos/Forban5929/alter-fm1/issues?labels=a-trier'`, résumer à Romain,
+  ajouter au Sheet ce qu'il accepte, retirer `a-trier` ; sons proposés : `python3 tools/alter/alter_sound_intake.py` → montrer,
+  intégrer tel quel (remplacer : garder fx[] et la place ; nouveau : fin d'ALT_PRE), tests, fermer l'Issue.
+- Outils de mesure du son : `alter_knob_audit.mjs` + `alter_knob_report.mjs` (audit), `alter_param_probe.mjs`, `alter_balance.py`
+  (LUFS), `alter_scene_fix.mjs`, `alter_upgrade_test.mjs OLD.wasm NEW.wasm` (la mise à jour garde tout), `alter_midiout_test.mjs`.
+- Garde-fous : **pool libre ~8,6 Ko, seuil CI 8 Ko** (plus rien en .pool sans libérer) ; marge image ~64 Ko ; RAM .data+.bss 63,2/72 Ko.
+- **Stems USB (REPORTÉ)** : MASTER 2 can. ou SPLIT 8 can. ; demande le felucca-bsp amont (`FELUCCA_UAC_CH`, +16 000 lignes), 44,1 kHz, ~6 Ko.
+- `alt_sys[11]` (ancien THEME SPLIT, retiré v1.13) peut valoir 1 sur la FM-1 de Romain : le remettre à 0 avant de le reprendre.
 
 ## Utilisateur
 - Romain, non-développeur, techno live indus (Analog Rytm pour les drums). Français simple, honnêteté (vérifié / pas vérifié).
@@ -183,7 +52,7 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.33 » (24/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.33 » (24/11 ; = Release v1.1 ; la BETA continue à v1.34…) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. **Deux sites (v1.02, 22/11)** : pousser sur `etape-3d` → pages.yml construit (tools/alter/site_build.sh, 2 fois) :
    **racine = dernière Release** (tag vX.YY le plus haut ; ce que voient les gens) et **/beta/ = etape-3d** (bandeau rouge
@@ -232,7 +101,7 @@ alter_render.mjs ENG, alter_link_test (nombre), tests/dualcore_test.c + hostsim.
   liste USER sur la 1re case vide ; **son USB** (Listen, Rec WAV, vumètre) ; taille AUTO d'après la fenêtre ; scroll thémé.
 - Mesures FM-1 connues : écran 28F 24MS (09/11, avant les dernières versions) ; CPU > 60 % avec 3 cercles + effets (09/11).
 
-## Où on en est (21/11, **v1.0 publiée**)
+## Historique 1.0 (v1.0 21/11, v1.01 22/11, **v1.1 24/11**)
 **Release : pousser un tag `vX.Y` (sur le commit testé) → firmware.yml construit `--release X.Y` et publie la Release
 GitHub (paquet, app, SHA256SUMS, licences ; notes = section « ## vX.Y » de docs/RELEASE-NOTES.md).** v1.0 = v0.79 + le texte
 de version ; v1.01 = v1.0 + identité FM-1_956 (installée V15 → ALTER, Felucca → ALTER, retour V15 : OK le 21/11 par Romain).
@@ -417,5 +286,4 @@ fichier patch entier, MIXER de la page, MIDI LEARN (BCR32), TRS MIDI (câble en 
 
 ## Idées (après la 1.0, si Romain le demande)
 ~~Macro~~ (v0.77) ; ~~LEARN dans la page compagnon~~ (v0.76) ; DENSITY/ROT continus ; ~~PROG + vague LFO dans la page~~ (v0.78) ;
-MACRO dans la page compagnon. **SIDECHAIN (Romain 24/11)** : un cercle (ex. le KICK) fait « pomper » un ou les autres cercles
-(source + cible + quantité ; à ajouter à l'onglet v1.1 du Sheet, pas fait d'ici : l'outil n'édite pas les Sheets).
+MACRO dans la page compagnon. (SIDECHAIN et SONG A B C : dans la liste v1.2.)

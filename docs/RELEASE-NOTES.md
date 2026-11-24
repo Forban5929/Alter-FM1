@@ -1,5 +1,45 @@
 # ALTER — release notes
 
+## v1.1 (24 November 2026)
+
+Install it over v1.01 as usual: your scenes, SONG slots, MIDI learn links and settings stay (the update only writes the
+firmware; checked in the code and by automatic tests at every build).
+
+**Sound**
+- A new engine, **WAVE**: industrial wavetables (CLANG, RUST, SHRED, FEEDBACK) with a Serum-style WARP (SYNC, BEND, FM,
+  RING, FOLD, BITS), envelopes on the position and the warp, SUB and SPREAD. Seven new sounds use it.
+- Every knob of every engine was measured from 0 to 127: about twenty jumps and dead zones fixed (RING MATR, PHYS BOW,
+  BRIT, DAMP and EXC, PLATE MATR and HIT, NOISE DENS, CORDE BUZZ, RESO DIRT, ALTER TILT and NOIS, RING RDIO = an AM radio…).
+- Engine knobs that did almost nothing (DIRT, ALTER NOIS, PHYS EXC, NOISE DRFT) became a RING MOD or a wave FOLD,
+  depending on the engine; PLATE keeps DIRT, and RING, PLATE and CORDE get a new DIRT output stage.
+- Factory sounds balanced by family (kicks and big sounds in front, hats and textures behind), louder engines.
+- The KICK's RUMBLE redone: a dark room that pumps with the kick, continuous from LOW to HIGH.
+- Reverb presets: SHORT, BOX, CAN, PIPE, METAL, SHARDS, HALL, BRIGHT HALL, CLOUD. Factory sounds are now dry.
+- DIST: DRIVE fades in smoothly (no more on/off jump); INSERT = FOLD or CRUSH (CRUSH goes from clean to 2 bits).
+- TRIGGER plays through the envelope, with the velocity of the next step.
+
+**Pages and controls**
+- FX page in three tabs: REVERB, DELAY, DIST (DRIVE, INS, TYPE, TONE). MASTER and FILTER moved to the MIXER (GLO held).
+- SEQ page: VELO, PITCH, CHNC, DLY, REV. The ratchet was removed.
+- **16 USER sounds**: save a circle's sound with a 4-letter name (SAVE page, SOUNDS tab); they appear after the factory
+  sounds in PRESETS.
+- **MIDI OUT over USB** (SYSTEM › SETUP › MIDI OUT: OFF, CLOCK, NOTES, ALL; OFF by default): clock when CLOCK = INT,
+  the three circles' notes on channels 1, 2 and 3.
+
+**Companion page**
+- **Backup… / Restore…**: every scene, SONG, MIDI learn, settings and USER sounds in one file; choose what to restore.
+- **Store…**: save a circle's sound into a USER slot from the page.
+- **Feedback**: a button to send a problem or an idea, no account needed.
+- **JAM**: the FM-1's PLAY screen redrawn full screen, to film a live set.
+
+**Known limits**
+- Scenes saved before v1.1 that used CRUSH, SOFT/HARD/FUZZ inserts, the ratchet or the old DIRT/NOIS/EXC/DRFT knobs
+  sound a little different now.
+- New in this version and tested in the emulator and the companion page, not yet on a real FM-1: the WAVE engine's CPU
+  load, Backup/Restore, USER sounds, MIDI OUT (with a DAW).
+
+**Files**: `alter-1.1.fwsc` (the package the install page writes), `alter-1.1-app.bin`, `SHA256SUMS`, the licences.
+
 ## v1.01 (22 November 2026)
 
 - New package identity `FM-1_956`: the number used by v0.79 and v1.0 (`FM-1_929`) already belongs to another firmware
