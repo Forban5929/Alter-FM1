@@ -97,6 +97,14 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    lancé par site_build.sh beta avec `ALTER_OLD_WASM` = le wasm de la Release publique). Local : `git worktree add /tmp/old vX.YY`
    + build_emu ; `.fwsc` d'une Release : `gh api -H "Accept: application/octet-stream" repos/…/releases/assets/ID` (gh release
    download refusé ici : GraphQL).
+   **v1.29 : MIDI OUT par USB** (Romain 24/11, après un utilisateur : « on peut envoyer du MIDI à la FM-1 mais pas l'inverse ») :
+   SYSTEM › SETUP › **MIDI OUT** OFF/CLOCK/NOTES/ALL (`alt_sys[12]`, OFF par défaut ; aide en bas « USB ONLY ») ; alter_play.c
+   `amo_*` (seul écrivain de l'anneau USB : l'ISR audio ; `midi_out_try` = rien sans ordinateur) : CLOCK = F8 ×24/temps
+   (`beat_samples`, tourne aussi à l'arrêt) + FA/FC, seulement si CLOCK = INT (pas de renvoi d'une clock reçue) ; NOTES = chaque
+   coup (`amo_hit` dans alt_on / alt_on_drone, accords compris) sur canaux 1 2 3, fin après ¾ de double-croche ou au coup
+   suivant. TRS = entrée seulement (midi_uart.c : RX). Test `tools/alter/alter_midiout_test.mjs` (op 36, `web_mo_host`/`web_mo_take`),
+   lancé par site_build.sh. Autres firmwares : Felucca 1.0 envoie les notes des touches (pas de clock) ; Melodee 1.6.1, ORBIT 0.10
+   envoient la clock. **Pas essayé sur la FM-1 / un DAW.**
    **RUMBLE (23/11)** : écoute https://claude.ai/artifact/N9BUje7vdzx4TAz4AKEYQF (`tools/alter/alter_rumble_wav.mjs`, hors
    firmware) : actuel 70/127, B DARK ROOM (réverbe ~2,5 s saturée, LP 110 Hz, pompe), C ROLL (sinus à la hauteur du kick
    ~65 Hz, gonfle entre les coups), D GROWL (bruit brun, LP résonant à la hauteur du kick, pompe) → **v1.15 : Romain = DARK ROOM**
@@ -161,7 +169,7 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.28 » (24/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.29 » (24/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. **Deux sites (v1.02, 22/11)** : pousser sur `etape-3d` → pages.yml construit (tools/alter/site_build.sh, 2 fois) :
    **racine = dernière Release** (tag vX.YY le plus haut ; ce que voient les gens) et **/beta/ = etape-3d** (bandeau rouge

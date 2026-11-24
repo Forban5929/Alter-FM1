@@ -415,6 +415,10 @@ EXPORT void web_enc(uint32_t role, int32_t n)
 }
 EXPORT void web_master(uint32_t v) { web_master_adc = v > 1023u ? 1023u : v; }
 /* a channel message from Web MIDI, as a USB-MIDI packet arrives (usb.c midi_enqueue): 0 = the ring was full */
+/* (v1.29, tests) the USB-MIDI out ring as a host would read it: web_mo_host(1) = a host is there (usb.config), then
+ * web_mo_take() the next packet (0: none) */
+EXPORT void web_mo_host(uint32_t on) { usb.config = (uint8_t)(on != 0u); }
+EXPORT uint32_t web_mo_take(void) { return mo_r != mo_w ? midi_out_q[mo_r++ % MQ] : 0u; }
 EXPORT uint32_t web_midi(uint32_t status, uint32_t d1, uint32_t d2)
 {
     if (status < 0x80u || status >= 0xF0u)

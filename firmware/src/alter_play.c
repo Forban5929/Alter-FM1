@@ -234,6 +234,72 @@ static void alt_off(uint32_t c)
     alt_nlay[c] = 0;
 }
 
+/* MIDI OUT over USB (v1.29, Romain 24/11: "envoyer du midi depuis le synth"): SYSTEM > SETUP > MIDI OUT (alt_sys[12],
+ * mirrored here by the UI) 0 OFF, 1 CLOCK (24 a beat on ALTER's own clock + START / STOP), 2 NOTES (each circle's hits
+ * on channels 1 2 3, a sixteenth's three quarters long, or until its next hit), 3 ALL. Only from this audio ISR (the
+ * out ring has one writer); no host: nothing sent (midi_out_try). The TRS jack is an input only. */
+static volatile uint8_t amo_mode;
+static uint8_t amo_note[AS_NCIRC][3], amo_play;
+static int32_t amo_left[AS_NCIRC];
+static uint32_t amo_acc;
+static void amo_send(uint32_t st, uint32_t d1, uint32_t d2) { (void)midi_out_try((st >> 4) | st << 8 | d1 << 16 | d2 << 24); }
+static void amo_rt(uint32_t st) { (void)midi_out_try(0x0Fu | st << 8); }
+static void amo_offs(uint32_t c)                 /* circle c's notes out end */
+{
+    uint32_t k;
+    for (k = 0; k < 3u; k++)
+        if (amo_note[c][k]) {
+            amo_send(0x80u | c, amo_note[c][k], 0);
+            amo_note[c][k] = 0;
+        }
+    amo_left[c] = 0;
+}
+static void amo_hit(uint32_t c, uint32_t vel)    /* circle c's hit, its notes now in alt_note[c] */
+{
+    uint32_t k;
+    if (!(amo_mode & 2u))
+        return;
+    amo_offs(c);
+    vel = vel < 1u ? 1u : vel > 127u ? 127u : vel;
+    for (k = 0; k < 3u; k++)
+        if (alt_note[c][k]) {
+            amo_send(0x90u | c, alt_note[c][k] & 127u, k ? vel * 7u / 8u : vel);
+            amo_note[c][k] = alt_note[c][k];
+        }
+    amo_left[c] = (int32_t)(div_samples(2) * 3u / 4u);
+}
+static void amo_tick(uint32_t n)                 /* each block: the notes' ends, the clock */
+{
+    uint32_t c, beat;
+    for (c = 0; c < AS_NCIRC; c++)
+        if (amo_left[c] > 0 && (amo_left[c] -= (int32_t)n) <= 0)
+            amo_offs(c);
+    if (!(amo_mode & 1u) || song.g[G_CLOCK]) {   /* (following another clock: ALTER sends none, nor forwards it) */
+        if (amo_play && !song.playing)
+            amo_play = 0;
+        return;
+    }
+    if (song.playing && !amo_play) {
+        amo_play = 1;
+        amo_rt(0xFAu);                           /* START, then the first pulse at once */
+        amo_rt(0xF8u);
+        amo_acc = 0;
+        return;
+    }
+    if (!song.playing && amo_play) {
+        amo_play = 0;
+        amo_rt(0xFCu);
+        for (c = 0; c < AS_NCIRC; c++)
+            amo_offs(c);
+    }
+    beat = beat_samples();                       /* (the clock runs stopped too: what follows knows the tempo) */
+    amo_acc += n * 24u;
+    while (beat && amo_acc >= beat) {
+        amo_acc -= beat;
+        amo_rt(0xF8u);
+    }
+}
+
 /* the LFOs' offset now on circle c's envelope setting g (GD_ELEN .. GD_ESUS), in 0..127 units (alter_lfo.c) */
 static int32_t alt_env_lfo(uint32_t c, uint32_t g)
 {
@@ -269,6 +335,7 @@ static void alt_on(uint32_t c, uint32_t note, uint32_t vel, int glide, const uin
     t->p[P_VOICE] = vm;
     alt_hits[c]++;
     am_hit(c);                                   /* (the MASTER's duck: alter_fx.c) */
+    amo_hit(c, vel);                             /* (v1.29: MIDI OUT) */
     if (alt_emode[c] == AM_PERC) {               /* PERC: held HOLD (0 .. 500 ms), then let go (its DECAY), PUNCH */
         uint32_t h = alt_envp[c][AE_PHOLD] + (uint32_t)clamp(alt_env_lfo(c, GD_EDEC) + alt_env_lfo(c, GD_ELEN), -127, 127);
         h = h > 127u ? (h > 1000u ? 0u : 127u) : h;
@@ -328,6 +395,7 @@ static void alt_on_drone(uint32_t c, uint32_t note, uint32_t vel, const uint8_t 
     alt_lay[c][alt_nlay[c]++] = (uint8_t)mask;
     alt_hits[c]++;
     am_hit(c);                                   /* (the MASTER's duck: alter_fx.c) */
+    amo_hit(c, vel);                             /* (v1.29: MIDI OUT) */
 }
 
 /* a parameter of part c moved by d (a knob), its die offset kept on top */
@@ -845,6 +913,7 @@ static void alter_tick_(uint32_t n)
 static void alter_tick(uint32_t n)
 {
     alter_tick_(n);
+    amo_tick(n);                                 /* (v1.29: MIDI OUT) */
     am_clock(alt_gstep, alt_pos, div_samples(2), alt_run && song.playing);   /* (the duck's beat: alter_fx.c) */
     alt_pos_src(div_samples(2));                 /* (after the steps: a cycle's first hit hears POS 0) */
 }

@@ -1156,6 +1156,7 @@ static void alt_sys_init(void)
         alt_mgain = (uint8_t)(alt_sys[5] - 1u);
     if (alt_sys[6])                              /* TUNE (05/11) */
         menu_put(MI_TUNE, (uint32_t)(alt_sys[6] - 1u) % TUNE_N);
+    amo_mode = (uint8_t)(alt_sys[12] & 3u);      /* (v1.29: MIDI OUT, OFF by default) */
 }
 static uint8_t alt_die_w[AS_NCIRC];               /* what each DICE key draws, from the OCT held at its press */
 static uint32_t alt_rand_pre(void)
@@ -3649,13 +3650,13 @@ static void alt_sg_scene(void)
  *   RANDOM  which engines (ALTER PHYS NOISE RESO) the random's sounds may come from, which modes (FREE PERC STAB)
  *           CHAOS TOTAL may give: ON / OFF each (at least one stays on)
  *   ABOUT   Felucca's ABOUT / CREDITS document (ui_menu.c menu_document: the GPL-3.0 notices), SELECT scrolls it */
-enum { SYS_THEME, SYS_SMOOTH, SYS_CLOCK, SYS_MIDIIN, SYS_TRSSEEN, SYS_USBSEEN, SYS_CPU, SYS_NMIDI };   /* (CPU METER: v0.69) */   /* (SEEN: read only, 05/11;
+enum { SYS_THEME, SYS_SMOOTH, SYS_CLOCK, SYS_MIDIIN, SYS_MOUT, SYS_TRSSEEN, SYS_USBSEEN, SYS_CPU, SYS_NMIDI };   /* (CPU METER: v0.69) */   /* (SEEN: read only, 05/11;
                                                   * SMOOTH 08/11: alt_sys[8], 0 = ON) */
 static const char *alt_set_text(uint32_t r);    /* (THEME: below) */
 static void alt_set_turn(uint32_t r, int32_t s);
 enum { SYS_TMIDI, SYS_TLEARN, SYS_TAUD, SYS_TRAND, SYS_TABOUT, SYS_NT };
 static const char *const SYS_TAB[SYS_NT] = {"SETUP", "LEARN", "AUDIO", "RANDOM", "ABOUT"};
-static const char *const SYS_MROW[SYS_NMIDI] = {"THEME", "SMOOTH", "CLOCK", "MIDI IN", "TRS SEEN", "USB SEEN", "CPU METER"};
+static const char *const SYS_MROW[SYS_NMIDI] = {"THEME", "SMOOTH", "CLOCK", "MIDI IN", "MIDI OUT", "TRS SEEN", "USB SEEN", "CPU METER"};
 static const uint8_t SYS_AROW[] = {MI_CLICK, MI_CLKLVL, MI_LOWCUT, MI_USB, MI_TUNE,   /* (COUNT-IN left 05/11: only
                                                   * Felucca's REC counted in) */
 #if FELUCCA_CPU2
@@ -3722,6 +3723,10 @@ static const char *alt_sys_text(uint32_t r)
         return alt_sys[8] ? "OFF" : "ON";
     if (r == SYS_CPU)
         return alt_sys[10] ? "ON" : "OFF";
+    if (r == SYS_MOUT) {                         /* (v1.29: USB only; the TRS jack is an input) */
+        static const char *const MO[4] = {"OFF", "CLOCK", "NOTES", "ALL"};
+        return MO[alt_sys[12] & 3u];
+    }
     if (r == SYS_CLOCK)
         return N_CLOCK[clamp(song.g[G_CLOCK], 0, (int32_t)NELEM(N_CLOCK) - 1)];
     if (r == SYS_TRSSEEN || r == SYS_USBSEEN) {  /* (Romain 05/11: "the TRS sees no MIDI"): what came in through each
@@ -3776,6 +3781,9 @@ static void alt_sys_turn(uint32_t r, int32_t s)
         alt_sys[8] = (uint8_t)(d > 0 ? 0u : 1u);
     } else if (r == SYS_CPU) {                   /* (v0.69, the 1.0's tidying: the CPU lines on PLAY, OFF by default) */
         alt_sys[10] = (uint8_t)(d > 0 ? 1u : 0u);
+    } else if (r == SYS_MOUT) {                  /* (v1.29) MIDI OUT: OFF CLOCK NOTES ALL */
+        alt_sys[12] = (uint8_t)clamp((int32_t)(alt_sys[12] & 3u) + d, 0, 3);
+        amo_mode = alt_sys[12];
     } else if (r == SYS_TRSSEEN || r == SYS_USBSEEN) {
         return;                                  /* (read only) */
     } else if (r == SYS_CLOCK) {
@@ -3874,6 +3882,11 @@ static void alt_sys_scene(void)
             cv_text_r(226, y, ALT_FM, alt_sys_text(r), r == au.set_row ? col : ALT_DIM, r == au.set_row ? hl : ALT_BG);
     }
     cv_rect(8, 196, 224, 1, alt_gold_line(30));
+    if (alt_sys_tab == SYS_TMIDI && au.set_row == SYS_MOUT) {   /* (v1.29) */
+        cv_text(8, 202, ALT_FS, "MIDI OUT: USB ONLY (TRS = IN)", ALT_DIM);
+        cv_text(8, 216, ALT_FS, "CLOCK: ON INT  NOTES: CH 1 2 3", ALT_DIM);
+        return;
+    }
     cv_text(8, 202, ALT_FS, alt_sys_tab == SYS_TLEARN && alm_msg && fm1_ms - alm_msg_ms < 2000u ? alm_msg :
                             FOOT[alt_sys_tab % SYS_NT][0], alt_sys_tab == SYS_TLEARN && alm_msg && fm1_ms - alm_msg_ms < 2000u ?
                             ALT_GOLD : ALT_DIM);
@@ -5520,6 +5533,7 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
         break;
     case 32: alt_sys[9] = (uint8_t)(b & ALT_RFX_ALL); break;   /* (a test, v0.66: the effects CHAOS TOTAL leaves alone) */
     case 33: alt_seq.c[a % AS_NCIRC].locks = (uint8_t)b; break;   /* (a test, v0.68: circle a's LOCKS) */
+    case 36: alt_sys[12] = (uint8_t)(b & 3u); amo_mode = alt_sys[12]; break;   /* (a test, v1.29: MIDI OUT) */
     case 35:                                     /* (a test, v0.74: the screen asleep now, the seal breathing) */
         scrn.st = SCR_SEAL;
         scrn.t = fm1_ms;
