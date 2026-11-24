@@ -512,7 +512,24 @@ static uint32_t lk_play_sig(void)
         h = h * 31u + sc->cfg.len + 64u * au.cfg[c].mute + 128u * sc->die;
         h = h * 31u + alt_hits[c];
     }
-    return h;
+    for (c = 0; c < 4u; c++) {                       /* (v1.33: the four knobs at the foot, as the screen shows them) */
+        const char *nm = "", *p;
+        char tx[12];
+        int32_t fill;
+        alt_kv(alt_page(), c, &nm, tx, &fill);
+        for (p = nm; *p; p++) h = h * 31u + (uint8_t)*p;
+        for (p = tx; *p; p++) h = h * 31u + (uint8_t)*p;
+        h = h * 31u + (uint32_t)(fill + 1);
+    }
+    return h * 31u + alt_dial_live();
+}
+/* a short text, 7-bit: its length then its characters (at most 7) */
+static void lk_str7(const char *s)
+{
+    uint32_t n = 0, k;
+    while (s[n] && n < 7u) n++;
+    lk_b(n);
+    for (k = 0; k < n; k++) lk_b((uint8_t)s[k] & 0x7Fu);
 }
 static void lk_play(void)
 {
@@ -530,6 +547,19 @@ static void lk_play(void)
         lk_b(pat >> 7);
         lk_b(pat >> 14);
         lk_b(alt_hits[c]);                           /* (7 bits: the page flashes when it moves) */
+    }
+    {                                                /* (v1.33, Romain: the JAM screen's foot follows the device's) */
+        uint32_t live = alt_dial_live();
+        lk_b(alt_page());
+        for (c = 0; c < 4u; c++) {
+            const char *nm = "";
+            char tx[12];
+            int32_t fill;
+            alt_kv(alt_page(), c, &nm, tx, &fill);
+            lk_b((uint32_t)(fill < 0 ? 0 : fill + 1 > 51 ? 51 : fill + 1) | ((live >> c) & 1u) << 6);
+            lk_str7(nm ? nm : "");
+            lk_str7(tx);
+        }
     }
     lk_send();
     lk.play_sig = lk_play_sig();

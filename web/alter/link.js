@@ -201,7 +201,14 @@ export function parse(f) {
         const pos = b(), len = b(), m = b(), p0 = b(), p1 = b(), p2 = b(), hits = b();
         circles.push({ pos, len, mute: m & 1, die: (m >> 1) & 1, pat: p0 | (p1 << 7) | (p2 << 14), hits });
       }
-      return { cmd, playing, rec, sel, circles };
+      let foot = null;                                 // (v1.33: the four knobs at the screen's foot, as the device draws them)
+      if (i < f.length) {
+        const str = () => { let n = b(), t = ""; while (n-- > 0) t += String.fromCharCode(b()); return t; };
+        const page = b(); foot = [];
+        for (let k = 0; k < 4; k++) { const fl = b(); foot.push({ fill: (fl & 63) - 1, live: (fl >> 6) & 1, name: str(), txt: str() }); }
+        foot.page = page;
+      }
+      return { cmd, playing, rec, sel, circles, foot };
     }
     default: return { cmd };
   }

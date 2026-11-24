@@ -2381,6 +2381,19 @@ function jamScreen() {
   // the knobs: the chosen circle's four (the KICK's fourth: its RUMBLE), a moon each; the one turned: gold, its number
   o += `<line x1="8" y1="196.5" x2="232" y2="196.5" stroke="var(--gold)" stroke-opacity=".3" stroke-width=".8"/>
     <path d="M120 194L122 196.5L120 199L118 196.5Z" fill="var(--gold)"/>`;
+  const foot = P?.foot;
+  if (foot) for (let k = 0; k < 4; k++) {         // (v1.33: the device's own foot: names, values, moons, the knob turned)
+    const K = foot[k], x = 8 + k * 57;
+    if (!K?.name) continue;
+    o += `<text x="${x}" y="208" font-family="var(--sans)" font-size="11" fill="${K.live ? "var(--gold)" : "var(--dim)"}">${K.name}</text>`;
+    if (K.fill < 0) { o += `<text x="${x}" y="226" font-family="var(--sans)" font-size="12" font-weight="600" fill="var(--ink)">${K.txt}</text>`; continue; }
+    const f = Math.max(0, Math.min(50, K.fill)) / 50, cx = x + 10, cy = 224, r = 7;
+    o += `<clipPath id="jm${k}"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath>
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--dark)" stroke="var(--gold)" stroke-opacity=".55" stroke-width=".6"/>
+      <rect x="${jf(cx + r - 2 * r * f)}" y="${cy - r}" width="${jf(2 * r * f)}" height="${2 * r}" fill="var(--gold)" clip-path="url(#jm${k})"/>`;
+    if (K.txt && (K.live || !/^-?\d+%?$/.test(K.txt)))
+      o += `<text x="${x + 22}" y="${K.live ? 229 : 228}" font-family="var(--sans)" font-size="${K.live ? 12 : 10}" font-weight="${K.live ? 700 : 500}" fill="${K.live ? "var(--gold)" : "var(--ink)"}">${K.txt}</text>`;
+  } else {
   const ri = v2?.cdesc.findIndex((d) => d.grp === GR.RMB) ?? -1;
   for (let k = 0; k < 4; k++) {
     let d = C?.desc?.[k], v = st?.values?.[k], key = sel * 100 + k;
@@ -2394,6 +2407,7 @@ function jamScreen() {
       <circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--dark)" stroke="var(--gold)" stroke-opacity=".55" stroke-width=".6"/>
       <rect x="${jf(cx + r - 2 * r * f)}" y="${cy - r}" width="${jf(2 * r * f)}" height="${2 * r}" fill="var(--gold)" clip-path="url(#jm${k})"/>`;
     if (turning) o += `<text x="${x + 22}" y="229" font-family="var(--sans)" font-size="12" font-weight="700" fill="var(--gold)">${show(d, v | 0)}</text>`;
+  }
   }
   o = `<defs><filter id="jglow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.2"/></filter></defs>` + o;
   $("jamScr").innerHTML = o;

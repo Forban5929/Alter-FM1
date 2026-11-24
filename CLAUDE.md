@@ -110,7 +110,10 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    écran, nourri par les poussées (drawPlay → `JAM.play` ; sons, valeurs, RUMBLE du KICK ; knob tourné = doré + valeur 1,2 s via
    `JAM.turn`) ; `jamScreen()` copie alter_ui.c/alter_look.c (rayons, cercles 80 60 40, sigils, pas, aiguilles, prisme, ruban,
    tempo, MODE, 4 knobs + lunes). Bandeau BETA caché. Esc ou JAM = sortir. Essayé Chrome headless (?demo&jam) à côté d'une capture
-   emu : quasi identique. **Pas encore filmé avec la FM-1.** OBS de Romain (layout `ALTER-OBS`, caméra Sony A7C II tournée 180°,
+   emu : quasi identique. **v1.33** : le bas suit la machine (PLAY poussé + page rapide `alt_page()` + 4 knobs `alt_kv` : nom, texte,
+   lune, tourné `alt_dial_live` ; LINK.md) ; Romain : **bandeau seulement**, les pages tenues (LFO, FX…) ne sont PAS redessinées (la copie
+   reste sur PLAY). OBS ALTER JAM réglé 24/11 : caméra 1760×990 centrée, copie 210×210 à (704,309) sur l'écran réel, cadre
+   `ALTER_JAM_frame.png` (video/jam_frame.py). **Pas encore filmé avec la FM-1.** OBS de Romain (layout `ALTER-OBS`, caméra Sony A7C II tournée 180°,
    son « ALTER FM-1 » USB) : prochain layout voulu = caméra presque plein cadre, la réplique posée SUR l'écran réel, joli cadre autour.
    **Stems USB (idée, REPORTÉE par Romain 24/11)** : mode MASTER (2 canaux) ou SPLIT = 3 cercles stéréo + EFFETS stéréo (8 can.),
    pistes = son + DIST + CONSOLE. Possible avec le felucca-bsp amont (`FELUCCA_UAC_CH` 4..10, `uac_ch_frame`, 44,1 kHz seul,
@@ -180,7 +183,7 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.32 » (24/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.33 » (24/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. **Deux sites (v1.02, 22/11)** : pousser sur `etape-3d` → pages.yml construit (tools/alter/site_build.sh, 2 fois) :
    **racine = dernière Release** (tag vX.YY le plus haut ; ce que voient les gens) et **/beta/ = etape-3d** (bandeau rouge
