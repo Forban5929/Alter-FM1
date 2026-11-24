@@ -388,6 +388,48 @@ legend { font-size: 13px; }
 .intro { margin: 14px auto; }
 @media (max-width: 900px) { html, body { overflow: auto; height: auto; } .app { height: auto; } .panels { overflow: visible; }
   .top { grid-template-columns: 1fr; } .transport { justify-content: flex-start; } }
+
+/* ---------- JAM (v1.30, Romain 24/11): one 16:9 stage for a filmed jam (OBS: capture this window, put the camera on the
+ * black hole) — the three dials (live copies, vector), NOW = what the last gesture on the FM-1 changed, MOVES = the last
+ * ones. Fed only by the synth's own pushes. Esc or the JAM button leaves. ---------- */
+#jam { display: none; position: fixed; inset: 0; z-index: 100; background: #000; overflow: hidden; cursor: none; }
+body.jam #jam { display: block; }
+body.jam { overflow: hidden; }
+#jamStage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; background: var(--bg); color: var(--ink); }
+#jamStage > svg.frame { position: absolute; inset: 0; width: 1920px; height: 1080px; }
+.jf-o { fill: none; stroke: color-mix(in srgb, var(--gold) 55%, var(--bg)); stroke-width: 2; }
+.jf-i { fill: none; stroke: color-mix(in srgb, var(--gold) 30%, var(--bg)); stroke-width: 1; }
+.jf-fan { fill: none; stroke: var(--gold); stroke-width: 1; }
+.jf-ray { stroke: color-mix(in srgb, var(--gold) 60%, var(--bg)); stroke-width: 1; }
+.jf-rib { fill: var(--rib); }
+.jf-ribl { stroke: color-mix(in srgb, var(--gold) 60%, var(--rib)); stroke-width: 1; }
+.jf-ribt { fill: var(--ribtx); font: 700 34px var(--serif); text-anchor: middle; dominant-baseline: central; letter-spacing: .04em; }
+.jf-big { fill: var(--goldtx); font: 700 46px var(--serif); text-anchor: middle; }
+.jf-sm { fill: var(--dim); font: 700 20px var(--mono); text-anchor: middle; letter-spacing: .08em; }
+.jf-hole { fill: #000; }
+.jf-well { fill: var(--bg); }
+.jslot { position: absolute; width: 380px; height: 380px; }
+.jslot svg { width: 100%; height: 100%; display: block; }
+.jp { position: absolute; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.jp .badge { width: 72px; height: 72px; border-radius: 50%; border: 3px solid var(--jc, var(--gold)); color: var(--jc, var(--gold));
+  display: grid; place-items: center; font: 700 34px/1 var(--serif); background: color-mix(in srgb, var(--jc, var(--gold)) 18%, var(--bg)); }
+.jp .snd { margin-top: 14px; font: 700 19px/1 var(--mono); color: var(--dim); letter-spacing: .08em; min-height: 19px; }
+.jp .what { margin-top: 26px; font: 700 42px/1.05 var(--serif); color: var(--ink); max-width: 250px; overflow-wrap: anywhere; min-height: 44px; }
+.jp .gauge { margin-top: 20px; width: 170px; height: 150px; position: relative; }
+.jp .gauge svg { width: 170px; height: 170px; }
+.jp .gauge .bk { fill: none; stroke: color-mix(in srgb, var(--gold) 28%, var(--bg)); stroke-width: 11; stroke-linecap: round; }
+.jp .gauge .fg { fill: none; stroke: var(--jc, var(--gold)); stroke-width: 11; stroke-linecap: round; transition: stroke-dasharray .08s linear; }
+.jp .gauge b { position: absolute; left: 0; right: 0; top: 52px; font: 700 44px/1 var(--serif); color: var(--ink); }
+.jp .gauge b.txt { font-size: 30px; top: 60px; }
+.jp .idle { margin-top: 40px; font: 700 18px/1.5 var(--mono); color: var(--grey); letter-spacing: .06em; }
+#jamMoves { position: absolute; left: 1590px; top: 612px; width: 262px; list-style: none; margin: 0; padding: 0; }
+#jamMoves li { display: flex; align-items: center; gap: 12px; height: 62px; transition: opacity .3s; }
+#jamMoves .b { flex: none; width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--jc); color: var(--jc);
+  display: grid; place-items: center; font: 700 12px/1 var(--serif); }
+#jamMoves .n { flex: 1; font: 700 24px/1 var(--serif); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+#jamMoves .v { font: 700 16px/1 var(--mono); color: var(--dim); white-space: nowrap; max-width: 92px; overflow: hidden; text-overflow: ellipsis; }
+#jamHint { position: absolute; left: 50%; top: 16px; transform: translateX(-50%); font: 700 14px/1 var(--mono); color: var(--dim);
+  background: var(--bg); padding: 8px 14px; border: 1px solid var(--rim); transition: opacity .6s; pointer-events: none; }
 </style>
 </head>
 <body>
@@ -406,6 +448,7 @@ legend { font-size: 13px; }
     <button class="btn" id="bDemo">Try without a synth</button>
     <label class="zoom" title="The page's size: AUTO picks one from the window's size"><span>SIZE</span><select id="zoom" aria-label="Page size">
       <option value="auto">AUTO</option><option value="0.8">S</option><option value="0.9">M</option><option value="1">L</option><option value="1.15">XL</option></select></label>
+    <button class="btn" id="bJam" title="One 16:9 stage to film a jam: the dials, what each gesture changes (Esc leaves)">JAM</button>
     <a class="btn" id="bGuide" href="guide.html" target="_blank" rel="noopener" title="Every key and button of ALTER, drawn">Controls guide</a>
     <button class="btn theme" id="bTheme" aria-label="Switch to the DAY theme"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3a9 9 0 1 0 6 15.5A8 8 0 0 1 15 3z" fill="currentColor"/></svg><span>NIGHT</span></button>
   </div>
@@ -529,6 +572,7 @@ legend { font-size: 13px; }
   <div class="dlgBtns"><button class="btn" id="dlgNo">Cancel</button><button class="btn main" id="dlgOk">OK</button></div>
 </dialog>
 
+<div id="jam" aria-hidden="true"><div id="jamStage"></div></div>
 <script src="feedback.js" defer></script>
 <script type="module">
 import { req, parse, splitFrames, CMD, F_ENUM, show, PATCH_KIND, ACT, SHARED, NAME_CH, BLOB_PUT, blobSum, learnText } from "./link.js";
@@ -943,8 +987,14 @@ function pushChanged(m) {
   if (k == null || k < 0 || !circ[m.circ]?.state) return;
   circ[m.circ].state.values[k] = m.value;
   setCtl(m.circ, k, m.value, true);
+  const d = circ[m.circ].desc[k];
+  if (d) jamMove(m.circ, d.label, show(d, m.value), d.names?.length ? null : (m.value - d.min) / Math.max(1, d.max - d.min));
 }
-function pushReload(m) { if (circ[m.circ]) refresh(m.circ).catch(soft); }
+function pushReload(m) {
+  if (!circ[m.circ]) return;
+  jamMove(m.circ, "SOUND", "…", null, "sound");
+  refresh(m.circ).then(() => jamMove(m.circ, "SOUND", info.sounds[circ[m.circ].state?.sound]?.name ?? "", null, "sound")).catch(soft);
+}
 function soft() { if (port) say("A reply from the synth got lost. If a column is out of date, change its sound and come back.", true); }
 
 /* ---------- patch files (10/11: the whole scene, as the synth stores it: BLOB; the three sounds too, readable, and for
@@ -1421,7 +1471,7 @@ function buildV2() {
     const col = document.createElement("div");
     col.className = "col tc";
     col.innerHTML = `<div class="rib"><span data-name>&nbsp;</span></div><span class="num">${ROMAN[c]}</span><span class="tag" data-tag></span>
-      <div class="colin"><svg class="dial" viewBox="0 0 240 240" role="img" aria-label="Circle ${c + 1}"><circle class="ring" cx="120" cy="120" r="100"/>
+      <div class="colin"><svg class="dial" id="dial${c}" viewBox="0 0 240 240" role="img" aria-label="Circle ${c + 1}"><circle class="ring" cx="120" cy="120" r="100"/>
         <circle class="ring2" cx="120" cy="120" r="76"/><g data-steps></g><g data-pulse></g>
         <line class="needle" data-needle x1="120" y1="120" x2="120" y2="34" style="display:none"/>${dialCenter(c)}</svg>
       <div class="acts">
@@ -1856,8 +1906,16 @@ function curveLoop(t) {
   }
 }
 requestAnimationFrame(curveLoop);
-function pushVar(m) { if (v2 && m.circ <= SHARED) setVar(m.circ, m.i, m.value, true); }
-function pushLane(m) { if (v2 && lane[m.circ]) { lane[m.circ].values[m.lane] = m.values; if (!lane[m.circ].drag) drawLane(m.circ); } }
+function pushVar(m) {
+  if (!v2 || m.circ > SHARED) return;
+  setVar(m.circ, m.i, m.value, true);
+  const d = (m.circ === SHARED ? v2.sdesc : v2.cdesc)[m.i];
+  if (d) jamMove(m.circ, d.name, showV(d, m.value), d.names.length ? null : (m.value - d.min) / Math.max(1, d.max - d.min));
+}
+function pushLane(m) {
+  if (v2 && lane[m.circ]) { lane[m.circ].values[m.lane] = m.values; if (!lane[m.circ].drag) drawLane(m.circ); }
+  if (m.circ < 3) jamMove(m.circ, "DICE", "new draw", null, "lane");
+}
 
 /* the page's writes, as the sounds': the latest of each, one at a time */
 const vpending = new Map();
@@ -2260,6 +2318,101 @@ $("bLoad").onclick = load;
 $("slot").onchange = () => showName("scene");
 for (const id of ["slotName"]) $(id).oninput = (e) => { const v = cleanName(e.target.value); if (v !== e.target.value) e.target.value = v; };
 window.__alter = { circ, get info() { return info; }, get v2() { return v2; }, sceneBytes, patchNow, openPatch, toB64, USER, AUD_WORK, wavFile };   // (for the tests)
+/* ---------- JAM: the stage (1920×1080 units, scaled to the window, vector everywhere) ---------- */
+const JAM = { on: false, moves: [], now: null, hintT: 0 };
+window.altJam = JAM;                               // (tests: the moves seen)
+const JDIAL = [[294, 100], [770, 100], [1246, 100]], JCARD = [[264, 46], [740, 46], [1216, 46]];
+const JCOL = ["var(--c1)", "var(--c2)", "var(--c3)", "var(--gold)"], JNUM = ["I", "II", "III", "ALL"];
+function jamCard(x0, y0, x1, y1, title) {
+  let o = `<rect class="jf-o" x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}"/>
+    <rect class="jf-i" x="${x0 + 8}" y="${y0 + 8}" width="${x1 - x0 - 16}" height="${y1 - y0 - 16}"/>`;
+  for (const [cx, cy, a0] of [[x0 + 8, y0 + 8, 0], [x1 - 8, y0 + 8, 90], [x1 - 8, y1 - 8, 180], [x0 + 8, y1 - 8, 270]]) {
+    for (const r of [10, 16]) {
+      const p = (a) => [cx + r * Math.cos(a * Math.PI / 180), cy + r * Math.sin(a * Math.PI / 180)];
+      const [ax, ay] = p(a0), [bx, by] = p(a0 + 90);
+      o += `<path class="jf-fan" d="M${ax} ${ay}A${r} ${r} 0 0 1 ${bx} ${by}"/>`;
+    }
+    for (let k = 0; k < 5; k++) { const a = (a0 + 9 + k * 18) * Math.PI / 180; o += `<line class="jf-ray" x1="${cx}" y1="${cy}" x2="${cx + 16 * Math.cos(a)}" y2="${cy + 16 * Math.sin(a)}"/>`; }
+  }
+  if (title) {
+    const cx = (x0 + x1) / 2, ry = y0 - 21, w2 = title.length * 10.5 + 34;
+    o += `<polygon class="jf-rib" points="${cx - w2 - 14},${ry} ${cx + w2 + 14},${ry} ${cx + w2},${ry + 21} ${cx + w2 + 14},${ry + 42} ${cx - w2 - 14},${ry + 42} ${cx - w2},${ry + 21}"/>
+      <line class="jf-ribl" x1="${cx - w2}" y1="${ry + 4}" x2="${cx + w2}" y2="${ry + 4}"/><line class="jf-ribl" x1="${cx - w2}" y1="${ry + 38}" x2="${cx + w2}" y2="${ry + 38}"/>
+      <text class="jf-ribt" x="${cx}" y="${ry + 22}">${title}</text>`;
+  }
+  return o;
+}
+function jamBuild() {
+  const st = $("jamStage");
+  let f = `<svg class="frame" viewBox="0 0 1920 1080" aria-hidden="true">` + jamCard(14, 14, 1905, 1065);
+  JCARD.forEach(([x, y], c) => { f += jamCard(x, y, x + 440, y + 452, ROMAN[c]); f += `<rect class="jf-well" x="${JDIAL[c][0]}" y="${JDIAL[c][1]}" width="380" height="380"/>`; });
+  f += `<text class="jf-big" x="136" y="292">ALTER</text><text class="jf-sm" x="136" y="330">LIVE</text>
+    <text class="jf-sm" x="1784" y="276">M-VAVE</text><text class="jf-big" x="1784" y="320">FM-1</text>`;
+  f += jamCard(56, 558, 345, 1038, "NOW") + jamCard(371, 558, 1549, 1038, "") + `<rect class="jf-hole" x="385" y="572" width="1150" height="452"/>`;
+  f += jamCard(1575, 558, 1864, 1038, "MOVES") + `</svg>`;
+  f += JDIAL.map(([x, y], c) => `<div class="jslot" style="left:${x}px;top:${y}px;--c:${JCOL[c]}"><svg viewBox="0 0 240 240"><use href="#dial${c}"/></svg></div>`).join("");
+  f += `<div class="jp" id="jamNow" style="left:56px;top:600px;width:289px"></div><ul id="jamMoves"></ul><div id="jamHint">JAM · Esc or JAM to leave</div>`;
+  st.innerHTML = f;
+  jamDraw();
+}
+function jamFit() {
+  const s = Math.min(innerWidth / 1920, innerHeight / 1080);
+  $("jamStage").style.transform = `translate(${(innerWidth - 1920 * s) / 2}px, ${(innerHeight - 1080 * s) / 2}px) scale(${s})`;
+}
+function jamSet(on) {
+  JAM.on = on;
+  document.body.classList.toggle("jam", on);
+  if (on) {
+    jamBuild(); jamFit();
+    clearTimeout(JAM.hintT); JAM.hintT = setTimeout(() => { const h = $("jamHint"); if (h) h.style.opacity = 0; }, 2500);
+  }
+}
+/* the synth's pushes, one gesture at a time: what comes within 150 ms is ONE gesture (a knob turned, a key; a new sound
+ * or a CHAOS sends a burst: LEVEL, REVERB… of the new sound, every circle's LEN HITS ROT… — shown as SOUND / CHAOS only) */
+function jamMove(c, name, val, frac, kind) {
+  (JAM.buf ??= []).push({ c, name, val, frac, kind });
+  clearTimeout(JAM.flushT); JAM.flushT = setTimeout(jamFlush, 150);
+}
+function jamFlush() {
+  const b = JAM.buf || []; JAM.buf = [];
+  if (!b.length) return;
+  const circles = new Set(b.filter((x) => x.c < 3).map((x) => x.c));
+  const laneCircles = new Set(b.filter((x) => x.kind === "lane").map((x) => x.c));
+  const distinct = new Map(); b.forEach((x) => distinct.set(`${x.c}:${x.name}`, x));   // (the latest of each)
+  let shown;
+  if (laneCircles.size >= 2 || (circles.size >= 2 && distinct.size >= 6)) shown = [{ c: SHARED, name: "CHAOS", val: "all redrawn", frac: null }];
+  else if (b.some((x) => x.kind === "sound")) shown = [...distinct.values()].filter((x) => x.kind === "sound");
+  else shown = [...distinct.values()].filter((x) => x.kind !== "lane" || distinct.size === 1).slice(0, 3);
+  const t = performance.now();
+  for (const x of shown.reverse()) {
+    const top = JAM.moves[0];
+    if (top && top.c === x.c && top.name === x.name && t - top.t < 2500) Object.assign(top, { val: x.val, frac: x.frac, t });
+    else { JAM.moves.unshift({ c: x.c, name: x.name, val: x.val, frac: x.frac, t }); JAM.moves.length = Math.min(JAM.moves.length, 6); }
+  }
+  JAM.now = JAM.moves[0];
+  if (JAM.on) jamDraw();
+}
+function jamDraw() {
+  const now = $("jamNow"), ul = $("jamMoves");
+  if (!now) return;
+  const m = JAM.now;
+  if (!m) now.innerHTML = `<div class="idle">PLAY ON THE FM-1:<br>EACH GESTURE<br>SHOWS HERE</div>`;
+  else {
+    const snd = m.c < 3 ? (info?.sounds[circ[m.c]?.state?.sound]?.name ?? "") : "SCENE";
+    const r = 70, L = 2 * Math.PI * r * 0.75, f = m.frac == null ? 0 : Math.max(0, Math.min(1, m.frac));
+    now.style.setProperty("--jc", JCOL[m.c]);
+    now.innerHTML = `<div class="badge">${JNUM[m.c]}</div><div class="snd">${snd}</div><div class="what">${m.name}</div>
+      <div class="gauge"><svg viewBox="0 0 170 170"><circle class="bk" cx="85" cy="85" r="${r}" stroke-dasharray="${L} 999" transform="rotate(135 85 85)"/>
+      ${m.frac == null ? "" : `<circle class="fg" cx="85" cy="85" r="${r}" stroke-dasharray="${L * f} 999" transform="rotate(135 85 85)"/>`}</svg>
+      <b class="${m.frac == null ? "txt" : ""}">${m.val}</b></div>`;
+  }
+  ul.innerHTML = JAM.moves.map((x, i) => `<li style="--jc:${JCOL[x.c]};opacity:${1 - i * 0.13}"><span class="b">${JNUM[x.c]}</span><span class="n">${x.name}</span><span class="v">${x.val}</span></li>`).join("");
+}
+$("bJam").onclick = () => jamSet(!JAM.on);
+addEventListener("keydown", (e) => { if (e.key === "Escape" && JAM.on) jamSet(false); });
+addEventListener("resize", () => { if (JAM.on) jamFit(); });
+$("jam").addEventListener("click", () => { const h = $("jamHint"); if (h) { h.style.opacity = 1; clearTimeout(JAM.hintT); JAM.hintT = setTimeout(() => { h.style.opacity = 0; }, 2500); } });
+if (new URLSearchParams(location.search).has("jam")) jamSet(true);
 if (new URLSearchParams(location.search).has("demo")) connectDemo();   // (editor/?demo: straight to the simulator)
 </script>
 </body>
