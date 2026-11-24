@@ -49,7 +49,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -e
-          REL="$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1 --json tagName -q '.[0].tagName')"
+          # the newest Release that already has its package (24/11: the Release being built has none yet)
+          REL="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=20" -q '[.[] | select(.draft|not) | select(.tag_name != env.GITHUB_REF_NAME) | select(any(.assets[]; .name|test("^alter-.*\\.fwsc$")))][0].tag_name')"
           gh release download "$REL" --repo "$GITHUB_REPOSITORY" --pattern 'alter-*.fwsc' --dir /tmp/rel
           cc -std=gnu99 -O1 -w -Ifirmware/bsp/chip -Ifirmware/src tests/ldr_test.c -o build/host/ldr_test
           echo "de $REL vers ce firmware :"
