@@ -105,6 +105,10 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    suivant. TRS = entrée seulement (midi_uart.c : RX). Test `tools/alter/alter_midiout_test.mjs` (op 36, `web_mo_host`/`web_mo_take`),
    lancé par site_build.sh. Autres firmwares : Felucca 1.0 envoie les notes des touches (pas de clock) ; Melodee 1.6.1, ORBIT 0.10
    envoient la clock. **Pas essayé sur la FM-1 / un DAW.**
+   **Stems USB (idée, REPORTÉE par Romain 24/11)** : mode MASTER (2 canaux) ou SPLIT = 3 cercles stéréo + EFFETS stéréo (8 can.),
+   pistes = son + DIST + CONSOLE. Possible avec le felucca-bsp amont (`FELUCCA_UAC_CH` 4..10, `uac_ch_frame`, 44,1 kHz seul,
+   16 bits ; bsp actuel 5942e68, amont 2bd9dbe = +16 000 lignes) ; anneau MC = 384 trames × N × 2 o (8 can. ≈ 6 Ko, remplace
+   l'anneau stéréo 2 Ko) ; RAM .data+.bss 63,2/72 Ko (CI veut 4 Ko libres), pool quasi plein.
    **RUMBLE (23/11)** : écoute https://claude.ai/artifact/N9BUje7vdzx4TAz4AKEYQF (`tools/alter/alter_rumble_wav.mjs`, hors
    firmware) : actuel 70/127, B DARK ROOM (réverbe ~2,5 s saturée, LP 110 Hz, pompe), C ROLL (sinus à la hauteur du kick
    ~65 Hz, gonfle entre les coups), D GROWL (bruit brun, LP résonant à la hauteur du kick, pompe) → **v1.15 : Romain = DARK ROOM**
