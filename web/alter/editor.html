@@ -208,6 +208,10 @@ dialog { background: var(--bg); color: var(--ink); border: 1px solid var(--frame
 dialog::backdrop { background: rgba(8, 7, 10, .7); }
 dialog p { margin: 0 0 14px; }
 dialog input { width: 100%; background: var(--bg); border: 1px solid var(--rim); padding: 8px 10px; margin-bottom: 14px; }
+.bakList { display: grid; gap: 6px; margin: 10px 0 14px; }
+.bakList label { display: flex; gap: 10px; align-items: center; justify-content: flex-start; text-align: left; }
+.bakList input { width: auto; flex: none; margin: 0; padding: 0; border: 0; height: auto; }
+#bakDlg { max-width: 460px; }
 .dlgBtns { display: flex; gap: 10px; justify-content: flex-end; }
 @media (max-width: 900px) { .strips, .cols { grid-template-columns: 1fr; } .top { grid-template-columns: 1fr; } .link { justify-content: flex-start; } }
 [hidden] { display: none !important; }
@@ -405,6 +409,11 @@ legend { font-size: 13px; }
       <button class="btn" id="bSave">Save</button>
       <input type="file" id="file" accept=".json,application/json" hidden>
     </div>
+    <div class="grp"><span>Backup</span>
+      <button class="btn" id="bBak" title="Every USER scene, SONG, MIDI LEARN and SYSTEM settings of the FM-1 into one file">Backup…</button>
+      <button class="btn" id="bRest" title="Put back what you choose from a backup file">Restore…</button>
+      <input type="file" id="bakFile" accept=".json,application/json" hidden>
+    </div>
     <div class="grp"><span>Scene in the FM-1</span>
       <select id="slot" aria-label="USER scene slot"></select>
       <input class="nm" id="slotName" maxlength="3" placeholder="NAME" aria-label="The scene's NAME (3 characters)" title="Its NAME: 3 characters, A-Z 0-9 -">
@@ -474,6 +483,18 @@ legend { font-size: 13px; }
 </div>
 </div>
 
+<dialog id="bakDlg">
+  <p id="bakText">Restore from this backup (it replaces what the FM-1 holds there):</p>
+  <div class="bakList">
+    <label><input type="checkbox" data-part="A" checked> USER scenes, bank A</label>
+    <label><input type="checkbox" data-part="B" checked> USER scenes, bank B</label>
+    <label><input type="checkbox" data-part="C" checked> USER scenes, bank C</label>
+    <label><input type="checkbox" data-part="SONG" checked> SONG: slots A B C and the chain</label>
+    <label><input type="checkbox" data-part="LEARN" checked> MIDI LEARN links</label>
+    <label><input type="checkbox" data-part="SYSTEM" checked> SYSTEM settings (some after a restart)</label>
+  </div>
+  <div class="dlgBtns"><button class="btn" id="bakNo">Cancel</button><button class="btn main" id="bakOk">Restore</button></div>
+</dialog>
 <dialog id="dlg">
   <p id="dlgText"></p>
   <input id="dlgInput" type="text" maxlength="40" aria-labelledby="dlgText">
@@ -531,6 +552,7 @@ const sameAsk = (b) => {
   if (cmd === CMD.LSET) return (m) => m.circ === b[5] && m.lane === b[6] && m.step === b[7];
   if (cmd === CMD.ACT) return (m) => m.circ === b[5] && m.act === b[6];
   if (cmd === CMD.LEARN) return (m) => m.op === b[5];
+  if (cmd === CMD.BACKUP) return (m) => m.op === b[5];
   return null;
 };
 function ask(bytes, ms = 1500, tries = 2) {
@@ -875,6 +897,87 @@ async function openPatch(file) {
     const what = whole ? "The whole scene" : p.scene ? "The three sounds (this synth's firmware does not take this file's scene: update it)" : "The three sounds (an older file)";
     say(`Patch “${file.name}” loaded. ${what} plays. ${toEmptySlot(p.name || file.name.replace(/\.alter\.json$|\.json$/i, ""))}`);
   } catch { soft(); }
+}
+
+
+/* ---------- the backup file (v1.25, Romain 24/11: "backup complet", restoring the parts chosen; alter_link.c lk_bak) ----------
+ * Parts: flash objects 10..13 (SONG's slots and chain), 14..29 (USER banks A B, two scenes an object), 32..39 (bank C),
+ * the MIDI LEARN links, the SYSTEM settings. The FM-1 stops playing while it is read or written. */
+const BAK_KIND = "alter-backup";
+const BAK_PARTS = [
+  ...[10, 11, 12, 13].map((id) => ({ kind: 0, id, group: "SONG" })),
+  ...Array.from({ length: 8 }, (_, k) => ({ kind: 0, id: 14 + k, group: "A" })),
+  ...Array.from({ length: 8 }, (_, k) => ({ kind: 0, id: 22 + k, group: "B" })),
+  ...Array.from({ length: 8 }, (_, k) => ({ kind: 0, id: 32 + k, group: "C" })),
+  { kind: 1, id: 0, group: "LEARN" }, { kind: 2, id: 0, group: "SYSTEM" },
+];
+async function bakRead(kind, id) {                   // a part's bytes ([] = nothing stored there; null = failed)
+  const r = await ask(req.bakGet(kind, id), 3000);
+  if (!r.size) return [];
+  const bytes = [];
+  while (bytes.length < r.size) {
+    const g = await ask(req.bakBytes(bytes.length), 3000);
+    if (!g.bytes?.length) return null;
+    bytes.push(...g.bytes);
+  }
+  return blobSum(bytes) === r.sum ? bytes : null;
+}
+async function backupSave() {
+  if (!port) return say("Connect the FM-1 first.", true);
+  const parts = [];
+  try {
+    for (let k = 0; k < BAK_PARTS.length; k++) {
+      const P = BAK_PARTS[k];
+      say(`Backup: reading ${k + 1} / ${BAK_PARTS.length} (${P.group})… the FM-1 stays stopped.`);
+      const b = await bakRead(P.kind, P.id);
+      if (b === null) return say(`Backup failed while reading ${P.group}: nothing saved. Try again.`, true);
+      parts.push({ kind: P.kind, id: P.id, group: P.group, size: b.length, data: toB64(b) });
+    }
+  } catch { return say("Backup failed: the FM-1 stopped answering. Nothing saved.", true); }
+  const d = new Date(), z = (n) => String(n).padStart(2, "0");
+  const nm = `alter-backup-${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}.json`;
+  const file = { kind: BAK_KIND, version: 1, firmware: info?.version ?? "", saved: d.toISOString(), parts };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(file)], { type: "application/json" }));
+  Object.assign(document.createElement("a"), { href: url, download: nm }).click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  say(`Backup saved: ${nm} (in your Downloads): every USER scene, SONG, MIDI LEARN and SYSTEM.`);
+}
+function bakChoose(file) {                           // the parts to put back (a Set of groups) or null
+  return new Promise((done) => {
+    const d = $("bakDlg");
+    const have = new Set(file.parts.map((p) => p.group));
+    d.querySelectorAll("[data-part]").forEach((c) => { c.disabled = !have.has(c.dataset.part); c.checked = !c.disabled; });
+    $("bakText").textContent = `Restore from the backup of ${new Date(file.saved).toLocaleString()} (it replaces what the FM-1 holds there):`;
+    const close = (v) => { d.close(); $("bakOk").onclick = $("bakNo").onclick = null; d.oncancel = null; done(v); };
+    $("bakOk").onclick = () => close(new Set([...d.querySelectorAll("[data-part]")].filter((c) => c.checked).map((c) => c.dataset.part)));
+    $("bakNo").onclick = () => close(null);
+    d.oncancel = (e) => { e.preventDefault(); close(null); };
+    d.showModal();
+  });
+}
+async function backupRestore(f) {
+  let file;
+  try { file = JSON.parse(await f.text()); } catch { return say("This file is not a readable ALTER backup.", true); }
+  if (file.kind !== BAK_KIND || !Array.isArray(file.parts)) return say("This file is not an ALTER backup.", true);
+  if (!port) return say("Connect the FM-1 first.", true);
+  const pick = await bakChoose(file);
+  if (!pick || !pick.size) return say("Restore cancelled: nothing changed.");
+  const todo = file.parts.filter((p) => pick.has(p.group));
+  let bad = 0;
+  try {
+    for (let k = 0; k < todo.length; k++) {
+      const P = todo[k];
+      say(`Restore: writing ${k + 1} / ${todo.length} (${P.group})… the FM-1 stays stopped.`);
+      let bytes = fromB64(P.data || "");
+      if (!bytes.length) { if (P.kind !== 0) continue; bytes = [0, 0, 0, 0]; }   // (an empty place: a record nobody takes)
+      for (let o = 0; o < bytes.length; o += BLOB_PUT) await ask(req.bakPut(o, bytes.slice(o, o + BLOB_PUT)), 3000);
+      const r = await ask(req.bakWrite(P.kind, P.id, bytes.length, blobSum(bytes)), 6000);
+      if (r.rc !== 1) bad++;
+    }
+  } catch { return say("Restore stopped: the FM-1 stopped answering. Some parts may be written, others not: try again.", true); }
+  await listUser("scene").catch(() => {});
+  const sysNote = pick.has("SYSTEM") ? " Restart the FM-1 to finish the SYSTEM settings." : "";
+  say(bad ? `Restore done, but ${bad} part(s) refused or the flash failed: try again.` : `Restore done: ${[...pick].join(", ")}.${sysNote}`, !!bad);
 }
 
 /* ---------- USER scenes in the FM-1 (05/11: banks of 16, a 3-character NAME; v3 firmware; 10/11: banks A B C, the patterns
@@ -2014,6 +2117,9 @@ $("bSave").onclick = savePatch;
 $("bOpen").onclick = () => $("file").click();
 $("file").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) openPatch(f); };
 $("bStore").onclick = store;
+$("bBak").onclick = backupSave;
+$("bRest").onclick = () => $("bakFile").click();
+$("bakFile").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) backupRestore(f); };
 $("bLoad").onclick = load;
 $("slot").onchange = () => showName("scene");
 for (const id of ["slotName"]) $(id).oninput = (e) => { const v = cleanName(e.target.value); if (v !== e.target.value) e.target.value = v; };

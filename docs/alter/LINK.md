@@ -107,6 +107,18 @@ ou non (0) (`ALT_PRE[k].rumble`). Page : onglet SOUNDS, une ligne RUMBLE en bas 
 Codes = ceux d'`alter_learn.c` (cercle c * 32 + t, GLOBAL 96 + g, action 128 + a). Page : onglet LEARN (XXI), sondé 400 ms
 quand il est ouvert ; firmware sans LEARN = pas d'onglet. Test : `alter_link_test.mjs` (7 tests LEARN).
 
+## v1.25 (24/11) — BACKUP complet depuis la page
+
+| cmd | requête (octets tels quels) | réponse |
+| --- | --- | --- |
+| 25 BACKUP | `0 kind id` : kind 0 = objet flash id (10..13 SONG, 14..29 USER A B, 32..39 USER C), 1 = liens MIDI LEARN (128 o), 2 = réglages SYSTEM `alt_sys` (32 o) → copié dans le tampon (`alt_ub`) | 0, kind, id, taille (14 bits), somme (14 bits) ; taille 0 = rien / refusé |
+| | `1 off(14)` = octets du tampon | 1, off, n, octets pack7 (≤ 256) |
+| | `2 off(14) octets pack7` = écrire dans le tampon | 2, off, n |
+| | `3 kind id taille(14) somme(14)` = écrire le tampon comme cette partie (objet : st_save puis rechargement SONG / listes USER ; LEARN/SYSTEM : favorites.factory + settings_save) | 3, kind, id, rc (1 ok, 0 refusé : somme/taille/id, 2 flash en échec) |
+Somme = `(s*31 + octet) & 0x1FFF` (comme BLOB). La lecture arrête le transport. Une place vide est réécrite en 4 octets à 0
+(= vide pour le firmware). Page : boutons Backup… / Restore… (fichier JSON `alter-backup`, cases à cocher A B C SONG LEARN
+SYSTEM). Test : `alter_link_test.mjs` (7 tests BACKUP).
+
 ## Banc de test (11/11, v0.55) — versions de test seulement
 | cmd | requête | réponse |
 | --- | --- | --- |

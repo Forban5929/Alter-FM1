@@ -19,7 +19,9 @@ enum { LKC_INFO = 1, LKC_STATE, LKC_DESC, LKC_SET, LKC_SOUND, LKC_SCENE, LKC_WAT
        /* 10/11: a whole scene to and from the page's file (lk_blob) */
        LKC_BLOB,
        /* v0.76 (12/11): MIDI LEARN from the page (lk_learn) */
-       LKC_LEARN };
+       LKC_LEARN,
+       /* v1.25 (24/11): the whole machine to and from a backup file (lk_bak) */
+       LKC_BACKUP };
 
 /* the sound's parameters, in this order (STATE): the engine's eight, then what a USER scene keeps (ALT_SP) */
 static const uint8_t LK_IDS[] = {P_E0, P_E1, P_E2, P_E3, P_E4, P_E5, P_E6, P_E7, P_ATK, P_DEC, P_SUS, P_REL,
@@ -692,6 +694,135 @@ static void lk_blob(const uint8_t *a, uint32_t na)
  * from the next bar (as its key); 3 n, n links (slot | bars' code << 2): the chain (stored); 4 on: the chain on / off
  * (as ARP). Reply op, rc (1 done, 0 refused, 2 the flash failed), then the state: the full slots (bits), the slot
  * playing + 1, the one asked for + 1, the chain on, its link playing, that link's bars left, n, the n links */
+/* BACKUP (v1.25, Romain 24/11: "backup complet depuis la page", restoring chosen parts): the page reads every part of the
+ * machine's memory one at a time through alt_ub (alter_store.c: the USER scenes' 3.8 KB buffer; the transport is
+ * stopped first, nothing else uses it then), and writes back the parts chosen. Bytes packed as BLOB's.
+ *   0 kind id      the part into the buffer (kind 0: flash object id: 10..13 SONG, 14..29 32..39 USER scenes; 1: the
+ *                  MIDI LEARN links, favorites.factory[5..8]; 2: SYSTEM, factory[13])  -> 0, kind, id, size, sum (0 0: none)
+ *   1 off          its bytes from off                                     -> 1, off, n, n bytes packed
+ *   2 off, data    bytes into the buffer at off                           -> 2, off, n written
+ *   3 kind id size sum   the buffer written back as that part (sum checked) -> 3, kind, id, rc (1 done, 0 refused,
+ *                  2 the flash failed); then the lists, SONG and links read again (SYSTEM: some after a restart) */
+#define LK_BAK_MAX (sizeof alt_ub)
+_Static_assert(sizeof alt_ub < 8192u, "BACKUP: sizes and offsets in a value");
+static uint32_t lk_bak_n;                        /* the buffer's size now */
+static int lk_bak_obj(uint32_t id) { return (id >= 10u && id <= 29u) || (id >= 32u && id <= 39u); }
+static uint32_t lk_bak_sum(uint32_t n)
+{
+    uint32_t k, sm = 0;
+    for (k = 0; k < n && k < LK_BAK_MAX; k++)
+        sm = (sm * 31u + ((const uint8_t *)&alt_ub)[k]) & 0x1FFFu;
+    return sm;
+}
+static void lk_bak(const uint8_t *a, uint32_t na)
+{
+    uint8_t *b = (uint8_t *)&alt_ub;
+    uint32_t off, n, k, j, kind, id;
+    if (na < 1u || a[0] > 3u)
+        return;
+    if (song.playing || seq_counting())
+        transport_req = 2u;                      /* (stopped: the scenes' buffer is ours) */
+    if (a[0] == 0u || a[0] == 3u) {
+        if (na < 3u)
+            return;
+        kind = a[1];
+        id = a[2];
+        if (a[0] == 0u) {
+            int r = -1;
+            for (k = 0; k < LK_BAK_MAX; k++)
+                b[k] = 0;
+            if (kind == 0u && lk_bak_obj(id))
+                r = st_load(id, b, LK_BAK_MAX);
+            else if (kind == 1u) {
+                for (k = 0; k < 4u * 32u; k++)
+                    b[k] = favorites.factory[5u + k / 32u][k % 32u];
+                r = 4 * 32;
+            } else if (kind == 2u) {
+                for (k = 0; k < 32u; k++)
+                    b[k] = favorites.factory[13][k];
+                r = 32;
+            }
+            lk_bak_n = r > 0 ? (uint32_t)r : 0u;
+            lk_begin(LKC_BACKUP);
+            lk_b(0);
+            lk_b(kind);
+            lk_b(id);
+            lk_v((int32_t)lk_bak_n);
+            lk_v((int32_t)lk_bak_sum(lk_bak_n));
+            lk_send();
+            return;
+        }
+        {
+            uint32_t sz = na >= 5u ? (uint32_t)(lk_rv(a + 3) + 8192) : 0u, sm = na >= 7u ? (uint32_t)(lk_rv(a + 5) + 8192) : 0x1FFFFu;
+            uint32_t rc = 0;
+            if (sz && sz <= LK_BAK_MAX && sm == lk_bak_sum(sz)) {
+                if (kind == 0u && lk_bak_obj(id)) {
+                    rc = st_save(id, b, sz) == 0 ? 1u : 2u;
+                    if (id <= 13u)
+                        alt_sg_boot();
+                    else
+                        alt_banks_load();
+                } else if (kind == 1u && sz == 4u * 32u) {
+                    for (k = 0; k < 4u * 32u; k++)
+                        favorites.factory[5u + k / 32u][k % 32u] = b[k];
+                    settings_save();
+                    rc = 1;
+                } else if (kind == 2u && sz == 32u) {
+                    for (k = 0; k < 32u; k++)
+                        favorites.factory[13][k] = b[k];
+                    settings_save();
+                    rc = 1;
+                }
+            }
+            lk_begin(LKC_BACKUP);
+            lk_b(3);
+            lk_b(kind);
+            lk_b(id);
+            lk_b(rc);
+            lk_send();
+            return;
+        }
+    }
+    if (na < 3u)
+        return;
+    off = (uint32_t)(lk_rv(a + 1) + 8192);
+    if (a[0] == 1u) {
+        if (off > lk_bak_n)
+            return;
+        n = lk_bak_n - off;
+        n = n > LK_BLOB_OUT ? LK_BLOB_OUT : n;
+        lk_begin(LKC_BACKUP);
+        lk_b(1);
+        lk_v((int32_t)off);
+        lk_v((int32_t)n);
+        for (k = 0; k < n; k += 7u) {
+            uint32_t top = 0;
+            for (j = 0; j < 7u && k + j < n; j++)
+                top |= (uint32_t)(b[off + k + j] >> 7) << j;
+            lk_b(top);
+            for (j = 0; j < 7u && k + j < n; j++)
+                lk_b(b[off + k + j]);
+        }
+        lk_send();
+        return;
+    }
+    {
+        uint32_t i = 3u;
+        n = 0;
+        while (i < na) {
+            uint32_t top = a[i++];
+            for (j = 0; j < 7u && i < na; j++, i++)
+                if (off + n < LK_BAK_MAX)
+                    b[off + n++] = (uint8_t)((a[i] & 0x7Fu) | (((top >> j) & 1u) << 7));
+        }
+        lk_begin(LKC_BACKUP);
+        lk_b(2);
+        lk_v((int32_t)off);
+        lk_v((int32_t)n);
+        lk_send();
+    }
+}
+
 /* LEARN (v0.76, Romain: « LEARN dans la page »), alter_learn.c's links. Request bytes as they are (7 bits each):
  *   0 g      the group g (0..2 a circle's, 3 GLOBAL, 4 ACTIONS) -> 0, g, n, waiting code + 1 (14 bits), last (1 learned,
  *            2 refused, 3 nothing came), links used, then n rows: code (14 bits), linked, number, note, channel (1..16), name
@@ -879,6 +1010,9 @@ static void lk_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         return;
     case LKC_BLOB:                                    /* a whole scene, to and from a file (10/11): lk_blob */
         lk_blob(a, na);
+        return;
+    case LKC_BACKUP:                                  /* the backup file (v1.25): lk_bak */
+        lk_bak(a, na);
         return;
     case LKC_LEARN:                                   /* MIDI LEARN from the page (v0.76): lk_learn */
         lk_learn(a, na);

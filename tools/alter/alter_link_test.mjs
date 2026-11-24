@@ -256,5 +256,33 @@ check("trames étrangères ou fausses : aucune réponse", send([0xf0, 0x7d, 0x46
   check(`LEARN : une action prend une note (${learnText(a2.rows[0])}) ; CLEAR ALL`, learnText(a2.rows[0]) === "C2 CH10" &&
         (one(req.learnClearAll()), one(req.learnList(4)).used === 0));
 }
+
+// ---- BACKUP (v1.25): read a part, write it back elsewhere, read it again; LEARN and SYSTEM round trip
+{
+  const readPart = (kind, id) => {
+    const h = one(req.bakGet(kind, id)); const b = [];
+    while (b.length < h.size) { const g = one(req.bakBytes(b.length)); if (!g?.bytes?.length) return null; b.push(...g.bytes); }
+    return { h, b };
+  };
+  const writePart = (kind, id, b) => {
+    for (let o = 0; o < b.length; o += BLOB_PUT) one(req.bakPut(o, b.slice(o, o + BLOB_PUT)));
+    return one(req.bakWrite(kind, id, b.length, blobSum(b)));
+  };
+  const a = readPart(0, 14);   // (bank A, scenes 1-2: scene 3 was saved above → object 15; 14 may be empty)
+  const s15 = readPart(0, 15);
+  check(`BACKUP : lecture objet 15 (${s15?.h.size} o, somme ${s15 && blobSum(s15.b) === s15.h.sum ? "juste" : "FAUSSE"})`, s15 && s15.h.size > 0 && blobSum(s15.b) === s15.h.sum);
+  const w = writePart(0, 16, s15.b);
+  const r16 = readPart(0, 16);
+  check(`BACKUP : écrit en objet 16 puis relu identique (rc ${w?.rc})`, w?.rc === 1 && r16.b.join() === s15.b.join());
+  const bad = one(req.bakWrite(0, 16, s15.b.length, (blobSum(s15.b) + 1) & 0x1fff));
+  check("BACKUP : mauvaise somme = refusée (rc 0)", bad?.rc === 0);
+  const ref = one(req.bakGet(0, 40));
+  check("BACKUP : objet hors liste = rien (taille 0)", ref?.size === 0);
+  const L = readPart(1, 0), S = readPart(2, 0);
+  check(`BACKUP : LEARN ${L?.h.size} o, SYSTEM ${S?.h.size} o`, L?.h.size === 128 && S?.h.size === 32);
+  check("BACKUP : LEARN et SYSTEM réécrits (rc 1)", writePart(1, 0, L.b)?.rc === 1 && writePart(2, 0, S.b)?.rc === 1);
+  check("BACKUP : SYSTEM relu identique", readPart(2, 0).b.join() === S.b.join());
+  void a;
+}
 console.log(fails ? `link: ${fails} FAIL` : "link: tout ok");
 process.exit(fails ? 1 : 0);
