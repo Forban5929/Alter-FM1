@@ -417,4 +417,5 @@ fichier patch entier, MIXER de la page, MIDI LEARN (BCR32), TRS MIDI (câble en 
 
 ## Idées (après la 1.0, si Romain le demande)
 ~~Macro~~ (v0.77) ; ~~LEARN dans la page compagnon~~ (v0.76) ; DENSITY/ROT continus ; ~~PROG + vague LFO dans la page~~ (v0.78) ;
-MACRO dans la page compagnon.
+MACRO dans la page compagnon. **SIDECHAIN (Romain 24/11)** : un cercle (ex. le KICK) fait « pomper » un ou les autres cercles
+(source + cible + quantité ; à ajouter à l'onglet v1.1 du Sheet, pas fait d'ici : l'outil n'édite pas les Sheets).
