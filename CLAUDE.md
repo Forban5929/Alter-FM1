@@ -11,7 +11,10 @@ lire avant de coder, mettre à jour en fin de session ; l'outil Claude_Docs sait
 MIDI Bluetooth (à décider), stems USB (à décider, voir plus bas), **SIDECHAIN** (un cercle, ex. KICK, fait pomper les
 autres : source + cible + quantité, à préciser), **SONG mode A B C à revoir** (demander à Romain ce qui ne va pas),
 essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01→v1.1, Backup/Restore, sons USER, MIDI OUT, CPU WAVE).
-- **v1.1 = BETA v1.33** (Romain a choisi de publier sans essai FM-1 préalable). Détail v1.02-v1.33 : `docs/alter/HISTORIQUE.md`
+- **v1.1 = BETA v1.33, Release publiée le 25/11** (tag v1.1 = e7d410a ; Romain a choisi de publier sans essai FM-1 préalable).
+  ⚠ Le site public installe le firmware construit depuis le tag : il s'affiche « v1.33 » sur la machine (la Release `alter-1.1.fwsc` dit « v1.1 »).
+  Release = Chrome (releases/new?tag=vX&target=main) ; gh ne peut ni créer ni supprimer de Release ici. Le test de mise à jour (firmware.yml)
+  part de la dernière Release QUI A son .fwsc (corrigé le 25/11 : avant, la Release en cours, vide, cassait le build). Détail v1.02-v1.33 : `docs/alter/HISTORIQUE.md`
   (section « Journal v1.1 ») ; notes publiques : `docs/RELEASE-NOTES.md` « ## v1.1 ». Public : Feedback visible ; **Propose… = BETA seulement**.
 - **Feedback** : `web/alter/feedback.js` → relais Vercel `https://alter-feedback.vercel.app/api/feedback` (`tools/alter/feedback-relay/`,
   projet alter-feedback, équipe rominou1) → Issue `a-trier` + `feedback` + `cat-…` + `v-…`. Redéployer = nouveau déploiement
