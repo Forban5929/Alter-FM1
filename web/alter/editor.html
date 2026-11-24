@@ -148,6 +148,11 @@ select:hover { border-color: var(--gold); }
 .btn.sm { padding: 3px 8px; font-size: 12px; white-space: nowrap; }
 .sndRow { display: flex; gap: 6px; align-items: center; }
 .sndRow .sound { flex: 1; min-width: 0; }
+#ppDlg { max-width: 520px; }
+#ppDlg .col { flex-direction: column; align-items: stretch; }
+#ppNote { width: 100%; box-sizing: border-box; font: inherit; }
+#ppName { text-transform: uppercase; }
+.ppMsg { min-height: 1.2em; color: var(--gold); margin: 0 0 8px; }
 #usName { width: 6em; text-transform: uppercase; letter-spacing: .2em; }
 fieldset { border: 0; border-top: 1px solid var(--dark); margin: 14px 0 0; padding: 10px 0 0; }
 fieldset.first { border-top: 0; margin-top: 0; }
@@ -487,6 +492,16 @@ legend { font-size: 13px; }
 </div>
 </div>
 
+<dialog id="ppDlg">
+  <p id="ppText">Propose this sound:</p>
+  <div class="bakList">
+    <label>Name <input id="ppName" maxlength="10" size="12" autocomplete="off" spellcheck="false"></label>
+    <label>It is <select id="ppRep"></select></label>
+    <label class="col">Note (optional) <textarea id="ppNote" maxlength="500" rows="3" placeholder="What it is for, what you changed…"></textarea></label>
+  </div>
+  <p id="ppMsg" class="ppMsg" role="status"></p>
+  <div class="dlgBtns"><button class="btn" id="ppNo">Cancel</button><button class="btn main" id="ppOk">Send</button></div>
+</dialog>
 <dialog id="usDlg">
   <p id="usText">Store this sound as a USER sound:</p>
   <div class="bakList">
@@ -737,6 +752,59 @@ function storeSound(c) {
   d.showModal();
   nm.focus();
 }
+/* (v1.26, BETA only, Romain 24/11) "Propose…": a circle's sound sent through the Feedback relay as a GitHub Issue
+ * ([son] SOUND PROPOSED ...), with its settings as JSON: ALTER's author puts it among the factory sounds as it is */
+const RELAY = "https://alter-feedback.vercel.app/api/feedback";
+const PROPOSE_ON = location.pathname.includes("/beta/") || !!document.getElementById("alter-beta") ||
+  new URLSearchParams(location.search).has("propose");
+function soundJson(c) {
+  const C = circ[c], st = C.state, val = (id) => st.values[info.ids.indexOf(id)];
+  const ri = v2?.cdesc?.findIndex((d) => d.grp === GR.RMB) ?? -1;
+  return {
+    alterSound: 1, from: info.sounds[st.sound]?.name ?? "",
+    engine: info.engines[st.eng], eng: st.eng, mode: MODES[st.mode] ?? "",
+    knobs: Object.fromEntries(C.desc.slice(0, 8).map((d, k) => [d.label, st.values[k]])),
+    e: st.values.slice(0, 8), env: st.values.slice(8, 12),
+    level: val(info.ids[19]), rumble: ri >= 0 && info.sounds[st.sound]?.rumble ? v2.cval[c][ri] : 0,
+  };
+}
+function proposeSound(c) {
+  if (!port || !circ[c].state) return say("Connect the FM-1 (or the simulator) first.", true);
+  const d = $("ppDlg"), rep = $("ppRep");
+  rep.innerHTML = "";
+  rep.append(new Option("— a new sound —", ""));
+  info.sounds.forEach((so, n) => { if (so.name && !isUser(n)) rep.append(new Option(`replace ${so.name} (${info.engines[so.eng]})`, so.name)); });
+  const cur = info.sounds[circ[c].state.sound]?.name ?? "";
+  $("ppName").value = (/^U\d\d /.test(cur) ? cur.slice(4) : cur).toUpperCase().replace(/[^A-Z0-9 -]/g, "").slice(0, 10);
+  $("ppNote").value = "";
+  $("ppMsg").textContent = "";
+  $("ppText").textContent = `Send circle ${ROMAN[c]}'s sound (${cur}, ${info.engines[circ[c].state.eng]}) to become a factory sound:`;
+  let busy = false;
+  const close = () => { d.close(); $("ppOk").onclick = $("ppNo").onclick = null; };
+  $("ppNo").onclick = close;
+  $("ppOk").onclick = async () => {
+    if (busy) return;
+    const name = $("ppName").value.toUpperCase().replace(/[^A-Z0-9 -]/g, "").trim().slice(0, 10);
+    if (!name) { $("ppMsg").textContent = "Give it a name first."; return; }
+    busy = true; $("ppOk").disabled = true; $("ppMsg").textContent = "Sending…";
+    try { await refresh(c); } catch {}
+    let fw = "?";
+    try { const t = (await (await fetch("../version.txt", { cache: "no-store" })).text()).trim(); if (/^v\d/.test(t)) fw = t.split(/\s+/)[0]; } catch {}
+    const j = { ...soundJson(c), version: fw, name, replaces: rep.value || null, note: $("ppNote").value.trim().slice(0, 500) };
+    const text = `SOUND PROPOSED: ${name} — ${j.replaces ? "replaces " + j.replaces : "new sound"} (${j.engine})\n\n` +
+      (j.note ? j.note + "\n\n" : "") + "```json\n" + JSON.stringify(j) + "\n```";
+    try {
+      const r = await fetch(RELAY, { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, cat: "sound", version: fw, site: "beta", link: ($("stateTxt")?.textContent || "").trim(),
+          engines: j.engine, ua: navigator.userAgent }) });
+      const a = await r.json().catch(() => ({}));
+      if (r.ok && a.ok) { close(); say(`Sound “${name}” sent (#${a.n}): it will be checked at the next session.`); }
+      else $("ppMsg").textContent = r.status === 429 ? "Too many sends in a short time: try again in a few minutes." : `Could not send it (${a.error || r.status}).`;
+    } catch { $("ppMsg").textContent = "No connection to the feedback service. Check your internet."; }
+    busy = false; $("ppOk").disabled = false;
+  };
+  d.showModal();
+}
 function build() {
   const root = $("strips");
   root.innerHTML = "";
@@ -745,12 +813,16 @@ function build() {
     s.className = "strip tc";
     s.innerHTML = `<div class="rib"><span data-eng></span></div><span class="num">${ROMAN[c]}</span><span class="tag" data-mode></span>
       <div class="sndRow"><select class="sound" data-sound aria-label="Sound of circle ${c + 1}"></select>
-      <button class="btn sm" data-store title="Store this circle's sound as one of the 16 USER sounds (on the FM-1)">Store…</button></div>
+      <button class="btn sm" data-store title="Store this circle's sound as one of the 16 USER sounds (on the FM-1)">Store…</button>
+      <button class="btn sm" data-propose hidden title="Send this sound to ALTER's author: it may become a factory sound">Propose…</button></div>
       <div class="gcols" data-groups></div>`;
     const sel = s.querySelector("[data-sound]");
     fillSounds(sel);
     sel.onchange = () => chooseSound(c, +sel.value);
     s.querySelector("[data-store]").onclick = () => storeSound(c);
+    const pb = s.querySelector("[data-propose]");
+    pb.hidden = !PROPOSE_ON;
+    pb.onclick = () => proposeSound(c);
     root.append(s);
     circ[c].el = s;
   }

@@ -84,8 +84,11 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    page SAVE : 4e onglet **SOUNDS** (tap = charger sur le cercle choisi, SAVE tenu = NOM 4 lettres KNOB 1-4 puis SAVE) ;
    LINK 26 USND + INFO liste usine + 16 USER (vides = nom vide) ; page : groupe USER + bouton **Store…** ; backup : partie
    SOUNDS (objet 31). Tests : emu « USER SOUNDS », link USND (5). Tirages (CHAOS) : sons d'usine seulement. **Pas sur la FM-1.**
-   **Ensuite** : bouton BETA **« Proposer ce son »** (relais Feedback → Issue avec le JSON du son + note « remplace X » /
-   « nouveau son ») → je l'intègre tel quel en début de session.
+   **v1.27 : bouton « Propose… »** (page BETA seulement, `PROPOSE_ON` ; `?propose` pour l'essayer en local) à côté de Store… :
+   nom, « nouveau son » ou « remplace X », note → relais Feedback (cat sound, **relais inchangé**) → Issue « [son] SOUND
+   PROPOSED: … » avec le son en JSON. **En début de session** : `python3 tools/alter/alter_sound_intake.py` (lit les Issues
+   a-trier, écrit la ligne ALT_PRE) → montrer à Romain, l'intégrer tel quel (remplacer : garder fx[] et la place ; nouveau : à
+   la fin d'ALT_PRE), tests, fermer l'Issue. (La version envoyée = /version.txt du site, pas la machine.)
    **RUMBLE (23/11)** : écoute https://claude.ai/artifact/N9BUje7vdzx4TAz4AKEYQF (`tools/alter/alter_rumble_wav.mjs`, hors
    firmware) : actuel 70/127, B DARK ROOM (réverbe ~2,5 s saturée, LP 110 Hz, pompe), C ROLL (sinus à la hauteur du kick
    ~65 Hz, gonfle entre les coups), D GROWL (bruit brun, LP résonant à la hauteur du kick, pompe) → **v1.15 : Romain = DARK ROOM**
@@ -150,7 +153,7 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.26 » (24/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.27 » (24/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. **Deux sites (v1.02, 22/11)** : pousser sur `etape-3d` → pages.yml construit (tools/alter/site_build.sh, 2 fois) :
    **racine = dernière Release** (tag vX.YY le plus haut ; ce que voient les gens) et **/beta/ = etape-3d** (bandeau rouge
