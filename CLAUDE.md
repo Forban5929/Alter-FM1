@@ -105,16 +105,13 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    suivant. TRS = entrée seulement (midi_uart.c : RX). Test `tools/alter/alter_midiout_test.mjs` (op 36, `web_mo_host`/`web_mo_take`),
    lancé par site_build.sh. Autres firmwares : Felucca 1.0 envoie les notes des touches (pas de clock) ; Melodee 1.6.1, ORBIT 0.10
    envoient la clock. **Pas essayé sur la FM-1 / un DAW.**
-   **v1.30 (Romain 24/11 : vidéo de jam filmée, « celui qui regarde ne comprend pas mes knobs »)** : page compagnon, bouton
-   **JAM** (ou `editor/?jam`) = une scène 16:9 (1920×1080 mise à l'échelle, tout en vectoriel) pour OBS : cadre tarot, les 3 cadrans
-   (`<use href="#dialN">` = copies vivantes, `id="dial0..2"` dans buildV2), **trou noir pour la caméra** (385,572 1150×452),
-   **NOW** (dernier geste : cercle, son, réglage, jauge) et **MOVES** (6 derniers). Nourri SEULEMENT par les poussées de la
-   machine (pushChanged / pushVar / pushLane / pushReload → `jamMove`) ; tout ce qui arrive en 150 ms = UN geste (`jamFlush` :
-   ≥ 2 cercles de couloirs ou ≥ 6 réglages sur ≥ 2 cercles = « CHAOS » ; RELOAD = « SOUND » seul, pas les LEVEL/REVERB qui suivent).
-   **Limite** : la machine pousse ce qui CHANGE, pas la touche/knob physique (un DÉ sans réglage changé n'apparaît pas) ; pour
-   allumer le vrai knob il faudrait un message LINK « geste » côté firmware (idée). Esc ou JAM = sortir ; `window.altJam` (tests). **v1.31** : bandeau BETA caché en JAM (`#alter-beta`).
-   Essayé Chrome headless (?demo&jam, gestes par altSim) ; **pas encore avec la FM-1**. OBS de Romain : layout `ALTER-OBS`
-   (Brave plein écran sur son 24" en portrait, caméra Sony A7C II tournée 180°, son « ALTER FM-1 » USB).
+   **v1.30-v1.32 (Romain 24/11 : filmer une jam)** : page compagnon, bouton **JAM** (ou `editor/?jam`) = **l'écran PLAY de la FM-1
+   redessiné en vectoriel** (v1.32 ; v1.30-31 = 3 cadrans + NOW/MOVES, retirés : réagissaient aux REC de mouvements), carré noir plein
+   écran, nourri par les poussées (drawPlay → `JAM.play` ; sons, valeurs, RUMBLE du KICK ; knob tourné = doré + valeur 1,2 s via
+   `JAM.turn`) ; `jamScreen()` copie alter_ui.c/alter_look.c (rayons, cercles 80 60 40, sigils, pas, aiguilles, prisme, ruban,
+   tempo, MODE, 4 knobs + lunes). Bandeau BETA caché. Esc ou JAM = sortir. Essayé Chrome headless (?demo&jam) à côté d'une capture
+   emu : quasi identique. **Pas encore filmé avec la FM-1.** OBS de Romain (layout `ALTER-OBS`, caméra Sony A7C II tournée 180°,
+   son « ALTER FM-1 » USB) : prochain layout voulu = caméra presque plein cadre, la réplique posée SUR l'écran réel, joli cadre autour.
    **Stems USB (idée, REPORTÉE par Romain 24/11)** : mode MASTER (2 canaux) ou SPLIT = 3 cercles stéréo + EFFETS stéréo (8 can.),
    pistes = son + DIST + CONSOLE. Possible avec le felucca-bsp amont (`FELUCCA_UAC_CH` 4..10, `uac_ch_frame`, 44,1 kHz seul,
    16 bits ; bsp actuel 5942e68, amont 2bd9dbe = +16 000 lignes) ; anneau MC = 384 trames × N × 2 o (8 can. ≈ 6 Ko, remplace
@@ -183,7 +180,7 @@ Règle : **une liste de besoins par version (Sheet) ; on publie (Release) quand 
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.31 » (24/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.32 » (24/11, BETA) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. **Deux sites (v1.02, 22/11)** : pousser sur `etape-3d` → pages.yml construit (tools/alter/site_build.sh, 2 fois) :
    **racine = dernière Release** (tag vX.YY le plus haut ; ce que voient les gens) et **/beta/ = etape-3d** (bandeau rouge
