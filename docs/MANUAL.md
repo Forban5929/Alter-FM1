@@ -156,8 +156,14 @@ REVERB; all on by default). CHAOS switches every effect off (DIST, INSERT, the s
   chosen: KNOB 1 2 3 = circles I II III, KNOB 4 = MASTER. FX = REVERB sends and SIZE, SEL = DELAY sends and FEEDBACK, ENV =
   DECAY and DUCK, SEQ = HITS and SWING, EDIT LFO GLO = set banks for now; tapped again = MACRO. The screen: one wheel of
   three bands (I inside), a cell per step. HOME leaves.
+  Its keyboard (v1.2.12): black keys MUTE I II III (tapped: at the next 1; held: at once), FILTER A / B (the MASTER
+  FILTER's MORPH glides there in two steps and stays; both: the middle), DUB DELAY and DUB REVERB (all circles), TAPE STOP,
+  PREV / NEXT SCENE (at the next 1), TEMP (held: the knobs turned come back when let go); white keys A B C (that SONG slot
+  from the next bar, no chain), RATE − + (1/4 1/8 1/16 1/32), FILL I II III (held: that circle plays a hit every RATE
+  step), MONTÉE (held: the MASTER FILTER's FREQ and the REVERB sends rise over 4 bars, the bars counted; let go: all back
+  on the next 1).
 - **TAPE STOP** (v1.28, the upper key where DESTROY was): held, every circle slows to a stop and bends down like a tape
-  brake; let go, they all come back on the next 1. **UNDO** (v1.28): OCT− + PLAY puts back the scene as it was before
+  brake; let go, they speed up again over 4 beats and go on from where they are (v1.2.11: no jump back onto the grid). **UNDO** (v1.28): OCT− + PLAY puts back the scene as it was before
   the last big gesture (CHAOS, CHAOS TOTAL, a DICE or its clean, a sound, a scene loaded, NEW, a SONG slot); again = REDO.
 - **Fills** (upper keys, held): DUB DELAY, DUB REVERB, ROLL 1/16, ROLL 1/8 on the chosen circle as long as you
   hold them. With REC on, they are written.

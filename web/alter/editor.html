@@ -900,6 +900,7 @@ function drawControls(c) {
         r.oninput = () => { paint(r, d); o.textContent = show(d, +r.value); queueSet(c, k, +r.value); };
         r.onpointerdown = () => (C.dragging = k);
         r.onpointerup = r.onblur = () => (C.dragging = -1);
+        dblReset(row, r, d);
         C.ctl[k] = { row, input: r, out: o, d };
       }
       fs.append(row);
@@ -918,6 +919,10 @@ function showRmb(c) {                               // (only the sounds with one
   const C = circ[c], h = C.el.querySelector("[data-rmb]");
   if (h) h.hidden = !(C.state && info?.sounds[C.state.sound]?.rumble);
 }
+/* v1.2.12 (Romain 25/11): a double click on a setting (its fader, its value or its knob) puts it back to its rest: 0 (or the
+ * middle of a setting that goes both ways: an EQ band 64, a -/+ setting 0), else its lowest */
+const dflt = (d) => (d.grp === GR.CONS && /^(LOW|MID|HIGH)$/.test(d.name) ? 64 : d.min < 0 && d.max > 0 ? 0 : d.min);
+const dblReset = (row, r, d) => { row.ondblclick = (e) => { if (e.target.closest("label")) return; r.value = dflt(d); r.oninput(); }; };
 const paint = (r, d) => r.style.setProperty("--f", `${((r.value - d.min) / Math.max(1, d.max - d.min)) * 100}%`);
 function setCtl(c, k, v, fromDevice) {
   const C = circ[c], t = C.ctl[k];
@@ -1409,6 +1414,7 @@ function varRow(d, uid, onSet) {
   r.oninput = () => { paint(r, d); o.textContent = showV(d, +r.value); onSet(+r.value); };
   r.onpointerdown = () => (t.dragging = true);
   r.onpointerup = r.onblur = () => (t.dragging = false);
+  dblReset(row, r, d);
   return t;
 }
 function groupBox(name, first) {
@@ -1544,6 +1550,7 @@ function fader(d, uid, onSet, label) {
   r.oninput = () => { o.textContent = r.value; onSet(+r.value); };
   r.onpointerdown = () => (t.dragging = true);
   r.onpointerup = r.onblur = () => (t.dragging = false);
+  dblReset(row, r, d);
   return t;
 }
 /* a knob (10/11): 270 degrees of arc in the circle's colour, from the bottom left; drag up/down, the wheel, the arrows (Shift:
@@ -1577,7 +1584,7 @@ function knob(d, uid, onSet, label) {
   el.onpointermove = (e) => { if (t.dragging) put(v0 + (y0 - e.clientY) * (d.max - d.min) / (e.shiftKey ? 600 : 150)); };
   el.onpointerup = el.onpointercancel = () => (t.dragging = false);
   el.onwheel = (e) => { e.preventDefault(); put(val + (e.deltaY < 0 ? 1 : -1) * (e.shiftKey ? 1 : Math.max(1, Math.round((d.max - d.min) / 64)))); };
-  el.ondblclick = () => put(mid === d.min ? d.min : mid);
+  el.ondblclick = () => put(dflt(d));
   el.onkeydown = (e) => {
     const st = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1, PageUp: 10, PageDown: -10 }[e.key];
     if (e.key === "Home") put(d.min); else if (e.key === "End") put(d.max); else if (st) put(val + st); else return;

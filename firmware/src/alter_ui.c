@@ -345,6 +345,9 @@ static uint32_t aper_buttons(uint32_t pressed);
 static void aper_turn(uint32_t i, int32_t s);
 static void aper_scene(void);
 static uint32_t aper_sig(void);
+static void aper_poll(void);
+static void aper_keys(uint32_t keys, uint32_t down);
+static uint32_t aper_led(uint32_t k);
 static void alt_menu_set(uint32_t q);
 #define ALT_OBJ_SONG 10u                          /* (storage.c OBJ_ALTSONG0: the slots of before v1.36, read once) */
 #define SG_MAGIC_C 0x43544C41u                    /* "ALTC": the chain (before v1.36) */
@@ -1907,6 +1910,7 @@ static int alter_ui_input(uint32_t pressed)
     uint32_t keys, down, k, i, ours = alt_ours(), q, octs, both;
     int32_t s, s_sel = 0;
     acx_poll();                                  /* (CHAOS waiting for its bar line: each turn, whatever the screen does) */
+    aper_poll();                                 /* (PERFORM: what waits for the 1, the glides, MONTEE) */
     alm_poll();                                  /* MIDI LEARN: the settings moved, the keys and buttons held */
     pressed |= alm_bdown;
     keys = ALT_NOTES;
@@ -2185,7 +2189,8 @@ static int alter_ui_input(uint32_t pressed)
         au.keys = keys;
         return 1;
     }
-    amc_input(keys);                             /* (v0.77) OCT+ held alone on the circles' view: the MACRO page */
+    if (au.mn != QP_PERF)
+        amc_input(keys);                         /* (v0.77) OCT+ held alone on the circles' view: the MACRO page */
     q = alt_page();
     if (afp.open)                                /* the FX page: its encoders (the keys play on: mutes, dice, fills) */
         afp_input(pressed);
@@ -2223,6 +2228,11 @@ static int alter_ui_input(uint32_t pressed)
     if ((s = panel_enc(EN_PRESET)) != 0 && !au.lockc)
         alt_preset_step(au.sel, s);
     down = keys & ~au.keys;
+    if (au.mn == QP_PERF) {                      /* PERFORM: its keyboard (alter_perform.c) */
+        aper_keys(keys, down);
+        au.keys = keys;
+        return 1;
+    }
     if (au.lockc) {                              /* the LOCKS page: the keys are its seven locks */
         as_circ_t *lc;
         if (s_sel)                               /* (v0.73, Romain: SELECT or a CIRCLE key = another circle's LOCKS,
@@ -2402,6 +2412,20 @@ static void alter_leds(uint8_t *nl, uint8_t *nd, uint8_t *nb, uint8_t *nm)
             led_put(nl, 14u + k, lit);
             led_put(nm, 14u + k, (int)mid);
             led_put(nd, 14u + k, faint);
+            continue;
+        }
+        if (au.mn == QP_PERF) {                  /* PERFORM: a function lit, a state on beats, held / waiting mid */
+            uint32_t L = aper_led(k);
+            led_clear(nl, 14u + k);
+            led_clear(nd, 14u + k);
+            led_clear(nb, 14u + k);
+            led_clear(nm, 14u + k);
+            if (L == 2u && (fm1_ms % 1000u) < 170u)
+                L = 3u;
+            if (L == 3u && !((ALT_NOTES >> k) & 1u) && ((fm1_ms >> 7) & 1u))
+                L = 1u;                          /* (waiting for the 1: blinks) */
+            led_put(nl, 14u + k, L == 1u || L == 2u);
+            led_put(nm, 14u + k, L == 3u);
             continue;
         }
         if (au.lockc) {                          /* the LOCKS page: a lock lit, a free one faint; its circle's key lit */
@@ -5706,6 +5730,13 @@ static int32_t alt_peek(uint32_t c, uint32_t w)
         h = (h ^ x->pat) * 16777619u;
         return (int32_t)(h ^ x->die ^ (uint32_t)(uint8_t)x->dhits << 8 ^ (uint32_t)x->drot << 16);
     }
+    if (w == 30u)                                /* (v1.2.12: PERFORM's keys: MUTEs waiting, rate, FILL, MONTEE, TEMP, scene waiting) */
+        return (int32_t)(aper.mq | (uint32_t)aper.rate << 3 | (uint32_t)aper.fill << 5 | (uint32_t)aper.up_on << 7 |
+                         (uint32_t)aper.up_drop << 8 | (uint32_t)aper.temp_on << 9 | (uint32_t)aper.sq << 16);
+    if (w == 31u)                                /* (the MASTER FILTER's MORPH | the fills held << 8 | the scene row << 24) */
+        return (int32_t)(afl_morph | (uint32_t)alt_hold << 8 | (alt_row_cur & 255u) << 24);
+    if (w == 32u)                                /* (MONTEE: the filter's FREQ | circle c's REVERB send << 8) */
+        return (int32_t)(alm_get(ALM_G0 + ALG_FFREQ) | alm_get((c % AS_NCIRC) * 32u + 18u) << 8);
     if (w == 29u)                                /* (v1.2.10: the page open | PERFORM's bank << 8 | its knob c's value << 16) */
         return (int32_t)(au.mn | (uint32_t)aper.bank << 8 | (uint32_t)(aper.v[c % 4u] & 255) << 16);
     if (w == 12u)                                /* (MIDI LEARN's tests: MUTE, HITS, the chosen circle, playing, REC) */

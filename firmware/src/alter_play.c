@@ -65,6 +65,9 @@ static int32_t alt_hold_smp[AS_NCIRC];           /* PERC: samples the hit is hel
 
 /* UI -> here */
 static volatile uint16_t alt_hold;               /* the fills held, bit AF_* */
+static volatile uint8_t alt_ptgt;                /* PERFORM (v1.2.12): the fills' circle + 1 (FILL I II III), 0: the chosen one */
+static volatile uint8_t alt_prate;               /* PERFORM: the FILL's rate + 1 (1/4 1/8 1/16 1/32), 0: the ROLL keys' */
+static volatile uint8_t alt_dub_all;             /* PERFORM: DUB DELAY / REVERB on the three circles */
 static volatile uint8_t alt_sel;                 /* the selected circle */
 static volatile uint8_t alt_emode[AS_NCIRC];     /* each circle's envelope mode (AM_*) */
 static volatile uint8_t alt_post_now;            /* alt_post's circles to take at once, not from the next cycle (CHAOS) */
@@ -521,13 +524,15 @@ static void alt_take(void)
             alt_dr_unpack(c);
         }
     }
-    if (e && !alt_prev)                          /* the first fill down: its circle is the target until all are up */
+    if (alt_ptgt)                                /* PERFORM: FILL I II III say which (the last one pressed) */
+        alt_tgt = (uint8_t)((alt_ptgt - 1u) % AS_NCIRC);
+    else if (e && !alt_prev)                     /* the first fill down: its circle is the target until all are up */
         alt_tgt = (uint8_t)(alt_sel % AS_NCIRC);
     alt_prev = (uint16_t)h;
     for (c = 0; c < AS_NCIRC; c++) {             /* the dubs on each circle: held (the target) or REC'd on its step */
         uint32_t r = alt_run ? alt_fxr_now[c] : 0u, d, de;
         int16_t *sv = alt_fx_save[c];
-        d = (c == alt_tgt ? h & AF_DUBS : 0u) | ((r & AFR_DLY) ? 1u << AF_DLY : 0u) | ((r & AFR_REV) ? 1u << AF_REV : 0u);
+        d = (c == alt_tgt || alt_dub_all ? h & AF_DUBS : 0u) | ((r & AFR_DLY) ? 1u << AF_DLY : 0u) | ((r & AFR_REV) ? 1u << AF_REV : 0u);
                                                   /* (a DESTROY REC'd before v1.28, AFR_DST: plays nothing now) */
         de = d ^ alt_dub_on[c];
         if (!de)
@@ -558,6 +563,8 @@ static void alt_take(void)
  * stage two beats long, so it stays on the grid), louder and louder (alt_roll_n: the notes so far) */
 static uint32_t alt_roll_period(uint32_t h, uint32_t p)
 {
+    if (alt_prate)                               /* PERFORM's FILL: 1/4 1/8 1/16 1/32 */
+        return alt_prate == 1u ? 4u * p : alt_prate == 2u ? 2u * p : alt_prate == 3u ? p : p / 2u;
     if ((h >> AF_BUILD) & 1u)
         return alt_roll_n < 4u ? 2u * p : alt_roll_n < 12u ? p : p / 2u;
     if ((h >> AF_ROLL32) & 1u)

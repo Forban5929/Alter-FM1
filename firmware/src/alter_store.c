@@ -1110,6 +1110,7 @@ static void alt_undo(void)
 }
 
 /* SAVE tapped: load row i; 0 = nothing there */
+static uint32_t alt_row_cur;                     /* (v1.2.12) the scene row loaded last (PERFORM's PREV / NEXT SC) */
 static int alt_row_load(uint32_t t, uint32_t i)
 {
     uint32_t u = i > ALT_NFACT ? (i - 1u - ALT_NFACT) % ALT_NUSER : 0u;
@@ -1131,6 +1132,7 @@ static int alt_row_load(uint32_t t, uint32_t i)
         sg_rec_put(alt_ub.s.sg[u % ALT_US_PER]);   /* (v1.36: its slots and chain; stored before: the machine's kept) */
     } else
         return 0;
+    alt_row_cur = i;
     return 1;
 }
 

@@ -218,7 +218,12 @@ static __attribute__((noinline)) void rmb_part(uint32_t c, int32_t *b, uint32_t 
             gp = 32767;
         rmb.gs += (gp - rmb.gs) >> 6;             /* (~1.5 ms: the pump glides, no click) */
         y = (int32_t)(((int64_t)y * rmb.gs) >> 15);
-        rmb.gn += ((g << 8) - rmb.gn) >> 9;       /* (the knob glides: no step, and a fade to 0; v1.22: Q8, it stopped
+        if ((uint32_t)rmb.since > beat * 5u / 2u)   /* (v1.2.12, Romain: "il reste quand je mets pause": no kick for 2.5
+                                                   * beats (stopped, muted, a gap), the rumble fades out, ~0.1 s; the
+                                                   * next kick brings it back) */
+            rmb.gn -= rmb.gn >> 12;
+        else
+            rmb.gn += ((g << 8) - rmb.gn) >> 9;   /* (the knob glides: no step, and a fade to 0; v1.22: Q8, it stopped
                                                    * 511 short of the knob before: LOW was almost nothing) */
         b[i] += (int32_t)(((int64_t)y * rmb.gn) >> 14);
     }
