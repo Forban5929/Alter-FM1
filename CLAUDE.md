@@ -61,16 +61,17 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
   MIDI Bluetooth : reporté après la v1.2 (Romain).
 - **Chantiers live v1.2 (Romain 25/11, maquettes https://claude.ai/artifact/86M3edMxXWDVTBxjXh1MP4 , Sheet lignes 8-10, RIEN codé)** :
   **PERFORM** (planche 1b) = pas de cercle choisi : KNOB 1-3 = cercles I II III, KNOB 4 = MASTER ; bouton tapé = banque : ouverture MACRO
-  (cercle + scène), FX = envoi REVERB / taille, SCL (Romain a écrit « SEL », à confirmer) = envoi DELAY / feedback, ENV = DECAY / DUCK,
+  (cercle + scène), FX = envoi REVERB / taille, SEL (bouton SCL du code) = envoi DELAY / feedback, ENV = DECAY / DUCK,
   SEQ = DENSITÉ / SWING, EDIT LFO GLO = personnalisables (tenu 1 s = choisir les cibles, liste MIDI LEARN) ; HOME sortir, REC enregistre
-  les mouvements, PLAY. Pas de volumes. **Clavier PERFORM (Romain 25/11 21h)** : noires MUTE I II III (tapé = au 1, tenu = tout de suite),
-  DUB DELAY, DUB REVERB, **TAPE STOP** (remplace DESTROY partout, Sheet ligne 11), PREV SC / NEXT SC (noires 20 22), libres : 2 ex-ROLL + noire
-  seule ; blanches A B C (pattern du prochain tour, PAS de chaîne), FILTRE A / B (MASTER FILTER glisse en 2 pas, les deux = centre), TEMP
-  (tenu : tout revient au lâché), MONTÉE tenue (compte des mesures, drop au 1), ÉCHO FIGÉ, 3 libres, **5 dernières blanches = FILL I II III
-  tenus (ce cercle seul joue un coup à chaque pas) + RATE − / + (1/4 1/8 1/16 1/32)** : remplace ROLL et l'idée de slot FILL (Romain :
-  « roll et fill ont une logique sur tous les cercles »). Refusés : NUDGE, SOLO, scènes 1-8, KILL BAS/HAUT, DESTROY, slot F.
-  « Il faudra de bonnes idées pour que ce soit bien en live. » **UNDO** = le DERNIER gros geste seulement (2e appui = REDO proposé ;
-  geste OCT−+PLAY et moment à confirmer). **Combinaisons** : 5 retirées (NEW SCENE gardé) + aide à l'écran + carte A5.
+  les mouvements, PLAY. Pas de volumes. **Clavier PERFORM (Romain 25/11 21h, figé)** : noires (index 0-10 = touches 1 3 5 8 10 13 15 17 20
+  22 25) MUTE I II III (tapé = au 1, tenu = tout de suite) · FILTRE A / B (MASTER FILTER glisse en 2 pas, les deux = centre) · DUB DELAY ·
+  DUB REVERB · **TAPE STOP** (remplace DESTROY partout, Sheet ligne 11) · PREV SC · NEXT SC (au 1) · **TEMP** (noire seule : tenu = tout
+  ce que tu tournes revient au lâché) ; blanches 0-15 : A B C (pattern du prochain tour, PAS de chaîne) · 3-6 libres · ÉCHO FIGÉ (7) ·
+  8-9 libres · RATE − / + (10-11 : 1/4 1/8 1/16 1/32) · FILL I II III (12-14, tenu = ce cercle seul, un coup par pas) · MONTÉE (15, tenue :
+  compte des mesures, drop au 1). Refusés : NUDGE, SOLO, scènes 1-8, KILL, DESTROY, slot FILL, ROLL sur PERFORM. Bouton « SCL » du code
+  = **SEL** sur la machine (à droite de FX) = banque DELAY.
+  « Il faudra de bonnes idées pour que ce soit bien en live. » **UNDO** = le DERNIER gros geste seulement, OCT− + PLAY, tout de suite,
+  2e appui = REDO (Romain OK 25/11). **Combinaisons** : 5 retirées (NEW SCENE gardé) + aide à l'écran + carte A5.
 - `alt_sys[11]` (ancien THEME SPLIT, retiré v1.13) peut valoir 1 sur la FM-1 de Romain : le remettre à 0 avant de le reprendre.
 
 ## Utilisateur
