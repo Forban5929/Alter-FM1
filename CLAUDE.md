@@ -28,6 +28,15 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
   (était 8 %), remontée r(2−r) (était r²) pleine à 75 % (`RMB_RAMP`) ; `tools/alter/alter_rumble_pump.mjs wasm [amt]` (RUMBLE seul = avec − sans) :
   reste bas ~130 ms (était ~50), revenu à −3 dB à 280 ms (était 100). Le creux mesuré plafonne ~19 dB (un reste non pompé dans la
   différence, sans doute l'alignement du cercle). **Pas écouté.**
+- **SONG refait (Romain 25/11, maquettes https://claude.ai/artifact/SN4zLmu5ZGL7ywFR9tZVHP : itérations 1+2+3 retenues)** ; Romain :
+  « une chaîne = juste un pattern différent et nombre de triggers, même chance mêmes settings » → **un slot = HITS ROT LEN par cercle**
+  (alter_song.c `sg_slot_t`, 10 o), **slots + chaîne DANS la scène** (`SG_REC` 48 o à la fin d'alt_ub.s / alt_blob_t / copie de plantage ;
+  `sg_rec_get/put`, factory/NEW = vides ; scène d'avant = ceux de la machine ; objets 10..13 lus une fois au démarrage, convertis).
+  **v1.36 = étape 1** : touche vide tapée = capture (rien ne change à l'oreille), pleine = joue à la mesure, tenue seule 1 s = remplacée
+  (par ce qui jouait à l'appui, `asg.snap`) ; **un slot est une photo** (plus d'édition gardée dans le slot qui joue, `sg_keep` retiré) ;
+  SAVE + A = capture. Pool libéré : ~9 Ko (sg_slot 3×3080 o + tampons). Test `tools/alter/alter_song_test.mjs` (peek 26 HITS|LEN|ROT|slot,
+  27 used|n|on|link). **À faire : étape 2** (ARP tenu + REC = chaîne enregistrée en jouant, durées réelles ; ligne de temps sous les
+  cercles), **étape 3** (page SONG = ligne de temps : touches A B C ajoutent un bloc, KNOB 2 durée 1..16, KNOB 3 déplacer, OCT− + SELECT enlever).
 - **Feedback** : `web/alter/feedback.js` → relais Vercel `https://alter-feedback.vercel.app/api/feedback` (`tools/alter/feedback-relay/`,
   projet alter-feedback, équipe rominou1) → Issue `a-trier` + `feedback` + `cat-…` + `v-…`. Redéployer = nouveau déploiement
   avec le fichier. **En début de session** : `gh api 'repos/Forban5929/alter-fm1/issues?labels=a-trier'`, résumer à Romain,
@@ -67,7 +76,7 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.35 » (25/11, BETA ; Release v1.1 = v1.33) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.36 » (25/11, BETA ; Release v1.1 = v1.33) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. **Deux sites (v1.02, 22/11)** : pousser sur `etape-3d` → pages.yml construit (tools/alter/site_build.sh, 2 fois) :
    **racine = dernière Release** (tag vX.YY le plus haut ; ce que voient les gens) et **/beta/ = etape-3d** (bandeau rouge

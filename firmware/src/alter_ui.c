@@ -337,21 +337,23 @@ static void aus_nm_open(uint32_t u)              /* (v1.26) a USER sound's NAME:
  * chain is off. */
 #define QP_SONG 16u                               /* (ARP held: the SONG page) */
 static void alt_menu_set(uint32_t q);
-#define ALT_OBJ_SONG 10u                          /* (storage.c OBJ_ALTSONG0) */
-#define SG_MAGIC_C 0x43544C41u                    /* "ALTC": the chain */
+#define ALT_OBJ_SONG 10u                          /* (storage.c OBJ_ALTSONG0: the slots of before v1.36, read once) */
+#define SG_MAGIC_C 0x43544C41u                    /* "ALTC": the chain (before v1.36) */
 #define SG_DEF_BARS 2u                            /* (a new link: 4 bars) */
+#define SG_HOLD_MS 1000u                          /* (v1.36: a full slot's key held this long, alone: replaced) */
 static struct {
     uint8_t wr, bn, buf[SG_MAXL];                 /* a slot's key held (+ 1): a chain being written from it */
     uint8_t chain[SG_MAXL], n;                    /* the chain (the UI's copy) */
     uint8_t q;                                    /* the slot asked for (+ 1), until it plays */
-    uint8_t row, top, dirty;                      /* the SONG page: its link, its first row shown; the chain to store */
+    uint8_t row, top, dirty;                      /* the SONG page: its link, its first row shown */
     uint32_t done, arp_t0;                        /* sg_done_cnt seen; ARP's press (fm1_ms | 1), 0 = up */
     uint8_t arp_held;                             /* ARP's hold has opened the page */
+    uint8_t wr_new;                               /* (v1.36: the key held captured an empty slot: no replace) */
+    uint32_t wr_t0;                               /* (v1.36: when the first key went down) */
+    sg_slot_t snap;                               /* (v1.36: what was asked when it went down: a replace takes it) */
     char msg[48];
 } asg;
 static uint8_t asg_save_held;                     /* SAVE still held since its press opened the SAVE page */
-static struct { uint32_t magic; uint8_t n, rsv[3]; uint8_t chain[SG_MAXL]; } asg_rec __attribute__((section(".pool")));
-_Static_assert(sizeof(sg_slot_t) <= ST_PAYLOAD_MAX_X, "a SONG slot fits an object");
 
 static void alt_sg_push(void)                    /* the chain to the audio side */
 {
@@ -364,59 +366,51 @@ static void alt_sg_push(void)                    /* the chain to the audio side 
         sg_on = 0;
     fm1_irq_on();
 }
-static void alt_sg_chain_save(void)
+static void alt_sg_chain_save(void) { asg.dirty = 0; }   /* (v1.36: the chain is the scene's, SAVE keeps it) */
+/* the slots of before v1.36 (whole rhythms on the flash, objects 10..13): their HITS ROT LEN, once at the start, for
+ * the scenes stored without slots; the buffer: alt_ub (the scenes' object, free at the start) */
+typedef struct {
+    uint32_t magic;
+    uint8_t used, rsv[3];
+    as_circ_t c[AS_NCIRC];
+} sg_old_t;
+_Static_assert(sizeof(sg_old_t) <= sizeof alt_ub, "an old SONG slot fits alt_ub");
+static void alt_sg_boot(void)
 {
-    uint32_t i;
-    asg_rec.magic = SG_MAGIC_C;
-    asg_rec.n = asg.n;
-    for (i = 0; i < SG_MAXL; i++)
-        asg_rec.chain[i] = asg.chain[i];
-    (void)st_save(ALT_OBJ_SONG + SG_NSLOT, &asg_rec, sizeof asg_rec);
-    asg.dirty = 0;
-}
-static void alt_sg_boot(void)                    /* the slots and the chain from the flash (or none) */
-{
-    uint32_t s, i;
-    for (s = 0; s < SG_NSLOT; s++)
-        if (st_load(ALT_OBJ_SONG + s, &sg_slot[s], sizeof sg_slot[s]) != (int)sizeof sg_slot[s] ||
-            sg_slot[s].magic != SG_MAGIC || !sg_slot[s].used)
-            for (i = 0; i < sizeof sg_slot[s]; i++)
-                ((uint8_t *)&sg_slot[s])[i] = 0;
-    asg.n = 0;
-    if (st_load(ALT_OBJ_SONG + SG_NSLOT, &asg_rec, sizeof asg_rec) == (int)sizeof asg_rec && asg_rec.magic == SG_MAGIC_C) {
-        asg.n = (uint8_t)(asg_rec.n > SG_MAXL ? SG_MAXL : asg_rec.n);
-        for (i = 0; i < SG_MAXL; i++)
-            asg.chain[i] = (uint8_t)((asg_rec.chain[i] & 3u) % SG_NSLOT | (asg_rec.chain[i] & 12u));
+    uint32_t s, c, i;
+    sg_old_t *o = (sg_old_t *)(void *)&alt_ub;
+    struct { uint32_t magic; uint8_t n, rsv[3]; uint8_t chain[SG_MAXL]; } *oc = (void *)&alt_ub;
+    for (s = 0; s < SG_NSLOT; s++) {
+        sg_slot[s].used = 0;
+        if (st_load(ALT_OBJ_SONG + s, &alt_ub, sizeof alt_ub) >= (int)sizeof(sg_old_t) && o->magic == SG_MAGIC && o->used) {
+            for (c = 0; c < AS_NCIRC; c++) {
+                const as_cfg_t *f = &o->c[c].next;
+                uint32_t len = f->len >= 1u && f->len <= AS_PLAYLEN ? f->len : 16u;
+                sg_slot[s].len[c] = (uint8_t)len;
+                sg_slot[s].hits[c] = (uint8_t)(f->hits > len ? len : f->hits);
+                sg_slot[s].rot[c] = (uint8_t)(f->rot % len);
+            }
+            sg_slot[s].used = 1;
+        }
     }
+    asg.n = 0;
+    if (st_load(ALT_OBJ_SONG + SG_NSLOT, &alt_ub, sizeof alt_ub) >= (int)sizeof *oc && oc->magic == SG_MAGIC_C) {
+        asg.n = (uint8_t)(oc->n > SG_MAXL ? SG_MAXL : oc->n);
+        for (i = 0; i < SG_MAXL; i++)
+            asg.chain[i] = (uint8_t)((oc->chain[i] & 3u) % SG_NSLOT | (oc->chain[i] & 12u));
+    }
+    alt_ub_clear(ALT_MAGIC_US);
     asg.done = sg_done_cnt;
     alt_sg_push();
 }
-static int alt_sg_store(uint32_t s)              /* what plays now into slot s; 0: the flash failed */
+static int alt_sg_store(uint32_t s)              /* the HITS ROT LEN asked now into slot s (the scene's: SAVE keeps it) */
 {
-    static uint8_t rec[AS_NCIRC][AR_PACK] __attribute__((section(".pool")));   /* (RAM is short: the pool) */
-    static as_circ_t cc[AS_NCIRC] __attribute__((section(".pool")));
-    sg_slot_t *S = &sg_slot[s % SG_NSLOT];
-    uint32_t c, k;
-    for (c = 0; c < AS_NCIRC; c++)
-        ar_export(c, rec[c]);                    /* (irq off on its own) */
+    sg_slot_t t;
+    sg_fill(&t, &au.cfg[0], sizeof au.cfg[0]);
     fm1_irq_off();
-    for (c = 0; c < AS_NCIRC; c++)
-        cc[c] = alt_seq.c[c];
+    sg_slot[s % SG_NSLOT] = t;
     fm1_irq_on();
-    for (c = 0; c < AS_NCIRC; c++)
-        cc[c].cfg = cc[c].next = au.cfg[c];      /* (the settings as asked: the mutes too) */
-    fm1_irq_off();                               /* (the audio side may take this slot at a bar line: whole) */
-    S->magic = SG_MAGIC;
-    S->used = 1;
-    for (c = 0; c < AS_NCIRC; c++) {
-        S->c[c] = cc[c];
-        for (k = 0; k < AS_MAXLEN; k++)
-            S->fxr[c][k] = alt_fxr[c][k];
-        for (k = 0; k < AR_PACK; k++)
-            S->rec[c][k] = rec[c][k];
-    }
-    fm1_irq_on();
-    return st_save(ALT_OBJ_SONG + s, S, sizeof *S) == 0;
+    return 1;
 }
 static void alt_sg_ask(uint32_t s)               /* slot s from the next bar (the chain stops) */
 {
@@ -447,22 +441,44 @@ static const char *alt_sg_chain_text(const uint8_t *ch, uint32_t n, const char *
     asg.msg[j] = 0;
     return asg.msg;
 }
-/* once a frame: a slot taken by the audio side (the UI's settings follow it); OCT- let go after writing a chain; the
- * chain edited on the SONG page stored once the page is left */
+/* once a frame: a slot taken by the audio side (the UI's HITS ROT LEN follow it); a scene's slots and chain loaded; the
+ * first key let go after writing a chain; a full slot's key held alone 1 s: replaced */
 static void alt_sg_sync(void)
 {
     uint32_t c;
+    static const char *const REPL[SG_NSLOT] = {"A REPLACED", "B REPLACED", "C REPLACED"};
+    if (sg_loaded) {                             /* (v1.36: the scene's chain into the UI's copy) */
+        uint32_t i;
+        sg_loaded = 0;
+        for (i = 0; i < SG_MAXL; i++)
+            asg.chain[i] = sg_chain[i];
+        asg.n = sg_n;
+        asg.q = 0;
+        asg.wr = 0;
+        asg.row = 0;
+        asg.top = 0;
+    }
     if (sg_done_cnt != asg.done) {
         uint32_t s = sg_play ? sg_play - 1u : 0u;
         asg.done = sg_done_cnt;
         asg.q = 0;
         for (c = 0; c < AS_NCIRC; c++) {
-            as_cfg_t n = sg_slot[s % SG_NSLOT].c[c].next;
-            n.dose = au.cfg[c].dose, n.root = au.cfg[c].root, n.chord = au.cfg[c].chord;
-            if (!n.len)
-                n.len = 16;
-            au.cfg[c] = n;
+            const sg_slot_t *S = &sg_slot[s % SG_NSLOT];
+            au.cfg[c].len = S->len[c];
+            au.cfg[c].hits = S->hits[c] > S->len[c] ? S->len[c] : S->hits[c];
+            au.cfg[c].rot = (uint8_t)(S->rot[c] % S->len[c]);
+            au.cfg[c].frot %= S->len[c];
         }
+    }
+    if (asg.wr && asg.bn == 1u && !asg.wr_new && (int32_t)(fm1_ms - asg.wr_t0) >= (int32_t)SG_HOLD_MS) {
+        uint32_t s = asg.wr - 1u;                /* (v1.36: held alone: what played when it went down replaces the
+                                                  * slot, and plays on from the next bar: the slot taken meanwhile) */
+        fm1_irq_off();
+        sg_slot[s] = asg.snap;
+        fm1_irq_on();
+        alt_sg_ask(s);
+        asg.wr_new = 1;                          /* (once a hold) */
+        alt_say(REPL[s]);
     }
     if (asg.wr && !((ALT_NOTES >> (19u + 2u * (asg.wr - 1u))) & 1u)) {   /* the first key let go: the chain
                                                   * written (two links or more) plays */
@@ -476,36 +492,47 @@ static void alt_sg_sync(void)
             asg.top = 0;
             alt_sg_push();
             alt_sg_on(1);
-            alt_sg_chain_save();
             alt_say(alt_sg_chain_text(asg.chain, asg.n, "CHAIN"));
         }
     }
-    if (asg.dirty && au.mn != QP_SONG)
-        alt_sg_chain_save();
 }
-/* SAVE held + a slot's key: what plays stored there */
+/* SAVE held + a slot's key: what plays captured there (as the key on an empty slot) */
 static void alt_sg_save_key(uint32_t s)
 {
-    static const char *const SAVED[SG_NSLOT] = {"A SAVED", "B SAVED", "C SAVED"};
+    static const char *const SAVED[SG_NSLOT] = {"A CAPTURED", "B CAPTURED", "C CAPTURED"};
     alt_say(alt_sg_store(s) ? SAVED[s] : "SAVE FAILED");
 }
-/* a slot's key went down (s: 0..2): alone, that slot from the next bar; another slot's key held, a link more */
+/* a slot's key went down (s: 0..2): empty, what plays is captured there (v1.36); full, that slot from the next bar
+ * (held alone 1 s: replaced, alt_sg_sync); another slot's key held, a link more */
 static void alt_sg_key(uint32_t s)
 {
     static const char *const NAME[SG_NSLOT] = {"SONG A", "SONG B", "SONG C"};
-    if (!sg_slot[s].used) {
-        alt_say("EMPTY");
-        return;
-    }
+    static const char *const CAPT[SG_NSLOT] = {"A CAPTURED", "B CAPTURED", "C CAPTURED"};
     if (asg.wr) {                                /* the first key held: the chain */
+        if (!sg_slot[s].used) {
+            alt_say("EMPTY");
+            return;
+        }
         if (asg.bn < SG_MAXL)
             asg.buf[asg.bn++] = (uint8_t)(s | SG_DEF_BARS << 2);
         alt_say(alt_sg_chain_text(asg.buf, asg.bn, "CHAIN"));
         return;
     }
     asg.wr = (uint8_t)(s + 1u);                  /* (held: the first of a chain, if another key follows) */
+    asg.wr_t0 = fm1_ms;
+    sg_fill(&asg.snap, &au.cfg[0], sizeof au.cfg[0]);
     asg.bn = 1;
     asg.buf[0] = (uint8_t)(s | SG_DEF_BARS << 2);
+    if (!sg_slot[s].used) {                      /* (v1.36: an empty slot takes what plays, it goes on as it is) */
+        (void)alt_sg_store(s);
+        asg.wr_new = 1;
+        fm1_irq_off();                           /* (it plays already: the slot playing from now) */
+        sg_play = (uint8_t)(s + 1u);
+        fm1_irq_on();
+        alt_say(CAPT[s]);
+        return;
+    }
+    asg.wr_new = 0;
     alt_sg_ask(s);
     alt_say(NAME[s]);
 }
@@ -5454,6 +5481,11 @@ static int32_t alt_peek(uint32_t c, uint32_t w)
         return (int32_t)(au.cfg[c].type | au.cfg[c].len << 8 | au.cfg[c].tdens << 16 | (uint32_t)au.cfg[c].tlock << 24);
     if (w == 10u)
         return au.cfg[c].trange;
+    if (w == 26u)                                /* (v1.36: circle c as asked: HITS | LEN << 8 | ROT << 16 | the slot playing << 24) */
+        return (int32_t)(au.cfg[c].hits | (uint32_t)au.cfg[c].len << 8 | (uint32_t)au.cfg[c].rot << 16 | (uint32_t)sg_play << 24);
+    if (w == 27u)                                /* (v1.36: SONG: the used slots | the chain's links << 4 | on << 9 | link << 10) */
+        return (int32_t)((uint32_t)sg_slot[0].used | (uint32_t)sg_slot[1].used << 1 | (uint32_t)sg_slot[2].used << 2 |
+                         (uint32_t)asg.n << 4 | (uint32_t)sg_on << 9 | (uint32_t)sg_link << 10);
     if (w == 25u) {                              /* (v1.34: the loudest sample into the MASTER limiter since the last
                                                   * read, then 0 again; LIM_T 18000 = the limiter starts; tests only) */
         int32_t a = alt_mpk;
@@ -5568,7 +5600,7 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
     case 25:                                     /* (a test: USER a stored as before the draws, 10/11: the object cut) */
         alt_web_rc = alt_row_save(0, ALT_NFACT + 1u + a % ALT_NUSER);
         alt_ub.s.dr[a % ALT_US_PER][0] = 0;
-        (void)st_save(alt_us_obj(a % ALT_NUSER), &alt_ub.s, sizeof alt_ub.s - sizeof alt_ub.s.dr - sizeof alt_ub.s.mc);   /* (v0.77: the MACRO after them) */
+        (void)st_save(alt_us_obj(a % ALT_NUSER), &alt_ub.s, sizeof alt_ub.s - sizeof alt_ub.s.dr - sizeof alt_ub.s.mc - sizeof alt_ub.s.sg);   /* (v0.77: the MACRO after them; v1.36 SONG) */
         break;
     case 24: alt_web_rc = alt_row_load(b & 1u, b & 2u ? 0u : ALT_NFACT + 1u + a % ALT_NUSER); break;   /* (a test: LOAD
                                                   * USER a, b & 1 a pattern; b & 2: NEW) */

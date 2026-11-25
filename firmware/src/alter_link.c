@@ -656,6 +656,7 @@ static void lk_blob(const uint8_t *a, uint32_t na)
             b[k] = 0;
         alt_us_snap(&alt_blob.r, alt_blob.cs, alt_blob.dr);
         amc_get(alt_blob.mc);
+        sg_rec_get(alt_blob.sg);                     /* (v1.36: SONG's slots and chain) */
         lk_begin(LKC_BLOB);
         lk_b(0);
         lk_v((int32_t)sizeof alt_blob);
@@ -704,13 +705,17 @@ static void lk_blob(const uint8_t *a, uint32_t na)
     }
     {
         uint32_t sz = off, sm = na >= 5u ? (uint32_t)(lk_rv(a + 3) + 8192) : 0xFFFFFFFFu, ok;   /* (no sum: never matches) */
-        ok = (sz == sizeof alt_blob || sz == ALT_BLOB_OLD) && sm == lk_blob_sum_n(sz) && alt_blob.r.used == 1u;
+        ok = (sz == sizeof alt_blob || sz == ALT_BLOB_OLD || sz == ALT_BLOB_OLD2) && sm == lk_blob_sum_n(sz) &&
+             alt_blob.r.used == 1u;
         if (ok) {
             if (sz == ALT_BLOB_OLD)              /* (a file from before the MACRO, v0.77: none) */
                 alt_blob.mc[0] = 0;
+            if (sz != sizeof alt_blob)           /* (a file from before SONG's slots, v1.36: the machine's kept) */
+                alt_blob.sg[0] = 0;
             sg_detach = 1;
             alt_us_apply(&alt_blob.r, alt_blob.cs, alt_blob.dr);
             amc_put(alt_blob.mc);
+            sg_rec_put(alt_blob.sg);
         }
         lk_begin(LKC_BLOB);
         lk_b(3);

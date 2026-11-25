@@ -187,13 +187,16 @@ in 3.
 
 ## 11. Song
 
-Three slots **A B C** keep the **rhythms** of the three circles (steps, lanes, ranges, the dice's draw, REC's moves, the
-mutes). The sounds stay as they are. A slot always starts at the next bar, every circle from step 1.
+Three slots **A B C** are **variations of the scene**: for each circle its HITS, ROT and LEN, nothing else (same sounds,
+same CHANCE, same settings). A slot always starts at the next bar, every circle from step 1. The slots and the chain
+belong to the scene: saving the scene keeps them, loading another scene brings its own (since v1.36).
 
 | Gesture | What it does |
 | --- | --- |
-| A tapped | slot A plays from the next bar (a chain that was looping stops; an empty slot says EMPTY) |
-| SAVE held + A | the rhythms playing are stored in A (kept after power-off) |
+| A tapped, empty | what plays is captured in A (nothing changes in the sound) |
+| A tapped, full | slot A plays from the next bar (a chain that was looping stops) |
+| A held 1 s | A replaced by what played when the key went down |
+| SAVE held + A | the same as a capture (A replaced) |
 | A held + C, then B | a chain A › C › B, 4 bars each, looping from the next bar |
 | ARP tapped | the chain on / off |
 | ARP held | the SONG page: SELECT a link · KNOB 1 its slot · KNOB 2 its bars (1 2 4 8) · KNOB 3 how many links (16 at most) · KNOB 4 the chain on / off |

@@ -128,9 +128,9 @@ td:first-child { white-space: nowrap; }
 </section>
 
 <section class="tc" id="song"><div class="t"><span>Song</span></div><span class="num">XX</span>
-  <p class="lead">Three slots A B C keep the <b>rhythms</b> of the three circles (steps, lanes, ranges, the dice's draw, REC's
-    moves, the mutes). The sounds stay as they are. A slot always starts at the next bar, every circle from its step 1.
-    What you change while a slot plays stays in it (until power-off; SAVE held + its key keeps it for good).</p>
+  <p class="lead">Three slots A B C are <b>variations of the scene</b>: for each circle its HITS, ROT and LEN, nothing else
+    (same sounds, same CHANCE, same settings). A slot always starts at the next bar, every circle from its step 1.
+    The slots and the chain belong to the <b>scene</b>: saving the scene keeps them, loading another scene brings its own.</p>
   <div id="mvSong"></div>
   <h2>On the screen</h2>
   <svg id="svgCorner" class="pan" style="max-width:640px" viewBox="0 0 520 150" role="img" aria-label="The A B C corner of the circles' view"></svg>
@@ -290,8 +290,9 @@ function dice() {
 
 function songMoves() {
   const h = document.getElementById("mvSong"), S = [19, 21, 23];
-  gesture(h, { keys: { 19: "press" }, only: S, title: "A tapped: slot A plays", words: "From the next bar. If a chain was looping, it stops. An empty slot: nothing (EMPTY)." });
-  gesture(h, { keys: { 19: "press" }, btns: [["SAVE", "hold"]], only: S, title: "SAVE held + A: store in A", words: "The rhythms playing go into slot A (and stay after power-off). The SAVE page it opened closes." });
+  gesture(h, { keys: { 19: "press" }, only: S, title: "A tapped, empty: captured", words: "The HITS, ROT and LEN of the three circles go into A. Nothing changes in what you hear." });
+  gesture(h, { keys: { 19: "press" }, only: S, title: "A tapped, full: slot A plays", words: "From the next bar. If a chain was looping, it stops." });
+  gesture(h, { keys: { 19: "hold" }, only: S, title: "A held 1 s: replaced", words: "What played when you pressed it goes into A (an edit made while A plays does not go into A by itself)." });
   gesture(h, { keys: { 19: "hold", 23: "press", 21: "press" }, only: S, title: "A held + C, then B: a chain", words: "A › C › B, 4 bars each, looping from the next bar. Let A go: it goes on." });
   gesture(h, { keys: {}, btns: [["", ""], ["", ""], ["ARP", "tap"]], only: S, title: "ARP tapped: chain on / off", words: "On: from its first link at the next bar. Off: the slot playing goes on alone." });
   gesture(h, { keys: {}, btns: [["", ""], ["", ""], ["ARP", "hold"]], only: S, title: "ARP held: the SONG page", words: "SELECT a link · KNOB 1 its slot · KNOB 2 its bars (1 2 4 8) · KNOB 3 how many links (16 at most) · KNOB 4 the chain on / off." });

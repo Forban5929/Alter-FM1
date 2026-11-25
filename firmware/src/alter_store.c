@@ -669,7 +669,8 @@ static union {
     struct { uint32_t magic; alt_us_t r[ALT_US_PER]; uint8_t nm[ALT_US_PER][4];
              uint8_t cs[ALT_US_PER][1u + AS_NCIRC * ACS_N];
              uint8_t dr[ALT_US_PER][ALT_DR_N];
-             uint8_t mc[ALT_US_PER][AMC_REC]; } s;   /* (mc: the MACRO, v0.77; [0] 1 = stored) */   /* (dr: the draws, TURING, PROGRESSION, 10/11; [0] 1 = stored) */   /* (nm: the NAMEs, 05/11; cs: the CONSOLE, [0] 1 =
+             uint8_t mc[ALT_US_PER][AMC_REC];
+             uint8_t sg[ALT_US_PER][SG_REC]; } s;   /* (sg: SONG's slots and chain, v1.36; [0] 1 = stored) */   /* (mc: the MACRO, v0.77; [0] 1 = stored) */   /* (dr: the draws, TURING, PROGRESSION, 10/11; [0] 1 = stored) */   /* (nm: the NAMEs, 05/11; cs: the CONSOLE, [0] 1 =
                                                   * stored, then LOW MID HIGH COMP a circle, étape 4; an object stored
                                                   * before them ends before nm, or before cs) */
     struct { uint32_t magic; alt_up_t r[ALT_UP_PER]; } p;
@@ -695,22 +696,27 @@ static void alt_ub_clear(uint32_t magic)
 static int alt_ub_load_s(uint32_t u)             /* scene u's object into alt_ub; 1: it holds ours */
 {
     int n = st_load(alt_us_obj(u), &alt_ub.s, sizeof alt_ub.s);
-    int n_mc = (int)(sizeof alt_ub.s - sizeof alt_ub.s.mc), n_dr = n_mc - (int)sizeof alt_ub.s.dr,
+    int n_sg = (int)(sizeof alt_ub.s - sizeof alt_ub.s.sg), n_mc = n_sg - (int)sizeof alt_ub.s.mc,
+        n_dr = n_mc - (int)sizeof alt_ub.s.dr,
         n_cs = n_dr - (int)sizeof alt_ub.s.cs;
     int n_nm = (int)(sizeof(uint32_t) + sizeof(alt_us_t) * ALT_US_PER);
-    if ((n == (int)sizeof alt_ub.s || n == n_mc || n == n_dr || n == n_cs || n == n_nm) && alt_ub.s.magic == ALT_MAGIC_US) {
+    if ((n == (int)sizeof alt_ub.s || n == n_sg || n == n_mc || n == n_dr || n == n_cs || n == n_nm) &&
+        alt_ub.s.magic == ALT_MAGIC_US) {
         uint32_t j, k;
-        if (n != (int)sizeof alt_ub.s)           /* (stored before the MACRO: none) */
+        if (n != (int)sizeof alt_ub.s)           /* (stored before SONG's slots, v1.36: none, the machine's kept) */
+            for (j = 0; j < ALT_US_PER; j++)
+                alt_ub.s.sg[j][0] = 0;
+        if (n != (int)sizeof alt_ub.s && n != n_sg)   /* (stored before the MACRO: none) */
             for (j = 0; j < ALT_US_PER; j++)
                 alt_ub.s.mc[j][0] = 0;
         if (n == n_nm)                           /* (stored before the NAMEs: none) */
             for (j = 0; j < ALT_US_PER; j++)
                 for (k = 0; k < 4u; k++)
                     alt_ub.s.nm[j][k] = 0;
-        if (n != (int)sizeof alt_ub.s && n != n_mc)   /* (stored before the draws: none) */
+        if (n != (int)sizeof alt_ub.s && n != n_sg && n != n_mc)   /* (stored before the draws: none) */
             for (j = 0; j < ALT_US_PER; j++)
                 alt_ub.s.dr[j][0] = 0;
-        if (n != (int)sizeof alt_ub.s && n != n_mc && n != n_dr)   /* (stored before the CONSOLE: flat) */
+        if (n != (int)sizeof alt_ub.s && n != n_sg && n != n_mc && n != n_dr)   /* (stored before the CONSOLE: flat) */
             for (j = 0; j < ALT_US_PER; j++)
                 for (k = 0; k < sizeof alt_ub.s.cs[0]; k++)
                     alt_ub.s.cs[j][k] = 0;
@@ -890,6 +896,19 @@ static const char *alt_row_about(uint32_t t, uint32_t i)
     return alt_used_s[(i - 1u - ALT_NFACT) % ALT_NUSER] ? "YOURS" : "HOLD SAVE: STORE HERE";
 }
 
+/* v1.36: a scene's SONG record onto the slots and the chain (alter_song.c), and none (a factory scene, NEW) */
+static void sg_rec_put(const uint8_t *b)
+{
+    fm1_irq_off();
+    sg_rec_put_raw(b);
+    fm1_irq_on();
+}
+static void sg_rec_clear(void)
+{
+    uint8_t b[SG_REC] = {1};
+    sg_rec_put(b);
+}
+
 /* a whole scene as the file of the companion page keeps it (10/11): its record, NAME, CONSOLE, draws, as in an object */
 typedef struct {
     alt_us_t r;
@@ -897,8 +916,10 @@ typedef struct {
     uint8_t cs[1u + AS_NCIRC * ACS_N];
     uint8_t dr[ALT_DR_N];
     uint8_t mc[AMC_REC];                         /* (v0.77: the MACRO; a file from before ends before it) */
+    uint8_t sg[SG_REC];                          /* (v1.36: SONG's slots and chain; a file from before ends before it) */
 } alt_blob_t;
-#define ALT_BLOB_OLD ((uint32_t)(sizeof(alt_blob_t) - AMC_REC))
+#define ALT_BLOB_OLD ((uint32_t)(sizeof(alt_blob_t) - SG_REC - AMC_REC))
+#define ALT_BLOB_OLD2 ((uint32_t)(sizeof(alt_blob_t) - SG_REC))
 static alt_blob_t alt_blob __attribute__((section(".pool")));
 
 /* scene f (its NAME nm, CONSOLE cs, draws dr) on the circles, as a USER scene loads */
@@ -973,6 +994,7 @@ static void alt_live_keep(void)
     alt_crs.magic = 0;                          /* (a crash in the middle: no half copy taken back) */
     alt_us_get(&alt_crs.b.r);
     amc_get(alt_crs.b.mc);
+    sg_rec_get(alt_crs.b.sg);                    /* (v1.36: SONG's slots and chain) */
     alt_cs_get(alt_crs.b.cs);
     fm1_irq_off();
     alt_dr_pack(alt_crs.b.dr);
@@ -991,6 +1013,7 @@ static int alt_live_back(void)
     alt_crs.magic = 0;                          /* (taken once: fallen again before the next copy = the first scene) */
     alt_us_apply(&alt_crs.b.r, alt_crs.b.cs, alt_crs.b.dr);
     amc_put(alt_crs.b.mc);
+    sg_rec_put(alt_crs.b.sg);
     for (c = 0; c < AS_NCIRC; c++)
         if (alt_crs.g[c] > 0 && alt_crs.g[c] <= 4 * AC_UNITY)
             alt_cal_to(c, alt_crs.g[c]);
@@ -1007,11 +1030,14 @@ static int alt_row_load(uint32_t t, uint32_t i)
     if (i == 0) {
         alt_new_scene();
         amc_zero();                              /* (v0.77) */
-    } else if (i <= ALT_NFACT)
+        sg_rec_clear();                          /* (v1.36: no slot, no chain) */
+    } else if (i <= ALT_NFACT) {
         alt_load_scene(i - 1u);
-    else if (alt_ub_load_s(u) && alt_ub.s.r[u % ALT_US_PER].used) {
+        sg_rec_clear();
+    } else if (alt_ub_load_s(u) && alt_ub.s.r[u % ALT_US_PER].used) {
         alt_us_apply(&alt_ub.s.r[u % ALT_US_PER], alt_ub.s.cs[u % ALT_US_PER], alt_ub.s.dr[u % ALT_US_PER]);
         amc_put(alt_ub.s.mc[u % ALT_US_PER]);   /* (v0.77: its MACRO) */
+        sg_rec_put(alt_ub.s.sg[u % ALT_US_PER]);   /* (v1.36: its slots and chain; stored before: the machine's kept) */
     } else
         return 0;
     return 1;
@@ -1027,6 +1053,7 @@ static int alt_row_save(uint32_t t, uint32_t i)
     (void)alt_ub_load_s(u);                      /* (its neighbour in the object kept) */
     alt_us_snap(&alt_ub.s.r[u % ALT_US_PER], alt_ub.s.cs[u % ALT_US_PER], alt_ub.s.dr[u % ALT_US_PER]);
     amc_get(alt_ub.s.mc[u % ALT_US_PER]);
+    sg_rec_get(alt_ub.s.sg[u % ALT_US_PER]);    /* (v1.36) */
     if (alt_nm_set)                              /* its NAME (else the one it had) */
         for (c = 0; c < 3u; c++)
             alt_ub.s.nm[u % ALT_US_PER][c] = (uint8_t)alt_nm_new[c];

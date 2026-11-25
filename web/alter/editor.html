@@ -1202,8 +1202,8 @@ function buildSong() {
       <div class="btns"><button class="act" data-play>Play</button><button class="act" data-store title="As SAVE held + ${"CDE"[k]} high on the synth">Store what plays</button></div>`;
     d.querySelector("[data-play]").onclick = () => songAsk(req.songPlay(k), `Slot ${"ABC"[k]}: from the next bar.`);
     d.querySelector("[data-store]").onclick = async () => {
-      if (song?.full[k] && !(await dialogAsk(`Slot ${"ABC"[k]} is full. Replace it with the rhythms playing?`, { ok: "Replace" }))) return;
-      songAsk(req.songStore(k), `The rhythms playing are in slot ${"ABC"[k]}.`);
+      if (song?.full[k] && !(await dialogAsk(`Slot ${"ABC"[k]} is full. Replace it with the HITS, ROT and LEN playing?`, { ok: "Replace" }))) return;
+      songAsk(req.songStore(k), `The HITS, ROT and LEN playing are in slot ${"ABC"[k]} (save the scene to keep them).`);
     };
     root.append(d);
   }

@@ -745,7 +745,7 @@ play();
   tap(KA); const early = P(); render(BAR + STEP);
   check(`SONG: A tapped plays from the next bar (${early} -> ${P()} hits, slot ${S(0)})`, P() === 4 && S(0) === 1);
   tap(KC); render(BAR + STEP);
-  check(`SONG: C (empty) tapped: nothing changes (slot ${S(0)}, ${P()} hits)`, S(0) === 1 && P() === 4);
+  check(`SONG: C (empty) tapped: captures what plays (v1.36; mask ${S(4)}), nothing changes (${P()} hits)`, S(4) === 7 && P() === 4);
   K(1 << KB); render(1300); K((1 << KB) | (1 << KA)); render(1300); K(1 << KB); render(1300); K(0); render(1300);   // B held, A tapped
   check(`SONG: B held + A tapped writes a chain of ${S(2)} links, on (${S(3)})`, S(2) === 2 && S(3) === 1);
   const runs = (n) => {                                         // the slot playing, a quarter bar apart: its runs
@@ -781,8 +781,8 @@ play();
   e4._initialize(); e4.web_nor_erase(); new Uint8Array(e4.memory.buffer, e4.web_nor(), e4.web_nor_size()).set(nor);
   e4.web_boot(); e4.web_alter(18, 1, 0);
   for (let k = 0; k < FS * 2; k += 128) e4.web_render(128);
-  check(`after power-off: SONG keeps slots (mask ${e4.web_alter_song(4)}) and the chain (${e4.web_alter_song(2)} links, off: ${e4.web_alter_song(3)})`,
-        e4.web_alter_song(4) === 3 && e4.web_alter_song(2) === 2 && e4.web_alter_song(3) === 0);
+  check(`after power-off, no SAVE: slots and chain gone, they are the scene's (v1.36; mask ${e4.web_alter_song(4)}, ${e4.web_alter_song(2)} links)`,
+        e4.web_alter_song(4) === 0 && e4.web_alter_song(2) === 0 && e4.web_alter_song(3) === 0);
 }
 if (wavPath) {                                                  // 4 bars from a fresh start, all three circles
   ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
@@ -929,7 +929,7 @@ if (wavPath) {                                                  // 4 bars from a
   check(`TRS clock: 16 beats = ${res.map((r) => `${r[1]} steps at ${r[0]} BPM`).join(", ")} (64 ± 1), STOP holds (${res.map((r) => r[2]).join(", ")})`,
         res.every((r) => Math.abs(r[1] - 64) <= 1 && r[2] === 0));
 }
-// SONG (05/11): an edit made while a slot plays stays in that slot (A > B > A: A comes back as changed)
+// SONG (v1.36, Romain: a slot is a snapshot): an edit made while a slot plays does not go into it (A > B > A: A as captured)
 {
   const W = (op, a, b) => ex.web_alter(op, a, b), bits = (m) => { let n = 0; for (m >>>= 0; m; m >>>= 1) n += m & 1; return n; };
   ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
@@ -942,7 +942,7 @@ if (wavPath) {                                                  // 4 bars from a
   W(15, 0, 16 | 11 << 8); render(BAR);                          // an edit while A plays: 11 hits
   tap(21); render(BAR * 2); const inB = bits(ex.web_alter_pat(0));
   tap(19); render(BAR * 2); const backA = bits(ex.web_alter_pat(0));
-  check(`SONG: an edit while A plays stays in A (B ${inB} hits, A again ${backA}: 11)`, inB === 7 && backA === 11);
+  check(`SONG: an edit while A plays does not go into A (B ${inB} hits, A again ${backA}: 4)`, inB === 7 && backA === 4);
 }
 // USER sounds (v1.26): the SAVE page's 4th tab SOUNDS; SAVE held = NAME (4 characters), SAVE stores the chosen circle's
 // sound; PRESETS turns to it after the factory ones; a tap on its row loads it; the flash keeps it
