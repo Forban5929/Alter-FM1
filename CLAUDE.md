@@ -60,10 +60,13 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
   `tools/alter/alter_stems_test.mjs`. **Pas essayé sur la FM-1** (OBS, page compagnon « Listen », Windows avec 10 canaux : à vérifier).
   MIDI Bluetooth : reporté après la v1.2 (Romain).
 - **Chantiers live v1.2 (Romain 25/11, maquettes https://claude.ai/artifact/86M3edMxXWDVTBxjXh1MP4 , Sheet lignes 8-10, RIEN codé)** :
-  **PERFORM** (planche 1b) = pas de cercle choisi : KNOB 1-3 = cercles I II III, KNOB 4 = MASTER ; bouton tapé (FX SEQ ENV LFO GLO EDIT SCL)
-  = banque des 4 knobs (ouverture = MACRO par cercle + MACRO master) ; pas de volumes ; noires = MUTE I II III (tapé = au 1, tenu = tout
-  de suite), 8 autres à décider ; blanches = A B C + CHAÎNE, scènes 1-8 (au 1), 4 coups d'effets tenus. **UNDO** = 2 derniers gros gestes
-  (choix en attente : geste, tout de suite / à la mesure). **Combinaisons** : 6 retirées (planche 3) + aide à l'écran + carte A5 (en attente).
+  **PERFORM** (planche 1b) = pas de cercle choisi : KNOB 1-3 = cercles I II III, KNOB 4 = MASTER ; bouton tapé = banque : ouverture MACRO
+  (cercle + scène), FX = envoi REVERB / taille, SCL (Romain a écrit « SEL », à confirmer) = envoi DELAY / feedback, ENV = DECAY / DUCK,
+  SEQ = DENSITÉ / SWING, EDIT LFO GLO = personnalisables (tenu 1 s = choisir les cibles, liste MIDI LEARN) ; HOME sortir, REC enregistre
+  les mouvements, PLAY. Pas de volumes. Noires = MUTE I II III (tapé = au 1, tenu = tout de suite) + 8 à choisir (idées planche 1b :
+  FILL, TEMP, MONTÉE, SOLO, effets tenus actuels, NUDGE). Blanches = A B C + CHAÎNE, scènes 1-8 (au 1), 4 coups d'effets tenus.
+  « Il faudra de bonnes idées pour que ce soit bien en live. » **UNDO** = le DERNIER gros geste seulement (2e appui = REDO proposé ;
+  geste OCT−+PLAY et moment à confirmer). **Combinaisons** : 5 retirées (NEW SCENE gardé) + aide à l'écran + carte A5.
 - `alt_sys[11]` (ancien THEME SPLIT, retiré v1.13) peut valoir 1 sur la FM-1 de Romain : le remettre à 0 avant de le reprendre.
 
 ## Utilisateur
