@@ -64,7 +64,7 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
   (cercle + scène), FX = envoi REVERB / taille, SCL (Romain a écrit « SEL », à confirmer) = envoi DELAY / feedback, ENV = DECAY / DUCK,
   SEQ = DENSITÉ / SWING, EDIT LFO GLO = personnalisables (tenu 1 s = choisir les cibles, liste MIDI LEARN) ; HOME sortir, REC enregistre
   les mouvements, PLAY. Pas de volumes. Noires = MUTE I II III (tapé = au 1, tenu = tout de suite) + 8 à choisir (idées planche 1b :
-  FILL, TEMP, MONTÉE, SOLO, effets tenus actuels, NUDGE). Blanches = A B C + CHAÎNE, scènes 1-8 (au 1), 4 coups d'effets tenus.
+  FILL, TEMP, MONTÉE, SOLO, effets tenus actuels, NUDGE) ; **PREV SC / NEXT SC sur les noires 20 et 22 (juste avant la noire seule 25)**, au 1. Blanches = A B C + CHAÎNE, 8 libres (PAS de scènes, Romain), 4 coups d'effets tenus.
   « Il faudra de bonnes idées pour que ce soit bien en live. » **UNDO** = le DERNIER gros geste seulement (2e appui = REDO proposé ;
   geste OCT−+PLAY et moment à confirmer). **Combinaisons** : 5 retirées (NEW SCENE gardé) + aide à l'écran + carte A5.
 - `alt_sys[11]` (ancien THEME SPLIT, retiré v1.13) peut valoir 1 sur la FM-1 de Romain : le remettre à 0 avant de le reprendre.
