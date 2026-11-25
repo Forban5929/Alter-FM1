@@ -200,7 +200,7 @@ belong to the scene: saving the scene keeps them, loading another scene brings i
 | A held + C, then B | a chain A › C › B, 4 bars each, looping from the next bar |
 | ARP held + REC | the chain written by playing: from the next bar, every slot played becomes a link as long as it played (16 bars at most); ARP tapped ends it and the chain loops (v1.37) |
 | ARP tapped | the chain on / off |
-| ARP held | the SONG page: SELECT a link · KNOB 1 its slot · KNOB 2 its bars (1 to 16) · KNOB 3 how many links (16 at most) · KNOB 4 the chain on / off |
+| ARP held | the SONG page, the chain as a line of time (blocks as wide as their bars): A B C tapped add a block at the end · SELECT a block · KNOB 1 its slot · KNOB 2 its bars (1 to 16) · KNOB 3 moves it · OCT− held + SELECT removes it · KNOB 4 the chain on / off (16 blocks at most) |
 
 What you change while a slot plays stays in it until power-off; SAVE held + its key keeps it for good.
 

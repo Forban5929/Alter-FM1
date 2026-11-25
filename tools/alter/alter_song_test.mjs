@@ -76,5 +76,20 @@ check(`USER 1 again: A B and the chain of 3 back (${sg().used}, ${sg().n})`, sg(
         armed === 1 && n === 3 && (L[0] & 3) === 0 && (L[1] & 3) === 1 && (L[2] & 3) === 0 &&
         Math.abs((L[0] >> 2) + 1 - 3) <= 1 && Math.abs((L[1] >> 2) + 1 - 2) <= 1 && ex.web_alter_song(3) === 1 && ex.web_alter_song(5) === 0);
 }
+// v1.38: the SONG page (ARP held): A B C tapped add a block; KNOB 3 moves the chosen one; OCT- held + SELECT removes it
+{
+  const ARP = 8, OCTDN = 12;
+  ex.web_buttons(1 << ARP); ms(800); ex.web_buttons(0); ms(100);   // the page
+  const n0 = ex.web_alter_song(2);
+  tap("B"); tap("A");
+  const n1 = ex.web_alter_song(2), last = ex.web_alter_song(16 + n1 - 1);
+  check(`SONG page: B then A tapped, two blocks more (${n0} -> ${n1}), the last A 4 bars (${"ABC"[last & 3]}${(last >> 2) + 1})`,
+        n1 === n0 + 2 && (last & 3) === 0 && (last >> 2) + 1 === 4);
+  for (let i = 0; i < 3; i++) { ex.web_enc(5, -1); ms(40); }    // KNOB 3 to the left: the last block (A) one place earlier
+  const moved = ex.web_alter_song(16 + n1 - 2), after = ex.web_alter_song(16 + n1 - 1);
+  check(`KNOB 3: the chosen block moved left (${"ABC"[moved & 3]} before ${"ABC"[after & 3]})`, (moved & 3) === 0 && (after & 3) === 1);
+  ex.web_buttons(1 << OCTDN); ms(40); ex.web_enc(0, 1); ms(40); ex.web_buttons(0); ms(40);   // OCT- held + SELECT: removed
+  check(`OCT- + SELECT: a block removed (${n1} -> ${ex.web_alter_song(2)})`, ex.web_alter_song(2) === n1 - 1);
+}
 console.log(`song: ${fails} FAIL`);
 process.exit(fails ? 1 : 0);
