@@ -5,7 +5,7 @@ Court par choix. Le détail (pourquoi, noms de fonctions, historique des étapes
 ## >>> v1.2 (en cours) — v1.1 PUBLIÉE le 24/11 <<<
 Règle (Romain 22/11) : **une liste de besoins par version (Sheet) ; on publie (Release) quand la liste est finie.** Entre deux : BETA seulement.
 **Sheet : https://claude.ai/artifact/FhZkHbyXGPKKUxAC4wwPVi** (Sheets, nœud `af8de520-948a` ; onglets **« v1.2 »** = la liste
-en cours, « v1.1 » = fait, « Audit knobs » ; colonnes # Besoin Statut Catégorie Priorité Source « Fait en » Notes ;
+en cours, **« Tests v1.2 »** (16 essais FM-1 guidés, colonne Résultat OK/Problème/Pas fait : la lire en début de session), « v1.1 » = fait, « Audit knobs » ; colonnes # Besoin Statut Catégorie Priorité Source « Fait en » Notes ;
 lire avant de coder, mettre à jour en fin de session ; l'outil Claude_Docs sait l'éditer : guide topic.sheets).
 **Liste v1.2 (24/11)** : ~~balance~~ (v1.21), ~~moteurs plus différents~~ (retiré par Romain 25/11), RUMBLE (pompe creusée v1.22, à écouter),
 ~~MIDI Bluetooth~~ (reporté après v1.2), stems USB (v1.26, voir plus bas), **SIDECHAIN** (un cercle, ex. KICK, fait pomper les
