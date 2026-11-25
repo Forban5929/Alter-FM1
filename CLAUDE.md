@@ -7,16 +7,16 @@ Règle (Romain 22/11) : **une liste de besoins par version (Sheet) ; on publie (
 **Sheet : https://claude.ai/artifact/FhZkHbyXGPKKUxAC4wwPVi** (Sheets, nœud `af8de520-948a` ; onglets **« v1.2 »** = la liste
 en cours, « v1.1 » = fait, « Audit knobs » ; colonnes # Besoin Statut Catégorie Priorité Source « Fait en » Notes ;
 lire avant de coder, mettre à jour en fin de session ; l'outil Claude_Docs sait l'éditer : guide topic.sheets).
-**Liste v1.2 (24/11)** : ~~balance~~ (v1.34), ~~moteurs plus différents~~ (retiré par Romain 25/11), RUMBLE (pompe creusée v1.35, à écouter),
-~~MIDI Bluetooth~~ (reporté après v1.2), stems USB (v1.39, voir plus bas), **SIDECHAIN** (un cercle, ex. KICK, fait pomper les
-autres : existe déjà = DUCK, Romain « parfait »), ~~SONG A B C à revoir~~ (refait v1.36-v1.38, à essayer),
+**Liste v1.2 (24/11)** : ~~balance~~ (v1.21), ~~moteurs plus différents~~ (retiré par Romain 25/11), RUMBLE (pompe creusée v1.22, à écouter),
+~~MIDI Bluetooth~~ (reporté après v1.2), stems USB (v1.26, voir plus bas), **SIDECHAIN** (un cercle, ex. KICK, fait pomper les
+autres : existe déjà = DUCK, Romain « parfait »), ~~SONG A B C à revoir~~ (refait v1.23-v1.25, à essayer),
 essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01→v1.1, Backup/Restore, sons USER, MIDI OUT, CPU WAVE).
 - **v1.1 = BETA v1.33, Release publiée le 25/11** (tag v1.1 = e7d410a ; Romain a choisi de publier sans essai FM-1 préalable).
   ⚠ Le site public installe le firmware construit depuis le tag : il s'affiche « v1.33 » sur la machine (la Release `alter-1.1.fwsc` dit « v1.1 »).
   Release = Chrome (releases/new?tag=vX&target=main) ; gh ne peut ni créer ni supprimer de Release ici. Le test de mise à jour (firmware.yml)
   part de la dernière Release QUI A son .fwsc (corrigé le 25/11 : avant, la Release en cours, vide, cassait le build). Détail v1.02-v1.33 : `docs/alter/HISTORIQUE.md`
   (section « Journal v1.1 ») ; notes publiques : `docs/RELEASE-NOTES.md` « ## v1.1 ». Public : Feedback visible ; **Propose… = BETA seulement**.
-- **v1.34 (Romain 25/11 : niveaux + « le MASTER sature trop vite », choix « marge seule −9 dB » + « remonter » les 6 courts)** :
+- **v1.21 (Romain 25/11 : niveaux + « le MASTER sature trop vite », choix « marge seule −9 dB » + « remonter » les 6 courts)** :
   fx.c `ALT_MTRIM` 1453 = **−9 dB avant le limiteur, toujours** (dans `alt_mg_now`) ; `alt_eng_post` = gain de moteur APRÈS DIST/
   INSERT/CONSOLE/RUMBLE, avec le LEVEL (ALTER ×5/3, NOISE ×1,6, RESO ×1,5, WAVE ×1,31 : STAB WARM CRUSH CLANK LARSEN SHREDDER ;
   dans les moteurs, la DIST 40 du KICK des scènes saturait plus) ; LEVEL des 47 sons rebalancés (`alter_balance.py`, `OFFSET` −9 : tous
@@ -24,7 +24,7 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
   wasm [hits]` (peek 25 = crête à l'entrée du limiteur, remise à 0) : un son seul à son LEVEL ≤ −2,7 dB sous LIM_T (avant : jusqu'à +11),
   3 cercles −1..+4 dB (avant +8..+17) ; à LEVEL 127 (+7,5 dB) un son seul passe encore +7 dB. Tout est ~9 dB moins fort à volume égal.
   alter_fx_test : COMP du MASTER mesuré avec LEVEL −6 (était −24). **Pas écouté sur la FM-1.**
-- **v1.35 (Romain 25/11 : RUMBLE « la pompe pas assez creusée »)** : alter_fx.c `RMB_DEPTH` 1 % (était 5 %), `RMB_HOLD` 15 % du temps
+- **v1.22 (Romain 25/11 : RUMBLE « la pompe pas assez creusée »)** : alter_fx.c `RMB_DEPTH` 1 % (était 5 %), `RMB_HOLD` 15 % du temps
   (était 8 %), remontée r(2−r) (était r²) pleine à 75 % (`RMB_RAMP`) ; `tools/alter/alter_rumble_pump.mjs wasm [amt]` (RUMBLE seul = avec − sans) :
   reste bas ~130 ms (était ~50), revenu à −3 dB à 280 ms (était 100). Le creux mesuré plafonne ~19 dB (un reste non pompé dans la
   différence, sans doute l'alignement du cercle). **Pas écouté.**
@@ -32,15 +32,15 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
   « une chaîne = juste un pattern différent et nombre de triggers, même chance mêmes settings » → **un slot = HITS ROT LEN par cercle**
   (alter_song.c `sg_slot_t`, 10 o), **slots + chaîne DANS la scène** (`SG_REC` 48 o à la fin d'alt_ub.s / alt_blob_t / copie de plantage ;
   `sg_rec_get/put`, factory/NEW = vides ; scène d'avant = ceux de la machine ; objets 10..13 lus une fois au démarrage, convertis).
-  **v1.36 = étape 1** : touche vide tapée = capture (rien ne change à l'oreille), pleine = joue à la mesure, tenue seule 1 s = remplacée
+  **v1.23 = étape 1** : touche vide tapée = capture (rien ne change à l'oreille), pleine = joue à la mesure, tenue seule 1 s = remplacée
   (par ce qui jouait à l'appui, `asg.snap`) ; **un slot est une photo** (plus d'édition gardée dans le slot qui joue, `sg_keep` retiré) ;
   SAVE + A = capture. Pool libéré : ~9 Ko (sg_slot 3×3080 o + tampons). Test `tools/alter/alter_song_test.mjs` (peek 26 HITS|LEN|ROT|slot,
-  27 used|n|on|link). **v1.37 = étape 2** : maillon = slot | (mesures − 1) << 2 (**1..16**, `SG_LINK`, `sg_bars` ; avant 0..3 = 1 2 4 8 :
+  27 used|n|on|link). **v1.24 = étape 2** : maillon = slot | (mesures − 1) << 2 (**1..16**, `SG_LINK`, `sg_bars` ; avant 0..3 = 1 2 4 8 :
   converti au démarrage ; LINK 22 et page compagnon suivis) ; **ARP tenu + REC** = chaîne écrite en jouant (alter_song.c `sg_rec` 1 demandé /
   2 écrit, `sg_rec_close`, compté à chaque barre ; 16 mesures max par maillon, coupé ; fin = ARP tapé / ARP + REC / 16 maillons, à la
   barre, puis la chaîne joue depuis le 1er maillon) ; pendant l'écriture : ARP clignote, point rouge, une touche = ce slot (vide :
   capture + demandé) ; vue des cercles : **ligne de temps verticale à droite** (blocs = mesures, celui qui joue plein, trait = la
-  mesure en cours ; remplace la liste des maillons) ; web_alter_song 5 = sg_rec, 16+k = maillon k. **v1.38 = étape 3** : page SONG
+  mesure en cours ; remplace la liste des maillons) ; web_alter_song 5 = sg_rec, 16+k = maillon k. **v1.25 = étape 3** : page SONG
   (`alt_sg_scene`) = ligne de temps horizontale (blocs ∝ mesures, choisi cadré, joué plein, trait = mesure, « BAR n/total ») ; sur la page
   A B C tapées = un bloc de plus (`alt_sg_page_key`, 4 mesures, slot vide capturé), SELECT bloc, KNOB 1 slot, KNOB 2 mesures, **KNOB 3
   déplacer** (était « LINKS »), KNOB 4 ON/OFF, **OCT− tenu + SELECT = enlever**. Tests alter_song_test (page). **Rien essayé sur la FM-1.**
@@ -52,7 +52,7 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
 - Outils de mesure du son : `alter_knob_audit.mjs` + `alter_knob_report.mjs` (audit), `alter_param_probe.mjs`, `alter_balance.py`
   (LUFS), `alter_scene_fix.mjs`, `alter_upgrade_test.mjs OLD.wasm NEW.wasm` (la mise à jour garde tout), `alter_midiout_test.mjs`.
 - Garde-fous : **pool libre ~8,6 Ko, seuil CI 8 Ko** (plus rien en .pool sans libérer) ; marge image ~64 Ko ; RAM .data+.bss 63,2/72 Ko.
-- **v1.39-v1.40 STEMS USB (Romain 25/11 : « toujours 10 canaux », pistes « 1-2 master, 3-8 cercles, 9-10 effets »)** : **felucca-bsp mis à
+- **v1.26-v1.27 STEMS USB (Romain 25/11 : « toujours 10 canaux », pistes « 1-2 master, 3-8 cercles, 9-10 effets »)** : **felucca-bsp mis à
   jour 5942e68 → 2bd9dbe** (sous-module ; seul changement côté ALTER : console.c `uac.fill_lo`) ; felucca.c `FELUCCA_UAC_CH 10` +
   `FELUCCA_UAC_RING_ATTR` .pool (anneau ~7,7 Ko) ; fx.c `ALT_STEMS` : `stem_begin` (bloc, `uac_ch_frame`), `STEM_PART` (somme du cercle
   après − avant, les 2 cœurs, SPREAD compris), 9-10 = wet + côté stéréo HALL ; au gain du master (`stem_mg`), AVANT MASTER FILTER/
@@ -89,8 +89,10 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.40 » (25/11, BETA ; Release v1.1 = v1.33) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
-   avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
+4. **Version** (Romain 25/11) : `FELUCCA_VERSION` (felucca.c) = « v1.27 » ; **les BETA portent le numéro de la version en cours + un chiffre** :
+   v1.2 → v1.21, v1.22 … v1.29, puis **v1.2.10, v1.2.11…** ; v1.3 → v1.31… ; à monter à CHAQUE envoi, avant le commit.
+   Le journal ci-dessus est déjà renommé (v1.21-v1.27 = anciennement v1.34-v1.40 dans le code et les commits) (les « v1.02-v1.33 » plus bas/dans HISTORIQUE = BETA de la v1.1).
+   Release : le site public réécrit FELUCCA_VERSION avec le tag (site_build.sh) → la machine affiche « v1.2 » (v1.1 affichait v1.33). Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. **Deux sites (v1.02, 22/11)** : pousser sur `etape-3d` → pages.yml construit (tools/alter/site_build.sh, 2 fois) :
    **racine = dernière Release** (tag vX.YY le plus haut ; ce que voient les gens) et **/beta/ = etape-3d** (bandeau rouge
    BETA, `site_beta_banner.py` ; tests emu lancés seulement pour la beta). Une Release (firmware.yml) relance pages.yml →

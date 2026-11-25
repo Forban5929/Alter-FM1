@@ -13,6 +13,12 @@ ZIP=$(cd "$(dirname "$ZIP")" && pwd)/$(basename "$ZIP")
 mkdir -p "$OUT"; OUT=$(cd "$OUT" && pwd)
 cd "$SRC"
 VER=$(sed -n 's/^#define FELUCCA_VERSION "\([^"]*\)".*/\1/p' firmware/src/felucca.c | head -n 1)
+# (25/11) le site public montre le numéro de la Release (tag v1.2), pas celui de la dernière BETA du code (v1.29…) :
+# cet arbre est une copie jetable, on y réécrit FELUCCA_VERSION avant de construire (émulateur, firmware, installation).
+if [ "$KIND" = public ] && [ -n "$REF" ] && [ "$REF" != "$VER" ]; then
+  sed -i "s/^#define FELUCCA_VERSION \"[^\"]*\"/#define FELUCCA_VERSION \"$REF\"/" firmware/src/felucca.c
+  VER="$REF"
+fi
 SHA=$(git rev-parse --short=7 HEAD)
 echo "== site $KIND : $VER ($REF @ $SHA)"
 
