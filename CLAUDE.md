@@ -9,7 +9,7 @@ en cours, « v1.1 » = fait, « Audit knobs » ; colonnes # Besoin Statut Catég
 lire avant de coder, mettre à jour en fin de session ; l'outil Claude_Docs sait l'éditer : guide topic.sheets).
 **Liste v1.2 (24/11)** : ~~balance~~ (v1.34), ~~moteurs plus différents~~ (retiré par Romain 25/11), RUMBLE (pompe creusée v1.35, à écouter),
 MIDI Bluetooth (à décider), stems USB (à décider, voir plus bas), **SIDECHAIN** (un cercle, ex. KICK, fait pomper les
-autres : source + cible + quantité, à préciser), **SONG mode A B C à revoir** (demander à Romain ce qui ne va pas),
+autres : existe déjà = DUCK, Romain « parfait »), ~~SONG A B C à revoir~~ (refait v1.36-v1.38, à essayer),
 essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01→v1.1, Backup/Restore, sons USER, MIDI OUT, CPU WAVE).
 - **v1.1 = BETA v1.33, Release publiée le 25/11** (tag v1.1 = e7d410a ; Romain a choisi de publier sans essai FM-1 préalable).
   ⚠ Le site public installe le firmware construit depuis le tag : il s'affiche « v1.33 » sur la machine (la Release `alter-1.1.fwsc` dit « v1.1 »).
@@ -40,7 +40,10 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
   2 écrit, `sg_rec_close`, compté à chaque barre ; 16 mesures max par maillon, coupé ; fin = ARP tapé / ARP + REC / 16 maillons, à la
   barre, puis la chaîne joue depuis le 1er maillon) ; pendant l'écriture : ARP clignote, point rouge, une touche = ce slot (vide :
   capture + demandé) ; vue des cercles : **ligne de temps verticale à droite** (blocs = mesures, celui qui joue plein, trait = la
-  mesure en cours ; remplace la liste des maillons) ; web_alter_song 5 = sg_rec, 16+k = maillon k. **À faire : étape 3** (page SONG = ligne de temps : touches A B C ajoutent un bloc, KNOB 2 durée 1..16, KNOB 3 déplacer, OCT− + SELECT enlever).
+  mesure en cours ; remplace la liste des maillons) ; web_alter_song 5 = sg_rec, 16+k = maillon k. **v1.38 = étape 3** : page SONG
+  (`alt_sg_scene`) = ligne de temps horizontale (blocs ∝ mesures, choisi cadré, joué plein, trait = mesure, « BAR n/total ») ; sur la page
+  A B C tapées = un bloc de plus (`alt_sg_page_key`, 4 mesures, slot vide capturé), SELECT bloc, KNOB 1 slot, KNOB 2 mesures, **KNOB 3
+  déplacer** (était « LINKS »), KNOB 4 ON/OFF, **OCT− tenu + SELECT = enlever**. Tests alter_song_test (page). **Rien essayé sur la FM-1.**
 - **Feedback** : `web/alter/feedback.js` → relais Vercel `https://alter-feedback.vercel.app/api/feedback` (`tools/alter/feedback-relay/`,
   projet alter-feedback, équipe rominou1) → Issue `a-trier` + `feedback` + `cat-…` + `v-…`. Redéployer = nouveau déploiement
   avec le fichier. **En début de session** : `gh api 'repos/Forban5929/alter-fm1/issues?labels=a-trier'`, résumer à Romain,
@@ -80,7 +83,7 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.37 » (25/11, BETA ; Release v1.1 = v1.33) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.38 » (25/11, BETA ; Release v1.1 = v1.33) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. **Deux sites (v1.02, 22/11)** : pousser sur `etape-3d` → pages.yml construit (tools/alter/site_build.sh, 2 fois) :
    **racine = dernière Release** (tag vX.YY le plus haut ; ce que voient les gens) et **/beta/ = etape-3d** (bandeau rouge
