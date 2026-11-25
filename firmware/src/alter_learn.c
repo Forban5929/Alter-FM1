@@ -40,11 +40,11 @@ static const alm_ct_t ALM_CT[] = {               /* (name 0: the sound's own, as
 #define ALM_NCT ((uint32_t)NELEM(ALM_CT))
 typedef char alm_ct_fits[ALM_NCT <= 32u ? 1 : -1];
 enum { ALG_MASTER, ALG_TEMPO, ALG_SWING, ALG_FFREQ, ALG_FRES, ALG_FDRIVE, ALG_FMIX, ALG_FMORPH, ALG_DFB, ALG_DCOL,
-       ALG_RSIZE, ALG_RDAMP, ALG_MACRO, ALG_N };   /* (codes ALM_G0 + g: kept in the flash, only ever added at the end;
+       ALG_RSIZE, ALG_RDAMP, ALG_MACRO, ALG_DUCK, ALG_N };   /* (v1.2.10: DUCK, the MASTER's, alter_fx.c amx) */   /* (codes ALM_G0 + g: kept in the flash, only ever added at the end;
                                                   * MACRO v0.77: alter_macro.c) */
 static const char *const ALM_GT[ALG_N] = {"MASTER", "TEMPO", "SWING", "FILT FREQ", "FILT RES", "FILT DRIVE",
                                           "FILT MIX", "FILT MORPH", "DLY FEEDBK", "DLY COLOR", "REV SIZE", "REV DAMP",
-                                          "MACRO"};
+                                          "MACRO", "DUCK"};
 static void amc_turn_to(uint32_t v);             /* (alter_macro.c) */
 static uint32_t amc_value(void);
 typedef struct { uint32_t keys; uint8_t btn; const char *name; } alm_at_t;
@@ -125,6 +125,7 @@ static void alm_global(uint32_t g, uint32_t v)
     case ALG_DCOL: song.g[G_DCOLOR] = (int16_t)v; afx_edit |= 1u << AFX_S_DLY; break;
     case ALG_RSIZE: song.g[G_RSIZE] = (int16_t)v; afx_edit |= 1u << AFX_S_REV; break;
     case ALG_MACRO: amc_turn_to(v); break;
+    case ALG_DUCK: amx[AMX_DUCK] = (uint8_t)v; break;
     default: song.g[G_RDAMP] = (int16_t)v; afx_edit |= 1u << AFX_S_REV; break;
     }
 }
@@ -146,6 +147,7 @@ static uint32_t alm_gget(uint32_t g)
     case ALG_DCOL: v = song.g[G_DCOLOR]; break;
     case ALG_RSIZE: v = song.g[G_RSIZE]; break;
     case ALG_MACRO: return amc_value();
+    case ALG_DUCK: return amx[AMX_DUCK];
     default: v = song.g[G_RDAMP]; break;
     }
     return (uint32_t)(v < 0 ? 0 : v > 127 ? 127 : v);

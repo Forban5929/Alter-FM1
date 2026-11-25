@@ -339,6 +339,12 @@ static void aus_nm_open(uint32_t u)              /* (v1.26) a USER sound's NAME:
  * On the flash in objects 10..13 (storage.c OBJ_ALTSONG0: the slots, then the chain), not in the scenes. At power-on the
  * chain is off. */
 #define QP_SONG 16u                               /* (ARP held: the SONG page) */
+#define QP_PERF 17u                               /* (PLAY held 3 s: the PERFORM page, alter_perform.c) */
+static void aper_play(uint32_t pressed);
+static uint32_t aper_buttons(uint32_t pressed);
+static void aper_turn(uint32_t i, int32_t s);
+static void aper_scene(void);
+static uint32_t aper_sig(void);
 static void alt_menu_set(uint32_t q);
 #define ALT_OBJ_SONG 10u                          /* (storage.c OBJ_ALTSONG0: the slots of before v1.36, read once) */
 #define SG_MAGIC_C 0x43544C41u                    /* "ALTC": the chain (before v1.36) */
@@ -1876,7 +1882,7 @@ static void alt_menu_set(uint32_t q)
     au.seq_open = (uint8_t)(q == QP_SEQ);
     afp.open = (uint8_t)(q == QP_FX);
     au.mat_open = (uint8_t)(q == QP_LFO);
-    au.mn = (uint8_t)(q == QP_ENV || q == QP_EDIT || q == QP_SCL || q == QP_GLO || q == QP_SYS || q == QP_SONG ? q : 0u);
+    au.mn = (uint8_t)(q == QP_ENV || q == QP_EDIT || q == QP_SCL || q == QP_GLO || q == QP_SYS || q == QP_SONG || q == QP_PERF ? q : 0u);
     au.qp = (uint8_t)(q == QP_ENV || q == QP_SCL ? q : QP_NONE);   /* (ENV, SCL: their quick page's knobs, drawn big) */
     au.step_down = 0;
     au.dd = 0;
@@ -1885,7 +1891,7 @@ static void alt_menu_set(uint32_t q)
 static const char *alt_menu_name(uint32_t q)
 {
     return q == QP_SEQ ? "SEQ" : q == QP_FX ? "FX" : q == QP_LFO ? "LFO" : q == QP_ENV ? "ENVELOPE" :
-           q == QP_EDIT ? "DEEP" : q == QP_SCL ? "SCALES" : q == QP_GLO ? "MIXER" : q == QP_SYS ? "SYSTEM" : q == QP_SONG ? "SONG" : "";
+           q == QP_EDIT ? "DEEP" : q == QP_SCL ? "SCALES" : q == QP_GLO ? "MIXER" : q == QP_SYS ? "SYSTEM" : q == QP_SONG ? "SONG" : q == QP_PERF ? "PERFORM" : "";
 }
 
 static void afp_input(uint32_t pressed);                     /* the FX page (alter_fxpage.c, with the screen below) */
@@ -1968,8 +1974,9 @@ static int alter_ui_input(uint32_t pressed)
     alt_sg_arp(pressed, ALT_MENU_HOLD_MS);       /* ARP: the chain on / off, the SONG page */
     if (song.sel != au.sel && song.sel < AS_NCIRC)   /* (chosen elsewhere: TRACKS, the editor) */
         au.sel = alt_sel = song.sel;
-    if ((pressed >> panel.btn[B_PLAY]) & 1u)
-        transport_req = song.playing || seq_counting() ? 2u : 1u;
+    aper_play(pressed);                          /* PLAY: play / stop; held 3 s the PERFORM page (v1.2.10) */
+    if (au.mn == QP_PERF)
+        pressed = aper_buttons(pressed);         /* (its banks: FX SEL ENV SEQ EDIT LFO GLO, no other page) */
     {                                            /* REC (alter_rec.c): tap = overdub on / off; held 1 s = the chosen
                                                   * circle cleared; OCT- + OCT+ + REC = every circle cleared */
         uint32_t rd = (ALT_BTNS >> panel.btn[B_REC]) & 1u;
@@ -2129,7 +2136,9 @@ static int alter_ui_input(uint32_t pressed)
     }
     for (q = 1; q < QP_N; q++) {                 /* the page buttons: a tap the quick page, held 0.5 s the menu */
         uint32_t dn = (ALT_BTNS >> panel.btn[ALT_QP_BTN[q]]) & 1u, was = (au.qp_was >> q) & 1u;
-        if (dn && !was) {
+        if (au.mn == QP_PERF)
+            ;                                    /* (PERFORM: they are its banks, aper_buttons) */
+        else if (dn && !was) {
             au.qp_t0[q] = fm1_ms;
             au.lockc = 0;
             au.mhold &= (uint8_t)~(1u << q);
@@ -2189,9 +2198,16 @@ static int alter_ui_input(uint32_t pressed)
                 alt_mix_turn(i, s);              /* the MIXER's faders */
             else if (au.mn == QP_SONG)
                 alt_sg_turn(i, s);               /* the SONG page's links */
+            else if (au.mn == QP_PERF)
+                aper_turn(i, s);                 /* PERFORM: I II III MASTER */
             else
                 alt_turn(q, i, s);
         }
+    if (au.mn == QP_PERF) {                      /* (PERFORM: SELECT, ALGORITHM, PRESET nothing for now) */
+        (void)panel_enc(EN_SELECT);
+        (void)panel_enc(EN_ALGO);
+        (void)panel_enc(EN_PRESET);
+    }
     if (au.mn == QP_SONG) {                      /* (the SONG page: SELECT its link; ALGORITHM, PRESET nothing) */
         if ((s = panel_enc(EN_SELECT)) != 0)
             alt_sg_select(s);
@@ -3830,6 +3846,7 @@ static uint8_t alt_sys_tab;
 static int16_t alt_sys_scroll;                   /* (ABOUT: pixels scrolled) */
 #include "alter_learn.c"                         /* LEARN: MIDI LEARN (07/11) */
 #include "alter_macro.c"                         /* MACRO (v0.77): OCT+ held, KNOB 1 */
+#include "alter_perform.c"                       /* PERFORM (v1.2.10): PLAY held 3 s */
 static void alt_sys_open_rand(void)
 {
     alt_menu_set(QP_SYS);
@@ -4533,6 +4550,10 @@ static void alt_scene(uint32_t q, uint32_t flash)
     }
     if (au.mn == QP_SONG) {
         alt_sg_scene();
+        return;
+    }
+    if (au.mn == QP_PERF) {
+        aper_scene();
         return;
     }
     /* the card's engraving: rays from the centre (under everything, kept off the knobs) */
@@ -5437,6 +5458,8 @@ static void alter_draw(void)
     sig = sig * 31u + sg_left * 29u + sg_rec * 41u + sg_n * 43u;   /* (v1.37: the chain's line of time) */
     sig = sig * 31u + sg_play * 3u + sg_link * 5u + sg_on * 7u + (asg.q ? asg.q * 11u + ((fm1_ms >> 7) & 1u) : 0u) +
           sg_slot[0].used * 13u + sg_slot[1].used * 17u + sg_slot[2].used * 19u + asg.n * 23u;   /* (SONG's corner) */
+    if (au.mn == QP_PERF)                        /* (PERFORM: its bank, knobs, every step) */
+        sig = sig * 31u + aper_sig();
     if (au.mn == QP_SONG) {                      /* (SONG: the slots, the chain, where it is) */
         uint32_t k;
         sig = sig * 31u + sg_play * 3u + sg_link * 5u + sg_left * 7u + sg_on * 11u + asg.q * 13u + asg.row * 17u + asg.n * 19u +
@@ -5683,6 +5706,8 @@ static int32_t alt_peek(uint32_t c, uint32_t w)
         h = (h ^ x->pat) * 16777619u;
         return (int32_t)(h ^ x->die ^ (uint32_t)(uint8_t)x->dhits << 8 ^ (uint32_t)x->drot << 16);
     }
+    if (w == 29u)                                /* (v1.2.10: the page open | PERFORM's bank << 8 | its knob c's value << 16) */
+        return (int32_t)(au.mn | (uint32_t)aper.bank << 8 | (uint32_t)(aper.v[c % 4u] & 255) << 16);
     if (w == 12u)                                /* (MIDI LEARN's tests: MUTE, HITS, the chosen circle, playing, REC) */
         return (int32_t)(au.cfg[c].mute | au.cfg[c].hits << 8 | au.sel << 16 | (uint32_t)song.playing << 24 |
                          (uint32_t)ar_on << 25);

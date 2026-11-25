@@ -246,7 +246,7 @@ function panel() {
   btn(170, 258, 90, 34, "OCT+", "", "");
   tx(s, 160, 318, "with the dice, SONG, REC: see Combos", "sub");
   const R1 = [["FX", "FX", "FX page"], ["SCL", "SCALE", "SCALES"], ["ENV", "ENV", "ENV"], ["LFO", "LFO 1", "LFO MTX"], ["EDIT", "ENGINE+", "DEEP"], ["GLO", "GLOBAL", "MIXER"]];
-  const R2 = [["HOME", "circles", "SYSTEM"], ["SAVE", "SAVE pg", "+ABC"], ["ARP", "chain", "SONG"], ["SEQ", "RHYTHM", "lanes"], ["PLAY", "play/stop", ""], ["REC", "overdub", "clear"]];
+  const R2 = [["HOME", "circles", "SYSTEM"], ["SAVE", "SAVE pg", "+ABC"], ["ARP", "chain", "SONG"], ["SEQ", "RHYTHM", "lanes"], ["PLAY", "play/stop", "PERFORM"], ["REC", "overdub", "clear"]];
   for (let i = 0; i < 6; i++) {
     btn(582 + i * 63, 174, 54, 48, R1[i][0], R1[i][1], R1[i][2]);
     btn(582 + i * 63, 236, 54, 48, R2[i][0], R2[i][1], R2[i][2], R2[i][0] === "REC" ? "var(--warn)" : undefined);
@@ -335,7 +335,7 @@ function tables() {
     ["HOME", "back to the circles (closes any page)", "SYSTEM: SETUP (THEME, SMOOTH: the gold hand turns smoothly, the triggers swell as they play, CLOCK, MIDI IN, MIDI OUT (USB only: OFF, CLOCK = 24 a beat + START/STOP when CLOCK is INT, NOTES = each circle's hits on channels 1 2 3, ALL; OFF by default; in a DAW, turn off MIDI thru to the FM-1 or its notes come back), TRS SEEN / USB SEEN: the MIDI each jack received, CPU METER: the load shown on PLAY, OFF by default (nothing measured while off)) · LEARN (MIDI learn) · AUDIO · RANDOM (also OCT− + HOME: engines, modes, CHAOS TOTAL's effects) · ABOUT (after a crash: LAST CRASH; the FM-1 restarts by itself in 1.5 s with the scene that was playing, on one core until power-off)"],
     ["ARP", "SONG chain on / off", "SONG page"],
     ["SAVE", "the SAVE page", "(+ A B C high: a SONG slot)"],
-    ["PLAY", "play / stop", ""],
+    ["PLAY", "play / stop (playing: it stops when let go)", "held 3 s: PERFORM (v1.2.10), the music goes on: no circle chosen, KNOB 1 2 3 = circles I II III, KNOB 4 = MASTER; FX (REVERB sends, SIZE), SEL (DELAY sends, FEEDBACK), ENV (DECAY, DUCK), SEQ (HITS, SWING), EDIT LFO GLO (set banks for now) tapped = what they move, tapped again = MACRO; a wheel of three bands shows every step; HOME leaves"],
     ["REC", "overdub on / off: the knobs turned are written on the steps", "1 s: the chosen circle's moves cleared"],
   ];
   const C = [

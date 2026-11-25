@@ -152,6 +152,10 @@ REVERB; all on by default). CHAOS switches every effect off (DIST, INSERT, the s
   at 0; a setting you turn by hand meanwhile keeps its new place. Kept with the scene (USER slots, patch files); CHAOS,
   CHAOS TOTAL, NEW and the factory scenes start it at 0. Also in MIDI LEARN (GLOBAL › MACRO).
 - **TRIGGER**: a hit of the chosen circle at once, played like its next step (same velocity). **REC held + TRIGGER**: the hit is added to its pattern.
+- **PERFORM** (v1.2.10): PLAY held 3 s (the music goes on; PLAY tapped while playing now stops when let go). No circle
+  chosen: KNOB 1 2 3 = circles I II III, KNOB 4 = MASTER. FX = REVERB sends and SIZE, SEL = DELAY sends and FEEDBACK, ENV =
+  DECAY and DUCK, SEQ = HITS and SWING, EDIT LFO GLO = set banks for now; tapped again = MACRO. The screen: one wheel of
+  three bands (I inside), a cell per step. HOME leaves.
 - **TAPE STOP** (v1.28, the upper key where DESTROY was): held, every circle slows to a stop and bends down like a tape
   brake; let go, they all come back on the next 1. **UNDO** (v1.28): OCT− + PLAY puts back the scene as it was before
   the last big gesture (CHAOS, CHAOS TOTAL, a DICE or its clean, a sound, a scene loaded, NEW, a SONG slot); again = REDO.

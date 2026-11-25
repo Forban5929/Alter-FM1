@@ -31,6 +31,7 @@ if [ "$KIND" = beta ]; then
   [ -f tools/alter/alter_midiout_test.mjs ] && node tools/alter/alter_midiout_test.mjs build/emu/felucca.wasm
   [ -f tools/alter/alter_song_test.mjs ] && node tools/alter/alter_song_test.mjs build/emu/felucca.wasm
   [ -f tools/alter/alter_stems_test.mjs ] && node tools/alter/alter_stems_test.mjs build/emu/felucca.wasm
+  [ -f tools/alter/alter_perform_test.mjs ] && node tools/alter/alter_perform_test.mjs build/emu/felucca.wasm
   # (v1.28) la dernière Release → cette version : scènes, NOMS, SONG, MIDI LEARN gardés (ALTER_OLD_WASM : pages.yml)
   if [ -n "$ALTER_OLD_WASM" ] && [ -f "$ALTER_OLD_WASM" ]; then
     node tools/alter/alter_upgrade_test.mjs "$ALTER_OLD_WASM" build/emu/felucca.wasm
