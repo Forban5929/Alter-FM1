@@ -836,12 +836,13 @@ static uint32_t alt_len(uint32_t p)
 /* TAPE STOP (v1.28, Romain 25/11, in place of DESTROY: predictable, the same level, rings with the delay and the reverb):
  * held, the circles slow to a stop over TS_STEPS sixteenths, every part bent down with them (to -24 semitones, voice.c
  * alt_tape_q8) and the last quarter fading (fx.c alt_mg_block); let go, they speed up again as slowly (v1.29, Romain:
- * "il doit repartir aussi en plusieurs secondes", 4 beats each way), then on the next 1 of the clock that ran on
- * underneath they land on it, every circle from its first step. Not REC'd (all the circles at once). */
+ * "il doit repartir aussi en plusieurs secondes", 4 beats each way) and go on from where they are: no jump back onto
+ * the clock's grid (v1.2.11, Romain: "pas de saut ... pas besoin de revenir sur le grid"; the circles are then later
+ * than the clock by the time the stop took). Not REC'd (all the circles at once). */
 #define TS_STEPS 16u
 static uint32_t ts_spd = 65536u;                 /* the circles' speed, Q16 */
 static uint8_t ts_on, ts_wait;                   /* stopping or stopped; let go: waiting for the 1 */
-static uint32_t ts_rp, ts_rs, ts_frac;           /* the running clock: samples into its sixteenth, its step (alt_gstep's) */
+static uint32_t ts_frac;                         /* (the samples' fraction the circles have not moved yet, Q12) */
 static void ts_level(void)
 {
     alt_tape_q8 = -(int32_t)(((65536u - ts_spd) * 6144u) >> 16);
@@ -854,38 +855,25 @@ static void ts_off(void)
     ts_frac = 0;
     ts_level();
 }
-/* the samples the circles move by in this block (n: the clock's); 0 = TAPE STOP just brought them back on the 1 */
+/* the samples the circles move by in this block (n: the clock's) */
 static uint32_t ts_tick(uint32_t n, uint32_t p, uint32_t h)
 {
     uint32_t held = (h >> AF_TAPE) & 1u, dec, c;
     if (held && !ts_on) {
         ts_on = 1;
-        ts_rp = alt_pos;
-        ts_rs = alt_gstep;
     }
     if (!ts_on)
         return n;
     ts_wait = (uint8_t)!held;
-    ts_rp += n;
-    while (ts_rp >= p) {
-        ts_rp -= p;
-        if (ts_wait && ts_spd >= 65536u && ts_rs % 16u == 0u) {   /* back to speed, the 1: on the clock again */
-            ts_off();
-            alt_pos = ts_rp;
-            alt_par = 0;
-            alt_gstep = ts_rs;
-            for (c = 0; c < AS_NCIRC; c++)
-                alt_seq.c[c].pos = 0;
-            alter_step();
-            return 0;
-        }
-        ts_rs++;
-    }
+    (void)c;
     dec = (n << 16) / (TS_STEPS * p);           /* (n <= a block: no overflow) */
     if (held)
         ts_spd = ts_spd > dec ? ts_spd - dec : 0u;
-    else
-        ts_spd = ts_spd + dec < 65536u ? ts_spd + dec : 65536u;
+    else if (ts_spd + dec >= 65536u) {           /* let go and back to speed: done, from where the circles are */
+        ts_off();
+        return n;
+    } else
+        ts_spd += dec;
     ts_level();
     ts_frac += n * (ts_spd >> 4);                /* (Q12 x n: no overflow) */
     n = ts_frac >> 12;

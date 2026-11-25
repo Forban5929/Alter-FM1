@@ -181,15 +181,16 @@ check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().
   }
   console.log("alter: attacks in a bar held: " + Object.entries(n).map(([k, v]) => `${k} ${v}`).join(", "));
   check(`every fill plays and none clips (peak ${worst.toFixed(3)})`, Object.values(n).every((v) => v > 0) && worst < 0.999);
-  // v1.28: TAPE STOP (key 17, in place of DESTROY): held, every circle slows to a stop; let go, back on the 1, all hits
+  // v1.28: TAPE STOP (key 17, in place of DESTROY): held, every circle slows to a stop; let go, back to speed
   {
     const a0 = attacks(bar().audio, FS * 0.012).length;
     K(1 << 17); bar(); const st = bar(); bar();                  // (v1.29: 4 beats to stop, as many to start again)
     const a1 = attacks(st.audio, FS * 0.012).length;
     K(0); bar(); bar(); bar();
     const back = bar();
-    check(`TAPE STOP held: stopped (attacks in a bar ${a0} -> ${a1}); let go: 8 hits again (${back.steps.join(",")})`,
-          a1 <= 2 && a0 >= 6 && same(back.steps, euclid(16, 8, 0)));
+    const a2 = attacks(back.audio, FS * 0.012).length;          // (v1.2.11: back from where it was, off the bar's grid)
+    check(`TAPE STOP held: stopped (attacks in a bar ${a0} -> ${a1}); let go: back to 8 hits a bar (${a2})`,
+          a1 <= 2 && a0 >= 6 && a2 === 8);
   }
   const notes = (k) => { K(1 << k); render(2000); bar(); const h0 = ex.web_alter_hits(0); bar(); const d = ex.web_alter_hits(0) - h0; K(0); bar(); return d; };
   const h16 = notes(20), h8 = notes(22);

@@ -79,8 +79,8 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
   « UNDO CHAOS » à l'écran ; les MUTE restent (le joueur, pas la scène). Peek 28 = ok|redo<<1|ms<<8|die<<30. **TAPE STOP** (touche 17,
   à la place de DESTROY, `AF_TAPE` = ancien bit AF_DESTROY ; DESTROY retiré, ses REC d'avant (AFR_DST) ne jouent plus) : alter_play.c
   `ts_tick` = vitesse des cercles Q16 → 0 en 16 doubles-croches (v1.29 : 4 temps, et 4 temps pour repartir), `alt_tape_q8` (voice.c, bend −24 demi-tons) + `alt_tape_g` (fx.c
-  alt_mg_block, fondu sur le dernier quart) ; lâché = remonte en 4 temps puis, horloge réelle suivie (`ts_rp/ts_rs`), recalé au prochain 1, tous les cercles au
-  pas 1 ; pas enregistré par REC. Tests emu « UNDO » et « TAPE STOP ». **Pas essayé sur la FM-1.**
+  alt_mg_block, fondu sur le dernier quart) ; lâché = remonte en 4 temps et **repart d'où il est (v1.2.11 : plus de recalage sur la grille ; les cercles restent
+  en retard sur l'horloge/le Rytm du temps perdu)** ; pas enregistré par REC. Tests emu « UNDO » et « TAPE STOP ». **Pas essayé sur la FM-1.**
 - **v1.2.10 (Romain 25/11) : PERFORM étape A** : `alter_perform.c` (`aper`, QP_PERF 17, carte « XXII ») ; **PLAY tenu 3 s** (`aper_play` :
   arrêté = départ à l'appui ; en lecture = arrêt au RELÂCHÉ si < 3 s, sinon la page s'ouvre et la musique continue) ; banques par bouton
   tapé (`aper_buttons`, les boutons ne font rien d'autre sur la page, la boucle des pages est sautée) : MACRO (K1-3 « SOON » = MACRO par
@@ -120,7 +120,7 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** (Romain 25/11) : `FELUCCA_VERSION` (felucca.c) = « v1.2.10 » ; **les BETA portent le numéro de la version en cours + un chiffre** :
+4. **Version** (Romain 25/11) : `FELUCCA_VERSION` (felucca.c) = « v1.2.11 » ; **les BETA portent le numéro de la version en cours + un chiffre** :
    v1.2 → v1.21, v1.22 … v1.29, puis **v1.2.10, v1.2.11…** ; v1.3 → v1.31… ; à monter à CHAQUE envoi, avant le commit.
    Le journal ci-dessus est déjà renommé (v1.21-v1.27 = anciennement v1.34-v1.40 dans le code et les commits) (les « v1.02-v1.33 » plus bas/dans HISTORIQUE = BETA de la v1.1).
    Release : le site public réécrit FELUCCA_VERSION avec le tag (site_build.sh) → la machine affiche « v1.2 » (v1.1 affichait v1.33). Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
