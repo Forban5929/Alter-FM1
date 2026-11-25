@@ -5454,6 +5454,12 @@ static int32_t alt_peek(uint32_t c, uint32_t w)
         return (int32_t)(au.cfg[c].type | au.cfg[c].len << 8 | au.cfg[c].tdens << 16 | (uint32_t)au.cfg[c].tlock << 24);
     if (w == 10u)
         return au.cfg[c].trange;
+    if (w == 25u) {                              /* (v1.34: the loudest sample into the MASTER limiter since the last
+                                                  * read, then 0 again; LIM_T 18000 = the limiter starts; tests only) */
+        int32_t a = alt_mpk;
+        alt_mpk = 0;
+        return a;
+    }
     if (w == 24u)                                /* (v1.26: circle c's sound index | the USER sounds used << 8) */
     {
         uint32_t u, m = 0;

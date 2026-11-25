@@ -1,7 +1,9 @@
 # ALTER v1.14 (Romain 23/11): the factory sounds' LEVEL by families (FRONT -25, BACK -31, the rest -28 LUFS).
 # 1. node tools/alter/alter_render.mjs build/emu/felucca.wasm /tmp/r ; 2. ffmpeg ebur128 on /tmp/r/wav/sound_*.wav -> 'sound_NN_ENG_NAME LUFS' lines
 # 3. python3 tools/alter/alter_balance.py lufs.txt (edits alter_sounds.c; run again until no change)
+# v1.34: the MASTER has -9 dB of headroom (fx.c ALT_MTRIM): the renders are 9 dB lower, the targets too (OFFSET below)
 import re,sys
+OFFSET=-9   # dB: fx.c ALT_MTRIM (v1.34)
 lufs={}
 for l in open(sys.argv[1]):
     n,v=l.split(); i=int(n.split('_')[1])-1; lufs[i]=(n,float(v))
@@ -17,7 +19,7 @@ for i,l in enumerate(L):
         if idx>0 and l.strip().startswith('};'): break
         continue
     name=m.group(2); n,v=lufs[idx]
-    t=-25 if name in FRONT else -31 if name in BACK else -28
+    t=(-25 if name in FRONT else -31 if name in BACK else -28)+OFFSET
     old=int(m.group(4)); d=round(2*(t-v)); new=old+(d if abs(d)>1 else 0); cl=min(127,max(0,new))
     L[i]=m.group(1)+str(cl)+m.group(5)
     if cl!=old: print(name,v,t,old,'->',cl,'(short %.1f)'%((new-cl)/2) if cl!=new else '')

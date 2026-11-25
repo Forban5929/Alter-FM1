@@ -16,6 +16,14 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
   Release = Chrome (releases/new?tag=vX&target=main) ; gh ne peut ni créer ni supprimer de Release ici. Le test de mise à jour (firmware.yml)
   part de la dernière Release QUI A son .fwsc (corrigé le 25/11 : avant, la Release en cours, vide, cassait le build). Détail v1.02-v1.33 : `docs/alter/HISTORIQUE.md`
   (section « Journal v1.1 ») ; notes publiques : `docs/RELEASE-NOTES.md` « ## v1.1 ». Public : Feedback visible ; **Propose… = BETA seulement**.
+- **v1.34 (Romain 25/11 : niveaux + « le MASTER sature trop vite », choix « marge seule −9 dB » + « remonter » les 6 courts)** :
+  fx.c `ALT_MTRIM` 1453 = **−9 dB avant le limiteur, toujours** (dans `alt_mg_now`) ; `alt_eng_post` = gain de moteur APRÈS DIST/
+  INSERT/CONSOLE/RUMBLE, avec le LEVEL (ALTER ×5/3, NOISE ×1,6, RESO ×1,5, WAVE ×1,31 : STAB WARM CRUSH CLANK LARSEN SHREDDER ;
+  dans les moteurs, la DIST 40 du KICK des scènes saturait plus) ; LEVEL des 47 sons rebalancés (`alter_balance.py`, `OFFSET` −9 : tous
+  dans ±0,75 dB) ; `fix[]` des 4 scènes d'usine refaits (même mix qu'en v1.33, 9 dB plus bas). Mesure : `tools/alter/alter_headroom.mjs
+  wasm [hits]` (peek 25 = crête à l'entrée du limiteur, remise à 0) : un son seul à son LEVEL ≤ −2,7 dB sous LIM_T (avant : jusqu'à +11),
+  3 cercles −1..+4 dB (avant +8..+17) ; à LEVEL 127 (+7,5 dB) un son seul passe encore +7 dB. Tout est ~9 dB moins fort à volume égal.
+  alter_fx_test : COMP du MASTER mesuré avec LEVEL −6 (était −24). **Pas écouté sur la FM-1.**
 - **Feedback** : `web/alter/feedback.js` → relais Vercel `https://alter-feedback.vercel.app/api/feedback` (`tools/alter/feedback-relay/`,
   projet alter-feedback, équipe rominou1) → Issue `a-trier` + `feedback` + `cat-…` + `v-…`. Redéployer = nouveau déploiement
   avec le fichier. **En début de session** : `gh api 'repos/Forban5929/alter-fm1/issues?labels=a-trier'`, résumer à Romain,
@@ -55,7 +63,7 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.33 » (24/11 ; = Release v1.1 ; la BETA continue à v1.34…) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.34 » (25/11, BETA ; Release v1.1 = v1.33) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. **Deux sites (v1.02, 22/11)** : pousser sur `etape-3d` → pages.yml construit (tools/alter/site_build.sh, 2 fois) :
    **racine = dernière Release** (tag vX.YY le plus haut ; ce que voient les gens) et **/beta/ = etape-3d** (bandeau rouge

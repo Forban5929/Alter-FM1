@@ -144,10 +144,14 @@ static int32_t lim_env = LIM_T;
  * gain (0..127, 100 = 0 dB, 127 ~ +4 dB; on top of the FM-1's own volume pot), its value now gliding (Q12) */
 static volatile int32_t alt_mpk;
 static volatile uint8_t alt_mgain = 100;
-static int32_t alt_mg_now = 4096;
+/* v1.34 (Romain 25/11, "the MASTER saturates too fast"): -9 dB before the limiter, always (Q12 1453 = 0.3548). Measured
+ * (tools/alter/alter_headroom.mjs, volume full): 9 factory sounds alone at their LEVEL went 2..11 dB over LIM_T, three
+ * circles 8..17 dB over; now one sound alone stays under it (but PIPES WARM STAB TOMS by ~2 dB) */
+#define ALT_MTRIM 1453
+static int32_t alt_mg_now = ALT_MTRIM;
 static inline int32_t alt_mg_block(int32_t mg)
 {
-    int32_t t = (int32_t)alt_mgain * alt_mgain * 4096 / 10000;
+    int32_t t = (int32_t)alt_mgain * alt_mgain * ALT_MTRIM / 10000;   /* (v1.34: with the -9 dB headroom) */
     alt_mg_now += (t - alt_mg_now) >> 2;
     if (alt_mg_now - t < 8 && t - alt_mg_now < 8)
         alt_mg_now = t;
@@ -264,6 +268,15 @@ static uint32_t div_samples(uint32_t div)
     return div < 6u ? quarter / DIV_DEN[div] : div < 10u ? quarter << (div - 5u) : quarter / DIV_DEN[div % 6u];
 }
 
+/* v1.34 (Romain 25/11, the balance: STAB WARM CRUSH CLANK LARSEN SHREDDER were short at LEVEL 127): some engines' gain
+ * AFTER the circle's DIST, INSERT, CONSOLE and RUMBLE, with the LEVEL (Q12): louder, nothing else changes (raised in the
+ * engines, the DIST of the factory scenes' KICK distorted more). ALTER x 5/3, NOISE x 1.6, RESO x 1.5, WAVE x 1.31 */
+static inline int32_t alt_eng_post(const track_t *t, int32_t lq12)
+{
+    uint32_t e = t->engine;
+    int32_t g = e == ENGI_ALTER ? 6827 : e == ENGI_NOISE ? 6554 : e == ENGI_RESO ? 6144 : e == ENGI_WAVE ? 5376 : 4096;
+    return (lq12 * g) >> 12;                    /* (LEVEL_Q12 <= 9716: x 6827 fits) */
+}
 #include "perform.c"                                 /* the FX hold layer's effects (the master) */
 #include "click.c"                                   /* the metronome's click (after the master: audio.c) */
 
@@ -1081,7 +1094,7 @@ static __attribute__((noinline)) void mix_spread(track_t *t, int32_t *b, uint32_
 {
     int32_t *d = SPREAD_BUF(t);
     uint32_t i;
-    int32_t lvl = (int32_t)(((int64_t)LEVEL_Q12[t->p[P_LEVEL] & 127] * AC_G(t)) >> 15), pan = t->p[P_PAN], s = (t->p[P_SPRD] + 1) >> 1;
+    int32_t lvl = (int32_t)(((int64_t)alt_eng_post(t, LEVEL_Q12[t->p[P_LEVEL] & 127]) * AC_G(t)) >> 15), pan = t->p[P_PAN], s = (t->p[P_SPRD] + 1) >> 1;
     int32_t pa = clamp(pan - s, -64, 63), pb = clamp(pan + s, -64, 63);
     int32_t gla = 4096 - (pa > 0 ? pa * 64 : 0), gra = 4096 + (pa < 0 ? pa * 64 : 0);
     int32_t glb = 4096 - (pb > 0 ? pb * 64 : 0), grb = 4096 + (pb < 0 ? pb * 64 : 0);
@@ -1103,7 +1116,7 @@ static __attribute__((noinline)) void mix_spread(track_t *t, int32_t *b, uint32_
     slicer_track_sd(t, b, d, n);
     if ((pf.mute >> (t - trk)) & 1u)
         perf_mute_sd((uint32_t)(t - trk), b, d, n);
-    ac_measure((uint32_t)(t - trk), b, LEVEL_Q12[t->p[P_LEVEL] & 127], n);   /* (ALTER's alignment) */
+    ac_measure((uint32_t)(t - trk), b, alt_eng_post(t, LEVEL_Q12[t->p[P_LEVEL] & 127]), n);   /* (ALTER's alignment) */
     for (i = 0; i < n; i++) {
         int32_t x = ((b[i] >> 2) * lvl) >> 10, a = x < 0 ? -x : x, y = ((d[i] >> 2) * lvl) >> 10;
         int32_t xs = clamp(x, -xmax, xmax);
@@ -1209,8 +1222,8 @@ static inline __attribute__((always_inline)) void mix_part_b(track_t *t, uint32_
     }
     if (!T_SPREAD(t)) {                                /* (the mix's values read after the calls: none is held over
                                                          * them, no spill in the loop: the ISR's cost as before 1.5) */
-        int32_t lvl = (LEVEL_Q12[t->p[P_LEVEL] & 127] * AM_DG(t)) >> 15, pan = t->p[P_PAN];   /* (ALTER's duck) */
-        ac_measure((uint32_t)(t - trk), b, LEVEL_Q12[t->p[P_LEVEL] & 127], n);   /* (ALTER's alignment: its measure */
+        int32_t lvl = (alt_eng_post(t, LEVEL_Q12[t->p[P_LEVEL] & 127]) * AM_DG(t)) >> 15, pan = t->p[P_PAN];   /* (ALTER's duck) */
+        ac_measure((uint32_t)(t - trk), b, alt_eng_post(t, LEVEL_Q12[t->p[P_LEVEL] & 127]), n);   /* (ALTER's alignment: its measure */
         lvl = (int32_t)(((int64_t)lvl * AC_G(t)) >> 15);                          /* and its gain) */
         int32_t gl = 4096 - (pan > 0 ? pan * 64 : 0), gr = 4096 + (pan < 0 ? pan * 64 : 0);
         int32_t c = t->p[P_CHOR] * 258, d, r, pk = t->peak, dd, dr, xmax;

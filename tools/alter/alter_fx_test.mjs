@@ -75,7 +75,7 @@ const solo = (c) => { for (let i = 0; i < 3; i++) W(2, i, i === c || c < 0 ? 0 :
 // COMP 127 on the whole mix: the peaks come nearer the average (a lower crest factor)
 {
   const lv0 = [0, 1, 2].map((c) => ex.web_alter_peek(c, 100));   // (v1.17: the louder engines: 12 dB of headroom, the
-  for (let c = 0; c < 3; c++) W(17, c, Math.max(0, lv0[c] - 24));  // master limiter out of the way of the measure)
+  for (let c = 0; c < 3; c++) W(17, c, Math.max(0, lv0[c] - 6))   // (v1.34: 9 dB of the 12 are the MASTER headroom now);  // master limiter out of the way of the measure)
   solo(-1); render(BEAT * 2);
   const a = render(BEAT * 8, true), ca = peak(a) / rms(a);
   W(8, 3, 127); render(FS);
