@@ -7,7 +7,7 @@ Règle (Romain 22/11) : **une liste de besoins par version (Sheet) ; on publie (
 **Sheet : https://claude.ai/artifact/FhZkHbyXGPKKUxAC4wwPVi** (Sheets, nœud `af8de520-948a` ; onglets **« v1.2 »** = la liste
 en cours, « v1.1 » = fait, « Audit knobs » ; colonnes # Besoin Statut Catégorie Priorité Source « Fait en » Notes ;
 lire avant de coder, mettre à jour en fin de session ; l'outil Claude_Docs sait l'éditer : guide topic.sheets).
-**Liste v1.2 (24/11)** : balance des niveaux (restes), moteurs plus différents (écoutes WAV d'abord), RUMBLE à finir,
+**Liste v1.2 (24/11)** : ~~balance~~ (v1.34), ~~moteurs plus différents~~ (retiré par Romain 25/11), RUMBLE à finir,
 MIDI Bluetooth (à décider), stems USB (à décider, voir plus bas), **SIDECHAIN** (un cercle, ex. KICK, fait pomper les
 autres : source + cible + quantité, à préciser), **SONG mode A B C à revoir** (demander à Romain ce qui ne va pas),
 essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01→v1.1, Backup/Restore, sons USER, MIDI OUT, CPU WAVE).
