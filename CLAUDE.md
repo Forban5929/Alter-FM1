@@ -52,7 +52,7 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
 - Outils de mesure du son : `alter_knob_audit.mjs` + `alter_knob_report.mjs` (audit), `alter_param_probe.mjs`, `alter_balance.py`
   (LUFS), `alter_scene_fix.mjs`, `alter_upgrade_test.mjs OLD.wasm NEW.wasm` (la mise à jour garde tout), `alter_midiout_test.mjs`.
 - Garde-fous : **pool libre ~8,6 Ko, seuil CI 8 Ko** (plus rien en .pool sans libérer) ; marge image ~64 Ko ; RAM .data+.bss 63,2/72 Ko.
-- **v1.39 STEMS USB (Romain 25/11 : « toujours 10 canaux », pistes « 1-2 master, 3-8 cercles, 9-10 effets »)** : **felucca-bsp mis à
+- **v1.39-v1.40 STEMS USB (Romain 25/11 : « toujours 10 canaux », pistes « 1-2 master, 3-8 cercles, 9-10 effets »)** : **felucca-bsp mis à
   jour 5942e68 → 2bd9dbe** (sous-module ; seul changement côté ALTER : console.c `uac.fill_lo`) ; felucca.c `FELUCCA_UAC_CH 10` +
   `FELUCCA_UAC_RING_ATTR` .pool (anneau ~7,7 Ko) ; fx.c `ALT_STEMS` : `stem_begin` (bloc, `uac_ch_frame`), `STEM_PART` (somme du cercle
   après − avant, les 2 cœurs, SPREAD compris), 9-10 = wet + côté stéréo HALL ; au gain du master (`stem_mg`), AVANT MASTER FILTER/
@@ -89,7 +89,7 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.39 » (25/11, BETA ; Release v1.1 = v1.33) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.40 » (25/11, BETA ; Release v1.1 = v1.33) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. **Deux sites (v1.02, 22/11)** : pousser sur `etape-3d` → pages.yml construit (tools/alter/site_build.sh, 2 fois) :
    **racine = dernière Release** (tag vX.YY le plus haut ; ce que voient les gens) et **/beta/ = etape-3d** (bandeau rouge

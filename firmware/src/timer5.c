@@ -48,3 +48,8 @@ void fm1_timer5_irq(void)
         usb_poll();
     owed = 0;
 }
+
+/* bsp 2bd9dbe (v1.39): chip/fm1_isr.S always assembles isr_spi1, which calls a weak fm1_spi1_irq
+ * (fm1-base's SD read ahead). ALTER has no SD and never enables SPI1's interrupt, but the call
+ * still needs a target within reach: an empty body. */
+void fm1_spi1_irq(void) {}

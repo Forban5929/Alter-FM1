@@ -62,7 +62,7 @@
 #define FELUCCA_USB_MANUFACTURER "ALTER"
 #endif
 #ifndef FELUCCA_VERSION
-#define FELUCCA_VERSION "v1.39"    /* ALTER's version (10/11: +0.01 at each push to Romain): splash, SYSTEM > ABOUT, emulator page, version.txt */
+#define FELUCCA_VERSION "v1.40"    /* ALTER's version (10/11: +0.01 at each push to Romain): splash, SYSTEM > ABOUT, emulator page, version.txt */
 #endif
 #if FELUCCA_OTA && !FELUCCA_FLASH
 #error "FELUCCA_OTA needs FELUCCA_FLASH"
