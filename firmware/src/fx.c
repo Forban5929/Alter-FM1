@@ -152,6 +152,7 @@ static int32_t alt_mg_now = ALT_MTRIM;
 static inline int32_t alt_mg_block(int32_t mg)
 {
     int32_t t = (int32_t)alt_mgain * alt_mgain * ALT_MTRIM / 10000;   /* (v1.34: with the -9 dB headroom) */
+    t = (int32_t)(((int64_t)t * alt_tape_g) >> 15);   /* (v1.28: TAPE STOP's fade, voice.c) */
     alt_mg_now += (t - alt_mg_now) >> 2;
     if (alt_mg_now - t < 8 && t - alt_mg_now < 8)
         alt_mg_now = t;

@@ -1020,10 +1020,101 @@ static int alt_live_back(void)
     return 1;
 }
 
+/* UNDO (v1.28, Romain 25/11: "juste la dernière action"): the scene as it was before the last big gesture (CHAOS,
+ * CHAOS TOTAL, a die, a sound, a scene loaded, NEW, a SONG slot), taken as the crash copy is (record, CONSOLE,
+ * draws, MACRO, SONG, alignment gains). OCT- + PLAY puts it back; again = REDO (the two swap). Knobs are no
+ * gesture. Marks less than ALT_UND_MERGE ms apart are one gesture (a sound turned through, CHAOS's own steps). */
+#define ALT_UND_MERGE 800u
+typedef struct {
+    alt_blob_t b;
+    int32_t g[AS_NCIRC];
+} alt_undo_t;
+static alt_undo_t alt_und_a __attribute__((section(".pool")));   /* before the last gesture (or after it: REDO) */
+static alt_undo_t alt_und_b;                     /* (the swap's scratch, in RAM: the pool is short) */
+static uint8_t alt_und_ok, alt_und_redo, alt_und_busy;
+static uint32_t alt_und_ms;
+static const char *alt_und_what = "";
+static void alt_und_take(alt_undo_t *u)
+{
+    uint32_t c;
+    alt_us_get(&u->b.r);
+    amc_get(u->b.mc);
+    sg_rec_get(u->b.sg);
+    alt_cs_get(u->b.cs);
+    fm1_irq_off();
+    alt_dr_pack(u->b.dr);
+    fm1_irq_on();
+    for (c = 0; c < AS_NCIRC; c++)
+        u->g[c] = ac_tg[c];
+}
+static void alt_und_give(const alt_undo_t *u)
+{
+    uint32_t c;
+    uint8_t m[AS_NCIRC];
+    for (c = 0; c < AS_NCIRC; c++)               /* (the MUTEs are the player's, not the scene's: they stay as they are) */
+        m[c] = au.cfg[c].mute;
+    alt_us_apply(&u->b.r, u->b.cs, u->b.dr);
+    for (c = 0; c < AS_NCIRC; c++)
+        if (au.cfg[c].mute != m[c]) {
+            au.cfg[c].mute = m[c];
+            alt_post_now |= (uint8_t)(1u << c);
+            alt_post_circle(c);
+        }
+    amc_put(u->b.mc);
+    sg_rec_put(u->b.sg);
+    for (c = 0; c < AS_NCIRC; c++)
+        if (u->g[c] > 0 && u->g[c] <= 4 * AC_UNITY)
+            alt_cal_to(c, u->g[c]);
+}
+/* a big gesture is about to change the scene: what plays now is what UNDO gives back */
+static void alt_undo_mark(const char *what)
+{
+    if (alt_und_busy)
+        return;
+    if (alt_und_ok && !alt_und_redo && (uint32_t)(fm1_ms - alt_und_ms) < ALT_UND_MERGE) {
+        alt_und_ms = fm1_ms;                     /* (the same gesture going on: the first state kept) */
+        return;
+    }
+    alt_und_take(&alt_und_a);
+    alt_und_ok = 1;
+    alt_und_redo = 0;
+    alt_und_ms = fm1_ms;
+    alt_und_what = what;
+}
+/* OCT- + PLAY: back to before the last gesture; again: forward (REDO) */
+static void alt_undo(void)
+{
+    static char msg[20];
+    const char *w = alt_und_what;
+    uint32_t k = 0;
+    if (!alt_und_ok) {
+        alt_say("NOTHING TO UNDO");
+        return;
+    }
+    alt_und_busy = 1;                            /* (what the scene's loading calls marks nothing) */
+    alt_und_take(&alt_und_b);
+    alt_und_give(&alt_und_a);
+    memcpy(&alt_und_a, &alt_und_b, sizeof alt_und_a);
+    alt_und_busy = 0;
+    alt_und_redo ^= 1u;
+    alt_und_ms = 0;
+    {
+        const char *h = alt_und_redo ? "UNDO " : "REDO ";
+        for (; h[k]; k++)
+            msg[k] = h[k];
+    }
+    for (; *w && k < sizeof msg - 1u; w++)
+        msg[k++] = *w;
+    msg[k] = 0;
+    alt_say(msg);
+}
+
 /* SAVE tapped: load row i; 0 = nothing there */
 static int alt_row_load(uint32_t t, uint32_t i)
 {
     uint32_t u = i > ALT_NFACT ? (i - 1u - ALT_NFACT) % ALT_NUSER : 0u;
+    if (!t)
+        alt_undo_mark(i == 0 ? "NEW" : "SCENE");
     if (t)
         return 0;
     sg_detach = 1;                               /* (SONG: the circles are no slot's now, alter_song.c sg_keep) */

@@ -50,7 +50,7 @@ static const alt_key_t ALT_KEY[27] = {    /* k: semitones above F3 (whites 0 2 4
     /* the blacks (Romain, 01/11): which circle | its rhythm | the held fills */
     [1] = {AK_SEL, 0, "CIRCLE 1"}, [3] = {AK_SEL, 1, "CIRCLE 2"}, [5] = {AK_SEL, 2, "CIRCLE 3"},
     [8] = {AK_DENS, 0, "DENSITY -"}, [10] = {AK_DENS, 1, "DENSITY +"},
-    [13] = {AK_FILL, AF_DLY, "DUB DELAY"}, [15] = {AK_FILL, AF_REV, "DUB REVERB"}, [17] = {AK_FILL, AF_DESTROY, "DESTROY"},
+    [13] = {AK_FILL, AF_DLY, "DUB DELAY"}, [15] = {AK_FILL, AF_REV, "DUB REVERB"}, [17] = {AK_FILL, AF_TAPE, "TAPE STOP"},
     [20] = {AK_FILL, AF_ROLL16, "ROLL 1/16"}, [22] = {AK_FILL, AF_ROLL32, "ROLL 1/8"},
     [25] = {AK_TRIG, 0, "TRIGGER"},         /* a hit of the chosen circle at once; + REC: added to it (alter_play.c alt_trig_now) */
 };
@@ -211,8 +211,10 @@ static void alt_cal_to(uint32_t c, int32_t g)
 
 static uint8_t alt_pre_fx;                       /* (v1.18, Romain 23/11: "les presets n'ont pas d'effet de base": a sound
                                                   * loads dry, its fx[] sends only inside a factory scene, alter_store.c) */
+static void alt_undo_mark(const char *what);    /* (alter_store.c: UNDO, the scene before a big gesture) */
 static void alt_load_sound(uint32_t c, uint32_t i)
 {
+    alt_undo_mark("SOUND");
     track_t *t = &trk[c];
     const alt_pre_t *pr = alt_pre(i);
     uint32_t e = ALT_ENGS[pr->eng % ALT_NENG], j;
@@ -415,6 +417,7 @@ static int alt_sg_store(uint32_t s)              /* the HITS ROT LEN asked now i
 }
 static void alt_sg_ask(uint32_t s)               /* slot s from the next bar (the chain stops) */
 {
+    alt_undo_mark("SLOT");
     fm1_irq_off();
     sg_on = 0;
     sg_ask = (uint8_t)(s + 1u);
@@ -1913,6 +1916,11 @@ static int alter_ui_input(uint32_t pressed)
         alt_sys_open_rand();
         pressed &= ~(1u << panel.btn[B_HOME]);
     }
+    if (!octs && ((ALT_BTNS >> panel.btn[B_OCTDN]) & 1u) && !au.handed && ((pressed >> panel.btn[B_PLAY]) & 1u)) {
+        alt_undo();                              /* OCT- + PLAY (v1.28, Romain 25/11): UNDO the last big gesture, again = REDO
+                                                  * (alter_store.c); PLAY does not start or stop then */
+        pressed &= ~(1u << panel.btn[B_PLAY]);
+    }
     if (octs && alter_view() && !au.handed && ((pressed >> panel.btn[B_HOME]) & 1u)) {   /* OCT- + OCT+ + HOME: NEW
                                                   * SCENE at once (Romain 01/11), every page closed */
         alt_row_load(0, 0);
@@ -2298,12 +2306,14 @@ static int alter_ui_input(uint32_t pressed)
         if ((keys >> k) & 1u) {                  /* held long: the clean pattern */
             if (au.die_t0[i2] && (int32_t)(fm1_ms - au.die_t0[i2]) >= (int32_t)ALT_DIE_HOLD_MS && !((au.die_clean_done >> i2) & 1u)) {
                 au.die_clean_done |= (uint8_t)(1u << i2);
+                alt_undo_mark("CLEAN");
                 alt_clear_cnt[i2]++;
                 alt_cal(i2);
                 alt_say("CLEAN");
             }
         } else if (au.die_t0[i2]) {              /* let go: a tap rolls, at once */
             if (!((au.die_clean_done >> i2) & 1u)) {
+                alt_undo_mark("DICE");
                 alt_roll_w[i2] = alt_die_w[i2];      /* DICE: the pattern · OCT- + DICE: velocity and chance (and a
                                                   * LEN, Romain 10/11) · OCT+ + DICE: pitch, delay and reverb throws */
                 if (alt_die_w[i2] == AS_DW_VC && !(alt_seq.c[i2].locks & AS_LK_LEN)) {
@@ -5059,6 +5069,7 @@ static void acx_reset(void)
 }
 static void acx_do(uint32_t kind)
 {
+    alt_undo_mark(kind == 2u ? "TOTAL" : "CHAOS");
     if (kind == 2u)
         alt_total_chaos();
     else {
@@ -5616,6 +5627,8 @@ static int32_t alt_peek(uint32_t c, uint32_t w)
         return (int32_t)(au.cfg[c].type | au.cfg[c].len << 8 | au.cfg[c].tdens << 16 | (uint32_t)au.cfg[c].tlock << 24);
     if (w == 10u)
         return au.cfg[c].trange;
+    if (w == 28u)                                /* (v1.28: UNDO: kept | REDO next << 1 | ms since the last mark << 8, the die of c << 30) */
+        return (int32_t)(alt_und_ok | alt_und_redo << 1 | ((fm1_ms - alt_und_ms) & 0x3FFFFFu) << 8 | (uint32_t)(alt_seq.c[c].die & 1u) << 30);
     if (w == 26u)                                /* (v1.36: circle c as asked: HITS | LEN << 8 | ROT << 16 | the slot playing << 24) */
         return (int32_t)(au.cfg[c].hits | (uint32_t)au.cfg[c].len << 8 | (uint32_t)au.cfg[c].rot << 16 | (uint32_t)sg_play << 24);
     if (w == 27u)                                /* (v1.36: SONG: the used slots | the chain's links << 4 | on << 9 | link << 10) */

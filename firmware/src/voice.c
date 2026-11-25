@@ -654,6 +654,10 @@ static __attribute__((noinline)) void spread_sum(int32_t *out)
 /* render one block of a part into out (cleared here); returns the voices rendered */
 /* Channel bend is live performance state, outside projects/presets. Q8 semitones. */
 static int32_t midi_bend_q8[NTRK], midi_bend_target[NTRK];
+/* ALTER TAPE STOP (v1.28, alter_play.c alt_tape_tick): every part bent down (Q8 semitones, 0 = none) and the master's
+ * gain (Q15, fx.c alt_mg_block); written by the audio ISR once a block, read by both cores */
+static volatile int32_t alt_tape_q8;
+static volatile int32_t alt_tape_g = 32768;
 static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
 {
     const engine_t *e = ENGINES[t->engine];
@@ -670,7 +674,7 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
         /* ~6 ms smoothing, with an exact landing (no permanent small offset). */
         midi_bend_q8[ti] += d > 0 ? (d < 4 ? d : (d + 3) / 4) : (d > -4 ? d : (d - 3) / 4);
     }
-    bend = midi_bend_q8[ti];
+    bend = midi_bend_q8[ti] + alt_tape_q8;
     bend16 = bend >= 0 ? bend / 16 : -((-bend + 15) / 16);
     bend_fine = (bend - bend16 * 16) * 2367 / 2560;
     uint32_t nr = 0, fade = t->xf_on && t->xf;

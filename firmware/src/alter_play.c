@@ -24,9 +24,10 @@
 
 #include "alter_seq.c"
 
-enum { AF_ROLL32, AF_ROLL16, AF_BUILD, AF_RAT2, AF_RAT3, AF_DLY, AF_REV, AF_DESTROY, AF_REVERSE, AF_N };
+enum { AF_ROLL32, AF_ROLL16, AF_BUILD, AF_RAT2, AF_RAT3, AF_DLY, AF_REV, AF_TAPE, AF_REVERSE, AF_N };   /* (AF_TAPE: was
+                                                  * DESTROY, retired v1.28, Romain 25/11: unpredictable, the level jumped) */
 #define AF_ROLLS ((1u << AF_ROLL32) | (1u << AF_ROLL16) | (1u << AF_BUILD))
-#define AF_DUBS ((1u << AF_DLY) | (1u << AF_REV) | (1u << AF_DESTROY))
+#define AF_DUBS ((1u << AF_DLY) | (1u << AF_REV))
 /* REC'd fills (03/11): per circle and step, what plays there on every cycle: ROLL 1/32 (the step's hit doubled), the dubs
  * (DUB DELAY / REVERB, DESTROY for that step). ROLL 1/16 is recorded as added steps (alter_seq.c as_add). The UI writes
  * them only to clear or load them (IRQ off) */
@@ -526,20 +527,14 @@ static void alt_take(void)
     for (c = 0; c < AS_NCIRC; c++) {             /* the dubs on each circle: held (the target) or REC'd on its step */
         uint32_t r = alt_run ? alt_fxr_now[c] : 0u, d, de;
         int16_t *sv = alt_fx_save[c];
-        d = (c == alt_tgt ? h & AF_DUBS : 0u) | ((r & AFR_DLY) ? 1u << AF_DLY : 0u) | ((r & AFR_REV) ? 1u << AF_REV : 0u) |
-            ((r & AFR_DST) ? 1u << AF_DESTROY : 0u);
+        d = (c == alt_tgt ? h & AF_DUBS : 0u) | ((r & AFR_DLY) ? 1u << AF_DLY : 0u) | ((r & AFR_REV) ? 1u << AF_REV : 0u);
+                                                  /* (a DESTROY REC'd before v1.28, AFR_DST: plays nothing now) */
         de = d ^ alt_dub_on[c];
         if (!de)
             continue;
         alt_dub_on[c] = (uint16_t)d;
         alt_send(c, de, d, AF_DLY, P_DLY, &sv[0], 127);
         alt_send(c, de, d, AF_REV, P_REV, &sv[1], 127);
-        if ((de >> AF_DESTROY) & 1u) {
-            alt_send(c, de, d, AF_DESTROY, P_DIST, &sv[2], 100);
-            alt_send(c, de, d, AF_DESTROY, P_ITYPE, &sv[3], 3);   /* FOLD (params.c N_ITYPE) */
-            alt_send(c, de, d, AF_DESTROY, P_IA, &sv[4], 110);
-            alt_send(c, de, d, AF_DESTROY, P_IMIX, &sv[5], 127);
-        }
     }
     if (!e)
         return;
@@ -838,6 +833,62 @@ static uint32_t alt_len(uint32_t p)
     return alt_par ? p - sw : p + sw;
 }
 
+/* TAPE STOP (v1.28, Romain 25/11, in place of DESTROY: predictable, the same level, rings with the delay and the reverb):
+ * held, the circles slow to a stop over TS_STEPS sixteenths, every part bent down with them (to -24 semitones, voice.c
+ * alt_tape_q8) and the last quarter fading (fx.c alt_mg_block); let go, they come back on the next 1 of the clock that
+ * ran on underneath, every circle from its first step. Not REC'd (all the circles at once). */
+#define TS_STEPS 8u
+static uint32_t ts_spd = 65536u;                 /* the circles' speed, Q16 */
+static uint8_t ts_on, ts_wait;                   /* stopping or stopped; let go: waiting for the 1 */
+static uint32_t ts_rp, ts_rs, ts_frac;           /* the running clock: samples into its sixteenth, its step (alt_gstep's) */
+static void ts_level(void)
+{
+    alt_tape_q8 = -(int32_t)(((65536u - ts_spd) * 6144u) >> 16);
+    alt_tape_g = ts_spd >= 16384u ? 32768 : (int32_t)(ts_spd * 2u);
+}
+static void ts_off(void)
+{
+    ts_on = ts_wait = 0;
+    ts_spd = 65536u;
+    ts_frac = 0;
+    ts_level();
+}
+/* the samples the circles move by in this block (n: the clock's); 0 = TAPE STOP just brought them back on the 1 */
+static uint32_t ts_tick(uint32_t n, uint32_t p, uint32_t h)
+{
+    uint32_t held = (h >> AF_TAPE) & 1u, dec, c;
+    if (held && !ts_on) {
+        ts_on = 1;
+        ts_rp = alt_pos;
+        ts_rs = alt_gstep;
+    }
+    if (!ts_on)
+        return n;
+    ts_wait = (uint8_t)!held;
+    ts_rp += n;
+    while (ts_rp >= p) {
+        ts_rp -= p;
+        if (ts_wait && ts_rs % 16u == 0u) {      /* the 1: everything back, from there */
+            ts_off();
+            alt_pos = ts_rp;
+            alt_par = 0;
+            alt_gstep = ts_rs;
+            for (c = 0; c < AS_NCIRC; c++)
+                alt_seq.c[c].pos = 0;
+            alter_step();
+            return 0;
+        }
+        ts_rs++;
+    }
+    dec = (n << 16) / (TS_STEPS * p);           /* (n <= a block: no overflow) */
+    ts_spd = ts_spd > dec ? ts_spd - dec : 0u;
+    ts_level();
+    ts_frac += n * (ts_spd >> 4);                /* (Q12 x n: no overflow) */
+    n = ts_frac >> 12;
+    ts_frac &= 4095u;
+    return n;
+}
+
 /* n samples on in this block (seq_n: Felucca's, so an external clock moves it too) */
 static void alter_tick_(uint32_t n)
 {
@@ -852,6 +903,8 @@ static void alter_tick_(uint32_t n)
     alt_gl_tick(n, p);
     h = alt_hold;
     if (!song.playing) {
+        if (ts_on)
+            ts_off();
         if (alt_run)
             for (c = 0; c < AS_NCIRC; c++) {
                 alt_off(c);
@@ -874,6 +927,9 @@ static void alter_tick_(uint32_t n)
         alter_step();
         return;
     }
+    n = ts_tick(n, p, h);                        /* (TAPE STOP: slower, or back on the 1) */
+    if (!n && !ts_on)
+        return;
     /* this sixteenth's length: SWING makes the even ones longer and the odd ones shorter by as much */
     len = alt_len(p);
     alt_pos += n;
@@ -904,8 +960,7 @@ static void alter_tick_(uint32_t n)
         const as_circ_t *r = &alt_seq.c[alt_tgt];
         if (r->cfg.len) {
             uint32_t k = (r->pos + r->cfg.len - 1u) % r->cfg.len;
-            alt_fxr[alt_tgt][k] |= (uint8_t)(((h >> AF_DLY) & 1u ? AFR_DLY : 0u) | ((h >> AF_REV) & 1u ? AFR_REV : 0u) |
-                                             ((h >> AF_DESTROY) & 1u ? AFR_DST : 0u));
+            alt_fxr[alt_tgt][k] |= (uint8_t)(((h >> AF_DLY) & 1u ? AFR_DLY : 0u) | ((h >> AF_REV) & 1u ? AFR_REV : 0u));
         }
     }
 }

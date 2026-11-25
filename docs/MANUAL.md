@@ -74,7 +74,7 @@ On the circles' view (no menu open) the keys play ALTER, not notes.
 **Lower row (16 keys), left to right:** MUTE 1 · MUTE 2 · MUTE 3 · (free) · DICE 1 · DICE 2 · DICE 3 · (free) ·
 SHIFT − · SHIFT + · LOCK (TURING) · SONG A · SONG B · SONG C · (free) · (free).
 
-**Upper row (11 keys):** CIRCLE 1 · CIRCLE 2 · CIRCLE 3 · DENSITY − · DENSITY + · DUB DELAY · DUB REVERB · DESTROY ·
+**Upper row (11 keys):** CIRCLE 1 · CIRCLE 2 · CIRCLE 3 · DENSITY − · DENSITY + · DUB DELAY · DUB REVERB · TAPE STOP ·
 ROLL 1/16 · ROLL 1/8 · TRIGGER.
 
 - **MUTE n** mutes circle n. **CIRCLE n** chooses circle n.
@@ -152,7 +152,10 @@ REVERB; all on by default). CHAOS switches every effect off (DIST, INSERT, the s
   at 0; a setting you turn by hand meanwhile keeps its new place. Kept with the scene (USER slots, patch files); CHAOS,
   CHAOS TOTAL, NEW and the factory scenes start it at 0. Also in MIDI LEARN (GLOBAL › MACRO).
 - **TRIGGER**: a hit of the chosen circle at once, played like its next step (same velocity). **REC held + TRIGGER**: the hit is added to its pattern.
-- **Fills** (upper keys, held): DUB DELAY, DUB REVERB, DESTROY, ROLL 1/16, ROLL 1/8 on the chosen circle as long as you
+- **TAPE STOP** (v1.28, the upper key where DESTROY was): held, every circle slows to a stop and bends down like a tape
+  brake; let go, they all come back on the next 1. **UNDO** (v1.28): OCT− + PLAY puts back the scene as it was before
+  the last big gesture (CHAOS, CHAOS TOTAL, a DICE or its clean, a sound, a scene loaded, NEW, a SONG slot); again = REDO.
+- **Fills** (upper keys, held): DUB DELAY, DUB REVERB, ROLL 1/16, ROLL 1/8 on the chosen circle as long as you
   hold them. With REC on, they are written.
 - **REC** (overdub): the knobs you turn are written on the steps and play back in a loop. REC held 1 s clears the chosen
   circle's moves; OCT− + OCT+ + REC clears every circle's. (The CONSOLE's EQ and COMP are not recorded, on purpose.)

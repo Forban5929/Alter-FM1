@@ -58,7 +58,7 @@ static const alm_at_t ALM_AT[] = {               /* (keys: ALT_KEY's; btn: a B_*
     {ALT_TC_KEYS, ALM_NOBTN, "CHAOS TOTAL"},
     {ALM_K(8), ALM_NOBTN, "DENSITY -"}, {ALM_K(10), ALM_NOBTN, "DENSITY +"},
     {ALM_K(14), ALM_NOBTN, "SHIFT -"}, {ALM_K(16), ALM_NOBTN, "SHIFT +"}, {ALM_K(18), ALM_NOBTN, "LOCK"},
-    {ALM_K(13), ALM_NOBTN, "DUB DELAY"}, {ALM_K(15), ALM_NOBTN, "DUB REVERB"}, {ALM_K(17), ALM_NOBTN, "DESTROY"},
+    {ALM_K(13), ALM_NOBTN, "DUB DELAY"}, {ALM_K(15), ALM_NOBTN, "DUB REVERB"}, {ALM_K(17), ALM_NOBTN, "TAPE STOP"},
     {ALM_K(20), ALM_NOBTN, "ROLL 1/16"}, {ALM_K(22), ALM_NOBTN, "ROLL 1/8"}, {ALM_K(25), ALM_NOBTN, "TRIGGER"},
     {ALM_K(19), ALM_NOBTN, "SONG A"}, {ALM_K(21), ALM_NOBTN, "SONG B"}, {ALM_K(23), ALM_NOBTN, "SONG C"},
     {0, B_PLAY, "PLAY / STOP"}, {0, B_REC, "REC"}, {0, B_OCTDN, "OCT -"}, {0, B_OCTUP, "OCT +"},

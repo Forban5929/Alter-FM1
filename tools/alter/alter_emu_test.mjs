@@ -152,10 +152,24 @@ check(`DICE 1: the circle plays a new rhythm (${d1.steps.join(",")})`, d1.steps.
 check("DICE 1: a draw is on (its mark on the screen)", mark());
 K(1 << 7); render(FS * 0.7); K(0); render(1200);
 check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().steps, euclid(16, 8, 0)));
+// v1.28 UNDO: OCT- + PLAY = the scene before the last big gesture (here a DICE), again = REDO; PLAY does not stop
+{
+  const OCTD = 12;
+  const undo = () => { ex.web_buttons(1 << OCTD); render(2000); ex.web_buttons((1 << OCTD) | (1 << PLAY)); render(2000);
+                       ex.web_buttons(1 << OCTD); render(2000); ex.web_buttons(0); render(2000); };
+  render(FS);                                                   // (more than a gesture's merge apart)
+  tap(7); bar(); const u1 = bar();
+  undo(); bar(); const u2 = bar();
+  undo(); bar(); const u3 = bar();
+  check(`UNDO: the DICE undone (${u1.steps.join(",")} -> ${u2.steps.join(",")}), REDO: back (${u3.steps.join(",")}), still playing`,
+        !same(u1.steps, euclid(16, 8, 0)) && same(u2.steps, euclid(16, 8, 0)) && same(u3.steps, u1.steps));
+  K(1 << 7); render(FS * 0.7); K(0); render(1200);
+  check("after UNDO / REDO, DICE held: clean again", same(bar().steps, euclid(16, 8, 0)));
+}
 // the fills: on the selected circle (1)
 {
   const before = bar().steps.length;
-  const FILLS = { 13: "DUB DELAY", 15: "DUB REVERB", 17: "DESTROY", 20: "ROLL 1/16", 22: "ROLL 1/8" };   // (RATCHET X2 left the keys: TRIGGER; 1/8T became 1/32, 03/11, then 1/8, 04/11)
+  const FILLS = { 13: "DUB DELAY", 15: "DUB REVERB", 20: "ROLL 1/16", 22: "ROLL 1/8" };   // (17: TAPE STOP since v1.28, below)   // (RATCHET X2 left the keys: TRIGGER; 1/8T became 1/32, 03/11, then 1/8, 04/11)
   const got = {}, n = {};
   let worst = 0;
   for (const [k, name] of Object.entries(FILLS)) {
@@ -167,6 +181,16 @@ check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().
   }
   console.log("alter: attacks in a bar held: " + Object.entries(n).map(([k, v]) => `${k} ${v}`).join(", "));
   check(`every fill plays and none clips (peak ${worst.toFixed(3)})`, Object.values(n).every((v) => v > 0) && worst < 0.999);
+  // v1.28: TAPE STOP (key 17, in place of DESTROY): held, every circle slows to a stop; let go, back on the 1, all hits
+  {
+    const a0 = attacks(bar().audio, FS * 0.012).length;
+    K(1 << 17); bar(); const st = bar(); bar();
+    const a1 = attacks(st.audio, FS * 0.012).length;
+    K(0); bar(); bar();
+    const back = bar();
+    check(`TAPE STOP held: stopped (attacks in a bar ${a0} -> ${a1}); let go: 8 hits again (${back.steps.join(",")})`,
+          a1 <= 2 && a0 >= 6 && same(back.steps, euclid(16, 8, 0)));
+  }
   const notes = (k) => { K(1 << k); render(2000); bar(); const h0 = ex.web_alter_hits(0); bar(); const d = ex.web_alter_hits(0) - h0; K(0); bar(); return d; };
   const h16 = notes(20), h8 = notes(22);
   check(`ROLL 1/16 ~ 16 attacks; ROLL 1/8 half as many notes as 1/16 (${n["ROLL 1/16"]}; ${h16} -> ${h8})`,
@@ -381,8 +405,8 @@ tap(10); bar();
 // a fill on another circle leaves this one alone: CIRCLE 2 tapped (the 2nd black key; muted), DESTROY held
 tap(3);
 {
-  K(1 << 17); render(2000); const b = bar(); K(0);
-  check(`CIRCLE 2 key: DESTROY does not touch circle 1 ${b.steps.join(",")}`, same(b.steps, euclid(16, 8, 0)));
+  K(1 << 13); render(2000); const b = bar(); K(0);
+  check(`CIRCLE 2 key: DUB DELAY does not touch circle 1 ${b.steps.join(",")}`, same(b.steps, euclid(16, 8, 0)));
 }
 // PRESETS on circle 2: through the engines (PHYS's last presets, then NOISE's)
 tap(2);                                                          // circle 2 back on
