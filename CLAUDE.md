@@ -7,7 +7,7 @@ Règle (Romain 22/11) : **une liste de besoins par version (Sheet) ; on publie (
 **Sheet : https://claude.ai/artifact/FhZkHbyXGPKKUxAC4wwPVi** (Sheets, nœud `af8de520-948a` ; onglets **« v1.2 »** = la liste
 en cours, « v1.1 » = fait, « Audit knobs » ; colonnes # Besoin Statut Catégorie Priorité Source « Fait en » Notes ;
 lire avant de coder, mettre à jour en fin de session ; l'outil Claude_Docs sait l'éditer : guide topic.sheets).
-**Liste v1.2 (24/11)** : ~~balance~~ (v1.34), ~~moteurs plus différents~~ (retiré par Romain 25/11), RUMBLE à finir,
+**Liste v1.2 (24/11)** : ~~balance~~ (v1.34), ~~moteurs plus différents~~ (retiré par Romain 25/11), RUMBLE (pompe creusée v1.35, à écouter),
 MIDI Bluetooth (à décider), stems USB (à décider, voir plus bas), **SIDECHAIN** (un cercle, ex. KICK, fait pomper les
 autres : source + cible + quantité, à préciser), **SONG mode A B C à revoir** (demander à Romain ce qui ne va pas),
 essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01→v1.1, Backup/Restore, sons USER, MIDI OUT, CPU WAVE).
@@ -24,6 +24,10 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
   wasm [hits]` (peek 25 = crête à l'entrée du limiteur, remise à 0) : un son seul à son LEVEL ≤ −2,7 dB sous LIM_T (avant : jusqu'à +11),
   3 cercles −1..+4 dB (avant +8..+17) ; à LEVEL 127 (+7,5 dB) un son seul passe encore +7 dB. Tout est ~9 dB moins fort à volume égal.
   alter_fx_test : COMP du MASTER mesuré avec LEVEL −6 (était −24). **Pas écouté sur la FM-1.**
+- **v1.35 (Romain 25/11 : RUMBLE « la pompe pas assez creusée »)** : alter_fx.c `RMB_DEPTH` 1 % (était 5 %), `RMB_HOLD` 15 % du temps
+  (était 8 %), remontée r(2−r) (était r²) pleine à 75 % (`RMB_RAMP`) ; `tools/alter/alter_rumble_pump.mjs wasm [amt]` (RUMBLE seul = avec − sans) :
+  reste bas ~130 ms (était ~50), revenu à −3 dB à 280 ms (était 100). Le creux mesuré plafonne ~19 dB (un reste non pompé dans la
+  différence, sans doute l'alignement du cercle). **Pas écouté.**
 - **Feedback** : `web/alter/feedback.js` → relais Vercel `https://alter-feedback.vercel.app/api/feedback` (`tools/alter/feedback-relay/`,
   projet alter-feedback, équipe rominou1) → Issue `a-trier` + `feedback` + `cat-…` + `v-…`. Redéployer = nouveau déploiement
   avec le fichier. **En début de session** : `gh api 'repos/Forban5929/alter-fm1/issues?labels=a-trier'`, résumer à Romain,
@@ -63,7 +67,7 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.34 » (25/11, BETA ; Release v1.1 = v1.33) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.35 » (25/11, BETA ; Release v1.1 = v1.33) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. **Deux sites (v1.02, 22/11)** : pousser sur `etape-3d` → pages.yml construit (tools/alter/site_build.sh, 2 fois) :
    **racine = dernière Release** (tag vX.YY le plus haut ; ce que voient les gens) et **/beta/ = etape-3d** (bandeau rouge

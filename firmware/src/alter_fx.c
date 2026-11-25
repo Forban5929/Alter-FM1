@@ -95,6 +95,9 @@ static volatile uint8_t alt_rmb[4];               /* each circle's RUMBLE 0..127
 #define RMB_GAIN 6                                /* the level at 127 = the sketch's HIGH (v1.22: measured on the rumble alone,
                                                    * against the kick: 24 was ~10 dB over it) */
 #define RMB_N 4u
+#define RMB_DEPTH 32439                           /* (v1.35: the pump's floor, 1 %; RMB_HOLD, RMB_RAMP: Q14 of a beat) */
+#define RMB_HOLD 2458
+#define RMB_RAMP 9830
 static const uint16_t RMB_LEN[RMB_N] = {934, 970, 894, 854};   /* (11.025 kHz: 77 .. 88 ms; the pool's headroom) */
 static int16_t rmb_buf[934 + 970 + 894 + 854] __attribute__((section(".pool")));
 static struct {
@@ -204,11 +207,13 @@ static __attribute__((noinline)) void rmb_part(uint32_t c, int32_t *b, uint32_t 
         y = rmb.l2 - rmb.hp;
         /* the pump: 5 % for the first 8 % of the beat, then back up as a square, full at 63 % */
         ph = (int32_t)(((int64_t)rmb.since * ibeat) >> 16);   /* (the beat's phase, Q14) */
-        if (ph < 1311)
-            gp = 32767 - 31129;
-        else if (ph < 1311 + 9011) {
-            int32_t r = 16384 - (((ph - 1311) << 14) / 9011);   /* (1 .. 0, Q14; a constant divisor: a multiplication) */
-            gp = 32767 - (int32_t)(((int64_t)31129 * ((r * r) >> 14)) >> 14);
+        /* (v1.35, Romain: "la pompe pas assez creusée": 1 % (was 5 %) for the first 15 % of the beat (was 8 %), then back
+         * up as r(2 - r) (was r * r: it stays low longer), full at 75 % (was 63 %); tools/alter/alter_rumble_pump.mjs) */
+        if (ph < RMB_HOLD)
+            gp = 32767 - RMB_DEPTH;
+        else if (ph < RMB_HOLD + RMB_RAMP) {
+            int32_t r = 16384 - (((ph - RMB_HOLD) << 14) / RMB_RAMP);   /* (1 .. 0, Q14; a constant divisor: a multiplication) */
+            gp = 32767 - (int32_t)(((int64_t)RMB_DEPTH * ((r * (32768 - r)) >> 14)) >> 14);
         } else
             gp = 32767;
         rmb.gs += (gp - rmb.gs) >> 6;             /* (~1.5 ms: the pump glides, no click) */
