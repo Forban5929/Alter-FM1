@@ -96,6 +96,11 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
   au plus) et envois REVERB (jusqu'à 110) montent en 4 mesures, « BAR n » puis « DROP n », tout revient au 1 (**ne fait rien
   côté filtre si le MASTER FILTER est éteint**) ; **ÉCHO FIGÉ retiré par Romain** (blanches 3-9 libres). Peeks 30-32.
   Cases jouées remplies de la couleur du cercle, coups légèrement remplis (Romain : « juste le contour »).
+  **v1.2.13 (Romain 22h44)** : MUTE I II III = blanches 0 2 4 **comme la page normale, tout de suite** (la note continue) ;
+  noires 1 3 5 = **sélection CERCLE I II III** (`aper.sel`, bits, 0 = ALL ; toggle, 2 cercles possibles, aucun = ALL) qui vise
+  DUB (`alt_dub_mask`), FILL (**une seule touche**, k21 ; `alt_ptgt` = masque, rolls sur chaque cercle choisi) et la reverb de
+  MONTÉE (`up_sel`) ; A B C = blanches après un espace (k7 9 11) ; roue : **I dehors** comme la vue normale, cercles non
+  choisis plus sombres, « ALL / II / I+III » au centre. « On définira plus précisément plus tard » ce que vise la sélection.
   **v1.2.12 aussi** : RUMBLE s'éteint en ~1,5 s sans kick depuis 2,5 temps (`rmb.gn`, avant : restait à −58 dB pour toujours ;
   `tools/alter/alter_rumble_stop.mjs`) ; page compagnon : **double-clic sur un réglage = remis à 0** (le milieu pour EQ et −/+ ;
   `dflt`/`dblReset`).
@@ -131,7 +136,7 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** (Romain 25/11) : `FELUCCA_VERSION` (felucca.c) = « v1.2.12 » ; **les BETA portent le numéro de la version en cours + un chiffre** :
+4. **Version** (Romain 25/11) : `FELUCCA_VERSION` (felucca.c) = « v1.2.13 » ; **les BETA portent le numéro de la version en cours + un chiffre** :
    v1.2 → v1.21, v1.22 … v1.29, puis **v1.2.10, v1.2.11…** ; v1.3 → v1.31… ; à monter à CHAQUE envoi, avant le commit.
    Le journal ci-dessus est déjà renommé (v1.21-v1.27 = anciennement v1.34-v1.40 dans le code et les commits) (les « v1.02-v1.33 » plus bas/dans HISTORIQUE = BETA de la v1.1).
    Release : le site public réécrit FELUCCA_VERSION avec le tag (site_build.sh) → la machine affiche « v1.2 » (v1.1 affichait v1.33). Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.

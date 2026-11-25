@@ -5730,8 +5730,8 @@ static int32_t alt_peek(uint32_t c, uint32_t w)
         h = (h ^ x->pat) * 16777619u;
         return (int32_t)(h ^ x->die ^ (uint32_t)(uint8_t)x->dhits << 8 ^ (uint32_t)x->drot << 16);
     }
-    if (w == 30u)                                /* (v1.2.12: PERFORM's keys: MUTEs waiting, rate, FILL, MONTEE, TEMP, scene waiting) */
-        return (int32_t)(aper.mq | (uint32_t)aper.rate << 3 | (uint32_t)aper.fill << 5 | (uint32_t)aper.up_on << 7 |
+    if (w == 30u)                                /* (v1.2.12: PERFORM's keys: the selection, rate, FILL, MONTEE, TEMP, scene waiting) */
+        return (int32_t)(aper.sel | (uint32_t)aper.rate << 3 | (uint32_t)aper.fill << 5 | (uint32_t)aper.up_on << 7 |
                          (uint32_t)aper.up_drop << 8 | (uint32_t)aper.temp_on << 9 | (uint32_t)aper.sq << 16);
     if (w == 31u)                                /* (the MASTER FILTER's MORPH | the fills held << 8 | the scene row << 24) */
         return (int32_t)(afl_morph | (uint32_t)alt_hold << 8 | (alt_row_cur & 255u) << 24);

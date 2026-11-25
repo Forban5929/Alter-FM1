@@ -65,9 +65,9 @@ static int32_t alt_hold_smp[AS_NCIRC];           /* PERC: samples the hit is hel
 
 /* UI -> here */
 static volatile uint16_t alt_hold;               /* the fills held, bit AF_* */
-static volatile uint8_t alt_ptgt;                /* PERFORM (v1.2.12): the fills' circle + 1 (FILL I II III), 0: the chosen one */
+static volatile uint8_t alt_ptgt;                /* PERFORM (v1.2.13): the circles FILL plays (bits), 0: the chosen one */
 static volatile uint8_t alt_prate;               /* PERFORM: the FILL's rate + 1 (1/4 1/8 1/16 1/32), 0: the ROLL keys' */
-static volatile uint8_t alt_dub_all;             /* PERFORM: DUB DELAY / REVERB on the three circles */
+static volatile uint8_t alt_dub_mask;            /* PERFORM: DUB DELAY / REVERB on these circles (bits), 0: the chosen one */
 static volatile uint8_t alt_sel;                 /* the selected circle */
 static volatile uint8_t alt_emode[AS_NCIRC];     /* each circle's envelope mode (AM_*) */
 static volatile uint8_t alt_post_now;            /* alt_post's circles to take at once, not from the next cycle (CHAOS) */
@@ -524,15 +524,15 @@ static void alt_take(void)
             alt_dr_unpack(c);
         }
     }
-    if (alt_ptgt)                                /* PERFORM: FILL I II III say which (the last one pressed) */
-        alt_tgt = (uint8_t)((alt_ptgt - 1u) % AS_NCIRC);
+    if (alt_ptgt)                                /* PERFORM: its selection (the first for REVERSE / REC) */
+        alt_tgt = (uint8_t)(alt_ptgt & 1u ? 0u : alt_ptgt & 2u ? 1u : 2u);
     else if (e && !alt_prev)                     /* the first fill down: its circle is the target until all are up */
         alt_tgt = (uint8_t)(alt_sel % AS_NCIRC);
     alt_prev = (uint16_t)h;
     for (c = 0; c < AS_NCIRC; c++) {             /* the dubs on each circle: held (the target) or REC'd on its step */
         uint32_t r = alt_run ? alt_fxr_now[c] : 0u, d, de;
         int16_t *sv = alt_fx_save[c];
-        d = (c == alt_tgt || alt_dub_all ? h & AF_DUBS : 0u) | ((r & AFR_DLY) ? 1u << AF_DLY : 0u) | ((r & AFR_REV) ? 1u << AF_REV : 0u);
+        d = ((alt_dub_mask ? (alt_dub_mask >> c) & 1u : c == alt_tgt) ? h & AF_DUBS : 0u) | ((r & AFR_DLY) ? 1u << AF_DLY : 0u) | ((r & AFR_REV) ? 1u << AF_REV : 0u);
                                                   /* (a DESTROY REC'd before v1.28, AFR_DST: plays nothing now) */
         de = d ^ alt_dub_on[c];
         if (!de)
@@ -760,7 +760,7 @@ static void alter_step(void)
         track_t *t = &trk[c];
         const uint8_t *tp = alt_timb_p(t);
         const as_event_t *v = &ev[c];
-        int fill = h && c == alt_tgt;
+        int fill = h && (alt_ptgt ? (alt_ptgt >> c) & 1u : c == alt_tgt);
         uint32_t rep;
         alt_rat_left[c] = 0;
         alt_fxr_now[c] = kk[c] < AS_MAXLEN ? alt_fxr[c][kk[c]] : 0u;   /* (its REC'd fills: the dubs, alt_take) */
@@ -941,18 +941,23 @@ static void alter_tick_(uint32_t n)
         len = alt_len(p);
     }
     if (h & AF_ROLLS) {
-        const as_circ_t *r = &alt_seq.c[alt_tgt];
+        uint32_t tm = alt_ptgt ? alt_ptgt : 1u << alt_tgt;   /* (PERFORM's FILL: every circle selected) */
         alt_roll_pos += (int32_t)n;
         while (alt_roll_pos >= (int32_t)alt_roll_period(h, p)) {   /* (BUILD UP: the step shrinks as it goes) */
             uint32_t per = alt_roll_period(h, p);
             uint32_t v = (h >> AF_BUILD) & 1u ? 30u + alt_roll_n * 3u : 40u + alt_roll_n * 6u;
             alt_roll_pos -= (int32_t)per;
-            alt_on(alt_tgt, as_note(&alt_seq, r->cfg.root, 0), v > 124u ? 124u : v, 0, 0);
-            alt_roll_n++;
-            if (ar_on && r->cfg.len) {           /* REC: a roll's hit adds its step (ROLL 1/8: every other one) */
-                uint32_t k = (r->pos + r->cfg.len - 1u) % r->cfg.len;
-                as_add(&alt_seq, alt_tgt, k);
+            for (c = 0; c < AS_NCIRC; c++) {
+                const as_circ_t *r = &alt_seq.c[c];
+                if (!((tm >> c) & 1u))
+                    continue;
+                alt_on(c, as_note(&alt_seq, r->cfg.root, 0), v > 124u ? 124u : v, 0, 0);
+                if (ar_on && r->cfg.len) {       /* REC: a roll's hit adds its step (ROLL 1/8: every other one) */
+                    uint32_t k = (r->pos + r->cfg.len - 1u) % r->cfg.len;
+                    as_add(&alt_seq, c, k);
+                }
             }
+            alt_roll_n++;
         }
     }
     if (ar_on && (h & AF_DUBS)) {                /* REC: the dubs held, written on the step playing */
