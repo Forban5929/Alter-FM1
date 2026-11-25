@@ -183,7 +183,7 @@ static void con_uac(void)                              /* USB audio input: strea
     con_kv("uac_stalls", (int32_t)uac.stalls);
     con_kv("uac_adj_up", (int32_t)uac.adj_up);
     con_kv("uac_adj_down", (int32_t)uac.adj_down);
-    con_kv("uac_fill", (int32_t)uac.fill_min);
+    con_kv("uac_fill", (int32_t)uac.fill_lo);   /* (bsp 2bd9dbe: fill_lo) */
     con_kv("uac_fill_lo", uac.fill_lo == 0xFFFFFFFFu ? -1 : (int32_t)uac.fill_lo);
     con_kv("uac_fill_hi", (int32_t)uac.fill_hi);
 }

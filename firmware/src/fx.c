@@ -1320,8 +1320,70 @@ static __attribute__((noinline)) void mix_part0(track_t *t, uint32_t n SM_DECL) 
 #endif
 static uint32_t c1_blocks;                              /* blocks the second core took parts of (console) */
 
-#define MIX_PART_T(I, N, SM) do { uint32_t t_ = ALT_PT(); mix_part(&trk[I], N, SM); tk_peak(&part_tk[I], ALT_PT() - t_); } while (0)
-#define MIX_PART_T0(I, N, SM) do { uint32_t t_ = ALT_PT(); mix_part0(&trk[I], N, SM); tk_peak(&part_tk[I], ALT_PT() - t_); } while (0)
+/* ALTER v1.39 (Romain 25/11, "stems"): the USB input's channels 3..10 (bsp usb.c FELUCCA_UAC_CH 10, uac_ch_frame): each
+ * circle's stereo as it goes into the mix (its DIST, INSERT, CONSOLE, LEVEL, PAN, its RUMBLE), the effects' return on 9-10;
+ * at the master's gain (alt_mg_now: MASTER, ALTER's headroom), before the MASTER FILTER, the MASTER block and the limiter.
+ * A part's stereo = its sums after it minus before (the same with SPREAD, on either core); nobody recording: nothing done */
+#if (FELUCCA_UAC && FELUCCA_UAC_CH == 10) || defined(ALT_STEMS_WEB)
+#define ALT_STEMS 1
+#ifdef ALT_STEMS_WEB
+static int16_t *alt_stem_frame(uint32_t off, uint32_t *run);   /* (web/emu/felucca_web.c: a ring to test them) */
+static void alt_stem_block(uint32_t n);
+#define ALT_STEM_STRIDE 8u
+#else
+static int16_t *uac_ch_frame(uint32_t off, uint32_t *run);   /* (bsp chip/usb.c, included after this file) */
+#define alt_stem_frame uac_ch_frame
+#define alt_stem_block(n) ((void)(n))
+#define ALT_STEM_STRIDE ((uint32_t)FELUCCA_UAC_CH)   /* (usb.c UAC_CH_STRIDE) */
+#endif
+static int16_t *stem_a, *stem_b;                        /* the block's frames 0..stem_na - 1, then from stem_b */
+static uint32_t stem_na;
+static int32_t stem_mg;                                 /* (the master's gain, mix_block) */
+static void stem_begin(uint32_t n, int32_t mg)          /* audio ISR, before the parts */
+{
+    uint32_t r2;
+    alt_stem_block(n);
+    stem_a = alt_stem_frame(0, &stem_na);
+    stem_b = stem_a && stem_na < n ? alt_stem_frame(stem_na, &r2) : (int16_t *)0;
+    stem_mg = mg;
+}
+static inline int16_t *stem_at(uint32_t i)
+{
+    return i < stem_na ? stem_a + i * ALT_STEM_STRIDE : stem_b + (i - stem_na) * ALT_STEM_STRIDE;
+}
+static inline int16_t stem_q(int32_t v)                 /* a mix value as the master's output gives it (Q15) */
+{
+    return (int16_t)clamp(((v >> 2) * stem_mg) >> 10, -32767, 32767);
+}
+static void stem_part(uint32_t ci, const int32_t *l, const int32_t *r, const int32_t *l0, const int32_t *r0, uint32_t n)
+{
+    uint32_t i;
+    for (i = 0; i < n; i++) {
+        int16_t *p = stem_at(i);
+        if (p) {
+            p[2u * ci] = stem_q(l[i] - l0[i]);
+            p[2u * ci + 1u] = stem_q(r[i] - r0[i]);
+        }
+    }
+}
+#define STEM_PART(I, N, SM, CALL) do {                                                         \
+    if (stem_a && (I) < 3u) {                                                                    \
+        int32_t l0_[CTL], r0_[CTL];                                                              \
+        uint32_t k_;                                                                             \
+        for (k_ = 0; k_ < (N); k_++) {                                                           \
+            l0_[k_] = (SM)->l[k_];                                                               \
+            r0_[k_] = (SM)->r[k_];                                                               \
+        }                                                                                        \
+        CALL;                                                                                    \
+        stem_part(I, (SM)->l, (SM)->r, l0_, r0_, N);                                             \
+    } else                                                                                       \
+        CALL;                                                                                    \
+} while (0)
+#else
+#define STEM_PART(I, N, SM, CALL) CALL
+#endif
+#define MIX_PART_T(I, N, SM) do { uint32_t t_ = ALT_PT(); STEM_PART(I, N, SM, mix_part(&trk[I], N, SM)); tk_peak(&part_tk[I], ALT_PT() - t_); } while (0)
+#define MIX_PART_T0(I, N, SM) do { uint32_t t_ = ALT_PT(); STEM_PART(I, N, SM, mix_part0(&trk[I], N, SM)); tk_peak(&part_tk[I], ALT_PT() - t_); } while (0)
 
 static void c1_parts(uint32_t arg);
 static void c1_job(uint32_t arg)                        /* the buses, then the parts */
@@ -1438,6 +1500,9 @@ static __attribute__((noinline)) void mix_block(int32_t *out, uint32_t n)
     for (uint32_t ci = 0; ci < AM_NC; ci++)
         ac_poll(ci, n);                                 /* ALTER: the circles' alignment (alter_fx.c) */
     perf = perf_begin(n);                               /* the FX hold layer at work (perform.c) */
+#ifdef ALT_STEMS
+    stem_begin(n, mg);                                  /* (v1.39: the USB stems of this block) */
+#endif
     uint32_t pt0 = ALT_PT(), pt1, tk_own = 0, tk_wait = 0;
 #if FELUCCA_CPU2
     uint32_t m = C1_ON() ? C1_SPLIT() & ((1u << NPART) - 1u) : 0u, c1 = C1_ON() && C1_RUN(c1_job, m | n << 8);
@@ -1490,6 +1555,23 @@ static __attribute__((noinline)) void mix_block(int32_t *out, uint32_t n)
     }
     fx_pn = n;
     APF_ADD(APF_X, apf_bus);
+#ifdef ALT_STEMS
+    if (stem_a) {                                       /* (v1.39: the effects' return on 9-10: the buses' wet, and
+                                                         * HALL's stereo side, which goes into the mix itself) */
+        int32_t l0[CTL], r0[CTL];
+        for (i = 0; i < n; i++) {
+            l0[i] = mix_l[i];
+            r0[i] = mix_r[i];
+        }
+        if (hl.side)
+            rev_side_mix(mix_l, mix_r, n);
+        for (i = 0; i < n; i++) {
+            int16_t *p = stem_at(i);
+            p[6] = stem_q(wet[i] + mix_l[i] - l0[i]);
+            p[7] = stem_q(wet[i] + mix_r[i] - r0[i]);
+        }
+    } else
+#endif
     if (hl.side)
         rev_side_mix(mix_l, mix_r, n);                  /* HALL: stereo */
     pt0 = ALT_PT();

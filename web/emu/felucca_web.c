@@ -27,6 +27,7 @@
 #define FELUCCA_FLASH 1
 #define FELUCCA_OTA 0
 #define FELUCCA_UAC 0
+#define ALT_STEMS_WEB 1          /* (v1.39: fx.c's stems into a ring here, to test them: web_stem_peak) */
 #define FELUCCA_UART 0
 #ifndef FELUCCA_VERSION
 #define FELUCCA_VERSION "WEB"
@@ -361,6 +362,45 @@ static float out_l[1024], out_r[1024];
 EXPORT float *web_out_l(void) { return out_l; }
 EXPORT float *web_out_r(void) { return out_r; }
 /* n frames (<= 1024) into out_l / out_r: the device runs until they exist */
+/* v1.39: the stems (fx.c ALT_STEMS) into a ring of 8 channels, as the USB input's 3..10; their loudest since the last read */
+#define WEB_STEM_N 4096u
+static int16_t web_stem[WEB_STEM_N][8];
+static uint32_t web_stem_w, web_stem_n;
+static uint8_t web_stem_on = 1;
+static void alt_stem_block(uint32_t n)
+{
+    uint32_t i, c;
+    web_stem_w = (web_stem_w + web_stem_n) % WEB_STEM_N;   /* (past the last block) */
+    web_stem_n = n;
+    for (i = 0; i < n; i++)
+        for (c = 0; c < 8u; c++)
+            web_stem[(web_stem_w + i) % WEB_STEM_N][c] = 0;
+}
+static int16_t *alt_stem_frame(uint32_t off, uint32_t *run)
+{
+    uint32_t s = (web_stem_w + off) % WEB_STEM_N;
+    if (!web_stem_on) {
+        *run = 0;
+        return 0;
+    }
+    *run = WEB_STEM_N - s;
+    return web_stem[s];
+}
+EXPORT void web_stem_enable(uint32_t on) { web_stem_on = (uint8_t)(on != 0); }
+/* the loudest sample of stem channel c (0..7: USB 3..10) over the last k frames written */
+EXPORT int32_t web_stem_peak(uint32_t c, uint32_t k)
+{
+    uint32_t i, end = (web_stem_w + web_stem_n) % WEB_STEM_N;
+    int32_t m = 0;
+    for (i = 0; i < k && i < WEB_STEM_N; i++) {
+        int32_t v = web_stem[(end + WEB_STEM_N - 1u - i) % WEB_STEM_N][c % 8u];
+        v = v < 0 ? -v : v;
+        if (v > m)
+            m = v;
+    }
+    return m;
+}
+
 EXPORT void web_render(uint32_t n)
 {
     uint32_t k;

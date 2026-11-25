@@ -22,6 +22,13 @@
 #ifndef FELUCCA_UAC
 #define FELUCCA_UAC 1            /* USB audio input: the master output, 16-bit stereo 44.1 kHz (usb.c) */
 #endif
+#ifndef FELUCCA_UAC_CH
+#define FELUCCA_UAC_CH 10        /* ALTER v1.39 (Romain 25/11, "stems", always 10): the USB input carries 10 channels:
+                                  * 1-2 the master, 3-4 5-6 7-8 circles I II III, 9-10 the effects (fx.c ALT_STEMS) */
+#endif
+#ifndef FELUCCA_UAC_RING_ATTR
+#define FELUCCA_UAC_RING_ATTR __attribute__((section(".pool")))   /* (its ring, ~7.7 KB at 10 channels: in the pool) */
+#endif
 #ifndef FELUCCA_UAC_AS_FIRST
 #define FELUCCA_UAC_AS_FIRST 1   /* bsp/chip/usb.c (off there by default): the audio streaming interface first in the AC
                                   * collection, as since 1.5.1 (#67: macOS) */
@@ -55,7 +62,7 @@
 #define FELUCCA_USB_MANUFACTURER "ALTER"
 #endif
 #ifndef FELUCCA_VERSION
-#define FELUCCA_VERSION "v1.38"    /* ALTER's version (10/11: +0.01 at each push to Romain): splash, SYSTEM > ABOUT, emulator page, version.txt */
+#define FELUCCA_VERSION "v1.39"    /* ALTER's version (10/11: +0.01 at each push to Romain): splash, SYSTEM > ABOUT, emulator page, version.txt */
 #endif
 #if FELUCCA_OTA && !FELUCCA_FLASH
 #error "FELUCCA_OTA needs FELUCCA_FLASH"

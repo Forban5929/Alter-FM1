@@ -260,6 +260,10 @@ power-off, for every scene. CCs not linked keep the fixed map.
   What you change on the page moves on the FM-1, and the other way round.
 - **Patch files**: a whole scene saved as a file on your computer; sent back, it lands in the first empty USER slot.
 - **USB audio**: listen to the FM-1 on the computer, record a WAV, a level meter.
+- **USB stems** (since v1.39): the FM-1 shows up on the computer as a 10-channel audio input. Channels 1-2 are the master
+  (as before); 3-4, 5-6 and 7-8 are circles I, II and III in stereo (with their DIST, INSERT, CONSOLE, LEVEL, PAN and
+  RUMBLE); 9-10 the effects' return (delay, reverb, chorus). The stems come before the MASTER FILTER, the MASTER block
+  and the limiter: raw tracks to mix in a DAW. 44.1 kHz only.
 - The page fits its window (AUTO size).
 
 ## 16. Combos and safety

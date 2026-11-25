@@ -8,7 +8,7 @@ Règle (Romain 22/11) : **une liste de besoins par version (Sheet) ; on publie (
 en cours, « v1.1 » = fait, « Audit knobs » ; colonnes # Besoin Statut Catégorie Priorité Source « Fait en » Notes ;
 lire avant de coder, mettre à jour en fin de session ; l'outil Claude_Docs sait l'éditer : guide topic.sheets).
 **Liste v1.2 (24/11)** : ~~balance~~ (v1.34), ~~moteurs plus différents~~ (retiré par Romain 25/11), RUMBLE (pompe creusée v1.35, à écouter),
-MIDI Bluetooth (à décider), stems USB (à décider, voir plus bas), **SIDECHAIN** (un cercle, ex. KICK, fait pomper les
+~~MIDI Bluetooth~~ (reporté après v1.2), stems USB (v1.39, voir plus bas), **SIDECHAIN** (un cercle, ex. KICK, fait pomper les
 autres : existe déjà = DUCK, Romain « parfait »), ~~SONG A B C à revoir~~ (refait v1.36-v1.38, à essayer),
 essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01→v1.1, Backup/Restore, sons USER, MIDI OUT, CPU WAVE).
 - **v1.1 = BETA v1.33, Release publiée le 25/11** (tag v1.1 = e7d410a ; Romain a choisi de publier sans essai FM-1 préalable).
@@ -52,7 +52,13 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
 - Outils de mesure du son : `alter_knob_audit.mjs` + `alter_knob_report.mjs` (audit), `alter_param_probe.mjs`, `alter_balance.py`
   (LUFS), `alter_scene_fix.mjs`, `alter_upgrade_test.mjs OLD.wasm NEW.wasm` (la mise à jour garde tout), `alter_midiout_test.mjs`.
 - Garde-fous : **pool libre ~8,6 Ko, seuil CI 8 Ko** (plus rien en .pool sans libérer) ; marge image ~64 Ko ; RAM .data+.bss 63,2/72 Ko.
-- **Stems USB (REPORTÉ)** : MASTER 2 can. ou SPLIT 8 can. ; demande le felucca-bsp amont (`FELUCCA_UAC_CH`, +16 000 lignes), 44,1 kHz, ~6 Ko.
+- **v1.39 STEMS USB (Romain 25/11 : « toujours 10 canaux », pistes « 1-2 master, 3-8 cercles, 9-10 effets »)** : **felucca-bsp mis à
+  jour 5942e68 → 2bd9dbe** (sous-module ; seul changement côté ALTER : console.c `uac.fill_lo`) ; felucca.c `FELUCCA_UAC_CH 10` +
+  `FELUCCA_UAC_RING_ATTR` .pool (anneau ~7,7 Ko) ; fx.c `ALT_STEMS` : `stem_begin` (bloc, `uac_ch_frame`), `STEM_PART` (somme du cercle
+  après − avant, les 2 cœurs, SPREAD compris), 9-10 = wet + côté stéréo HALL ; au gain du master (`stem_mg`), AVANT MASTER FILTER/
+  bloc MASTER/limiteur ; rien si personne n'enregistre. Web : `ALT_STEMS_WEB` (anneau de test, `web_stem_peak`) ; test
+  `tools/alter/alter_stems_test.mjs`. **Pas essayé sur la FM-1** (OBS, page compagnon « Listen », Windows avec 10 canaux : à vérifier).
+  MIDI Bluetooth : reporté après la v1.2 (Romain).
 - `alt_sys[11]` (ancien THEME SPLIT, retiré v1.13) peut valoir 1 sur la FM-1 de Romain : le remettre à 0 avant de le reprendre.
 
 ## Utilisateur
@@ -83,7 +89,7 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.38 » (25/11, BETA ; Release v1.1 = v1.33) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.39 » (25/11, BETA ; Release v1.1 = v1.33) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. **Deux sites (v1.02, 22/11)** : pousser sur `etape-3d` → pages.yml construit (tools/alter/site_build.sh, 2 fois) :
    **racine = dernière Release** (tag vX.YY le plus haut ; ce que voient les gens) et **/beta/ = etape-3d** (bandeau rouge
@@ -94,7 +100,7 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
 ## Règles techniques (vérifiées)
 - JieLi AC79 pi32v2 : **entiers seulement** (Q15/Q24), pas de float/malloc/math.h ; 44,1 kHz, blocs de 32.
 - Un seul fichier compilé `firmware/src/felucca.c` (inclut tout) ; navigateur : `web/emu/felucca_web.c` + `tests/hostsim.c`.
-- RAM ~16 Ko libres (gros tampons → `__attribute__((section(".pool")))`, ~19 Ko libres ; CI exige 4 Ko RAM / 8 Ko pool). Sous-modules `firmware/engines`, `firmware/bsp` : ne pas toucher.
+- RAM ~16 Ko libres (gros tampons → `__attribute__((section(".pool")))`, ~19 Ko libres ; CI exige 4 Ko RAM / 8 Ko pool). Sous-modules `firmware/engines`, `firmware/bsp` : ne pas modifier leur code (bsp mis à jour vers l'amont 2bd9dbe en v1.39).
 - Mise à jour USB : identité **`FM-1_956`** (v1.01 ; v0.79-v1.0 : 929, PRIS par Wanderer sur le Hub ; 900 = Felucca) ;
   le loader dit « ota-FM-1_956 » (firmware/loader/loader.c ; la page d'installation ne compare que « FM-1 » ; le kit de
   secours accepte 956, 929 et 900). make_site.py exige FM-1_9xx. Vérifier un numéro : thefirmwarehub.com/submit/ « Is my identity free? ». Garder « FM-1 » dans le nom USB. GPL-3.0 : garder la page ABOUT.
