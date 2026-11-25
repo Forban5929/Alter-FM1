@@ -64,10 +64,11 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
   (cercle + scène), FX = envoi REVERB / taille, SCL (Romain a écrit « SEL », à confirmer) = envoi DELAY / feedback, ENV = DECAY / DUCK,
   SEQ = DENSITÉ / SWING, EDIT LFO GLO = personnalisables (tenu 1 s = choisir les cibles, liste MIDI LEARN) ; HOME sortir, REC enregistre
   les mouvements, PLAY. Pas de volumes. **Clavier PERFORM (Romain 25/11 21h)** : noires MUTE I II III (tapé = au 1, tenu = tout de suite),
-  DUB DELAY, DUB REVERB, ROLL 1/16, ROLL 1/8, **TAPE STOP** (remplace DESTROY partout, Sheet ligne 11), PREV SC / NEXT SC (noires 20 22),
-  noire seule libre ; blanches A B C (pattern du prochain tour, PAS de chaîne), **F = slot FILL** + FILL I II III tenus, FILTRE A / B
-  (MASTER FILTER glisse en 2 pas, les deux = centre), TEMP (tenu : tout revient au lâché), MONTÉE tenue (compte des mesures, drop au 1),
-  ÉCHO FIGÉ, 4 libres. Refusés : NUDGE, SOLO, scènes 1-8, KILL BAS/HAUT, DESTROY.
+  DUB DELAY, DUB REVERB, **TAPE STOP** (remplace DESTROY partout, Sheet ligne 11), PREV SC / NEXT SC (noires 20 22), libres : 2 ex-ROLL + noire
+  seule ; blanches A B C (pattern du prochain tour, PAS de chaîne), FILTRE A / B (MASTER FILTER glisse en 2 pas, les deux = centre), TEMP
+  (tenu : tout revient au lâché), MONTÉE tenue (compte des mesures, drop au 1), ÉCHO FIGÉ, 3 libres, **5 dernières blanches = FILL I II III
+  tenus (ce cercle seul joue un coup à chaque pas) + RATE − / + (1/4 1/8 1/16 1/32)** : remplace ROLL et l'idée de slot FILL (Romain :
+  « roll et fill ont une logique sur tous les cercles »). Refusés : NUDGE, SOLO, scènes 1-8, KILL BAS/HAUT, DESTROY, slot F.
   « Il faudra de bonnes idées pour que ce soit bien en live. » **UNDO** = le DERNIER gros geste seulement (2e appui = REDO proposé ;
   geste OCT−+PLAY et moment à confirmer). **Combinaisons** : 5 retirées (NEW SCENE gardé) + aide à l'écran + carte A5.
 - `alt_sys[11]` (ancien THEME SPLIT, retiré v1.13) peut valoir 1 sur la FM-1 de Romain : le remettre à 0 avant de le reprendre.
