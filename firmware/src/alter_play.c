@@ -835,9 +835,10 @@ static uint32_t alt_len(uint32_t p)
 
 /* TAPE STOP (v1.28, Romain 25/11, in place of DESTROY: predictable, the same level, rings with the delay and the reverb):
  * held, the circles slow to a stop over TS_STEPS sixteenths, every part bent down with them (to -24 semitones, voice.c
- * alt_tape_q8) and the last quarter fading (fx.c alt_mg_block); let go, they come back on the next 1 of the clock that
- * ran on underneath, every circle from its first step. Not REC'd (all the circles at once). */
-#define TS_STEPS 8u
+ * alt_tape_q8) and the last quarter fading (fx.c alt_mg_block); let go, they speed up again as slowly (v1.29, Romain:
+ * "il doit repartir aussi en plusieurs secondes", 4 beats each way), then on the next 1 of the clock that ran on
+ * underneath they land on it, every circle from its first step. Not REC'd (all the circles at once). */
+#define TS_STEPS 16u
 static uint32_t ts_spd = 65536u;                 /* the circles' speed, Q16 */
 static uint8_t ts_on, ts_wait;                   /* stopping or stopped; let go: waiting for the 1 */
 static uint32_t ts_rp, ts_rs, ts_frac;           /* the running clock: samples into its sixteenth, its step (alt_gstep's) */
@@ -868,7 +869,7 @@ static uint32_t ts_tick(uint32_t n, uint32_t p, uint32_t h)
     ts_rp += n;
     while (ts_rp >= p) {
         ts_rp -= p;
-        if (ts_wait && ts_rs % 16u == 0u) {      /* the 1: everything back, from there */
+        if (ts_wait && ts_spd >= 65536u && ts_rs % 16u == 0u) {   /* back to speed, the 1: on the clock again */
             ts_off();
             alt_pos = ts_rp;
             alt_par = 0;
@@ -881,7 +882,10 @@ static uint32_t ts_tick(uint32_t n, uint32_t p, uint32_t h)
         ts_rs++;
     }
     dec = (n << 16) / (TS_STEPS * p);           /* (n <= a block: no overflow) */
-    ts_spd = ts_spd > dec ? ts_spd - dec : 0u;
+    if (held)
+        ts_spd = ts_spd > dec ? ts_spd - dec : 0u;
+    else
+        ts_spd = ts_spd + dec < 65536u ? ts_spd + dec : 65536u;
     ts_level();
     ts_frac += n * (ts_spd >> 4);                /* (Q12 x n: no overflow) */
     n = ts_frac >> 12;

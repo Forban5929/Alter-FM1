@@ -184,9 +184,9 @@ check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().
   // v1.28: TAPE STOP (key 17, in place of DESTROY): held, every circle slows to a stop; let go, back on the 1, all hits
   {
     const a0 = attacks(bar().audio, FS * 0.012).length;
-    K(1 << 17); bar(); const st = bar(); bar();
+    K(1 << 17); bar(); const st = bar(); bar();                  // (v1.29: 4 beats to stop, as many to start again)
     const a1 = attacks(st.audio, FS * 0.012).length;
-    K(0); bar(); bar();
+    K(0); bar(); bar(); bar();
     const back = bar();
     check(`TAPE STOP held: stopped (attacks in a bar ${a0} -> ${a1}); let go: 8 hits again (${back.steps.join(",")})`,
           a1 <= 2 && a0 >= 6 && same(back.steps, euclid(16, 8, 0)));
