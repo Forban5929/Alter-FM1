@@ -762,13 +762,13 @@ play();
   check(`SONG: the chain B 4 A 4 loops (${r.map((x) => `${"-AB"[x[0]]}x${x[1] / 4}`).join(" ")}, patterns ${ok ? "right" : "WRONG"})`,
         ok && r.length >= 4 && r[1][0] === 2 && r[1][1] === 16 && r[2][0] === 1 && r[2][1] === 16 && r[3][0] === 2);
   ex.web_buttons(1 << ARP); render(FS * 0.7); ex.web_buttons(0); render(1300);   // ARP held: the SONG page
-  enc(0, -5); enc(4, -1);                                       // SELECT link 1 (B), KNOB 2: 4 -> 2 bars
+  enc(0, -5); enc(4, -1);                                       // SELECT link 1 (B), KNOB 2: 4 -> 3 bars (v1.37: 1..16)
   render(4000);
   const fb = new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240);
   let ink = 0; for (let i = 96 * 240; i < 190 * 240; i++) ink += fb[i] !== fb[0];
   ({ r, ok } = runs(13));
-  check(`SONG page: link 1 to 2 bars (${r.map((x) => `${"-AB"[x[0]]}x${x[1] / 4}`).join(" ")}; its list drawn: ${ink} px)`,
-        ok && ink > 500 && r.some((x, i) => i > 0 && i < r.length - 1 && x[0] === 2 && x[1] === 8) &&
+  check(`SONG page: link 1 to 3 bars (${r.map((x) => `${"-AB"[x[0]]}x${x[1] / 4}`).join(" ")}; its list drawn: ${ink} px)`,
+        ok && ink > 500 && r.some((x, i) => i > 0 && i < r.length - 1 && x[0] === 2 && x[1] === 12) &&
         r.some((x, i) => i > 0 && i < r.length - 1 && x[0] === 1 && x[1] === 16));
   B(6);                                                         // HOME: the page left (the chain stored)
   ex.web_buttons(1 << ARP); render(1300); ex.web_buttons(0); render(1300);   // ARP tapped: the chain off

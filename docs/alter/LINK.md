@@ -58,7 +58,7 @@ la page garde les sons et dit d'installer la dernière version. Patch fichier : 
 | cmd | requête | réponse |
 | --- | --- | --- |
 | 21 PAT | comme SCENE (0 liste, 1 place [3 car.], 2 place, 3 liste + NOMS) | comme SCENE ; un pattern = les rythmes seuls |
-| 22 SONG | 0 état / 1 slot = ranger (= SAVE tenu + A B C) / 2 slot = jouer à la mesure suivante / 3 n, n maillons (slot \| mesures << 2 ; 0..3 = 1 2 4 8) = la chaîne (gardée) / 4 on = chaîne ON/OFF (= ARP) | op, rc (1, 0 refusé, 2 flash), slots pleins (bits), slot joué + 1, demandé + 1, chaîne on, maillon joué, mesures restantes, n, n maillons |
+| 22 SONG | 0 état / 1 slot = capturer HITS ROT LEN (v1.36 ; = SAVE tenu + A B C) / 2 slot = jouer à la mesure suivante / 3 n, n maillons (slot \| mesures − 1 << 2 ; v1.37 : 1..16, avant 0..3 = 1 2 4 8) = la chaîne (celle de la scène depuis v1.36 : SAVE de la scène la garde) / 4 on = chaîne ON/OFF (= ARP) | op, rc (1, 0 refusé, 2 flash), slots pleins (bits), slot joué + 1, demandé + 1, chaîne on, maillon joué, mesures restantes, n, n maillons |
 
 NOM = 3 caractères de « espace A-Z 0-9 - » (le reste = espace ; 3 espaces = pas de nom). La page : liste « A05  KCK », champ NAME à côté
 de Store here (scènes et patterns), onglet SONG (3 cartes A B C : PLAY / STORE WHAT PLAYS ; la chaîne : maillons slot + mesures,

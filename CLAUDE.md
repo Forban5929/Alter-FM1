@@ -35,8 +35,12 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
   **v1.36 = étape 1** : touche vide tapée = capture (rien ne change à l'oreille), pleine = joue à la mesure, tenue seule 1 s = remplacée
   (par ce qui jouait à l'appui, `asg.snap`) ; **un slot est une photo** (plus d'édition gardée dans le slot qui joue, `sg_keep` retiré) ;
   SAVE + A = capture. Pool libéré : ~9 Ko (sg_slot 3×3080 o + tampons). Test `tools/alter/alter_song_test.mjs` (peek 26 HITS|LEN|ROT|slot,
-  27 used|n|on|link). **À faire : étape 2** (ARP tenu + REC = chaîne enregistrée en jouant, durées réelles ; ligne de temps sous les
-  cercles), **étape 3** (page SONG = ligne de temps : touches A B C ajoutent un bloc, KNOB 2 durée 1..16, KNOB 3 déplacer, OCT− + SELECT enlever).
+  27 used|n|on|link). **v1.37 = étape 2** : maillon = slot | (mesures − 1) << 2 (**1..16**, `SG_LINK`, `sg_bars` ; avant 0..3 = 1 2 4 8 :
+  converti au démarrage ; LINK 22 et page compagnon suivis) ; **ARP tenu + REC** = chaîne écrite en jouant (alter_song.c `sg_rec` 1 demandé /
+  2 écrit, `sg_rec_close`, compté à chaque barre ; 16 mesures max par maillon, coupé ; fin = ARP tapé / ARP + REC / 16 maillons, à la
+  barre, puis la chaîne joue depuis le 1er maillon) ; pendant l'écriture : ARP clignote, point rouge, une touche = ce slot (vide :
+  capture + demandé) ; vue des cercles : **ligne de temps verticale à droite** (blocs = mesures, celui qui joue plein, trait = la
+  mesure en cours ; remplace la liste des maillons) ; web_alter_song 5 = sg_rec, 16+k = maillon k. **À faire : étape 3** (page SONG = ligne de temps : touches A B C ajoutent un bloc, KNOB 2 durée 1..16, KNOB 3 déplacer, OCT− + SELECT enlever).
 - **Feedback** : `web/alter/feedback.js` → relais Vercel `https://alter-feedback.vercel.app/api/feedback` (`tools/alter/feedback-relay/`,
   projet alter-feedback, équipe rominou1) → Issue `a-trier` + `feedback` + `cat-…` + `v-…`. Redéployer = nouveau déploiement
   avec le fichier. **En début de session** : `gh api 'repos/Forban5929/alter-fm1/issues?labels=a-trier'`, résumer à Romain,
@@ -76,7 +80,7 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.36 » (25/11, BETA ; Release v1.1 = v1.33) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
+4. **Version** : `FELUCCA_VERSION` (felucca.c) = « v1.37 » (25/11, BETA ; Release v1.1 = v1.33) ; **+0.01 à CHAQUE envoi à Romain** (v1.01, v1.02…), à monter
    avant le commit. Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
 5. **Deux sites (v1.02, 22/11)** : pousser sur `etape-3d` → pages.yml construit (tools/alter/site_build.sh, 2 fois) :
    **racine = dernière Release** (tag vX.YY le plus haut ; ce que voient les gens) et **/beta/ = etape-3d** (bandeau rouge

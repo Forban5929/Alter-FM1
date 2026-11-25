@@ -1189,7 +1189,7 @@ async function loadUser(kind) {
 const store = () => storeUser("scene"), load = () => loadUser("scene");
 
 /* ---------- SONG (05/11, v3): the slots A B C (the rhythms only) and the chain that loops them ---------- */
-const BARS = [1, 2, 4, 8];
+const BARS = Array.from({ length: 16 }, (_, k) => k + 1);   // (v1.37: a link 1..16 bars, the index = bars - 1)
 let song = null, songT = 0, songEdit = false;
 function buildSong() {
   const root = $("song");
@@ -1212,12 +1212,13 @@ function buildSong() {
   c.innerHTML = `<div class="rib"><span>The chain</span></div><span class="num">XX</span>
     <div class="links" data-links></div>
     <div class="crow"><button class="act" data-add>+ Link</button><button class="act" data-on>Chain ON</button><output data-pos></output></div>
-    <p class="help">On the synth: hold A and tap C then B for A › C › B (4 bars a link). Here: each link's slot and length, the
-      chain loops. ARP tapped = ON / OFF, from its first link at the next bar.</p>`;
+    <p class="help">On the synth: hold A and tap C then B for A › C › B (4 bars a link), or hold ARP + REC and play the slots:
+      the chain is written as you play them. Here: each link's slot and length (1 to 16 bars), the chain loops. ARP tapped =
+      ON / OFF, from its first link at the next bar.</p>`;
   c.querySelector("[data-add]").onclick = () => {
     const ch = song?.chain ? song.chain.slice() : [];
     if (ch.length >= 16) return say("A chain holds 16 links at most.", true);
-    ch.push(ch.length ? { ...ch[ch.length - 1] } : { slot: 0, bars: 2 });
+    ch.push(ch.length ? { ...ch[ch.length - 1] } : { slot: 0, bars: 3 });
     sendChain(ch);
   };
   c.querySelector("[data-on]").onclick = () => {

@@ -58,5 +58,23 @@ ex.web_alter(24, 0, 2); ms(300);                                // NEW
 check(`NEW after: slots and chain gone (${sg().used}, ${sg().n})`, sg().used === 0 && sg().n === 0);
 ex.web_alter(24, 0, 0); ms(300);                                // USER 1
 check(`USER 1 again: A B and the chain of 3 back (${sg().used}, ${sg().n})`, sg().used === 3 && sg().n === 3);
+// v1.37: ARP held + REC writes the chain by playing: A 3 bars, B 2 bars, A, then ARP tapped: A B A, it plays from A
+{
+  const ARP = 8, REC = 11, barMs = 2 * 1000;                    // (120 BPM: a bar = 2 s)
+  const btn = (b, on) => { ex.web_buttons(on ? 1 << b : 0); ms(40); };
+  tap("A"); ms(barMs * 1.5);                                    // A plays
+  ex.web_buttons(1 << ARP); ms(40); ex.web_buttons((1 << ARP) | (1 << REC)); ms(40); ex.web_buttons(1 << ARP); ms(40); btn(ARP, 0);
+  const armed = ex.web_alter_song(5);
+  ms(barMs * 3);
+  tap("B"); ms(barMs * 2);
+  tap("A"); ms(barMs * 1);
+  btn(ARP, 1); btn(ARP, 0);                                     // ARP tapped: the end at the next bar
+  ms(barMs * 1.5);
+  const n = ex.web_alter_song(2), L = [...Array(n)].map((_, k) => ex.web_alter_song(16 + k));
+  const txt = L.map((l) => `${"ABC"[l & 3]}${(l >> 2) + 1}`).join(" ");
+  check(`ARP held + REC: armed (${armed}); A B A written by playing (${txt}), the chain on (${ex.web_alter_song(3)}), done (${ex.web_alter_song(5)})`,
+        armed === 1 && n === 3 && (L[0] & 3) === 0 && (L[1] & 3) === 1 && (L[2] & 3) === 0 &&
+        Math.abs((L[0] >> 2) + 1 - 3) <= 1 && Math.abs((L[1] >> 2) + 1 - 2) <= 1 && ex.web_alter_song(3) === 1 && ex.web_alter_song(5) === 0);
+}
 console.log(`song: ${fails} FAIL`);
 process.exit(fails ? 1 : 0);

@@ -728,7 +728,7 @@ static void lk_blob(const uint8_t *a, uint32_t na)
 }
 
 /* SONG (v3, alter_ui.c alt_sg_*): op 0 the state; 1 slot: store what plays there (as SAVE held + A B C); 2 slot: it plays
- * from the next bar (as its key); 3 n, n links (slot | bars' code << 2): the chain (stored); 4 on: the chain on / off
+ * from the next bar (as its key); 3 n, n links (slot | bars - 1 << 2, v1.37: 1..16): the chain (the scene's); 4 on: the chain on / off
  * (as ARP). Reply op, rc (1 done, 0 refused, 2 the flash failed), then the state: the full slots (bits), the slot
  * playing + 1, the one asked for + 1, the chain on, its link playing, that link's bars left, n, the n links */
 /* BACKUP (v1.25, Romain 24/11: "backup complet depuis la page", restoring chosen parts): the page reads every part of the
@@ -935,7 +935,7 @@ static void lk_song(const uint8_t *a, uint32_t na)
             rc = 0;
     } else if (a[0] == 3u) {
         for (k = 0; k < SG_MAXL; k++)
-            asg.chain[k] = k < a[1] ? (uint8_t)((a[2u + k] & 3u) % SG_NSLOT | (a[2u + k] & 12u)) : 0u;
+            asg.chain[k] = k < a[1] ? (uint8_t)((a[2u + k] & 3u) % SG_NSLOT | (a[2u + k] & 60u)) : 0u;
         asg.n = a[1];
         if (asg.row >= asg.n)
             asg.row = 0;

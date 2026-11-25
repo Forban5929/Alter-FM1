@@ -570,7 +570,9 @@ EXPORT uint32_t web_alter_name(uint32_t t, uint32_t u)   /* (tests: USER slot u'
 { const char *n = alt_nm_s[u % ALT_NUSER]; (void)t; return (uint32_t)(uint8_t)n[0] | (uint32_t)(uint8_t)n[1] << 8 | (uint32_t)(uint8_t)n[2] << 16; }
 EXPORT uint32_t web_alter_song(uint32_t w)   /* (tests: SONG, alter_song.c: 0 the slot playing + 1, 1 the link, 2 the links,
                                               * 3 the chain on, 4 the full slots' mask) */
-{ return w == 0 ? sg_play : w == 1 ? sg_link : w == 2 ? sg_n : w == 3 ? sg_on : (uint32_t)(sg_slot[0].used | sg_slot[1].used << 1 | sg_slot[2].used << 2); }
+{ return w == 0 ? sg_play : w == 1 ? sg_link : w == 2 ? sg_n : w == 3 ? sg_on : w == 5 ? sg_rec :   /* (v1.37: 5 the chain
+                                              * written by playing, 16 + k link k: slot | bars - 1 << 2) */
+         w >= 16u ? sg_chain[(w - 16u) % SG_MAXL] : (uint32_t)(sg_slot[0].used | sg_slot[1].used << 1 | sg_slot[2].used << 2); }
 EXPORT uint32_t web_alter_fxr(uint32_t c, uint32_t k) { return alt_fxr[c % 3u][k % AS_MAXLEN]; }   /* (tests: REC'd fills) */
 EXPORT int32_t web_alter_send(uint32_t c) { return trk[c % 3u].p[P_DLY]; }   /* (tests: the DELAY send now) */
 EXPORT uint32_t web_alter_hits(uint32_t c) { return alt_hits[c % 3u]; }   /* (tests: notes played) */

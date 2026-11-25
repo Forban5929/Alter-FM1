@@ -198,8 +198,9 @@ belong to the scene: saving the scene keeps them, loading another scene brings i
 | A held 1 s | A replaced by what played when the key went down |
 | SAVE held + A | the same as a capture (A replaced) |
 | A held + C, then B | a chain A › C › B, 4 bars each, looping from the next bar |
+| ARP held + REC | the chain written by playing: from the next bar, every slot played becomes a link as long as it played (16 bars at most); ARP tapped ends it and the chain loops (v1.37) |
 | ARP tapped | the chain on / off |
-| ARP held | the SONG page: SELECT a link · KNOB 1 its slot · KNOB 2 its bars (1 2 4 8) · KNOB 3 how many links (16 at most) · KNOB 4 the chain on / off |
+| ARP held | the SONG page: SELECT a link · KNOB 1 its slot · KNOB 2 its bars (1 to 16) · KNOB 3 how many links (16 at most) · KNOB 4 the chain on / off |
 
 What you change while a slot plays stays in it until power-off; SAVE held + its key keeps it for good.
 

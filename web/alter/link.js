@@ -32,7 +32,7 @@ export const req = {
   song: () => frame(CMD.SONG, 0),
   songStore: (s) => frame(CMD.SONG, 1, s),
   songPlay: (s) => frame(CMD.SONG, 2, s),
-  songChain: (links) => frame(CMD.SONG, 3, links.length, ...links.map((l) => (l.slot & 3) | ((l.bars & 3) << 2))),
+  songChain: (links) => frame(CMD.SONG, 3, links.length, ...links.map((l) => (l.slot & 3) | ((l.bars & 15) << 2))),   // (v1.37: bars - 1, 0..15)
   songOn: (on) => frame(CMD.SONG, 4, on ? 1 : 0),
   watch: (on) => frame(CMD.WATCH, on ? 1 : 0),
   ping: () => frame(CMD.PING),
@@ -151,7 +151,7 @@ export function parse(f) {
     }
     case CMD.SONG: {
       const op = b(), rc = b(), full = b(), play = b(), asked = b(), on = b(), link = b(), left = b(), n = b(), chain = [];
-      for (let k = 0; k < n; k++) { const l = b(); chain.push({ slot: l & 3, bars: (l >> 2) & 3 }); }
+      for (let k = 0; k < n; k++) { const l = b(); chain.push({ slot: l & 3, bars: (l >> 2) & 15 }); }   // (v1.37: bars - 1)
       return { cmd, op, rc, full: [full & 1, (full >> 1) & 1, (full >> 2) & 1], play, asked, on, link, left, chain };
     }
     case CMD.LEARN: {

@@ -24,7 +24,7 @@ static sg_slot_t sg_slot[SG_NSLOT];
  * (bits), [2..28] the slots (HITS ROT LEN a circle), [29] the chain's links, [30..45] the chain, 2 spare */
 #define SG_REC 48u
 /* UI -> here */
-static uint8_t sg_chain[SG_MAXL];                /* a link: its slot (0..2) | its bars' code << 2 (0..3: 1 2 4 8) */
+static uint8_t sg_chain[SG_MAXL];                /* a link: its slot (0..2) | its bars - 1 << 2 (v1.37: 1..16; before: 1 2 4 8) */
 static volatile uint8_t sg_n;                    /* the chain's links */
 static volatile uint8_t sg_on;                   /* the chain plays */
 static volatile uint8_t sg_ask;                  /* a slot asked for (+ 1) .. */
@@ -38,7 +38,21 @@ static volatile uint8_t sg_link;                 /* the chain's link playing .. 
 static volatile uint8_t sg_left;                 /* .. its bars left, this one counted */
 static volatile uint32_t sg_done_cnt;            /* a slot taken */
 
-static uint32_t sg_bars(uint32_t code) { return 1u << (code & 3u); }
+static uint32_t sg_bars(uint32_t code) { return (code & 15u) + 1u; }   /* (v1.37: 1..16 bars) */
+#define SG_LINK(slot, bars) ((uint8_t)(((slot) & 3u) | (((uint32_t)(bars) - 1u) & 15u) << 2))
+/* v1.37 (Romain 25/11, "chaîne en jouant"): ARP held + REC records the chain from the next bar: every slot taken becomes
+ * a link as long as it played (whole bars, 16 at most a link: a longer one is cut in two), until ARP tapped (or ARP + REC
+ * again, or 16 links): then the chain plays from its first link at the next bar */
+static volatile uint8_t sg_rec;                  /* 0 off, 1 asked (from the next bar), 2 writing */
+static volatile uint8_t sg_rec_stop;             /* UI: stop at the next bar */
+static volatile uint8_t sg_rec_new;              /* here: a chain written (the UI's copy follows) */
+static uint8_t sg_rec_slot, sg_rec_bars;         /* the link being written: its slot + 1 (0: none yet), its bars so far */
+static void sg_rec_close(void)                   /* the link being written into the chain */
+{
+    if (sg_rec_slot && sg_rec_bars && sg_n < SG_MAXL)
+        sg_chain[sg_n++] = SG_LINK(sg_rec_slot - 1u, sg_rec_bars);
+    sg_rec_bars = 0;
+}
 static volatile uint8_t sg_detach;               /* UI: a scene / a pattern loaded: the circles are no slot's now */
 
 /* a slot from the circles' settings as asked (cfg: au.cfg on the UI side, the circles' next here) */
@@ -113,9 +127,11 @@ static void sg_rec_put_raw(const uint8_t *b)   /* (irq off: alter_store.c sg_rec
     }
     sg_n = (uint8_t)(b[29] > SG_MAXL ? SG_MAXL : b[29]);
     for (i = 0; i < SG_MAXL; i++)
-        sg_chain[i] = (uint8_t)((b[30u + i] & 3u) % SG_NSLOT | (b[30u + i] & 12u));
+        sg_chain[i] = (uint8_t)((b[30u + i] & 3u) % SG_NSLOT | (b[30u + i] & 60u));
     sg_on = 0;
     sg_play = 0;
+    sg_rec = 0;                                  /* (v1.37: a chain being written: stopped, the scene's instead) */
+    sg_rec_stop = 0;
     sg_loaded = 1;
 }
 
@@ -148,9 +164,37 @@ static void sg_bar(void)
         sg_ask_seen = sg_ask_cnt;
         want = sg_ask;
     }
+    if (sg_rec == 2u) {                          /* (writing: the bar that ended counted in its link) */
+        if (sg_rec_slot && ++sg_rec_bars >= 16u)
+            sg_rec_close();                      /* (16 bars: a link, the same slot goes on in the next one) */
+        if (sg_rec_stop || sg_n >= SG_MAXL) {    /* the end: the chain plays from its first link, now */
+            sg_rec_close();
+            sg_rec = 0;
+            sg_rec_stop = 0;
+            sg_rec_new = 1;
+            if (sg_n) {
+                sg_on = 1;
+                sg_link = 0;
+                sg_left = (uint8_t)sg_bars(sg_chain[0] >> 2);
+                want = (sg_chain[0] & 3u) + 1u;
+            }
+        }
+    }
     if (want && want <= SG_NSLOT && sg_slot[want - 1u].used) {
         sg_take(want - 1u);
+        if (sg_rec == 2u && want != sg_rec_slot) {   /* (writing: another slot, another link) */
+            sg_rec_close();
+            sg_rec_slot = (uint8_t)want;
+        }
         sg_play = (uint8_t)want;
         sg_done_cnt++;
+    }
+    if (sg_rec == 1u) {                          /* (asked: the writing starts with this bar) */
+        sg_n = 0;
+        sg_on = 0;
+        sg_rec_bars = 0;
+        sg_rec_slot = sg_play <= SG_NSLOT && sg_play && sg_slot[sg_play - 1u].used ? sg_play : 0u;
+        sg_rec = 2;
+        sg_rec_new = 1;
     }
 }
