@@ -8,7 +8,13 @@
  * BASE + AMOUNT x MACRO, so MACRO back to 0 gives the settings back. A target turned by hand meanwhile: its new value
  * is taken as its place (its BASE follows). CHAOS, CHAOS TOTAL, a factory scene, NEW: MACRO at 0 (nothing to give back).
  * OCT+ held on the circles' view: the MACRO page. KNOB 1 the MACRO, KNOB 2 the RECIPE, SELECT a row, KNOB 3 its
- * target, ALGORITHM its circle (I II III, I-III = the three), KNOB 4 its amount. Also a GLOBAL of MIDI LEARN (MACRO). */
+ * target, ALGORITHM its circle (I II III, I-III = the three), KNOB 4 its amount. Also a GLOBAL of MIDI LEARN (MACRO).
+ * v1.2.15 (Romain 26/11): a MACRO per circle too (amc_m[1..3] = I II III; amc_m[0] = the scene's): the same recipes on
+ * that circle alone (AMC_RC: a GLOBAL of the scene's recipe swapped for a circle setting), its rows fixed on the circle;
+ * PRESET on the page = the tab SCENE / I / II / III; PERFORM's KNOB 1-3 and the circle row MACRO of MIDI LEARN turn them;
+ * kept with the scene (amc_getc / amc_putc, after SONG's bytes: AMC_CREC = 5 bytes, the recipe, edited and the MACRO of
+ * each, no more room in a scene); the rows of an edited circle MACRO are the MACHINE's (Romain 26/11: the same for every
+ * scene), in the settings: favorites.factory[4] (engine 4 does not exist; amc_row). CHAOS, TOTAL, NEW: every MACRO at 0. */
 
 #define AMC_NS 4u
 #define AMC_NONE 255u
@@ -26,20 +32,35 @@ static const amc_rcp_t AMC_R[AMC_NR] = {
     {"DARK", {15, 14, ALM_G0 + ALG_RDAMP, 13}, {-50, -20, 50, 20}},
     {"DESTROY", {12, 21, 16, ALM_G0 + ALG_FDRIVE}, {63, 50, 40, 60}},
 };
+/* a circle's MACRO (v1.2.15): the same recipes on that circle alone (rows 25 CHORUS, 11 RELEASE, 3 the sound's 4th knob) */
+static const amc_rcp_t AMC_RC[AMC_NR] = {
+    {"TENSION", {12, 15, 18, 17}, {40, 24, 30, 20}},
+    {"SPACE", {18, 17, 25, 11}, {60, 44, 36, 40}},
+    {"DARK", {15, 14, 16, 13}, {-50, -20, 30, 20}},
+    {"DESTROY", {12, 21, 16, 3}, {63, 50, 40, 60}},
+};
+#define AMC_NCTT (ALM_NCT - 1u)                  /* (the circle rows a MACRO may move: not the last, MACRO itself) */
 
-static struct {
+typedef struct {
     uint8_t rcp, edited, val, last;              /* the recipe, changed since; the MACRO; the value the targets hold */
     uint8_t t[AMC_NS], cir[AMC_NS];              /* each row: its target (AMC_NONE: none), its circle (0..2, AMC_ALL) */
     int8_t amt[AMC_NS];
     int16_t base[AMC_NS][AS_NCIRC];              /* each target's value at MACRO 0 (-1: not known yet) */
     uint8_t w[AMC_NS][AS_NCIRC], w0[AMC_NS][AS_NCIRC];   /* what the MACRO wrote last, and before (a queued write) */
-    uint8_t row, show, used;                     /* the page: its row; shown (OCT+ held); a knob turned in this hold */
-    uint32_t oct_t0;
-} amc;
+    uint8_t row;                                 /* the page: its row */
+} amc_t;
+#define AMC_N 4u                                 /* the scene's, then circles I II III (v1.2.15) */
+static amc_t amc_m[AMC_N];
+static uint8_t amc_cur;                          /* the MACRO the code below works on (the page's tab between calls) */
+#define amc (amc_m[amc_cur])
+static struct { uint8_t show, used, tab; uint32_t oct_t0; } amc_ui;   /* the page: shown (OCT+ held); a knob turned in
+                                                  * this hold; its tab (0 SCENE, 1..3 I II III) */
+#define AMC_AT(i, body) do { uint8_t amc_sv_ = amc_cur; amc_cur = (uint8_t)(i); body; amc_cur = amc_sv_; } while (0)
 
 static void amc_knob(uint32_t i, int32_t s);
 static void amc_circle(int32_t s);
-static uint32_t amc_value(void) { return amc.val; }
+static uint32_t amc_value(void) { return amc_m[0].val; }
+static uint32_t amc_value_c(uint32_t c) { return amc_m[1u + c % AS_NCIRC].val; }
 static int32_t amc_off(int32_t amt, uint32_t v) { return amt * 2 * (int32_t)v / 127; }
 static uint32_t amc_code(uint32_t k, uint32_t c)   /* row k's code on circle c (AMC_NONE: none) */
 {
@@ -62,12 +83,13 @@ static void amc_forget(void)                     /* the bases unknown: taken aga
 static void amc_recipe(uint32_t r)               /* the rows from recipe r */
 {
     uint32_t k;
+    const amc_rcp_t *R = amc_cur ? AMC_RC : AMC_R;
     amc.rcp = (uint8_t)(r % AMC_NR);
     amc.edited = 0;
     for (k = 0; k < AMC_NS; k++) {
-        amc.t[k] = AMC_R[amc.rcp].t[k];
-        amc.amt[k] = AMC_R[amc.rcp].amt[k];
-        amc.cir[k] = AMC_ALL;
+        amc.t[k] = R[amc.rcp].t[k];
+        amc.amt[k] = R[amc.rcp].amt[k];
+        amc.cir[k] = amc_cur ? (uint8_t)(amc_cur - 1u) : AMC_ALL;
     }
     amc_forget();
 }
@@ -77,7 +99,11 @@ static void amc_init(void)
     if (done)
         return;
     done = 1;
-    amc_recipe(AMC_TENSION);
+    {
+        uint32_t i;
+        for (i = 0; i < AMC_N; i++)
+            AMC_AT(i, amc_recipe(AMC_TENSION));
+    }
 }
 /* the targets to MACRO v (from amc.last) */
 static void amc_move(uint32_t v)
@@ -102,26 +128,29 @@ static void amc_move(uint32_t v)
         }
     amc.last = (uint8_t)v;
 }
-static void amc_turn_to(uint32_t v)
+static void amc_turn_cur(uint32_t v)
 {
     v = v > 127u ? 127u : v;
     amc.val = (uint8_t)v;
     if (v != amc.last)
         amc_move(v);
 }
+static void amc_turn_to(uint32_t v) { AMC_AT(0, amc_turn_cur(v)); }   /* the scene's MACRO */
+static void amc_turn_c(uint32_t c, uint32_t v) { AMC_AT(1u + c % AS_NCIRC, amc_turn_cur(v)); }   /* circle c's */
 static void amc_edit_begin(void) { if (amc.last) amc_move(0); }   /* (the targets given back before a row changes) */
 static void amc_edit_end(void) { if (amc.val) amc_move(amc.val); }
 /* CHAOS, CHAOS TOTAL, a factory scene, NEW: the settings are new, nothing to give back */
-static void amc_zero(void)
+static void amc_zero(void)                       /* (every MACRO, v1.2.15; their targets kept) */
 {
+    uint32_t i;
     amc_init();
-    amc.val = amc.last = 0;
-    amc_forget();
+    for (i = 0; i < AMC_N; i++)
+        AMC_AT(i, (amc.val = amc.last = 0, amc_forget()));
 }
 
 /* ---- kept with the scene (alter_store.c, alter_link.c BLOB): [0] 1 = stored, recipe | edited << 7, MACRO, the four
  * targets, amounts + 64, circles */
-static void amc_get(uint8_t *b)
+static void amc_get_cur(uint8_t *b)
 {
     uint32_t k;
     amc_init();
@@ -134,25 +163,81 @@ static void amc_get(uint8_t *b)
         b[11u + k] = amc.cir[k];
     }
 }
-static void amc_put(const uint8_t *b)            /* (b 0 or b[0] 0: stored before the MACRO: TENSION at 0) */
+static void amc_put_cur(const uint8_t *b)        /* (b 0 or b[0] 0: stored before the MACRO: TENSION at 0) */
 {
     uint32_t k;
     amc_init();
     if (!b || b[0] != 1u) {
         amc_recipe(AMC_TENSION);
-        amc_zero();
+        amc.val = amc.last = 0;
+        amc_forget();
         return;
     }
     amc.rcp = (uint8_t)((b[1] & 127u) % AMC_NR);
     amc.edited = (uint8_t)(b[1] >> 7);
     for (k = 0; k < AMC_NS; k++) {
         uint32_t t = b[3u + k];
-        amc.t[k] = (uint8_t)(t == AMC_NONE || (t < ALM_NCT) || (t >= ALM_G0 && t - ALM_G0 < ALG_MACRO) ? t : AMC_NONE);
+        amc.t[k] = (uint8_t)(t == AMC_NONE || (t < AMC_NCTT) || (t >= ALM_G0 && t - ALM_G0 < ALG_MACRO) ? t : AMC_NONE);
         amc.amt[k] = (int8_t)((int32_t)(b[7u + k] & 127u) - 64);
-        amc.cir[k] = (uint8_t)(b[11u + k] <= AMC_ALL ? b[11u + k] : AMC_ALL);
+        amc.cir[k] = amc_cur ? (uint8_t)(amc_cur - 1u) : (uint8_t)(b[11u + k] <= AMC_ALL ? b[11u + k] : AMC_ALL);
     }
     amc.val = amc.last = (uint8_t)(b[2] > 127u ? 127u : b[2]);   /* (the settings stored hold the MACRO's moves) */
     amc_forget();
+}
+static void amc_get(uint8_t *b) { AMC_AT(0, amc_get_cur(b)); }          /* the scene's MACRO, AMC_REC bytes */
+static void amc_put(const uint8_t *b) { AMC_AT(0, amc_put_cur(b)); }
+/* the circles' MACROs (v1.2.15). A scene: AMC_CREC bytes = [0] 1 stored, [1..3] MACRO | edited << 7 of I II III,
+ * [4] their recipes (2 bits each). An edited one's rows: the machine's, amc_row = [0] AMC_ROW_OK, then circle c's four
+ * targets at 1 + 8c, amounts + 64 at 5 + 8c (kept with the settings; written as they change) */
+#define amc_row (favorites.factory[4])
+#define AMC_ROW_OK 0xC1u
+static void amc_row_keep(void)                   /* (the page: the circle MACRO's rows changed) */
+{
+    uint32_t c = amc_cur - 1u, k;
+    if (!amc_cur)
+        return;
+    if (amc_row[0] != AMC_ROW_OK) {
+        for (k = 1; k < 32u; k++)
+            amc_row[k] = AMC_NONE;
+        amc_row[0] = AMC_ROW_OK;
+    }
+    for (k = 0; k < AMC_NS; k++) {
+        amc_row[1u + 8u * c + k] = amc.t[k];
+        amc_row[5u + 8u * c + k] = (uint8_t)(amc.amt[k] + 64);
+    }
+    settings_save();                             /* (written to the flash once the transport stops) */
+}
+static void amc_getc(uint8_t *b)
+{
+    uint32_t c;
+    amc_init();
+    b[0] = 1;
+    b[4] = 0;
+    for (c = 0; c < AS_NCIRC; c++) {
+        const amc_t *m = &amc_m[1u + c];
+        b[1u + c] = (uint8_t)((m->val & 127u) | (m->edited ? 128u : 0u));
+        b[4] |= (uint8_t)((m->rcp & 3u) << (2u * c));
+    }
+}
+static void amc_putc(const uint8_t *b)
+{
+    uint32_t c, k;
+    amc_init();
+    for (c = 0; c < AS_NCIRC; c++)
+        AMC_AT(1u + c, {
+            int st = b && b[0] == 1u;
+            amc_recipe(st ? (b[4] >> (2u * c)) & 3u : AMC_TENSION);
+            if (st && (b[1u + c] & 128u) && amc_row[0] == AMC_ROW_OK) {   /* (edited: the machine's rows) */
+                amc.edited = 1;
+                for (k = 0; k < AMC_NS; k++) {
+                    uint32_t t = amc_row[1u + 8u * c + k];
+                    amc.t[k] = (uint8_t)(t == AMC_NONE || t < AMC_NCTT || (t >= ALM_G0 && t - ALM_G0 < ALG_MACRO) ? t : AMC_NONE);
+                    amc.amt[k] = (int8_t)((int32_t)(amc_row[5u + 8u * c + k] & 127u) - 64);
+                }
+            }
+            amc.val = amc.last = (uint8_t)(st ? b[1u + c] & 127u : 0u);   /* (the settings stored hold its moves) */
+            amc_forget();
+        });
 }
 
 /* OCT+ held alone on the circles' view (alter_ui_input, before the knobs): the MACRO page; shown once a knob turns, or
@@ -162,35 +247,40 @@ static void amc_input(uint32_t keys)
     uint32_t i;
     int32_t s;
     uint32_t up = (ALT_BTNS >> panel.btn[B_OCTUP]) & 1u, dn2 = (ALT_BTNS >> panel.btn[B_OCTDN]) & 1u;
+    amc_cur = amc_ui.tab % AMC_N;
     if (up && !dn2 && !au.mn && !au.lockc && !au.scene_open && !afp.open && !anm.open) {
-        if (!amc.oct_t0 || keys) {
-            amc.oct_t0 = fm1_ms | 1u;
+        if (!amc_ui.oct_t0 || keys) {
+            amc_ui.oct_t0 = fm1_ms | 1u;
             if (keys)
-                amc.used = 0;
+                amc_ui.used = 0;
         }
         for (i = 0; i < 4u; i++)
             if ((s = panel_enc(EN_K1 + i)) != 0)
                 amc_knob(i, s);
         if ((s = panel_enc(EN_SELECT)) != 0) {
             amc.row = (uint8_t)((amc.row + (s > 0 ? 1u : AMC_NS - 1u)) % AMC_NS);
-            amc.used = 1;
+            amc_ui.used = 1;
         }
         if ((s = panel_enc(EN_ALGO)) != 0)
             amc_circle(s);
-        (void)panel_enc(EN_PRESET);
-        amc.show = (uint8_t)(amc.used || (!keys && fm1_ms - amc.oct_t0 >= 300u));
+        if ((s = panel_enc(EN_PRESET)) != 0) {  /* (v1.2.15) the tab: SCENE I II III */
+            amc_ui.tab = (uint8_t)((amc_ui.tab + (s > 0 ? 1u : AMC_N - 1u)) % AMC_N);
+            amc_cur = amc_ui.tab;
+            amc_ui.used = 1;
+        }
+        amc_ui.show = (uint8_t)(amc_ui.used || (!keys && fm1_ms - amc_ui.oct_t0 >= 300u));
     } else {
-        amc.oct_t0 = 0;
-        amc.used = 0;
-        amc.show = 0;
+        amc_ui.oct_t0 = 0;
+        amc_ui.used = 0;
+        amc_ui.show = 0;
     }
 }
 
 /* ---- the page (OCT+ held on the circles' view) */
 /* a row's target list: none, the circle's settings (ALM_CT), the GLOBALs but MACRO */
-#define AMC_NT (1u + ALM_NCT + ALG_MACRO)
-static uint32_t amc_tidx(uint32_t t) { return t == AMC_NONE ? 0u : t >= ALM_G0 ? 1u + ALM_NCT + (t - ALM_G0) : 1u + t; }
-static uint32_t amc_tof(uint32_t i) { return i == 0u ? AMC_NONE : i <= ALM_NCT ? i - 1u : ALM_G0 + (i - 1u - ALM_NCT); }
+#define AMC_NT (1u + AMC_NCTT + ALG_MACRO)
+static uint32_t amc_tidx(uint32_t t) { return t == AMC_NONE ? 0u : t >= ALM_G0 ? 1u + AMC_NCTT + (t - ALM_G0) : 1u + t; }
+static uint32_t amc_tof(uint32_t i) { return i == 0u ? AMC_NONE : i <= AMC_NCTT ? i - 1u : ALM_G0 + (i - 1u - AMC_NCTT); }
 static const char *amc_tname(uint32_t k)
 {
     static const char *const SND[8] = {"SOUND 1", "SOUND 2", "SOUND 3", "SOUND 4", "SOUND 5", "SOUND 6", "SOUND 7", "SOUND 8"};
@@ -209,11 +299,11 @@ static void amc_knob(uint32_t i, int32_t s)
 {
     uint32_t k = amc.row % AMC_NS;
     amc_init();
-    amc.used = 1;
+    amc_ui.used = 1;
     switch (i) {
     case 0: {
         int32_t v = (int32_t)amc.val + s * 2;
-        amc_turn_to((uint32_t)(v < 0 ? 0 : v > 127 ? 127 : v));
+        amc_turn_cur((uint32_t)(v < 0 ? 0 : v > 127 ? 127 : v));
         break;
     }
     case 1:
@@ -228,6 +318,7 @@ static void amc_knob(uint32_t i, int32_t s)
         amc.edited = 1;
         amc_forget();
         amc_edit_end();
+        amc_row_keep();
         break;
     }
     default: {
@@ -236,6 +327,7 @@ static void amc_knob(uint32_t i, int32_t s)
         amc.amt[k] = (int8_t)(a < -64 ? -64 : a > 63 ? 63 : a);
         amc.edited = 1;
         amc_edit_end();
+        amc_row_keep();
         break;
     }
     }
@@ -243,8 +335,8 @@ static void amc_knob(uint32_t i, int32_t s)
 static void amc_circle(int32_t s)                /* ALGORITHM: the row's circle (I II III I-III) */
 {
     uint32_t k = amc.row % AMC_NS;
-    amc.used = 1;
-    if (amc.t[k] == AMC_NONE || amc.t[k] >= ALM_G0)
+    amc_ui.used = 1;
+    if (amc_cur || amc.t[k] == AMC_NONE || amc.t[k] >= ALM_G0)   /* (a circle's MACRO: its rows stay on it) */
         return;
     amc_edit_begin();
     amc.cir[k] = (uint8_t)((amc.cir[k] + (s > 0 ? 1u : 3u)) % 4u);
@@ -254,7 +346,7 @@ static void amc_circle(int32_t s)                /* ALGORITHM: the row's circle 
 }
 static uint32_t amc_sig(void)
 {
-    uint32_t k, h = amc.val * 3u + amc.rcp * 5u + amc.edited * 7u + amc.row * 11u + 1u;
+    uint32_t k, h = amc.val * 3u + amc.rcp * 5u + amc.edited * 7u + amc.row * 11u + amc_cur * 13u + 1u;
     for (k = 0; k < AMC_NS; k++)
         h = h * 31u + amc.t[k] * 3u + (uint8_t)amc.amt[k] * 5u + amc.cir[k] * 7u;
     return h;
@@ -266,7 +358,10 @@ static void amc_scene(void)
     uint32_t k, n = 0;
     int32_t w;
     const char *nm = AMC_R[amc.rcp % AMC_NR].name;
+    static const char *const TAB[AMC_N] = {"SCENE", "I", "II", "III"};
+    uint16_t tc = amc_cur ? (uint16_t)ALT_COL[amc_cur - 1u] : ALT_GOLD;   /* (v1.2.15: the tab's colour) */
     alt_card("MACRO", "XIV");
+    cv_text_r(188, 26, ALT_FM, TAB[amc_cur % AMC_N], tc, cv_bg);
     while (nm[n] && n < 12u) {
         b[n] = nm[n];
         n++;
@@ -280,7 +375,7 @@ static void amc_scene(void)
     w = (int32_t)amc.val * 220 / 127;            /* the gauge */
     cv_frame(10, 50, 220, 12, alt_gold_line(45));
     if (w > 0)
-        cv_rect(11, 51, w - 1 > 218 ? 218 : w - 1, 10, ALT_GOLD);
+        cv_rect(11, 51, w - 1 > 218 ? 218 : w - 1, 10, tc);
     for (k = 0; k < AMC_NS; k++) {
         int32_t y = 76 + (int32_t)k * 30, a = amc.amt[k];
         uint32_t on = k == amc.row % AMC_NS, col = amc.t[k] < ALM_G0 && amc.cir[k] < AMC_ALL ? ALT_COL[amc.cir[k]] : ALT_GOLD;
@@ -288,12 +383,12 @@ static void amc_scene(void)
             cv_rect(4, y - 4, 232, 26, alt_gold_line(14));
         alt_diamond(14, y + 7, 4, 4, amc.t[k] == AMC_NONE ? alt_gold_line(40) : (uint16_t)col);
         cv_text(26, y, ALT_FS, amc_tname(k), on ? ALT_INK : ALT_DIM);
-        if (amc.t[k] != AMC_NONE && amc.t[k] < ALM_G0)
+        if (amc.t[k] != AMC_NONE && amc.t[k] < ALM_G0 && !amc_cur)
             cv_text(130, y, ALT_FS, CIR[amc.cir[k] % 4u], (uint16_t)col);
         b[0] = a > 0 ? '+' : a < 0 ? '-' : ' ';
         alt_num(b + 1, a < 0 ? -a : a, 0);
         cv_text_r(232, y, ALT_FS, amc.t[k] == AMC_NONE ? "" : b, on ? ALT_INK : ALT_DIM, cv_bg);
     }
     cv_text(8, 200, ALT_FS, "K1 MACRO  K2 RECIPE  SELECT ROW", ALT_DIM);
-    cv_text(8, 216, ALT_FS, "K3 TARGET  K4 AMOUNT  ALGO CIRCLE", ALT_DIM);
+    cv_text(8, 216, ALT_FS, amc_cur ? "K3 TARGET  K4 AMOUNT  PRESET TAB" : "K3 TARGET  K4 AMOUNT  ALGO CIRCLE", ALT_DIM);
 }

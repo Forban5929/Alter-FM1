@@ -25,7 +25,7 @@ typedef char alm_fits[2u + 3u * ALM_N <= 4u * 32u ? 1 : -1];
 #define ALM_C0 0u                                /* circle c's settings: c * 32 + t */
 #define ALM_G0 96u
 #define ALM_A0 128u
-enum { ALK_P, ALK_CS, ALK_RMB, ALK_HITS, ALK_DOSE };
+enum { ALK_P, ALK_CS, ALK_RMB, ALK_HITS, ALK_DOSE, ALK_MAC };   /* (ALK_MAC: the circle's MACRO, v1.2.15) */
 typedef struct { uint8_t kind, ref; const char *name; } alm_ct_t;
 static const alm_ct_t ALM_CT[] = {               /* (name 0: the sound's own, as DEEP: the engine's names, the INSERT's) */
     {ALK_P, P_E0 + 0, 0}, {ALK_P, P_E0 + 1, 0}, {ALK_P, P_E0 + 2, 0}, {ALK_P, P_E0 + 3, 0},
@@ -36,6 +36,7 @@ static const alm_ct_t ALM_CT[] = {               /* (name 0: the sound's own, as
     {ALK_P, P_PAN, "PAN"}, {ALK_P, P_IMIX, "INSERT MIX"}, {ALK_P, P_IA, 0}, {ALK_P, P_IB, 0}, {ALK_P, P_IC, 0},
     {ALK_P, P_CHOR, "CHORUS"}, {ALK_RMB, 0, "RUMBLE"}, {ALK_P, P_GLIDE, "GLIDE"}, {ALK_HITS, 0, "HITS"},
     {ALK_DOSE, 0, "DICE DOSE"},
+    {ALK_MAC, 0, "MACRO"},                       /* (v1.2.15: the circle's own MACRO, alter_macro.c; always the last row) */
 };
 #define ALM_NCT ((uint32_t)NELEM(ALM_CT))
 typedef char alm_ct_fits[ALM_NCT <= 32u ? 1 : -1];
@@ -47,6 +48,8 @@ static const char *const ALM_GT[ALG_N] = {"MASTER", "TEMPO", "SWING", "FILT FREQ
                                           "MACRO", "DUCK"};
 static void amc_turn_to(uint32_t v);             /* (alter_macro.c) */
 static uint32_t amc_value(void);
+static void amc_turn_c(uint32_t c, uint32_t v);  /* (v1.2.15: circle c's MACRO) */
+static uint32_t amc_value_c(uint32_t c);
 typedef struct { uint32_t keys; uint8_t btn; const char *name; } alm_at_t;
 #define ALM_K(k) (1u << (k))
 #define ALM_NOBTN 0xFFu
@@ -183,6 +186,7 @@ static void alm_set(uint32_t code, uint32_t v)
         au.cfg[c].dose = (uint8_t)v;
         alt_post_circle(c);
         break;
+    case ALK_MAC: amc_turn_c(c, v); break;
     default: {                                   /* a sound's: through the queue, as its knob (the die's offset on top) */
         const param_desc_t *d = track_desc(&trk[c], a->ref);
         int32_t to, base, sl = alt_slot(a->ref), dd;
@@ -217,6 +221,7 @@ static uint32_t alm_get(uint32_t code)
     case ALK_RMB: return alt_rmb[c];
     case ALK_HITS: return au.cfg[c].len ? (au.cfg[c].hits * 127u + au.cfg[c].len / 2u) / au.cfg[c].len : 0u;
     case ALK_DOSE: return au.cfg[c].dose;
+    case ALK_MAC: return amc_value_c(c);
     default: {
         const param_desc_t *d = track_desc(&trk[c], a->ref);
         int32_t sl = alt_slot(a->ref), base, v;

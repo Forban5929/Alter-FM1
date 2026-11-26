@@ -262,8 +262,12 @@ static void alt_preset_step(uint32_t c, int32_t s)
 }
 
 #define AMC_REC 15u                              /* (alter_macro.c: the MACRO kept with a scene, its bytes) */
+#define AMC_CREC 5u                              /* (v1.2.15: the three circles' MACROs in a scene: recipe + MACRO; the scenes'
+                                                  * object had 7 bytes left a scene) */
 static void amc_get(uint8_t *b);
 static void amc_put(const uint8_t *b);
+static void amc_getc(uint8_t *b);
+static void amc_putc(const uint8_t *b);
 static void amc_zero(void);
 static void amc_input(uint32_t keys);
 #include "alter_store.c"
@@ -4551,7 +4555,7 @@ static void alt_scene(uint32_t q, uint32_t flash)
         alt_locks_scene();
         return;
     }
-    if (amc.show) {                              /* (v0.77) the MACRO page, OCT+ held */
+    if (amc_ui.show) {                              /* (v0.77) the MACRO page, OCT+ held */
         amc_scene();
         return;
     }
@@ -5451,7 +5455,7 @@ static void alter_draw(void)
     sig = sig * 31u + alt_emode[au.sel] * 37u + alt_seq.scale * 41u + au.scene_open * 43u + au.row[au.tab] * 47u + au.tab * 59u +
           au.pre[au.sel] * 53u;
     sig = sig * 31u + (au.mat_open ? alt_mat_sig() * 2u + 1u : 0u) + (au.seq_open ? alt_seq_sig() * 4u + 3u : 0u) +
-          (afp.open ? afp_sig() * 8u + 5u : 0u) + (amc.show ? amc_sig() * 16u + 9u : 0u);
+          (afp.open ? afp_sig() * 8u + 5u : 0u) + (amc_ui.show ? amc_sig() * 16u + 9u : 0u);
     if (au.mn == QP_GLO) {                       /* (the MIXER: its faders and meter) */
         alt_mix_poll();
         sig = sig * 31u + (uint32_t)alt_mix_pk / 600u * 7u + (uint32_t)alt_mix_hold / 600u * 11u + alt_mgain * 13u;
@@ -5534,7 +5538,7 @@ static void alter_draw(void)
                                                   * on (Romain 05/11: "laggy": a whole frame each step) */
         static uint8_t now_seen[AS_NCIRC], fl_seen;
         uint8_t now[AS_NCIRC];
-        int circles = !au.lockc && !au.scene_open && !au.mat_open && !au.seq_open && !afp.open && !au.mn && !amc.show;
+        int circles = !au.lockc && !au.scene_open && !au.mat_open && !au.seq_open && !afp.open && !au.mn && !amc_ui.show;
         for (i = 0; i < AS_NCIRC; i++) {
             uint32_t len = alt_seq.c[i].cfg.len ? alt_seq.c[i].cfg.len : 1u;
             now[i] = (uint8_t)((alt_seq.c[i].pos + len - 1u) % len);
@@ -5713,8 +5717,10 @@ static int32_t alt_peek(uint32_t c, uint32_t w)
             m |= (uint32_t)aus_used(u) << u;
         return (int32_t)(au.pre[c] | m << 8);
     }
-    if (w == 19u)                                /* (v0.77: the MACRO: value | recipe << 8 | edited << 15 | shown << 16) */
-        return (int32_t)(amc.val | amc.rcp << 8 | amc.edited << 15 | (uint32_t)amc.show << 16);
+    if (w == 19u)                                /* (v0.77: the MACRO: value | recipe << 8 | edited << 15 | shown << 16 | tab << 20) */
+        return (int32_t)(amc.val | amc.rcp << 8 | amc.edited << 15 | (uint32_t)amc_ui.show << 16 | (uint32_t)amc_ui.tab << 20);
+    if (w == 34u)                                /* (v1.2.15: circle c's MACRO: value | recipe << 8 | edited << 15) */
+        return (int32_t)(amc_m[1u + c % AS_NCIRC].val | amc_m[1u + c % AS_NCIRC].rcp << 8 | amc_m[1u + c % AS_NCIRC].edited << 15);
     if (w >= 20u && w < 20u + AMC_NS)            /* (v0.77: row w - 20: target | circle << 8 | (amount + 64) << 16) */
         return (int32_t)(amc.t[w - 20u] | amc.cir[w - 20u] << 8 | (uint32_t)(amc.amt[w - 20u] + 64) << 16);
     if (w == 18u)                                /* (v0.73: circle c's LOCKS | the LOCKS page open on circle + 1 << 8) */
@@ -5825,7 +5831,7 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
     case 25:                                     /* (a test: USER a stored as before the draws, 10/11: the object cut) */
         alt_web_rc = alt_row_save(0, ALT_NFACT + 1u + a % ALT_NUSER);
         alt_ub.s.dr[a % ALT_US_PER][0] = 0;
-        (void)st_save(alt_us_obj(a % ALT_NUSER), &alt_ub.s, sizeof alt_ub.s - sizeof alt_ub.s.dr - sizeof alt_ub.s.mc - sizeof alt_ub.s.sg);   /* (v0.77: the MACRO after them; v1.36 SONG) */
+        (void)st_save(alt_us_obj(a % ALT_NUSER), &alt_ub.s, ALT_UB_N_MCC - sizeof alt_ub.s.dr - sizeof alt_ub.s.mc - sizeof alt_ub.s.sg);   /* (v0.77: the MACRO after them; v1.36 SONG; v1.2.15 the circles' MACROs) */
         break;
     case 24: alt_web_rc = alt_row_load(b & 1u, b & 2u ? 0u : ALT_NFACT + 1u + a % ALT_NUSER); break;   /* (a test: LOAD
                                                   * USER a, b & 1 a pattern; b & 2: NEW) */

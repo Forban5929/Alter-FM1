@@ -670,7 +670,8 @@ static union {
              uint8_t cs[ALT_US_PER][1u + AS_NCIRC * ACS_N];
              uint8_t dr[ALT_US_PER][ALT_DR_N];
              uint8_t mc[ALT_US_PER][AMC_REC];
-             uint8_t sg[ALT_US_PER][SG_REC]; } s;   /* (sg: SONG's slots and chain, v1.36; [0] 1 = stored) */   /* (mc: the MACRO, v0.77; [0] 1 = stored) */   /* (dr: the draws, TURING, PROGRESSION, 10/11; [0] 1 = stored) */   /* (nm: the NAMEs, 05/11; cs: the CONSOLE, [0] 1 =
+             uint8_t sg[ALT_US_PER][SG_REC];
+             uint8_t mcc[ALT_US_PER][AMC_CREC]; } s;   /* (mcc: the circles' MACROs, v1.2.15; [0] 1 = stored) */   /* (sg: SONG's slots and chain, v1.36; [0] 1 = stored) */   /* (mc: the MACRO, v0.77; [0] 1 = stored) */   /* (dr: the draws, TURING, PROGRESSION, 10/11; [0] 1 = stored) */   /* (nm: the NAMEs, 05/11; cs: the CONSOLE, [0] 1 =
                                                   * stored, then LOW MID HIGH COMP a circle, étape 4; an object stored
                                                   * before them ends before nm, or before cs) */
     struct { uint32_t magic; alt_up_t r[ALT_UP_PER]; } p;
@@ -679,6 +680,7 @@ _Static_assert(sizeof alt_ub.s <= ST_PAYLOAD_MAX_X && sizeof alt_ub.p <= ST_PAYL
 _Static_assert(ALT_OBJ_US0 + 32u / ALT_US_PER == ALT_OBJ_UP0 && ALT_OBJ_UC0 + (ALT_NUSER - 32u) / ALT_US_PER == 40u,
                "the objects' map");
 /* USER scene u's object: A B 14..29, C 32..39 */
+#define ALT_UB_N_MCC ((uint32_t)(((const uint8_t *)alt_ub.s.mcc - (const uint8_t *)&alt_ub.s + 3) & ~3))
 static uint32_t alt_us_obj(uint32_t u) { return u < 32u ? ALT_OBJ_US0 + u / ALT_US_PER : ALT_OBJ_UC0 + (u - 32u) / ALT_US_PER; }
 static uint8_t alt_used_s[ALT_NUSER];
 /* the NAMEs (Romain 05/11): 3 characters (space, A-Z, 0-9, -) a USER slot, 0 = none; kept in RAM for the list */
@@ -696,13 +698,20 @@ static void alt_ub_clear(uint32_t magic)
 static int alt_ub_load_s(uint32_t u)             /* scene u's object into alt_ub; 1: it holds ours */
 {
     int n = st_load(alt_us_obj(u), &alt_ub.s, sizeof alt_ub.s);
-    int n_sg = (int)(sizeof alt_ub.s - sizeof alt_ub.s.sg), n_mc = n_sg - (int)sizeof alt_ub.s.mc,
+    int n_mcc = (int)ALT_UB_N_MCC,               /* (v1.2.14's whole object: up to mcc, padded to 4) */
+        n_sg = n_mcc - (int)sizeof alt_ub.s.sg,
+        n_mc = n_sg - (int)sizeof alt_ub.s.mc,
         n_dr = n_mc - (int)sizeof alt_ub.s.dr,
         n_cs = n_dr - (int)sizeof alt_ub.s.cs;
     int n_nm = (int)(sizeof(uint32_t) + sizeof(alt_us_t) * ALT_US_PER);
-    if ((n == (int)sizeof alt_ub.s || n == n_sg || n == n_mc || n == n_dr || n == n_cs || n == n_nm) &&
+    if ((n == (int)sizeof alt_ub.s || n == n_mcc || n == n_sg || n == n_mc || n == n_dr || n == n_cs || n == n_nm) &&
         alt_ub.s.magic == ALT_MAGIC_US) {
         uint32_t j, k;
+        if (n != (int)sizeof alt_ub.s)           /* (stored before the circles' MACROs, v1.2.15: TENSION at 0) */
+            for (j = 0; j < ALT_US_PER; j++)
+                alt_ub.s.mcc[j][0] = 0;
+        if (n == n_mcc)                          /* (the rest all there: as a whole object from here) */
+            n = (int)sizeof alt_ub.s;
         if (n != (int)sizeof alt_ub.s)           /* (stored before SONG's slots, v1.36: none, the machine's kept) */
             for (j = 0; j < ALT_US_PER; j++)
                 alt_ub.s.sg[j][0] = 0;
@@ -917,9 +926,11 @@ typedef struct {
     uint8_t dr[ALT_DR_N];
     uint8_t mc[AMC_REC];                         /* (v0.77: the MACRO; a file from before ends before it) */
     uint8_t sg[SG_REC];                          /* (v1.36: SONG's slots and chain; a file from before ends before it) */
+    uint8_t mcc[AMC_CREC];                       /* (v1.2.15: the circles' MACROs; a file from before ends before it) */
 } alt_blob_t;
-#define ALT_BLOB_OLD ((uint32_t)(sizeof(alt_blob_t) - SG_REC - AMC_REC))
-#define ALT_BLOB_OLD2 ((uint32_t)(sizeof(alt_blob_t) - SG_REC))
+#define ALT_BLOB_OLD3 ((uint32_t)((__builtin_offsetof(alt_blob_t, mcc) + 3u) & ~3u))   /* (v1.2.14's file: padded to 4) */
+#define ALT_BLOB_OLD2 (ALT_BLOB_OLD3 - SG_REC)
+#define ALT_BLOB_OLD ((uint32_t)(ALT_BLOB_OLD2 - AMC_REC))
 static alt_blob_t alt_blob __attribute__((section(".pool")));
 
 /* scene f (its NAME nm, CONSOLE cs, draws dr) on the circles, as a USER scene loads */
@@ -994,6 +1005,7 @@ static void alt_live_keep(void)
     alt_crs.magic = 0;                          /* (a crash in the middle: no half copy taken back) */
     alt_us_get(&alt_crs.b.r);
     amc_get(alt_crs.b.mc);
+    amc_getc(alt_crs.b.mcc);
     sg_rec_get(alt_crs.b.sg);                    /* (v1.36: SONG's slots and chain) */
     alt_cs_get(alt_crs.b.cs);
     fm1_irq_off();
@@ -1013,6 +1025,7 @@ static int alt_live_back(void)
     alt_crs.magic = 0;                          /* (taken once: fallen again before the next copy = the first scene) */
     alt_us_apply(&alt_crs.b.r, alt_crs.b.cs, alt_crs.b.dr);
     amc_put(alt_crs.b.mc);
+    amc_putc(alt_crs.b.mcc);
     sg_rec_put(alt_crs.b.sg);
     for (c = 0; c < AS_NCIRC; c++)
         if (alt_crs.g[c] > 0 && alt_crs.g[c] <= 4 * AC_UNITY)
@@ -1039,6 +1052,7 @@ static void alt_und_take(alt_undo_t *u)
     uint32_t c;
     alt_us_get(&u->b.r);
     amc_get(u->b.mc);
+    amc_getc(u->b.mcc);
     sg_rec_get(u->b.sg);
     alt_cs_get(u->b.cs);
     fm1_irq_off();
@@ -1061,6 +1075,7 @@ static void alt_und_give(const alt_undo_t *u)
             alt_post_circle(c);
         }
     amc_put(u->b.mc);
+    amc_putc(u->b.mcc);
     sg_rec_put(u->b.sg);
     for (c = 0; c < AS_NCIRC; c++)
         if (u->g[c] > 0 && u->g[c] <= 4 * AC_UNITY)
@@ -1129,6 +1144,7 @@ static int alt_row_load(uint32_t t, uint32_t i)
     } else if (alt_ub_load_s(u) && alt_ub.s.r[u % ALT_US_PER].used) {
         alt_us_apply(&alt_ub.s.r[u % ALT_US_PER], alt_ub.s.cs[u % ALT_US_PER], alt_ub.s.dr[u % ALT_US_PER]);
         amc_put(alt_ub.s.mc[u % ALT_US_PER]);   /* (v0.77: its MACRO) */
+        amc_putc(alt_ub.s.mcc[u % ALT_US_PER]);   /* (v1.2.15: its circles' MACROs) */
         sg_rec_put(alt_ub.s.sg[u % ALT_US_PER]);   /* (v1.36: its slots and chain; stored before: the machine's kept) */
     } else
         return 0;
@@ -1146,6 +1162,7 @@ static int alt_row_save(uint32_t t, uint32_t i)
     (void)alt_ub_load_s(u);                      /* (its neighbour in the object kept) */
     alt_us_snap(&alt_ub.s.r[u % ALT_US_PER], alt_ub.s.cs[u % ALT_US_PER], alt_ub.s.dr[u % ALT_US_PER]);
     amc_get(alt_ub.s.mc[u % ALT_US_PER]);
+    amc_getc(alt_ub.s.mcc[u % ALT_US_PER]);
     sg_rec_get(alt_ub.s.sg[u % ALT_US_PER]);    /* (v1.36) */
     if (alt_nm_set)                              /* its NAME (else the one it had) */
         for (c = 0; c < 3u; c++)

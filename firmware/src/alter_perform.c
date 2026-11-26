@@ -28,7 +28,7 @@ typedef struct {
     const char *kn, *gn;                         /* the knobs' short names */
 } aper_bank_t;
 static const aper_bank_t APER_B[APB_N] = {
-    {"MACRO", APB_NONE, ALG_MACRO, "MACRO", "MACRO"},
+    {"MACRO", 30, ALG_MACRO, "MACRO", "MACRO"},   /* (v1.2.15: row 30 = the circle's MACRO) */
     {"REVERB", 18, ALG_RSIZE, "REV", "SIZE"},
     {"DELAY", 17, ALG_DFB, "DLY", "FEEDBK"},
     {"DECAY", 9, ALG_DUCK, "DEC", "DUCK"},
