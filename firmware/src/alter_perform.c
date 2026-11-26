@@ -145,6 +145,8 @@ static void aper_play(uint32_t pressed)
         aper.play_stop = 0;
     }
 }
+static uint32_t aper_play_t0(void) { return aper.play_t0; }
+static void aper_play_take(void) { aper.play_t0 = 0; aper.play_stop = 0; aper.play_held = 1; }
 /* the page's buttons: a bank tapped (again: MACRO); taken out of pressed so no other page opens */
 static uint32_t aper_buttons(uint32_t pressed)
 {

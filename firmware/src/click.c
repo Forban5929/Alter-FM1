@@ -21,6 +21,7 @@ static volatile uint8_t click_req;          /* seq.c: 1 a beat, 2 the bar's firs
 static const uint16_t CLICK_GAIN[3] = {1024, 2048, 4096};   /* LOW MID HIGH, Q12: the downbeat's peak -18 / -12 / -6 dB
                                                              * of a full-scale mix (Q15) at MASTER's top */
 static struct { int32_t s, c, k, env, g; } clk;
+static uint32_t alt_clk_cnt;                /* (a test, ALTER peek 33: the clicks sounded) */
 
 /* add the click to one block of DAC samples (stereo Q15, after the master): out of line, a loop only while it sounds */
 static __attribute__((noinline)) void click_render(int32_t *out, uint32_t n)
@@ -35,6 +36,7 @@ static __attribute__((noinline)) void click_render(int32_t *out, uint32_t n)
         clk.env = 32767;
         clk.g = CLICK_GAIN[click_lvl % 3u] >> (down ? 0 : 1);   /* Q12: the downbeat x1, a beat x0.5 (-6 dB) */
         click_req = 0;
+        alt_clk_cnt++;
     }
     if (clk.env <= 0)
         return;

@@ -106,6 +106,12 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
   `dflt`/`dblReset`).
   **À faire** : étape C = MACRO par cercle (4 cibles chacune, à garder dans la scène) + EDIT/LFO/GLO
   personnalisables. **Pas essayé sur la FM-1.**
+- **v1.2.14 (Romain 26/11, Sheet ligne 17) : REC + PLAY ensemble** (l'un ou l'autre d'abord, REC < 400 ms après PLAY `ALT_RECPLAY_MS`) →
+  `transport_req = 4` (seq.c : stop si besoin, **décompte 1 mesure** `cin_begin_n(1)` de Felucca, toujours, même CLICK OFF), `ar_on = 1`,
+  puis le clic forcé sur le **1er tour du cercle le plus long** (`alt_clk_n` = max LEN en 1/16, décompté dans click_tick, 0 au stop) ;
+  ensuite REC normal (REC tapé = off). Le clic = click.c de Felucca : **casque/sortie seulement, jamais USB ni enregistrement**, niveau
+  = SYSTEM › AUDIO CLICK LEVEL. Horloge externe : pas de décompte (Start). Peek 33 = cin_left | alt_clk_n<<8 | clics<<16.
+  Test `tools/alter/alter_recplay_test.mjs` (dans le site). **Pas essayé sur la FM-1.**
 - `alt_sys[11]` (ancien THEME SPLIT, retiré v1.13) peut valoir 1 sur la FM-1 de Romain : le remettre à 0 avant de le reprendre.
 
 ## Utilisateur
@@ -136,7 +142,7 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** (Romain 25/11) : `FELUCCA_VERSION` (felucca.c) = « v1.2.13 » ; **les BETA portent le numéro de la version en cours + un chiffre** :
+4. **Version** (Romain 25/11) : `FELUCCA_VERSION` (felucca.c) = « v1.2.14 » ; **les BETA portent le numéro de la version en cours + un chiffre** :
    v1.2 → v1.21, v1.22 … v1.29, puis **v1.2.10, v1.2.11…** ; v1.3 → v1.31… ; à monter à CHAQUE envoi, avant le commit.
    Le journal ci-dessus est déjà renommé (v1.21-v1.27 = anciennement v1.34-v1.40 dans le code et les commits) (les « v1.02-v1.33 » plus bas/dans HISTORIQUE = BETA de la v1.1).
    Release : le site public réécrit FELUCCA_VERSION avec le tag (site_build.sh) → la machine affiche « v1.2 » (v1.1 affichait v1.33). Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.

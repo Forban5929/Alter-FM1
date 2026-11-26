@@ -428,7 +428,7 @@ static int transport_busy(void)
 {
     int busy;
     fm1_irq_off();
-    busy = song.playing || chain_busy() || transport_req == 1u || seq_counting();   /* (a count-in: as playing) */
+    busy = song.playing || chain_busy() || transport_req == 1u || transport_req == 4u || seq_counting();   /* (a count-in: as playing) */
     fm1_irq_on();
     return busy;
 }

@@ -389,9 +389,12 @@ static uint8_t cin_flush;                       /* the count-in ended in this bl
 static uint8_t cin_note[NTRK][4], cin_vel[NTRK][4], cin_n[NTRK], cin_up[NTRK];   /* kept notes; cin_up bit k: let go */
 static int seq_counting(void) { return cin_left != 0u; }
 static uint32_t click_beat_len(void) { return 4u * div_samples(2); }   /* DIV 2: 1/16 */
+/* ALTER REC + PLAY (v1.2.14, Romain 26/11): the click forced on while the first turn of the longest circle plays:
+ * its 1/16 steps still to come (set with transport_req 4, counted down in click_tick, 0 at a stop) */
+static volatile uint8_t alt_clk_n;
 static int click_wanted(void)                  /* CLICK REC: while a track is armed (not in a song: no recording) */
 {
-    return click_mode == CLICK_ON || (click_mode == CLICK_REC && song.rec && !chain.running);
+    return click_mode == CLICK_ON || (click_mode == CLICK_REC && song.rec && !chain.running) || alt_clk_n;
 }
 /* the arp's note list (list, its length returned; 0: nothing to play): the held notes (sorted or as played) over OCT
  * octaves, *cnt of them. #191: the notes as they play now, a key's mapped again through kb_pitch (TRN, ROOT, SCALE,
@@ -911,6 +914,7 @@ static void seq_stop(void)
 {
     uint32_t i;
     song.playing = 0;
+    alt_clk_n = 0;                                 /* (REC + PLAY's click: stopped with it) */
     cin_left = 0;                                  /* (a count-in: cancelled, nothing recorded) */
     cin_flush = 0;
     memset(cin_n, 0, sizeof cin_n);
@@ -1276,13 +1280,23 @@ static track_t *midi_track(uint32_t ch)
 #include "midi_control.c"
 #include "midi_clock.c"
 
-/* the count-in: its first beat now (accented) */
-static __attribute__((noinline)) void cin_begin(void)
+/* the count-in: its first beat now (accented); bars of 4 beats (MENU's COUNT-IN, or ALTER's REC + PLAY: 1) */
+static __attribute__((noinline)) void cin_begin_n(uint32_t bars)
 {
-    cin_total = cin_left = (uint8_t)(4u * cin_bars);
+    cin_total = cin_left = (uint8_t)(4u * bars);
     cin_pos = 0;
     memset(cin_n, 0, sizeof cin_n);
     click_req = 2;
+}
+static void cin_begin(void) { cin_begin_n(cin_bars); }
+/* the longest of ALTER's circles, in 1/16 steps (its first turn: REC + PLAY's click) */
+static uint32_t alt_turn_len(void)
+{
+    uint32_t c, n = 1;
+    for (c = 0; c < AS_NCIRC; c++)
+        if (alt_seq.c[c].cfg.len > n)
+            n = alt_seq.c[c].cfg.len;
+    return n;
 }
 /* n samples on: a beat ends; the last one starts the sequencer (in this block, before seq_tick: step 0 with it) */
 static __attribute__((noinline)) void cin_block(uint32_t n)
@@ -1330,6 +1344,8 @@ static void click_tick(uint32_t adv)
         while (clk_pos >= p) {                      /* (as seq_tick: the remainder kept) */
             clk_pos -= p;
             clk_step = (clk_step + 1u) & 15u;
+            if (alt_clk_n)
+                alt_clk_n--;                        /* (REC + PLAY: one step of the first turn gone) */
             if (!(clk_step & 3u))
                 beat = clk_step ? 1u : 2u;
         }
@@ -1363,6 +1379,16 @@ static void events_block(uint32_t n)
         transport_req = 0;
     } else if (transport_req == 2u) {
         seq_stop();
+        transport_req = 0;
+    } else if (transport_req == 4u) {                 /* ALTER REC + PLAY (v1.2.14): from the top, a bar counted in,
+                                                     * then the click on the first turn of the longest circle */
+        if (song.playing || cin_left)
+            seq_stop();
+        alt_clk_n = (uint8_t)alt_turn_len();
+        if (clock_mode)
+            midi_clock_transport(0xFAu, fm1_ms);    /* (an external clock never counts in: its Start starts) */
+        else
+            cin_begin_n(1);
         transport_req = 0;
     } else if (transport_req == 3u) {                 /* GLO + PLAY: from the top without stopping (INT clock) */
         if (!clock_mode) {

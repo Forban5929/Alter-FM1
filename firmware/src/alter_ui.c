@@ -62,6 +62,7 @@ static uint32_t alm_keys, alm_btns, alm_bdown;
 static void alm_poll(void);
 #define ALT_DIE_HOLD_MS 600u
 #define ALT_REC_CLEAR_MS 1000u                   /* REC held: the chosen circle's moves cleared */
+#define ALT_RECPLAY_MS 400u                     /* REC + PLAY (v1.2.14): REC pressed this soon after PLAY = together */
 #define ALT_TAP_MS 150u                   /* a tapped key's bright LED */
 #define ALT_SAVE_HOLD_MS 1000u            /* SAVE held this long on its page: store */
 
@@ -341,6 +342,8 @@ static void aus_nm_open(uint32_t u)              /* (v1.26) a USER sound's NAME:
 #define QP_SONG 16u                               /* (ARP held: the SONG page) */
 #define QP_PERF 17u                               /* (PLAY held 3 s: the PERFORM page, alter_perform.c) */
 static void aper_play(uint32_t pressed);
+static uint32_t aper_play_t0(void);              /* (REC + PLAY: when PLAY went down, 0: not held) */
+static void aper_play_take(void);                /* (REC + PLAY: PLAY's press taken, no stop or PERFORM at its release) */
 static uint32_t aper_buttons(uint32_t pressed);
 static void aper_turn(uint32_t i, int32_t s);
 static void aper_scene(void);
@@ -1978,6 +1981,22 @@ static int alter_ui_input(uint32_t pressed)
     alt_sg_arp(pressed, ALT_MENU_HOLD_MS);       /* ARP: the chain on / off, the SONG page */
     if (song.sel != au.sel && song.sel < AS_NCIRC)   /* (chosen elsewhere: TRACKS, the editor) */
         au.sel = alt_sel = song.sel;
+    {                                            /* REC + PLAY together (v1.2.14, Romain 26/11): from the top, 1 bar
+                                                  * counted in, REC on, the click on the first turn of the longest
+                                                  * circle; then a normal REC (tap REC: off). Either pressed first. */
+        uint32_t recp = (pressed >> panel.btn[B_REC]) & 1u, playp = (pressed >> panel.btn[B_PLAY]) & 1u;
+        uint32_t rdn = (ALT_BTNS >> panel.btn[B_REC]) & 1u, pdn = (ALT_BTNS >> panel.btn[B_PLAY]) & 1u;
+        if (!octs && !((ALT_BTNS >> panel.btn[B_ARP]) & 1u) &&
+            ((playp && rdn && au.rec_t0 && !au.rec_done) ||
+             (recp && pdn && aper_play_t0() && (int32_t)(fm1_ms - aper_play_t0()) < (int32_t)ALT_RECPLAY_MS))) {
+            transport_req = 4u;
+            ar_on = 1;
+            au.rec_t0 = 0;                       /* (REC let go: no toggle) */
+            aper_play_take();                    /* (PLAY let go: no stop, no PERFORM) */
+            pressed &= ~((1u << panel.btn[B_REC]) | (1u << panel.btn[B_PLAY]));
+            alt_say("REC 1 2 3 4");
+        }
+    }
     aper_play(pressed);                          /* PLAY: play / stop; held 3 s the PERFORM page (v1.2.10) */
     if (au.mn == QP_PERF)
         pressed = aper_buttons(pressed);         /* (its banks: FX SEL ENV SEQ EDIT LFO GLO, no other page) */
@@ -5735,6 +5754,8 @@ static int32_t alt_peek(uint32_t c, uint32_t w)
                          (uint32_t)aper.up_drop << 8 | (uint32_t)aper.temp_on << 9 | (uint32_t)aper.sq << 16);
     if (w == 31u)                                /* (the MASTER FILTER's MORPH | the fills held << 8 | the scene row << 24) */
         return (int32_t)(afl_morph | (uint32_t)alt_hold << 8 | (alt_row_cur & 255u) << 24);
+    if (w == 33u)                                /* (v1.2.14 REC + PLAY: count-in beats left | click steps left << 8 | clicks << 16) */
+        return (int32_t)(cin_left | (uint32_t)alt_clk_n << 8 | (alt_clk_cnt & 0xFFFFu) << 16);
     if (w == 32u)                                /* (MONTEE: the filter's FREQ | circle c's REVERB send << 8) */
         return (int32_t)(alm_get(ALM_G0 + ALG_FFREQ) | alm_get((c % AS_NCIRC) * 32u + 18u) << 8);
     if (w == 29u)                                /* (v1.2.10: the page open | PERFORM's bank << 8 | its knob c's value << 16) */
