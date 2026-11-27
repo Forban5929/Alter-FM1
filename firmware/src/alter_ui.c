@@ -700,7 +700,7 @@ static void alt_edit_circle(uint32_t i, int32_t s)
     } else if (i == 3u && t != AS_T_TURING) {
         c->prob = (uint8_t)clamp((int32_t)c->prob + s * 8, 0, 127);
     } else if (i == 2u && t != AS_T_TURING) {
-        c->rot = as_wrap((int32_t)c->rot + s, c->len);
+        c->rot = s >= PANEL_JUMP ? (uint8_t)(c->len - 1u) : s <= -PANEL_JUMP ? 0 : as_wrap((int32_t)c->rot + s, c->len);
     } else if (t == AS_T_EUCLID) {
         c->hits = (uint8_t)clamp((int32_t)c->hits + s, 0, c->len);
     } else if (i == 1u) {
@@ -774,6 +774,11 @@ static void alt_env_turn(uint32_t i, int32_t s)
 }
 static void alt_select(uint32_t i);
 
+/* a move for the queue: -100..100, or (OCT- + a knob, PANEL_JUMP) 127 / -128 = straight to the top / bottom */
+static int8_t alt_qd(int32_t d)
+{
+    return (int8_t)(d >= PANEL_JUMP ? 127 : d <= -PANEL_JUMP ? -128 : clamp(d, -100, 100));
+}
 /* a knob of quick page q turned s detents */
 static void alt_turn(uint32_t q, uint32_t i, int32_t s)
 {
@@ -790,7 +795,8 @@ static void alt_turn(uint32_t q, uint32_t i, int32_t s)
         alt_lfo_turn(0, id - QK_LWAVE, s);    /* (the chosen circle's LFO 1) */
         return;
     case QK_SCALE:
-        alt_seq.scale = (uint8_t)(((int32_t)alt_seq.scale + s + 16 * AS_NSCALE) % AS_NSCALE);
+        alt_seq.scale = (uint8_t)(s >= PANEL_JUMP ? AS_NSCALE - 1 : s <= -PANEL_JUMP ? 0 :
+                                  ((int32_t)alt_seq.scale + s + 16 * AS_NSCALE) % AS_NSCALE);
         return;
     case QK_ROOT:
         c->root = (uint8_t)clamp((int32_t)c->root + s, 12, 96);
@@ -824,7 +830,7 @@ static void alt_turn(uint32_t q, uint32_t i, int32_t s)
             return;
         alt_q[w].c = au.sel;
         alt_q[w].p = (uint8_t)id;
-        alt_q[w].d = (int8_t)clamp(d->fmt == F_ENUM ? s : s * 2, -100, 100);
+        alt_q[w].d = alt_qd(d->fmt == F_ENUM ? s : s * 2);
         alt_qw = nx;
         return;
     }
@@ -839,7 +845,7 @@ static void alt_qpush(uint32_t c, uint32_t id, int32_t d)
         return;
     alt_q[w].c = (uint8_t)c;
     alt_q[w].p = (uint8_t)id;
-    alt_q[w].d = (int8_t)clamp(d, -100, 100);
+    alt_q[w].d = alt_qd(d);
     alt_qw = nx;
 }
 
@@ -1912,6 +1918,9 @@ static int alter_ui_input(uint32_t pressed)
     keys = ALT_NOTES;
     both = (1u << panel.btn[B_OCTDN]) | (1u << panel.btn[B_OCTUP]);
     octs = (ALT_BTNS & both) == both;
+    panel_jump = (uint8_t)((ALT_BTNS & both) == (1u << panel.btn[B_OCTDN]));   /* (v1.2.19) OCT- alone + a knob: 0 / MAX */
+    if (!panel_jump)
+        panel_jumped = 0;
     alt_hint_poll(keys);                         /* (v1.2.18) a key with combos held: the hint */
     /* (OCT- + HOME = RANDOM: removed v1.2.18, Romain 25/11 "moins de combinaisons": SYSTEM (HOME held) > RANDOM) */
     if (!octs && ((ALT_BTNS >> panel.btn[B_OCTDN]) & 1u) && !au.handed && ((pressed >> panel.btn[B_PLAY]) & 1u)) {
@@ -4535,7 +4544,7 @@ static void alt_hint_poll(uint32_t keys)
     uint32_t c = AHI_NONE, dn = (ALT_BTNS >> panel.btn[B_OCTDN]) & 1u, up = (ALT_BTNS >> panel.btn[B_OCTUP]) & 1u;
     if (alter_view() && !alt_sys[14] && !au.mn && !au.scene_open && !au.lockc && !amc_ui.show && !afp.open &&
         !au.mat_open && !au.seq_open && !anm.open) {
-        if (dn && !up)
+        if (dn && !up && !panel_jumped)          /* (a knob turned: the hint goes, the value shows) */
             c = AHI_OCT;
         /* (ARP: none, its SONG page opens at 0.5 s and shows its own help) */
         else if (!dn && !up && ((ALT_BTNS >> panel.btn[B_REC]) & 1u))
@@ -4554,9 +4563,9 @@ static void alt_hint_poll(uint32_t keys)
 static void alt_hint_draw(void)
 {
     static const char *const T[8] = {"", "OCT- HELD", "ARP HELD", "REC HELD", "A HELD", "B HELD", "C HELD", "DICE HELD"};
-    static const char *const L[8][10] = {
+    static const char *const L[8][12] = {
         {0},
-        {"+ DICE", "VELO CHANCE LEN", "+ PLAY", "UNDO / REDO", "+ OCT+ + HOME", "NEW SCENE", "+ SELECT", "REMOVE (SONG)",
+        {"+ KNOB", "0 / MAX", "+ DICE", "VELO CHANCE LEN", "+ PLAY", "UNDO / REDO", "+ OCT+ + HOME", "NEW SCENE", "+ SELECT", "REMOVE (SONG)",
          "+ OCT+ 5 s", "UPDATE"},
         {"0.5 s", "SONG PAGE", "+ REC", "WRITE THE CHAIN", "tapped", "CHAIN ON / OFF", 0},
         {"tapped", "REC ON / OFF", "1 s", "CLEAR CIRCLE", "3 s", "CLEAR ALL", "+ PLAY", "COUNT-IN + REC", 0},
@@ -4567,7 +4576,7 @@ static void alt_hint_draw(void)
     };
     uint32_t id = ahint.id % 8u, n = 0, i;
     int32_t h, y0;
-    while (n < 5u && L[id][2u * n])
+    while (n < 6u && L[id][2u * n])
         n++;
     h = 20 + (int32_t)n * 13;
     y0 = 236 - h;

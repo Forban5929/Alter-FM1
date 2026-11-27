@@ -164,7 +164,7 @@ REVERB; all on by default). CHAOS switches every effect off (DIST, INSERT, the s
   plays a hit every RATE step), MONTÉE (held: the MASTER FILTER's FREQ and the selection's REVERB sends rise over 4 bars,
   the bars counted; let go: all back on the next 1). The wheel: circle I outside, as on the normal view.
 - **TAPE STOP** (v1.28, the upper key where DESTROY was): held, every circle slows to a stop and bends down like a tape
-  brake; let go, they speed up again over 4 beats and go on from where they are (v1.2.11: no jump back onto the grid). **UNDO** (v1.28): OCT− + PLAY puts back the scene as it was before
+  brake; let go, they speed up again over 4 beats and go on from where they are (v1.2.11: no jump back onto the grid). **Jump** (v1.2.19): hold OCT− and turn any knob: the setting goes straight to its bottom (left) or its top (right), on every page; lists (waveform, scale, destination…) still move one step. **UNDO** (v1.28): OCT− + PLAY puts back the scene as it was before
   the last big gesture (CHAOS, CHAOS TOTAL, a DICE or its clean, a sound, a scene loaded, NEW, a SONG slot); again = REDO.
 - **Fills** (upper keys, held): DUB DELAY, DUB REVERB, ROLL 1/16, ROLL 1/8 on the chosen circle as long as you
   hold them. With REC on, they are written.

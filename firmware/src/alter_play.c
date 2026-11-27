@@ -464,7 +464,8 @@ static void alt_take(void)
                                                   * AMNT left over (50: FOLD half driven at the first click); the
                                                   * blend 0..INS_XF (fx.c track_insert) brings it in */
         }
-        alt_move(q.c % AS_NCIRC, q.p, q.d);
+        alt_move(q.c % AS_NCIRC, q.p, q.d == 127 ? 30000 : q.d == -128 ? -30000 : q.d);   /* (v1.2.19: OCT- + a knob =
+                                                  * the whole range, panel.c PANEL_JUMP) */
         if (q.p == P_ITYPE) {                    /* v1.11 (Romain 22/11): SOFT HARD FUZZ left the INSERT (DIST does
                                                   * them): a turn passes over them; a scene stored with one keeps it
                                                   * until TYPE is turned (fx.c IT_*) */

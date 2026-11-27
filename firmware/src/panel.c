@@ -50,9 +50,18 @@ static void panel_init(void)                     /* also after a flash load: ids
 /* steps of a role, + = clockwise */
 static uint8_t panel_moved;                     /* a knob turned since ui.c scr_input last looked (SCREEN OFF) */
 static uint32_t panel_knob_ms[4];               /* when KNOB 1..4 last turned (fm1_ms | 1; ALTER shows its number then) */
+/* ALTER v1.2.19 (Romain 27/11, "comme le clic knob d'Elektron"): OCT- held alone + KNOB 1-4 = the setting straight to its
+ * bottom (left) or its top (right). alter_ui_input sets panel_jump each pass; a turn then reads PANEL_JUMP detents
+ * (every handler clamps; the queue to the audio side carries it as 127 / -128 = the whole range, alter_play.c) */
+#define PANEL_JUMP 1000
+static uint8_t panel_jump, panel_jumped;        /* (jumped: since OCT- went down, for the hint) */
 static int32_t panel_enc(uint32_t role)
 {
     int32_t s = fm1_enc_take(panel.enc[role]) * panel.dir[role];
+    if (s && panel_jump && role >= EN_K1 && role <= EN_K4) {
+        s = s > 0 ? PANEL_JUMP : -PANEL_JUMP;
+        panel_jumped = 1;
+    }
     if (s)
         panel_moved = 1;
     if (s && role >= EN_K1 && role <= EN_K4)
