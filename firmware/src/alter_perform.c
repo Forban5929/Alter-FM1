@@ -38,6 +38,27 @@ static const aper_bank_t APER_B[APB_N] = {
     {"GLO", 21, ALG_MASTER, "INSERT", "MASTER"},
 };
 static const uint8_t APER_BTN[APB_N] = {0, B_FX, B_SCL, B_ENV, B_SEQ, B_EDIT, B_LFO, B_GLO};
+/* v1.2.16 (Romain 27/11): EDIT LFO GLO are the player's own: held 1 s on the page = choose what they move (KNOB 1-3: a
+ * circle setting of MIDI LEARN's list, for I II III; KNOB 4: a GLOBAL); let go = kept. The MACHINE's (the scenes' object
+ * is full): the settings' favorites.factory[0] (engine 0 does not exist) = [0] APER_ROW_OK, then circle row, GLOBAL of
+ * EDIT, LFO, GLO; none stored or out of range: APER_B's */
+#define aper_row (favorites.factory[0])
+#define APER_ROW_OK 0xB7u
+#define APER_EDIT_MS 1000u
+static uint32_t aper_bt(uint32_t b)              /* bank b's circle setting (ALM_CT row) / GLOBAL */
+{
+    uint32_t j = b - APB_EDIT, t;
+    if (b >= APB_EDIT && b < APB_N && aper_row[0] == APER_ROW_OK && (t = aper_row[1u + 2u * j]) < ALM_NCT)
+        return t;
+    return APER_B[b % APB_N].t;
+}
+static uint32_t aper_bg(uint32_t b)
+{
+    uint32_t j = b - APB_EDIT, g;
+    if (b >= APB_EDIT && b < APB_N && aper_row[0] == APER_ROW_OK && (g = aper_row[2u + 2u * j]) < ALG_N)
+        return g;
+    return APER_B[b % APB_N].g;
+}
 
 /* the keys: k = semitones above F3 (ALT_KEY's numbers) */
 enum { APK_NONE, APK_MUTE, APK_FA, APK_FB, APK_DDLY, APK_DREV, APK_TAPE, APK_PREV, APK_NEXT, APK_TEMP, APK_SONG,
@@ -77,14 +98,16 @@ static struct {
     int16_t up_base[4], up_v[4];                 /* FREQ + the three REVERB sends before it, as set now */
     uint8_t temp_on, temp_n;                     /* TEMP held; the knobs it gives back */
     struct { uint8_t bank, i, v; } temp[APER_NTEMP];
+    uint32_t bt0;                                /* (v1.2.16) a bank button's press (fm1_ms | 1), 0: up */
+    uint8_t bdn, ed;                             /* the bank whose button is down; choosing its targets (held 1 s) */
 } aper = {.rate = 2u};
 
 static uint32_t aper_code(uint32_t i)            /* knob i's MIDI LEARN code in the bank (APB_NONE: none) */
 {
-    const aper_bank_t *b = &APER_B[aper.bank % APB_N];
+    uint32_t t = aper_bt(aper.bank % APB_N), g = aper_bg(aper.bank % APB_N);
     if (i < 3u)
-        return b->t == APB_NONE ? APB_NONE : i * 32u + b->t;
-    return b->g == APB_NONE ? APB_NONE : ALM_G0 + b->g;
+        return t == APB_NONE ? APB_NONE : i * 32u + t;
+    return g == APB_NONE ? APB_NONE : ALM_G0 + g;
 }
 /* knob i's setting now / to v (0..127): the ENV bank's DECAY follows each circle's envelope mode (FREE the sound's DECAY,
  * PERC its DECAY, STAB its LENGTH: what the ENV page's knob of the same job moves); the others through MIDI LEARN */
@@ -148,6 +171,20 @@ static void aper_play(uint32_t pressed)
 static uint32_t aper_play_t0(void) { return aper.play_t0; }
 static void aper_play_take(void) { aper.play_t0 = 0; aper.play_stop = 0; aper.play_held = 1; }
 /* the page's buttons: a bank tapped (again: MACRO); taken out of pressed so no other page opens */
+static void aper_ed_keep(void)                   /* (v1.2.16) the bank's targets as chosen, into the settings */
+{
+    uint32_t b = aper.ed, j = 0, k;
+    if (b < APB_EDIT || b >= APB_N)
+        return;
+    if (aper_row[0] != APER_ROW_OK) {            /* (first time: the three as they were) */
+        for (k = APB_EDIT; k < APB_N; k++) {
+            aper_row[1u + 2u * (k - APB_EDIT)] = (uint8_t)APER_B[k].t;
+            aper_row[2u + 2u * (k - APB_EDIT)] = (uint8_t)APER_B[k].g;
+        }
+        aper_row[0] = APER_ROW_OK;
+    }
+    (void)j;
+}
 static uint32_t aper_buttons(uint32_t pressed)
 {
     uint32_t k;
@@ -157,13 +194,48 @@ static uint32_t aper_buttons(uint32_t pressed)
             aper_read();
             alt_say(APER_B[aper.bank].name);
             pressed &= ~(1u << panel.btn[APER_BTN[k]]);
+            aper.bdn = (uint8_t)k;
+            aper.bt0 = fm1_ms | 1u;
         }
+    if (aper.bt0) {                              /* (v1.2.16) EDIT LFO GLO held 1 s: choose; let go: kept */
+        uint32_t dn = (ALT_BTNS >> panel.btn[APER_BTN[aper.bdn % APB_N]]) & 1u;
+        if (!dn) {
+            if (aper.ed) {
+                settings_save();                 /* (written once the transport stops) */
+                alt_say("KEPT");
+            }
+            aper.bt0 = 0;
+            aper.ed = 0;
+        } else if (!aper.ed && aper.bdn >= APB_EDIT && (int32_t)(fm1_ms - aper.bt0) >= (int32_t)APER_EDIT_MS) {
+            aper.ed = aper.bdn;
+            aper.bank = aper.bdn;                /* (a tap on the bank shown had gone back to MACRO) */
+            aper_ed_keep();
+            aper_read();
+            alt_say("CHOOSE");
+        }
+    }
     return pressed;
+}
+/* choosing (v1.2.16): KNOB 1-3 the circle setting (MIDI LEARN's circle rows), KNOB 4 the GLOBAL; one step a detent */
+static void aper_ed_turn(uint32_t i, int32_t s)
+{
+    uint32_t j = aper.ed - APB_EDIT, x;
+    uint8_t *v = &aper_row[(i < 3u ? 1u : 2u) + 2u * j];
+    uint32_t n = i < 3u ? ALM_NCT : ALG_N;
+    x = *v < n ? *v : 0u;
+    x = (x + (s > 0 ? 1u : n - 1u)) % n;
+    *v = (uint8_t)x;
+    aper_read();
+    alt_say(alm_cname(i < 3u ? i * 32u + x : ALM_G0 + x));
 }
 static void aper_turn(uint32_t i, int32_t s)
 {
     uint32_t c = aper_code(i);
     int32_t v;
+    if (aper.ed) {                               /* (choosing: the knob picks, moves nothing) */
+        aper_ed_turn(i, s);
+        return;
+    }
     if (c == APB_NONE)
         return;
     if (aper.v[i] < 0 || (uint32_t)(fm1_ms - aper.turn_ms) > 1000u)
@@ -194,6 +266,7 @@ static uint32_t aper_sig(void)                   /* (the screen: redrawn when th
         s = s * 31u + (uint32_t)(aper.v[c] + 1);
     for (c = 0; c < AS_NCIRC; c++)
         s = s * 31u + alt_seq.c[c].pat * 7u + alt_seq.c[c].cfg.len * 131u + alt_seq.c[c].pos * 17u + au.cfg[c].mute * 3u;
+    s = s * 31u + aper.ed * 19u + (aper.ed ? aper_bt(aper.ed) * 23u + aper_bg(aper.ed) * 29u : 0u);
     s = s * 31u + aper.rate * 3u + aper.sel * 5u + aper.sq * 7u + aper.up_on * 11u + aper.up_drop * 13u + aper.fill;
     if (aper.up_on || aper.up_drop)
         s = s * 31u + alt_gstep;
@@ -500,7 +573,10 @@ static void aper_scene(void)
     {                                            /* under it: MONTEE's bars, the drop, a scene waiting, or the FILL rate */
         char st[16];
         uint16_t sc = ALT_DIM;
-        if (aper.up_on) {
+        if (aper.ed) {                           /* (v1.2.16) choosing a bank's targets */
+            alt_scopy(st, "CHOOSE", sizeof st);
+            sc = ALT_GOLD;
+        } else if (aper.up_on) {
             uint32_t n = song.playing ? (alt_gstep - aper.up_g0) / 16u + 1u : 1u;
             alt_scopy(st, "BAR ", sizeof st);
             st[4] = (char)('0' + n / 10u % 10u), st[5] = (char)('0' + n % 10u), st[6] = 0;
@@ -531,8 +607,14 @@ static void aper_scene(void)
         const char *p = CN[i];
         while (*p)
             nm[j++] = *p++;
-        for (p = i < 3u ? APER_B[aper.bank].kn : APER_B[aper.bank].gn; *p && j < sizeof nm - 1u; )
-            nm[j++] = *p++;
+        p = aper.bank >= APB_EDIT && aper_row[0] == APER_ROW_OK   /* (v1.2.16: the player's own: MIDI LEARN's names) */
+            ? (aper_code(i) == APB_NONE ? "" : alm_cname(aper_code(i)))
+            : i < 3u ? APER_B[aper.bank].kn : APER_B[aper.bank].gn;
+        {
+            uint32_t lim = i < 3u ? j + 6u : 8u;  /* (a name cut to the knob's room) */
+            for (; *p && j < sizeof nm - 1u && j < lim; )
+                nm[j++] = *p++;
+        }
         nm[j] = 0;
         cv_text(x, 198, ALT_FS, nm, (i < 3u && au.cfg[i].mute) ? ALT_GREY : col);
         if (v < 0)

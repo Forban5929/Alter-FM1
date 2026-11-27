@@ -5719,6 +5719,8 @@ static int32_t alt_peek(uint32_t c, uint32_t w)
     }
     if (w == 19u)                                /* (v0.77: the MACRO: value | recipe << 8 | edited << 15 | shown << 16 | tab << 20) */
         return (int32_t)(amc.val | amc.rcp << 8 | amc.edited << 15 | (uint32_t)amc_ui.show << 16 | (uint32_t)amc_ui.tab << 20);
+    if (w == 35u)                                /* (v1.2.16 PERFORM: choosing | bank << 4 | its circle row << 8 | its GLOBAL << 16) */
+        return (int32_t)(aper.ed | (uint32_t)aper.bank << 4 | aper_bt(aper.bank) << 8 | aper_bg(aper.bank) << 16);
     if (w == 34u)                                /* (v1.2.15: circle c's MACRO: value | recipe << 8 | edited << 15) */
         return (int32_t)(amc_m[1u + c % AS_NCIRC].val | amc_m[1u + c % AS_NCIRC].rcp << 8 | amc_m[1u + c % AS_NCIRC].edited << 15);
     if (w >= 20u && w < 20u + AMC_NS)            /* (v0.77: row w - 20: target | circle << 8 | (amount + 64) << 16) */
