@@ -529,6 +529,13 @@ static void aper_cell(int32_t r0, int32_t r1, uint32_t t0, uint32_t span, uint16
     alt_pt(APER_CX, APER_CY, t0 + span, r0, &x0, &y0), alt_pt(APER_CX, APER_CY, t0 + span, r1, &x1, &y1);
     alt_aaline(x0, y0, x1, y1, c);
 }
+/* (v1.2.17 NEON) the glow of a cell: two outlines around it, 1 px then 2 px out (and a little wider), a1 % then a2 % */
+#define APER_G1 0x00888889u                      /* (0.75 degree) */
+static void aper_halo(int32_t r0, int32_t r1, uint32_t t0, uint32_t span, uint16_t col, int32_t a1, int32_t a2)
+{
+    aper_cell(r0 - 2, r1 + 2, t0 - 2u * APER_G1, span + 4u * APER_G1, alt_fade(col, a2), 0);
+    aper_cell(r0 - 1, r1 + 1, t0 - APER_G1, span + 2u * APER_G1, alt_fade(col, a1), 0);
+}
 static void aper_scene(void)
 {
     static const int32_t R0[AS_NCIRC] = {63, 45, 27}, R1[AS_NCIRC] = {76, 58, 40};   /* (v1.2.13: I outside, as the
@@ -552,14 +559,17 @@ static void aper_scene(void)
             int now = song.playing && k == cur && !muted;
             if (muted)
                 aper_cell(R0[c], R1[c], t0, span, alt_fade(ALT_GREY, 40), 0);
-            else if (now)
-                aper_cell(R0[c], R1[c], t0, span, hit ? col : alt_fade(col, 40), 1);   /* (v1.2.12: the hit in its colour) */
-            else if (hit) {
+            else if (now) {                      /* (v1.2.17 NEON, Romain 27/11: the step playing shines: filled light
+                                                  * (cream on a hit, its colour else), a halo around) */
+                uint16_t f = hit ? ALT_INK : col;
+                aper_halo(R0[c], R1[c], t0, span, f, 60, 26);
+                aper_cell(R0[c], R1[c], t0, span, f, 1);
+            } else if (hit) {                    /* (v1.2.17 NEON: a bright outline with a halo, a faint fill inside) */
                 int32_t r;
-                aper_cell(R0[c] - 1, R1[c] + 1, t0, span, alt_fade(col, 30), 0);   /* (its glow) */
+                aper_halo(R0[c], R1[c], t0, span, col, 45, 18);
+                for (r = R0[c] + 2; r <= R1[c] - 2; r += 2)
+                    alt_arc(APER_CX, APER_CY, r, t0, span, alt_fade(col, 22), 1);
                 aper_cell(R0[c], R1[c], t0, span, col, 0);
-                for (r = R0[c] + 3; r <= R1[c] - 3; r += 2)   /* (filled lightly: Romain, only outlines before) */
-                    alt_arc(APER_CX, APER_CY, r, t0, span, alt_fade(col, 35), 1);
             } else
                 aper_cell(R0[c], R1[c], t0, span, alt_fade(ALT_GREY, 45), 0);
         }
