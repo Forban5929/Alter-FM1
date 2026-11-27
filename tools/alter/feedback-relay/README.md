@@ -9,5 +9,5 @@ Page compagnon (`web/alter/feedback.js`, bouton **Feedback**) → `https://alter
   Après l'avoir ajouté ou changé : **redéployer** (les variables ne sont lues qu'au déploiement).
 - `GET /api/feedback` → `{"ok":true,"configured":true}` quand le jeton est en place.
 - Origines acceptées : `https://forban5929.github.io` (+ `http://localhost:8765` pour les tests). Anti-abus : champ piège,
-  5 envois / 10 min par adresse, texte 5-4000 caractères. Les `@` sont neutralisés (pas de notification GitHub).
+  20 envois / 10 min par adresse (5 avant le 28/11), texte 5-4000 caractères. Les `@` sont neutralisés (pas de notification GitHub).
 - L'alias `alter-feedback-rominou1.vercel.app` est protégé par la connexion Vercel : utiliser `alter-feedback.vercel.app`.

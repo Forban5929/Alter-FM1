@@ -7,7 +7,8 @@
 const REPO = 'Forban5929/alter-fm1';
 const ORIGINS = ['https://forban5929.github.io', 'http://localhost:8765'];
 const CATS = { sound: 'son', bug: 'bug', idea: 'idée', ui: 'page/écran', other: 'autre' };
-const hits = new Map();            // anti-abus simple : 5 envois / 10 min par adresse (mémoire de l'instance)
+const hits = new Map();            // anti-abus simple : 20 envois / 10 min par adresse (mémoire de l'instance ; 5 avant
+                                   // le 28/11 : trop peu quand Romain propose plusieurs sons d'usine à la suite)
 
 function cors(req, res) {
   const o = req.headers.origin || '';
@@ -35,7 +36,7 @@ module.exports = async (req, res) => {
 
   const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'x';
   const now = Date.now(), list = (hits.get(ip) || []).filter((t) => now - t < 600000);
-  if (list.length >= 5) return res.status(429).json({ ok: false, error: 'too many' });
+  if (list.length >= 20) return res.status(429).json({ ok: false, error: 'too many' });
   list.push(now); hits.set(ip, list);
 
   const text = clip(b.text, 4000);
