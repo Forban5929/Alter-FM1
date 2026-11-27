@@ -141,7 +141,7 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
   alt_scene0 + `alt_hint_draw`) : OCT− seul / REC / A B C / DÉ tenus `ALT_HINT_MS` 400 ms sur la vue PLAY = panneau en bas (anglais) ;
   pas d'aide pour ARP (sa page SONG s'ouvre à 0,5 s avec sa propre aide) ; SYSTEM › SETUP › **HINTS** (`alt_sys[14]`, 0 = ON). Peek 36 =
   ahint.id ; op 37 = HINTS (a 1 = OFF). Tests : `alter_hint_test.mjs` ; emu_test et song_test refaits sans les combinaisons. Guide + MANUAL
-  à jour. **Reste : la carte aide-mémoire** (Romain 27/11 : **anglais, A4**, pas A5). **Pas essayé sur la FM-1.**
+  à jour. **Carte aide-mémoire FAITE 27/11** (anglais, A4 recto-verso : face 1 vue PLAY, face 2 PERFORM) = canvas Design https://claude.ai/artifact/2bnMYqnJF6PqrxmRoBjEkf (Main + Perform, export PDF) ; à tenir à jour si un geste change. **Pas essayé sur la FM-1.**
 - **27/11 soir : onglet « Tests v1.2 » refait** pour la BETA v1.2.18 = 28 essais (16-27 = nouveautés v1.2.14-18, 28 = jam) ; Sheet #7 « En cours ».
 - `alt_sys[11]` (ancien THEME SPLIT, retiré v1.13) peut valoir 1 sur la FM-1 de Romain : le remettre à 0 avant de le reprendre.
 
