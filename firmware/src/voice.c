@@ -171,6 +171,18 @@ static uint32_t voice_victim(const track_t *self, int soft, track_t **pp)
 }
 
 static uint32_t voice_kills;                            /* voices given up (budget, overload): console, hostsim */
+/* ALTER v1.2.20 (Romain 28/11, "coupe nette"): a note on a voice still sounding no longer goes on from its tail (the attack
+ * from the level, the engine's sweep skipped: a KICK's first 5 ms ~10 dB down, measured): the voice fades over this block
+ * (stage 4, as voice_kill, not counted) and the note starts afresh on it at the next block (track_render): its whole
+ * envelope and the engine's note_on. alt_vfresh[part] (alter_play.c alt_gl_tick, by the circle's mode): 0 Felucca's (the
+ * attack from the level: DRONE's layers), 1 PERC / STAB (a note, even the same, cuts the one before), 2 FREE (each hit a
+ * voice of its own, the tails ring under it; all taken: the oldest fades for it) */
+static uint8_t alt_vfresh[NTRK];
+typedef struct { uint8_t on, note, vel, glide, off; } alt_vp_t;
+static alt_vp_t alt_vpend[NTRK][NVOICE];
+/* on: 1 a note waits for this voice, 2 cut for a new hit (alter_play.c alt_on), no note of its own waiting */
+static uint32_t alt_vpend_on(const track_t *t, uint32_t i) { return alt_vpend[(uint32_t)(t - trk) % NTRK][i % NVOICE].on; }
+
 static void voice_kill(voice_t *v)                      /* fade out over the next block (env_tick stage 4) */
 {
     v->gate = 0;
@@ -195,8 +207,9 @@ static int voice_room(track_t *t, int soft)
 
 static voice_t *voice_reuse(track_t *t, voice_t *v)
 {
-    if (v->stage == 4u)
-        voice_room(t, 0);                               /* its budget was taken before this block */
+    if (v->stage == 4u && !alt_vpend_on(t, (uint32_t)(v - t->v)))
+        voice_room(t, 0);                               /* its budget was taken before this block (not one of ALTER's
+                                                         * restarting: it stays its part's) */
     return v;
 }
 
@@ -218,7 +231,8 @@ static voice_t *voice_alloc(track_t *t, uint32_t note)
             return voice_reuse(t, v);
     }
     for (i = 0; i < np; i++) {
-        if (t->v[i].active && t->v[i].note == note && !alt_no_reuse)   /* (ALTER's DRONE layers: alter_lfo.c) */
+        if (t->v[i].active && t->v[i].note == note && !alt_no_reuse && alt_vfresh[(uint32_t)(t - trk) % NTRK] != 2u &&
+            alt_vpend_on(t, i) != 1u)                   /* (ALTER's DRONE layers: alter_lfo.c; FREE: a voice of its own) */
             return voice_reuse(t, &t->v[i]);
         nfree += !t->v[i].active;
     }
@@ -261,7 +275,7 @@ static voice_t *voice_alloc(track_t *t, uint32_t note)
             best = i;
     if (best == np)
         for (i = 0; i < np; i++)                         /* oldest held, not the bass */
-            if (i != low && (best == np || t->v[i].age < t->v[best].age))
+            if (i != low && alt_vpend_on(t, i) != 1u && (best == np || t->v[i].age < t->v[best].age))
                 best = i;
     return voice_reuse(t, &t->v[best == np ? 0 : best]);
 }
@@ -288,6 +302,20 @@ static void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_t vel, int
     const engine_t *e = ENGINES[t->engine];
     int sounding = v->active && v->stage != 0;
     uint32_t ph0 = v->ph[0], ph1 = v->ph[1], ph2 = v->ph[2];
+    {
+        uint32_t ti = (uint32_t)(t - trk) % NTRK, vi = (uint32_t)(v - t->v) % NVOICE;
+        if (sounding && !e->sampled && alt_vfresh[ti] && trk_vmode(t) == V_POLY) {   /* (ALTER: afresh, next block) */
+            alt_vp_t *q = &alt_vpend[ti][vi];
+            q->on = 1;
+            q->note = (uint8_t)note;
+            q->vel = (uint8_t)vel;
+            q->glide = (uint8_t)(glide != 0);
+            q->off = 0;
+            v->gate = 0;
+            v->stage = 4;                               /* (this block fades it: env_tick) */
+            return;
+        }
+    }
     int32_t s0 = v->s[0], s1 = v->s[1], s4 = v->s[4], s5 = v->s[5], s6 = v->s[6], s7 = v->s[7];
     uint32_t keep = e->keep;
     v->note = (uint8_t)note;
@@ -460,6 +488,11 @@ static void trk_note_off(track_t *t, uint32_t note)
             }
         }
     }
+    for (i = 0; i < NVOICE; i++) {                      /* (ALTER: a note waiting to start is let go once started) */
+        alt_vp_t *q = &alt_vpend[(uint32_t)(t - trk) % NTRK][i];
+        if (q->on == 1u && q->note == note)
+            q->off = 1;
+    }
     for (i = 0; i < NVOICE; i++)                        /* a fallback above already has its new pitch */
         if (t->v[i].note == note && t->v[i].gate) {
             t->v[i].gate = 0;
@@ -473,6 +506,7 @@ static void trk_all_off(track_t *t)
     for (i = 0; i < NVOICE; i++) {
         t->v[i].gate = 0;
         t->v[i].stage = t->v[i].active ? 3 : 0;
+        alt_vpend[(uint32_t)(t - trk) % NTRK][i].on = 0;
     }
     t->nmono = 0;
     t->mono_note = 0;
@@ -696,6 +730,19 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
     track_lfo_tick(t);
 #endif
     esync_coef(t);                                      /* this block's envelope steps for env_tick (ENV SYNC) */
+    for (i = 0; i < NVOICE; i++) {                      /* (ALTER v1.2.20) a note waiting for its voice's fade: now */
+        alt_vp_t *q = &alt_vpend[ti % NTRK][i];
+        if (q->on == 2u && !t->v[i].active)
+            q->on = 0;                                  /* (cut, faded: free) */
+        if (q->on == 1u && !t->v[i].active) {
+            q->on = 0;
+            voice_start(t, &t->v[i], q->note, q->vel, q->glide);
+            if (q->off) {
+                t->v[i].gate = 0;
+                t->v[i].stage = 3;
+            }
+        }
+    }
     if (e->block)                                       /* the engine's per-part work (WHEEL: bars, rotor) */
         e->block(t);
     for (i = 0; i < NVOICE; i++) {

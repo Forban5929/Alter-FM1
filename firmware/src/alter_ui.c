@@ -251,6 +251,27 @@ static void alt_load_sound(uint32_t c, uint32_t i)
     alt_preset_cnt[c]++;
 }
 
+/* (v1.2.20, Romain 28/11) a sound picked by hand (PRESETS, the companion page): loaded, then what it asks "by default" (its
+ * own: alter_sounds.c AP_*): its envelope mode, its effects, its chord. The scenes and the draws load with alt_load_sound */
+static void alt_pick_sound(uint32_t c, uint32_t i)
+{
+    const alt_pre_t *pr = alt_pre(i);
+    uint32_t j;
+    alt_load_sound(c, i);
+    if (pr->own & AP_FX) {
+        fm1_irq_off();
+        for (j = 0; j < 4u; j++)
+            trk[c].p[P_DIST + j] = pr->fx[j];
+        fm1_irq_on();
+    }
+    if (pr->own & AP_MODE)
+        alt_emode[c] = am_ok(pr->mode);
+    if (pr->own & AP_CHORD) {
+        au.cfg[c].chord = (uint8_t)(pr->chord % AS_NCHORD);
+        alt_post_circle(c);
+    }
+}
+
 /* PRESETS: circle c's sound s on */
 static void alt_preset_step(uint32_t c, int32_t s)
 {
@@ -259,7 +280,7 @@ static void alt_preset_step(uint32_t c, int32_t s)
     for (n = 0; alt_pre(alt_pre_at(i))->hide && n < (uint32_t)N; n++)   /* (a hidden one, an empty USER one: the next in
                                                                      * the turn's way) */
         i = (uint32_t)(((int32_t)i + (s < 0 ? -1 : 1) + N) % N);
-    alt_load_sound(c, alt_pre_at(i));
+    alt_pick_sound(c, alt_pre_at(i));
     alt_say(alt_pre(alt_pre_at(i))->name);
 }
 
@@ -5771,6 +5792,8 @@ static int32_t alt_peek(uint32_t c, uint32_t w)
     }
     if (w == 19u)                                /* (v0.77: the MACRO: value | recipe << 8 | edited << 15 | shown << 16 | tab << 20) */
         return (int32_t)(amc.val | amc.rcp << 8 | amc.edited << 15 | (uint32_t)amc_ui.show << 16 | (uint32_t)amc_ui.tab << 20);
+    if (w == 37u)                                /* (v1.2.20: circle c's envelope mode, AM_*) */
+        return alt_emode[c % AS_NCIRC];
     if (w == 36u)                                /* (v1.2.18 HINTS: the hint shown, 0: none) */
         return (int32_t)ahint.id;
     if (w == 35u)                                /* (v1.2.16 PERFORM: choosing | bank << 4 | its circle row << 8 | its GLOBAL << 16) */
@@ -5839,6 +5862,7 @@ static void alt_web_cmd(uint32_t op, uint32_t a, uint32_t b)
         return;
     switch (op) {
     case 0: alt_load_sound(a % AS_NCIRC, b); break;
+    case 38: alt_pick_sound(a % AS_NCIRC, b); break;   /* (a test, v1.2.20: a sound picked by hand, its own) */
     case 1: alt_load_scene(a); break;
     case 2: au.cfg[a % AS_NCIRC].mute = (uint8_t)(b != 0); alt_post_circle(a % AS_NCIRC); break;
     case 26: alt_seq.prog[a % AS_NCIRC] = (uint8_t)(b % AS_NPROG); break;   /* (a test: circle a's PROGRESSION) */

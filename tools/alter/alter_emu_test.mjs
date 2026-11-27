@@ -56,12 +56,18 @@ const euclid = (n, k, r) => { const p = []; for (let i = 0; i < n; i++) if ((i *
 const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
 // power-on = the TECHNO scene (alter_sounds.c): THUD 4/16, STAB 3/16 turned by 3 (a triad), CRUSH 11/16 at PROB 110
 const C1 = euclid(16, 4, 0), C2 = euclid(16, 3, 3), C3 = euclid(16, 11, 0);
+// (v1.2.20: Romain's new THUD and STAB ring on, the attacks counted from the audio need short hits: circle c gets the
+// v1.2.19 THUD / STAB values, P_E0 = 103, ATK = 1, LEVEL = 0)
+const OLD = { THUD: [[0, 0, 8, 1, 90, 0, -40, 0], [0, 60, 0, 45], 90], STAB: [[110, 15, 80, 0, 40, 0, -45, 0], [0, 55, 40, 40], 105] };
+const oldSnd = (c, n, e = ex) => { const [k, env, lv] = OLD[n];
+  k.forEach((v, j) => e.web_alter(17, c | (103 + j) << 8, v & 255)); env.forEach((v, j) => e.web_alter(17, c | (1 + j) << 8, v));
+  e.web_alter(17, c | 0 << 8, lv); };
 
 render(FS * 2, false);                                          // the splash
 K(1 << 26); const quiet = render(FS / 2, true); K(0); render(FS / 4, false);
 check("a key on the PLAY view plays no note", peak(quiet) < 0.001);
 ex.web_alter(4, BPM, 0);                                        // (the test counts at 120: TECHNO is 132)
-ex.web_alter(0, 0, 0); ex.web_alter(9, 0, 12); ex.web_alter(10, 0, 0);   // (circle 1: THUD, no echo on its 4th kick, PERC
+ex.web_alter(0, 0, 0); oldSnd(0, "THUD"); oldSnd(1, "STAB"); ex.web_alter(9, 0, 12); ex.web_alter(10, 0, 0);   // (circle 1: THUD, no echo on its 4th kick, PERC
                                                                 // as by default: the attacks counted are the hits)
 enc(1, -3);                                                    // circle 1 to FREE (the scene has it PERC)
 play(); t0 = clock - 128;
@@ -346,10 +352,10 @@ tap(10); bar();
     ex.web_alter(15, 0, 16 | 1 << 8);                                   // one hit per bar
     bar(); bar();
     const a = bar().audio, head = energy(a.slice(0, 3 * STEP)) / 3, tail = energy(a.slice(5 * STEP)) / 11;
-    check(`FREE: a held sound stops within 4 steps (steps 1-3 ${head.toFixed(1)} / steps 6-16 ${tail.toFixed(2)})`, head > 0 && tail < head * 0.02);
+    check(`FREE (v1.2.20: no 4-step limit, Romain 28/11): a held sound rings on (steps 1-3 ${head.toFixed(1)} / steps 6-16 ${tail.toFixed(2)})`, head > 0 && tail > head * 0.1);
     ex.web_alter(15, 0, 32 | 32 << 8); bar(); bar();                     // LEN 32 asked: 16 at most (Romain 04/11)
     check(`LEN 32 asked: the circle plays 16 steps (pattern ${(ex.web_alter_pat(0) >>> 0).toString(16)})`, (ex.web_alter_pat(0) >>> 0) === 0xffff);
-    ex.web_alter(15, 0, 16 | 8 << 8); ex.web_alter(0, 0, snd);          // (8 hits, circle 1's own sound again)
+    ex.web_alter(15, 0, 16 | 8 << 8); ex.web_alter(0, 0, snd); if (snd === 0) oldSnd(0, "THUD");   // (8 hits, circle 1's own sound again)
     bar();
   }
   check("modes and LFO off: 8 hits as before", same(bar().steps, euclid(16, 8, 0)));
@@ -434,7 +440,7 @@ const holdSave = () => { ex.web_buttons(1 << 7); render(FS * 1.2); ex.web_button
 {
   B(7); row(2); B(7);
   ex.web_alter(4, BPM, 0);                                      // (HOUSE is 124: the test counts at 120)
-  ex.web_alter(2, 1, 1); ex.web_alter(2, 2, 1);
+  ex.web_alter(2, 1, 1); ex.web_alter(2, 2, 1); ex.web_alter(17, 0 | 108 << 8, 0);   // (v1.2.20: the new KICK's RING beats: off for the count)
   bar();
   const hs = bar().steps;
   check(`SAVE, SELECT +2, SAVE: HOUSE (circle 1: four to the floor) ${hs.join(",")}`, same(hs, euclid(16, 4, 0)));
@@ -458,7 +464,7 @@ const holdSave = () => { ex.web_buttons(1 << 7); render(FS * 1.2); ex.web_button
   check(`USER 01 loaded: circle 1's 6 hits again ${us.join(",")}`, same(us, euclid(16, 6, 0)));
   B(7); row(1); ex.web_buttons(1 << 7); render(FS * 1.2); ex.web_buttons(0); render(2000); B(6);   // TECHNO: protected (no NAME page)
   check("a factory scene cannot be overwritten (TECHNO still 4 hits on circle 1)", (() => {
-    B(7); enc(1, -1); row(1); B(7); ex.web_alter(4, BPM, 0); ex.web_alter(2, 1, 1); ex.web_alter(2, 2, 1); bar();
+    B(7); enc(1, -1); row(1); B(7); ex.web_alter(4, BPM, 0); ex.web_alter(2, 1, 1); ex.web_alter(2, 2, 1); ex.web_alter(17, 0 | 108 << 8, 0); bar();
     return same(bar().steps, euclid(16, 4, 0));
   })());
 }

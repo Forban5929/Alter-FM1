@@ -1065,7 +1065,7 @@ static void lk_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
     case LKC_SOUND:                                   /* circle, sound (ALT_PRE): loaded as PRESETS does; STATE back */
         if (na != 2u || a[0] >= AS_NCIRC || a[1] >= ALT_NPRE_ALL)
             return;
-        alt_load_sound(a[0], alt_pre_at(a[1]));
+        alt_pick_sound(a[0], alt_pre_at(a[1]));   /* (v1.2.20: with what it asks by default) */
         lk_state(a[0]);
         return;
     case LKC_SCENE:                                   /* the USER scenes (lk_user) */

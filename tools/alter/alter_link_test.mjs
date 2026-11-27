@@ -145,7 +145,7 @@ check(`RUMBLE : groupe ${RG}, sons qui l'ont : ${withR.join(" ")}`, RG === 16 &&
 one(req.sound(2, kick));
 const rk = all(2)[RMB];
 r = one(req.vset(2, RMB, 20));
-check(`RUMBLE du KICK (cercle 3) : ${rk} au chargement, VSET 20 (gardé ${r?.value}), relu ${all(2)[RMB]}`, rk === 70 && r?.value === 20 && all(2)[RMB] === 20);
+check(`RUMBLE du KICK (cercle 3) : ${rk} au chargement, VSET 20 (gardé ${r?.value}), relu ${all(2)[RMB]}`, rk === 30 && r?.value === 20 && all(2)[RMB] === 20);
 r = one(req.vset(2, RMB, 500));
 check(`VSET RUMBLE 500 : gardé ${r?.value} (127 au plus)`, r?.value === 127);
 one(req.vset(2, RMB, 70));

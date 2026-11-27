@@ -21,7 +21,14 @@ typedef struct {
     uint8_t rumble;              /* not 0: the sound has a RUMBLE (alter_fx.c), KNOB 4 sets it, this its start (04/11) */
     uint8_t hide;                /* 1: out of PRESETS and the random draws (Romain 05/11: WIRE = SITAR), kept for the
                                   * scenes that use it (their index) */
+    uint8_t own;                 /* (v1.2.20, Romain 28/11 "by default"): picked by hand (PRESETS, the page), AP_MODE its mode,
+                                  * AP_FX its fx[] (v1.18 cleared them for every sound), AP_CHORD its chord (alter_ui.c
+                                  * alt_pick_sound); the scenes and the draws set theirs as before */
+    uint8_t chord;               /* AS_CH_* with AP_CHORD */
 } alt_pre_t;
+#define AP_MODE 1u
+#define AP_FX 2u
+#define AP_CHORD 4u
 
 /* ALTER {MRPH SPRD HARM MODE AMNT NOIS TILT DRFT}: MODE 0 SKIN, 1 LIQUID, 2 METAL */
 #define AL_S 0
@@ -32,12 +39,12 @@ typedef struct {
 /* NOISE {MODE COLR FREQ RES TRK DENS DRFT CRSH}: MODE 0 ANLG, 1 DUST, 2 LFSR, 3 META */
 static const alt_pre_t ALT_PRE[] = {
     /* ALTER */
-    {"THUD", 0, {0, 0, 8, AL_L, 90, 0, -40, 0}, {0, 60, 0, 45}, {10, 0, 0, 10}, 90, 1},
-    {"ANVIL", 0, {40, 100, 90, AL_M, 70, 0, -20, 0}, {0, 70, 0, 55}, {20, 0, 15, 30}, 85, 1},
-    {"STAB", 0, {110, 15, 80, AL_S, 40, 0, -45, 0}, {0, 55, 40, 40}, {25, 0, 30, 25}, 105, 2},
-    {"PIPES", 0, {8, 0, 70, AL_S, 25, 0, 20, 2}, {0, 90, 60, 70}, {0, 10, 30, 45}, 103, 2},
-    {"RUST", 0, {70, 120, 110, AL_M, 100, 0, 10, 37}, {30, 127, 127, 85}, {30, 0, 30, 60}, 87, 3},
-    {"GRIND", 0, {127, 90, 127, AL_M, 127, 0, 0, 77}, {10, 100, 90, 70}, {60, 0, 20, 40}, 84, 3},
+    {"THUD", 0, {5, 118, 11, AL_M, 44, 12, 3, 51}, {3, 65, 41, 75}, {10, 0, 0, 10}, 127, 0},   /* v1.2.20 Romain 28/11 */
+    {"ANVIL", 0, {40, 44, 127, AL_M, 103, 86, 63, 0}, {0, 77, 12, 58}, {20, 0, 15, 30}, 89, 0},   /* v1.2.20 Romain: -6 dB */
+    {"STAB", 0, {0, 15, 109, AL_S, 0, 0, -45, 0}, {0, 55, 40, 40}, {25, 0, 20, 20}, 105, 2, .own = AP_MODE | AP_FX},   /* v1.2.20: REV + DLY 20 */
+    {"PIPES", 0, {0, 0, 36, AL_S, 127, 0, 20, 2}, {0, 90, 60, 70}, {0, 10, 30, 45}, 101, 2},   /* v1.2.20: -3 dB */
+    {"RUST", 0, {70, 120, 110, AL_M, 77, 117, 10, 37}, {30, 127, 127, 85}, {30, 0, 30, 60}, 85, 2},   /* v1.2.20: -7 dB */
+    {"GRIND", 0, {127, 90, 20, AL_S, 127, 63, -7, 113}, {10, 100, 90, 70}, {60, 50, 20, 40}, 88, 2, .own = AP_MODE | AP_FX},   /* v1.2.20: CHORUS 50, STAB, -6 dB */
     /* PHYS */
     {"TOMS", 1, {PM_MEMB, 0, 52, 40, 30, 100, 40, 0}, {0, 100, 127, 70}, {0, 0, 0, 40}, 105, 1},
     {"GONG", 1, {PM_MODAL, 100, 90, 112, 10, 100, 0, 0}, {0, 100, 127, 90}, {0, 0, 20, 55}, 107, 0},
@@ -54,12 +61,10 @@ static const alt_pre_t ALT_PRE[] = {
     {"WIND", 2, {0, 64, 70, 100, 127, 0, 0, 0}, {90, 90, 110, 90}, {0, 30, 20, 80}, 111, 3},
     {"ARCADE", 2, {2, 0, 110, 90, 127, 112, 0, 70}, {0, 60, 0, 50}, {0, 0, 10, 20}, 70, 1},   /* (04/11: tuned, resonant) */
     /* (added after the others: the USER scenes keep their sounds' numbers) */
-    {"WARM", 0, {30, 0, 45, AL_S, 35, 0, -30, 2}, {2, 70, 50, 60}, {0, 20, 25, 40}, 109, 2},     /* deep house chords */
-    {"PAD", 0, {12, 0, 40, AL_S, 50, 0, -40, 6}, {90, 110, 110, 100}, {0, 30, 10, 70}, 113, 3}, /* a soft, slow pad */
+    {"WARM", 0, {30, 0, 45, AL_S, 127, 0, -30, 54}, {69, 0, 118, 82}, {0, 20, 25, 40}, 105, 0, .own = AP_MODE | AP_FX},   /* v1.2.20: REV 40, FREE, -2 dB */
+    {"PAD", 0, {0, 34, 0, AL_S, 127, 79, -40, 6}, {75, 127, 127, 127}, {0, 30, 127, 127}, 73, 0, .own = AP_FX | AP_CHORD, .chord = AS_CH_TRI},   /* v1.2.20: TRIAD, REV + DLY max, -10 dB */
     {"OPEN HAT", 2, {0, 0, 115, 80, 64, 0, 0, 0}, {0, 62, 0, 55}, {0, 0, 10, 20}, 98, 0},
-    {"KICK", 0, {0, 0, 0, AL_L, 64, 0, 0, 0}, {0, 85, 0, 70}, {40, 0, 0, 0}, 89, 1, 70},   /* a full kick: a sine, a short
-                                  * drop (~2 octaves, ~14 ms), a long body, DIST for the fat (04/11: fatter: DIST 40, +4.5 dB,
-                                  * RUMBLE 45 on KNOB 4) */
+    {"KICK", 0, {10, 25, 2, AL_L, 46, 10, 0, 0}, {0, 85, 0, 70}, {30, 0, 0, 0}, 111, 1, 30, .own = AP_MODE | AP_FX},   /* v1.2.20: DIST 30, PERC, RUMBLE 30, -1 dB */
     /* RESO {MATR SPRD RES DIRT OUT DCAY PING SWEP} (eng_reso.c): the four main knobs MATTER SPREAD RESONANCE DIRT */
     {"ZAP", 3, {10, 50, 100, 0, RESO_MIX, 58, RP_ALL, 80}, {0, 85, 0, 60}, {10, 0, 10, 20}, 106, 1},
     {"CLANK", 3, {50, 85, 100, 0, RESO_MIX, 49, RP_ALL, 20}, {0, 90, 127, 70}, {10, 0, 20, 30}, 110, 1},

@@ -43,18 +43,18 @@ _Static_assert(AM_PERC == 1 && AM_STAB == 2 && AM_DRONE == 3, "alter_lfo.c alt_e
  * Its number stays (stored scenes); nothing selects it: a scene or a sound made for it plays FREE (am_ok) */
 #define AM_NSEL 3u                                /* the modes one can choose: FREE PERC STAB */
 static uint8_t am_ok(uint32_t m) { return (uint8_t)(m < AM_NSEL ? m : AM_FREE); }
-/* FREE (Romain 04/11): a note never longer than 4 steps (twice a STAB) nor than its circle less one step (it never
- * goes round): its hold within it, then past it a fast fade (alt_gl_tick). Samples left, 0 = none */
-#define AM_FREE_STEPS 4u
-#define AM_FREE_FADE 34                           /* REL for the fade (~12 ms: P_REL 0..127 = 1 ms .. 10 s) */
+/* FREE: (04/11 to v1.2.19: never longer than 4 steps, then a 12 ms fade: the sound's RELEASE was never heard) v1.2.20
+ * (Romain 28/11 "pas de règle ... les vrais ENV"): held until its next hit, a whole turn at most, then its own RELEASE; the
+ * tails ring under the next hits on voices of their own, all taken: the oldest fades (voice.c alt_vfresh 2). Samples left */
 static int32_t alt_free_left[AS_NCIRC];
 #define ALT_FLAM_SAMPLES 1100u                   /* ~25 ms */
 
 static as_seq_t alt_seq;
-static uint32_t alt_free_steps(uint32_t c)        /* the steps a FREE note may last on circle c */
+static uint32_t alt_free_steps(uint32_t c)        /* the steps a FREE note may last on circle c (v1.2.20, Romain 28/11 "pas de
+                                                  * règle": until its next hit, a whole turn at most, then its RELEASE) */
 {
-    uint32_t len = alt_seq.c[c].cfg.len, l = len > 1u ? len - 1u : 1u;
-    return l < AM_FREE_STEPS ? l : AM_FREE_STEPS;
+    uint32_t len = alt_seq.c[c].cfg.len;
+    return len ? len : 1u;
 }
 static uint32_t alt_pos;                         /* samples into the sixteenth */
 static uint8_t alt_run, alt_ready;               /* transport was running; alt_seq set up */
@@ -324,6 +324,16 @@ static void alt_on(uint32_t c, uint32_t note, uint32_t vel, int glide, const uin
     int16_t g = t->p[P_GLIDE], vm = t->p[P_VOICE];
     uint32_t k, n = 1;
     alt_off(c);
+    if (alt_vfresh[c] == 1u) {                   /* (v1.2.20, Romain 28/11 "coupe nette") PERC / STAB: what still sounds is
+                                                  * cut (faded over this block), the new hit alone (voice.c alt_vpend) */
+        uint32_t i;
+        for (i = 0; i < NVOICE; i++)
+            if (t->v[i].active && t->v[i].stage != 4u && !alt_vpend[c][i].on) {
+                t->v[i].gate = 0;
+                t->v[i].stage = 4;
+                alt_vpend[c][i].on = 2;
+            }
+    }
     alt_free_left[c] = alt_emode[c] == AM_FREE ? (int32_t)(alt_free_steps(c) * div_samples(2)) : 0;
     if (ch && (ch[0] || ch[1]))
         t->p[P_VOICE] = V_POLY;                  /* (a mono preset's LEGATO would play one note) */
@@ -586,18 +596,17 @@ static void alt_gl_tick(uint32_t n, uint32_t p)
         for (j = 0; j < CL_N; j++)
             alt_cl_val[c][j] = alt_lfo_at(alt_cl[c][j].wave, alt_cl[c][j].rate, c * 3u + j, alt_gl_n, p, 0);
         alt_ems[c] = alt_emode[c];
+        alt_vfresh[c] = (uint8_t)(alt_emode[c] == AM_FREE ? 2u : alt_emode[c] == AM_DRONE ? 0u : 1u);   /* (v1.2.20, voice.c) */
         alt_punch_lvl[c] -= alt_punch_lvl[c] >> 5;   /* PUNCH: ~23 ms */
         if (alt_hold_smp[c] > 0 && (alt_hold_smp[c] -= (int32_t)n) <= 0) {   /* PERC's HOLD over: let it go */
             alt_hold_smp[c] = 0;
             alt_off(c);
         }
-        if (alt_free_left[c] > 0 && (alt_free_left[c] -= (int32_t)n) <= 0) {   /* FREE's 4 steps over: a fast fade */
+        if (alt_free_left[c] > 0 && (alt_free_left[c] -= (int32_t)n) <= 0) {   /* FREE: a whole turn without a new hit:
+                                                  * let go, its own RELEASE (v1.2.20: no fast fade any more) */
             alt_free_left[c] = 0;
-            if (alt_emode[c] == AM_FREE) {
-                alt_offset(c, P_REL, AM_FREE_FADE - (trk[c].p[P_REL] - alt_applied[c][alt_slot(P_REL)]));
+            if (alt_emode[c] == AM_FREE)
                 alt_off(c);
-                alt_release(c, (1u << NVOICE) - 1u);
-            }
         }
     }
 }
@@ -787,7 +796,7 @@ static void alter_step(void)
                 gate = 255u;                     /* (its HOLD lets it go, alt_tick) */
             else if (m == AM_STAB)
                 gate = gate > 2u ? 2u : gate;
-            else if (m == AM_FREE) {             /* (FREE: held a step less than its 4, the release in the last) */
+            else if (m == AM_FREE) {             /* (FREE: until its next hit, a turn at most) */
                 uint32_t l = alt_free_steps(c);
                 gate = gate > l - 1u ? (l > 1u ? l - 1u : 1u) : gate;
             }

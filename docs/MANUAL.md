@@ -112,7 +112,10 @@ in one continuous turn. **PRESETS** steps through the sounds of every engine; **
 opens **DEEP**, every setting of the circle as one list (SOUND, ENV, FX, MIX; MIX ends with **DICE DOSE**: how far the dice
 may move this circle).
 
-**Envelope** (ENV): three modes, chosen with ALGORITHM — FREE, PERC, STAB — each with its own four settings.
+**Envelope** (ENV): three modes, chosen with ALGORITHM — FREE, PERC, STAB — each with its own four settings. In PERC and STAB a new hit cuts the one still sounding (a ~1 ms fade) and starts afresh with its whole envelope (v1.2.20).
+In FREE a note is held until the circle's next hit, then rings out with its own RELEASE under the next ones (up to three at
+once; past that the oldest fades). Some factory sounds bring their own mode, effects or chord when you pick them (KICK:
+PERC + DIST; STAB, GRIND: STAB; WARM: FREE + reverb; PAD: a triad + long delay and reverb).
 
 ## 5. Rhythm
 

@@ -51,6 +51,17 @@ W(4, BPM, 0);
 ex.web_buttons(1 << PLAY); render(128); ex.web_buttons(0);
 render(FS);
 const solo = (c) => { for (let i = 0; i < 3; i++) W(2, i, i === c || c < 0 ? 0 : 1); };
+// (v1.2.20: Romain's new sounds are louder than the balanced ones; CLIP and the filter's DRIVE are measured on the mix
+// brought to the loudness these checks were made for (rms ~0.016, the v1.2.19 mix): each circle's LEVEL moved by the
+// same 0.5 dB steps, back after)
+const normMix = (target = 0.016) => {
+  const lv = [0, 1, 2].map((c) => ex.web_alter_peek(c, 100));
+  render(BEAT * 2); const p = rms(render(BEAT * 8, true));
+  const d = Math.round(2 * 20 * Math.log10(target / Math.max(p, 1e-6)));
+  for (let c = 0; c < 3; c++) W(17, c, Math.max(0, Math.min(127, lv[c] + d)));
+  render(FS);
+  return () => { for (let c = 0; c < 3; c++) W(17, c, lv[c]); };
+};
 // EQ: LOW 0 takes the lows away (under ~100 Hz), HIGH 0 the highs (over ~6 kHz), MID 0 much of the rest; all three
 // 0: silence
 {
@@ -86,11 +97,13 @@ const solo = (c) => { for (let i = 0; i < 3; i++) W(2, i, i === c || c < 0 ? 0 :
 }
 // CLIP 127: nothing over half scale (its top), louder on average
 {
+  const back = normMix();
   const a = render(BEAT * 8, true);
   W(8, 7, 127); render(FS);
   const b = render(BEAT * 8, true);
   W(8, 7, 0);
-  check(`CLIP 127: peak under its top (${peak(a).toFixed(3)} -> ${peak(b).toFixed(3)}), rms up`, peak(b) < 0.52 && rms(b) > rms(a));
+  back();
+  check(`CLIP 127: peak under its top (${peak(a).toFixed(3)} -> ${peak(b).toFixed(3)}), rms up (${rms(a).toFixed(4)} -> ${rms(b).toFixed(4)})`, peak(b) < 0.52 && rms(b) > rms(a));
 }
 // DUCK on the beat: circle 3 alone, just after each beat much quieter than late in it; off: no such dip
 const dip = () => {
@@ -143,6 +156,7 @@ const dip = () => {
   const lows = (a) => rms(lp(lp(lp(a, 150), 150), 150)), highs = (a) => rms(hp(hp(hp(a, 4000), 4000), 4000));
   const db = (x) => 20 * Math.log10(x + 1e-9);
   W(1, 0, 0); W(4, BPM, 0); solo(-1); render(FS * 2);
+  normMix();                                                     // (the scene reloaded at the end: no way back needed)
   const take = () => { render(FS); return render(FS * 3, true); };
   const off = take();
   FA([127, 0, 0, 0, 64, 0, 0, 127, 0, 64, 64]);                  // on, open: LP 18 kHz, no drive

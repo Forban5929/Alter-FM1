@@ -92,8 +92,8 @@ static const afx_mst_t AFX_MST[] = {
  * INSERT, before its LEVEL. One knob, continuous: 0 nothing runs, LOW ~40, MID ~80, HIGH 127. One unit: the first circle
  * whose RUMBLE is above 0 (the KICK's knob 4). Sketch: tools/alter/alter_rumble_wav.mjs (B DARK ROOM). */
 static volatile uint8_t alt_rmb[4];               /* each circle's RUMBLE 0..127 (alter_ui.c: the KICK's knob 4) */
-#define RMB_GAIN 6                                /* the level at 127 = the sketch's HIGH (v1.22: measured on the rumble alone,
-                                                   * against the kick: 24 was ~10 dB over it) */
+#define RMB_GAIN 755                              /* (x100) the level at 127 = the sketch's HIGH (v1.22: measured on the rumble alone,
+                                                   * against the kick: 24 was ~10 dB over it; v1.2.20 Romain 28/11: +2 dB, was 6) */
 #define RMB_N 4u
 #define RMB_DEPTH 32439                           /* (v1.35: the pump's floor, 1 %; RMB_HOLD, RMB_RAMP: Q14 of a beat) */
 #define RMB_HOLD 2458
@@ -142,7 +142,7 @@ static __attribute__((noinline)) void rmb_part(uint32_t c, int32_t *b, uint32_t 
         rmb_tail = FS * 3;
     else if ((rmb_tail -= (int32_t)n) <= 0)
         return;
-    g = (int32_t)amt * RMB_GAIN;                  /* (the level: 127 = HIGH) */
+    g = (int32_t)amt * RMB_GAIN / 100;            /* (the level: 127 = HIGH) */
     drv = 4 * 256 + (int32_t)amt * 1638 / 127;   /* (Q8: x 4 .. x 10.4 at 127) */
     beat = beat_samples();
     beat = beat < 4000u ? 4000u : beat;
@@ -221,7 +221,8 @@ static __attribute__((noinline)) void rmb_part(uint32_t c, int32_t *b, uint32_t 
         if ((uint32_t)rmb.since > beat * 5u / 2u)   /* (v1.2.12, Romain: "il reste quand je mets pause": no kick for 2.5
                                                    * beats (stopped, muted, a gap), the rumble fades out, ~0.1 s; the
                                                    * next kick brings it back) */
-            rmb.gn -= rmb.gn >> 12;
+            rmb.gn -= (rmb.gn >> 12) + (rmb.gn > 0);   /* (v1.2.20: + 1, to 0: it stopped at 4095, the new KICK's tail
+                                                   * heard at -77 dB for ever) */
         else
             rmb.gn += ((g << 8) - rmb.gn) >> 9;   /* (the knob glides: no step, and a fade to 0; v1.22: Q8, it stopped
                                                    * 511 short of the knob before: LOW was almost nothing) */
