@@ -268,8 +268,10 @@ tap(10); bar();
   B(6); render(FS / 2);
   check(`OCT- + OCT+ + FX: no Felucca page (05/11): an ALTER screen (its card), HOME: the circles again`,
         felucca === home && px() === home);
-  // OCT- + OCT+ + DICE 1: circle 1's LOCKS; F3 = RHYTHM locked; HOME; a roll keeps the rhythm
-  ex.web_buttons((1 << 12) | (1 << 13)); render(2000); tap(7); ex.web_buttons(0); render(2000);
+  // circle 1's LOCKS (v1.2.18: EDIT held = DEEP, ALGORITHM to its tab LOCKS; OCT- + OCT+ + DICE removed); F3 = RHYTHM
+  // locked; HOME; a roll keeps the rhythm
+  const openLocks = () => { ex.web_buttons(1 << 4); render(FS * 0.8); ex.web_buttons(0); render(300); for (let i = 0; i < 4; i++) enc(1, 1); render(1500); };
+  openLocks();
   tap(0); B(6);
   tap(7); bar();
   {
@@ -285,7 +287,7 @@ tap(10); bar();
   {
     const lk = (c) => ex.web_alter_peek(c, 18) >>> 0;
     const was2 = lk(1) & 255, was3 = lk(2) & 255;
-    ex.web_buttons((1 << 12) | (1 << 13)); render(2000); tap(7); ex.web_buttons(0); render(2000);
+    openLocks();
     const open1 = lk(0) >> 8;
     enc(0, 1);
     const open2 = lk(0) >> 8;
@@ -672,8 +674,8 @@ play();
   const n4 = ex.web_alter_rec(0);
   tapB(REC); ex.web_enc(3, 5); render(STEP * 2); tapB(REC);
   const n5 = ex.web_alter_rec(0);
-  ex.web_buttons(1 << OD | 1 << OU); render(2000); ex.web_buttons(1 << OD | 1 << OU | 1 << REC); render(2000); ex.web_buttons(0); render(4000);
-  check(`DICE 1 clears its circle's moves (${n3} -> ${n4}); OCT- + OCT+ + REC: all cleared (${n5} -> ${ex.web_alter_rec(0)})`,
+  ex.web_buttons(1 << REC); render(Math.floor(FS * 3.3)); ex.web_buttons(0); render(4000);   // (v1.2.18: REC held 3 s)
+  check(`DICE 1 clears its circle's moves (${n3} -> ${n4}); REC held 3 s: all cleared (${n5} -> ${ex.web_alter_rec(0)})`,
         n3 > 0 && n4 === 0 && n5 > 0 && ex.web_alter_rec(0) === 0 && !((ex.web_lit_buttons() >> REC) & 1));
 }
 {                                                               // a USER scene keeps REC's moves and the RANGEs (05/11)
@@ -763,16 +765,20 @@ play();
   if (peak(render(FS, true)) < 0.002) play();
   W(4, BPM, 0);
   W(15, 0, 16 | 4 << 8); render(BAR);
-  withBtn(7, () => tap(KA));
+  tap(KA);                                                      // (v1.2.18: SAVE + A removed; an empty slot tapped captures)
   W(15, 0, 16 | 7 << 8); render(BAR);
-  withBtn(7, () => tap(KB));
-  check(`SONG: SAVE held + C D E high stores slots A and B (mask ${S(4)}), circle 1 plays 7 (${P()})`, S(4) === 3 && P() === 7);
+  tap(KB);
+  check(`SONG: A and B (empty) tapped capture (mask ${S(4)}), circle 1 plays 7 (${P()})`, S(4) === 3 && P() === 7);
   tap(KA); const early = P(); render(BAR + STEP);
   check(`SONG: A tapped plays from the next bar (${early} -> ${P()} hits, slot ${S(0)})`, P() === 4 && S(0) === 1);
   tap(KC); render(BAR + STEP);
   check(`SONG: C (empty) tapped: captures what plays (v1.36; mask ${S(4)}), nothing changes (${P()} hits)`, S(4) === 7 && P() === 4);
   K(1 << KB); render(1300); K((1 << KB) | (1 << KA)); render(1300); K(1 << KB); render(1300); K(0); render(1300);   // B held, A tapped
-  check(`SONG: B held + A tapped writes a chain of ${S(2)} links, on (${S(3)})`, S(2) === 2 && S(3) === 1);
+  const quick = S(2);                                           // (v1.2.18: no chain that way any more)
+  ex.web_buttons(1 << ARP); render(FS * 0.7); ex.web_buttons(0); render(1300);   // the SONG page: B, A = a block each
+  tap(KB); tap(KA); B(6);
+  ex.web_buttons(1 << ARP); render(1300); ex.web_buttons(0); render(1300);   // ARP tapped: the chain on
+  check(`SONG: B held + A: no chain (${quick}, v1.2.18); the SONG page: B A = ${S(2)} links, ARP: on (${S(3)})`, quick === 0 && S(2) === 2 && S(3) === 1);
   const runs = (n) => {                                         // the slot playing, a quarter bar apart: its runs
     const r = []; let ok = true;
     for (let i = 0; i < n * 4; i++) {
@@ -961,8 +967,8 @@ if (wavPath) {                                                  // 4 bars from a
   W(1, 0, 0); render(FS);
   if (peak(render(FS, true)) < 0.002) play();
   W(4, BPM, 0); W(18, 1, 0);
-  W(15, 0, 16 | 4 << 8); render(BAR); ex.web_buttons(1 << 7); render(1300); tap(19); ex.web_buttons(0); render(1300);
-  W(15, 0, 16 | 7 << 8); render(BAR); ex.web_buttons(1 << 7); render(1300); tap(21); ex.web_buttons(0); render(1300);
+  W(15, 0, 16 | 4 << 8); render(BAR); tap(19); render(1300);  // (v1.2.18: an empty slot tapped captures; SAVE + A removed)
+  W(15, 0, 16 | 7 << 8); render(BAR); tap(21); render(1300);
   tap(19); render(BAR * 2);                                     // A plays
   W(15, 0, 16 | 11 << 8); render(BAR);                          // an edit while A plays: 11 hits
   tap(21); render(BAR * 2); const inB = bits(ex.web_alter_pat(0));

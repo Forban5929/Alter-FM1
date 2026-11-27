@@ -50,9 +50,15 @@ down("A"); ms(1200); up("A");
 tap("B"); ms(2 * BAR * 1000 / FS);
 tap("A"); ms(2 * BAR * 1000 / FS);
 check(`A held 1 s: replaced (A plays HITS ${c0().hits}, LEN ${c0().len})`, c0().hits === 9 && c0().len === 16);
-down("A"); tap("B"); tap("B"); up("A");                          // a chain A B B
+down("A"); tap("B"); tap("B"); up("A");                          // (v1.2.18: A held + B = a chain, removed)
 ms(100);
-check(`A held + B, B: a chain of 3, on (${sg().n}, ${sg().on})`, sg().n === 3 && sg().on === 1);
+check(`A held + B, B: no chain any more, v1.2.18 (${sg().n})`, sg().n === 0);
+{                                                               // a chain A B B on the SONG page (ARP held 0.6 s)
+  ex.web_buttons(1 << 8); ms(700); ex.web_buttons(0); ms(100);
+  tap("A"); tap("B"); tap("B"); ms(100);
+  ex.web_buttons(1 << 6); ms(60); ex.web_buttons(0); ms(200); // (HOME)
+}
+check(`the SONG page: A B B, a chain of 3 (${sg().n})`, sg().n === 3);
 ex.web_alter(23, 0, 0); ms(300);                                // SAVE into USER 1
 ex.web_alter(24, 0, 2); ms(300);                                // NEW
 check(`NEW after: slots and chain gone (${sg().used}, ${sg().n})`, sg().used === 0 && sg().n === 0);

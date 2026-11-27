@@ -133,11 +133,11 @@ The three DICE keys each draw for their own circle. What a die draws depends on 
 | OCT− + DICE | the VELO and CHANCE lanes, and a new LEN (5 to 16, mostly near 16) |
 | OCT+ + DICE | the PITCH lane and the throws into the delay and reverb |
 | DICE held 0.6 s | clean: back to the plain pattern, the draw undone |
-| OCT− + OCT+ + DICE | the circle's **LOCKS** page: lower keys 1-7 lock RHYTHM (hits, rotation, flams), LENGTH, VELOCITY, CHANCE, PITCH, THROWS (delay / reverb), SOUND (what CHAOS changes on the sound: timbre, glide, envelope, force); a locked part is left alone by the dice and CHAOS (CHAOS TOTAL changes everything); SELECT or a CIRCLE key: another circle's LOCKS (the page takes its colour); HOME: back |
+| DEEP (EDIT held) › tab LOCKS | the chosen circle's **LOCKS** page: lower keys 1-7 lock RHYTHM (hits, rotation, flams), LENGTH, VELOCITY, CHANCE, PITCH, THROWS (delay / reverb), SOUND (what CHAOS changes on the sound: timbre, glide, envelope, force); a locked part is left alone by the dice and CHAOS (CHAOS TOTAL changes everything); SELECT or a CIRCLE key: another circle's LOCKS (the page takes its colour); HOME: back |
 | DICE 1 + 2 + 3 | **CHAOS**: everything drawn on the three circles (timbre, glide and length per hit too), every effect switched off, no LFO nor modulation, EUCLID or TURING drawn too (one TURING at most); what the circle's LOCKS keep stays. Playing: the screen glitches and it lands on the 1 after a whole bar; again while it waits: cancelled |
 | CIRCLE 1 + 2 + 3 | **CHAOS TOTAL**: sounds, engines, modes, rhythms (EUCLID or TURING, one TURING at most, LEN 5-16), all at random. Playing, the draw waits: the screen glitches and the new scene lands on the 1 after a whole bar (press again while it waits: cancelled). Stopped: at once. Again within 3 s of the draw: undone |
 
-What the dice drew is kept: save the scene and it comes back. SYSTEM › RANDOM (or **OCT− + HOME**, straight there) chooses
+What the dice drew is kept: save the scene and it comes back. SYSTEM › RANDOM chooses
 which engines and envelope modes the random may use, and which effects CHAOS TOTAL may draw (ALL FX, DIST INSERT, DELAY,
 REVERB; all on by default). CHAOS switches every effect off (DIST, INSERT, the sends, the steps' DELAY and REVERB).
 
@@ -169,7 +169,7 @@ REVERB; all on by default). CHAOS switches every effect off (DIST, INSERT, the s
 - **Fills** (upper keys, held): DUB DELAY, DUB REVERB, ROLL 1/16, ROLL 1/8 on the chosen circle as long as you
   hold them. With REC on, they are written.
 - **REC** (overdub): the knobs you turn are written on the steps and play back in a loop. REC held 1 s clears the chosen
-  circle's moves; OCT− + OCT+ + REC clears every circle's. (The CONSOLE's EQ and COMP are not recorded, on purpose.)
+  circle's moves; REC held 3 s clears every circle's. (The CONSOLE's EQ and COMP are not recorded, on purpose.)
 
 ## 8. Scales and chords
 
@@ -210,13 +210,11 @@ belong to the scene: saving the scene keeps them, loading another scene brings i
 | A tapped, empty | what plays is captured in A (nothing changes in the sound) |
 | A tapped, full | slot A plays from the next bar (a chain that was looping stops) |
 | A held 1 s | A replaced by what played when the key went down |
-| SAVE held + A | the same as a capture (A replaced) |
-| A held + C, then B | a chain A › C › B, 4 bars each, looping from the next bar |
 | ARP held + REC | the chain written by playing: from the next bar, every slot played becomes a link as long as it played (16 bars at most); ARP tapped ends it and the chain loops (v1.37) |
 | ARP tapped | the chain on / off |
 | ARP held | the SONG page, the chain as a line of time (blocks as wide as their bars): A B C tapped add a block at the end · SELECT a block · KNOB 1 its slot · KNOB 2 its bars (1 to 16) · KNOB 3 moves it · OCT− held + SELECT removes it · KNOB 4 the chain on / off (16 blocks at most) |
 
-What you change while a slot plays stays in it until power-off; SAVE held + its key keeps it for good.
+A slot is a snapshot: what you change while it plays does not go into it; hold its key 1 s to replace it, and save the scene to keep it.
 
 ## 12. Scenes (save and load)
 
@@ -261,7 +259,7 @@ power-off, for every scene. CCs not linked keep the fixed map.
 - **LEARN**: MIDI learn (above).
 - **AUDIO**: CLICK, CLICK LEVEL, SPEAKER EQ, USB LEVEL, TUNE, 2ND CORE (uses the FM-1's second processor core for more
   headroom; from the next power-on).
-- **RANDOM** (OCT− + HOME): which engines and envelope modes the random may use (at least one stays on); which effects CHAOS TOTAL may draw (ALL FX, DIST INSERT, DELAY, REVERB). CHAOS switches every effect off.
+- **RANDOM**: which engines and envelope modes the random may use (at least one stays on); which effects CHAOS TOTAL may draw (ALL FX, DIST INSERT, DELAY, REVERB). CHAOS switches every effect off.
 - **ABOUT**: the version, the build date, the credits and licences. After a crash, a **LAST CRASH** block (since power-on): how many, the last one's numbers, after how many seconds of play, and whether the second core was switched off.
 
 **If the FM-1 crashes**: a red screen for 1.5 s, then it restarts by itself with the scene that was playing (a copy is kept every 3 s in memory that survives a restart, not a power-off; press PLAY again). After a crash, the second core stays off until the next power-off (the sound runs on one core). A crash in the first seconds after a restart starts on the first scene instead, so a scene that makes it fall cannot loop.
@@ -286,10 +284,9 @@ power-off, for every scene. CCs not linked keep the fixed map.
 | --- | --- |
 | CIRCLE 1 + 2 + 3 | CHAOS TOTAL (playing: a glitch, then on the 1 after a whole bar; again while it waits: cancelled; within 3 s of the draw: undone) |
 | DICE 1 + 2 + 3 | CHAOS (playing: a glitch, then on the 1 after a whole bar) |
-| OCT− + OCT+ + DICE n | circle n's LOCKS |
 | OCT− + OCT+ + HOME | NEW SCENE (blank start) |
-| OCT− + HOME | SYSTEM › RANDOM (what the random may draw: engines, modes, CHAOS TOTAL's effects) |
-| OCT− + OCT+ + REC | every circle's REC moves cleared |
+| REC held 1 s · 3 s | the chosen circle's REC moves cleared · every circle's |
+| a key with combos held (OCT−, REC, A B C, a DICE) | after 0.4 s the screen lists what each key does with it (SYSTEM › SETUP › HINTS OFF hides it) |
 | REC held + TRIGGER | a hit added to the chosen circle's pattern |
 | MUTE 1 + 2 + 3 | the three mutes (nothing more) |
 | **OCT− + OCT+ held 5 s, alone** | **UPDATE mode** (USB update; the FM-1 stops playing). Not while another key or button is held with them |
