@@ -367,6 +367,7 @@ static void alt_scene_fix(const alt_scene_t *sc)
     }
     fm1_irq_on();
 }
+static int alt_scene_blob(const uint8_t *b, uint32_t n);   /* (below, after alt_blob) */
 /* factory scene n (alter_sounds.c ALT_SCENE) */
 static void alt_load_scene(uint32_t n)
 {
@@ -381,6 +382,8 @@ static void alt_load_scene(uint32_t n)
         alt_add_set(c, 0);
         alt_fxr_put(c, 0);
     }
+    if (sc->blob && alt_scene_blob(sc->blob, sc->blob_n))   /* (v1.2.22) his whole scene, as the page's patch file loads */
+        return;
     if (sc->user) {                              /* a USER scene of Romain's, as he stored it (alter_ui.c alt_dump_user) */
         static alt_scene_rec_t rec;
         static alt_rhy_t rhy[AS_NCIRC];
@@ -932,6 +935,33 @@ typedef struct {
 #define ALT_BLOB_OLD2 (ALT_BLOB_OLD3 - SG_REC)
 #define ALT_BLOB_OLD ((uint32_t)(ALT_BLOB_OLD2 - AMC_REC))
 static alt_blob_t alt_blob __attribute__((section(".pool")));
+static void alt_us_apply(const alt_us_t *f, const uint8_t *cs, const uint8_t *d);
+/* (v1.2.22) a factory scene kept as the page's patch file (alter_sounds.c alt_scene_t.blob): n bytes of an alt_blob_t (this
+ * size or an older one, as LINK's BLOB takes them) onto the circles; 0: not one (the scene loads its own way) */
+static int alt_scene_blob(const uint8_t *b, uint32_t n)
+{
+    uint32_t k;
+    if (n != sizeof alt_blob && n != ALT_BLOB_OLD && n != ALT_BLOB_OLD2 && n != ALT_BLOB_OLD3)
+        return 0;
+    for (k = 0; k < sizeof alt_blob; k++)
+        ((uint8_t *)&alt_blob)[k] = k < n ? b[k] : 0;
+    if (alt_blob.r.used != 1u)
+        return 0;
+    if (n == ALT_BLOB_OLD)
+        alt_blob.mc[0] = 0;
+    if (n != sizeof alt_blob && n != ALT_BLOB_OLD3)
+        alt_blob.sg[0] = 0;
+    if (n != sizeof alt_blob)
+        alt_blob.mcc[0] = 0;
+    alt_us_apply(&alt_blob.r, alt_blob.cs, alt_blob.dr);
+    amc_put(alt_blob.mc);
+    amc_putc(alt_blob.mcc);
+    if (alt_blob.sg[0])
+        sg_rec_put(alt_blob.sg);
+    else
+        sg_rec_clear();
+    return 1;
+}
 
 /* scene f (its NAME nm, CONSOLE cs, draws dr) on the circles, as a USER scene loads */
 static void alt_us_apply(const alt_us_t *f, const uint8_t *cs, const uint8_t *d)

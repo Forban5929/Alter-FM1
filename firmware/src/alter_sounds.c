@@ -130,18 +130,23 @@ typedef struct {
     const uint8_t *user;         /* not 0: a USER scene of Romain's instead, whole (alter_user_*.h, alter_store.c) */
     int8_t fix[AS_NCIRC];        /* (v1.20) each circle's LEVEL corrected, 0.5 dB steps: the mix as before 22/11 (alter_store.c);
                                   * v1.34: redone for the new sound LEVELs and engine gains (the mix of v1.33, 9 dB under the MASTER) */
+    const uint8_t *blob;         /* (v1.2.22) not 0: a whole scene of Romain's, the page's patch file (alt_blob_t), blob_n bytes:
+                                  * loaded as the page's BLOB is, everything in it (LFOs, lanes, added steps, REC, CONSOLE..) */
+    uint16_t blob_n;
 } alt_scene_t;
 #include "alter_user_ambient.h"   /* AMBIENT: his USER 01 (31/10) */
+#include "alter_blob_house.h"     /* HOUSE: his patch file (v1.2.22, 28/11) */
 
 static const alt_scene_t ALT_SCENE[] = {
     {"TECHNO", "PERC . STAB . TEXTURE", 132, AS_SC_PHRY, 0,
      {{"KICK", 1, 16, 4, 0, 127, 36, AS_CH_OFF, -12, 0, 45, 85, 13, 51},   /* the 4th kick 40 % into the delay */
       {"STAB", 2, 16, 3, 3, 127, 48, AS_CH_TRI, 0, 0},
       {"CRUSH", 0, 16, 11, 0, 110, 60, AS_CH_OFF, 0, 0}}, 0, 0, 0, 0, {14, -14, -19}},
-    {"HOUSE", "DEEP . WARM CHORDS . OPEN HAT", 122, AS_SC_DOR, 8,
-     {{"KICK", 1, 16, 4, 0, 127, 36, AS_CH_OFF, -12, 0, 45, 85, 0, 0},   /* four to the floor */
-      {"WARM", 2, 16, 3, 3, 127, 48, AS_CH_7TH, -4, 0},     /* minor 7th stabs off the beat (steps 3 9 14) */
-      {"OPEN HAT", 0, 16, 4, 2, 127, 60, AS_CH_OFF, -6, 0}}, 0, 0, 0, 0, {14, -28, 4}},   /* between the kicks */
+    {"HOUSE", "KICK . STAB . CRUSH", 122, AS_SC_DOR, 8,   /* (v1.2.22: Romain's patch file, whole: .blob; the rest unused) */
+     {{"KICK", 1, 16, 4, 0, 127, 36, AS_CH_OFF, -12, 0, 45, 85, 0, 0},
+      {"STAB", 2, 16, 3, 3, 127, 48, AS_CH_7TH, -4, 0},
+      {"CRUSH", 0, 16, 4, 2, 127, 60, AS_CH_OFF, -6, 0}}, 0, 0, 0, 0, {0, 0, 0},
+     .blob = ALT_BLOB_HOUSE, .blob_n = sizeof ALT_BLOB_HOUSE},
     {"AMBIENT", "TWO PAD DRONES . RAIN", 70, AS_SC_MIN, 0,   /* (v1.24, Romain: its engines, not his name) */
      {{"PAD", 3, 32, 1, 0, 127, 48, AS_CH_OCT, 0, 0}, {"PAD", 3, 24, 1, 12, 127, 55, AS_CH_OFF, 0, 0},
       {"RAIN", 0, 16, 3, 0, 70, 72, AS_CH_OFF, 0, 0}}, 0, 0, 0, ALT_USER_AMBIENT, {-27, -28, -23}},   /* (the rest unused: user) */

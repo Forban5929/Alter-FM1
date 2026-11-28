@@ -438,12 +438,12 @@ const B = (n) => { ex.web_buttons(1 << n); render(2000); ex.web_buttons(0); rend
 const row = (n) => { enc(0, -25); enc(0, n); };                // (the page keeps its last row: from the top)
 const holdSave = () => { ex.web_buttons(1 << 7); render(FS * 1.2); ex.web_buttons(0); render(2000); B(7); };   // (held: the NAME page; tapped: stored, 05/11)
 {
-  B(7); row(2); B(7);
-  ex.web_alter(4, BPM, 0);                                      // (HOUSE is 124: the test counts at 120)
+  B(7); row(1); B(7);                                           // (v1.2.22: TECHNO; HOUSE is Romain's whole patch now)
+  ex.web_alter(4, BPM, 0);                                      // (the test counts at 120)
   ex.web_alter(2, 1, 1); ex.web_alter(2, 2, 1); ex.web_alter(17, 0 | 108 << 8, 0);   // (v1.2.20: the new KICK's RING beats: off for the count)
   bar();
   const hs = bar().steps;
-  check(`SAVE, SELECT +2, SAVE: HOUSE (circle 1: four to the floor) ${hs.join(",")}`, same(hs, euclid(16, 4, 0)));
+  check(`SAVE, SELECT +1, SAVE: TECHNO (circle 1: four to the floor) ${hs.join(",")}`, same(hs, euclid(16, 4, 0)));
 }
 // store a scene: circle 1 to 6 hits, SAVE page, row USER 01 (NEW + 4 factory + 1), SAVE held 1 s
 {
