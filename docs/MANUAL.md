@@ -122,7 +122,9 @@ PERC + DIST; STAB, GRIND: STAB; WARM: FREE + reverb; PAD: a triad + long delay a
 **SEQ tapped**: LEN (5-16 steps), HITS, ROT (rotation), PROB. **SEQ held + ALGORITHM** switches the circle between
 EUCLID and TURING; a TURING circle shows LEN, LOCK, DENS, RANGE.
 
-**SEQ held** opens the **lanes**: per step VELO, PITCH, CHANCE, DELAY (a throw into the delay), REVERB (a throw). The lower keys are the 16 steps.
+**SEQ held** opens the **lanes**: per step VELO, PITCH, CHANCE, DELAY (a throw into the delay), REVERB (a throw). The lower keys are the 16 steps. Its knobs (v1.2.21): KNOB 1 picks a step (◀ ▶, round the circle), KNOB 2 sets its value (▲ ▼), KNOB 3 / KNOB 4 the
+bottom / top of its RANGE (a new value drawn between them at each pass). Holding step keys works the same way, on all the
+held steps at once (a key also picks its step).
 
 **SWING** and **BPM** are on GLO's quick page.
 

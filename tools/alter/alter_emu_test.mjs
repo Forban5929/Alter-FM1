@@ -115,11 +115,11 @@ check("SEQ tapped again: closed (KNOB 2 moves the sound, not HITS)", same(bar().
   seqHold(0);                                                   // the menu open
   bar();
   const p0 = bar();
-  K(1 << 7); render(1500); enc(3, -30); K(0); render(1500);     // hold step 5 (key 7) + KNOB 1: its VELO down
+  K(1 << 7); render(1500); enc(4, -30); K(0); render(1500);     // hold step 5 (key 7) + KNOB 2 (v1.2.21): its VELO down
   const p1 = bar(), pk = (b, k) => peak(b.audio.slice(k * STEP, k * STEP + 2600));
-  check(`VELO lane: step 5 held + KNOB 1 down: softer (${pk(p0, 4).toFixed(3)} -> ${pk(p1, 4).toFixed(3)}), still a step`,
+  check(`VELO lane: step 5 held + KNOB 2 down: softer (${pk(p0, 4).toFixed(3)} -> ${pk(p1, 4).toFixed(3)}), still a step`,
         pk(p1, 4) < 0.7 * pk(p0, 4) && same(p1.steps.filter((x) => x !== 4), euclid(16, 8, 0).filter((x) => x !== 4)));
-  K(1 << 7); render(1500); enc(3, 30); K(0); render(1500);
+  K(1 << 7); render(1500); enc(4, 30); K(0); render(1500);
   ex.web_buttons(1 << SEQB); render(2000); enc(1, 1); ex.web_buttons(0); render(2000);   // TURING (a hold in the menu: closed)
   bar();
   const tu = [...bar().steps, ...bar().steps];
@@ -207,31 +207,31 @@ check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().
     const seqTap = (hold) => { ex.web_buttons(1 << SEQB); render(hold); ex.web_buttons(0); render(2000); };
     const a0 = attacks(bar().audio, FS * 0.012).length;
     seqTap(FS * 0.7);
-    K(1 << 0); render(1500); enc(3, 5); K(0); render(1500);
+    K(1 << 0); render(1500); enc(4, 5); K(0); render(1500);
     seqTap(2000); bar();
     const a1 = attacks(bar().audio, FS * 0.012).length;
-    seqTap(FS * 0.7); K(1 << 0); render(1500); enc(3, -5); K(0); render(1500); seqTap(2000); bar();
+    seqTap(FS * 0.7); K(1 << 0); render(1500); enc(4, -5); K(0); render(1500); seqTap(2000); bar();
     check(`SEQ: no RATCH lane any more (attacks ${a0} -> ${a1})`, a1 <= a0 + 1);
     // a RANGE: CHANCE lane (black key 5), step 1 held + KNOB 3 down: its chance drawn in 0 .. 100 % at each pass
     seqTap(FS * 0.7); K(1 << 5); render(1500); K(0); render(1500);
     K(1 << 0); render(1500); enc(5, -20); K(0); render(1500); seqTap(2000); bar();
     let played = 0;
     for (let b = 0; b < 10; b++) if (bar().steps.includes(0)) played++;
-    seqTap(FS * 0.7); K(1 << 0); render(1500); enc(3, 20); K(0); render(1500); seqTap(2000); bar();   // (KNOB 1: no range, 100 %)
+    seqTap(FS * 0.7); K(1 << 0); render(1500); enc(4, 20); K(0); render(1500); seqTap(2000); bar();   // (KNOB 2: no range, 100 %)
     const back = bar().steps.includes(0);
-    check(`SEQ RANGE: CHANCE 0..100 % on step 1 plays it in some bars only (${played}/10), KNOB 1 gives it back`,
+    check(`SEQ RANGE: CHANCE 0..100 % on step 1 plays it in some bars only (${played}/10), KNOB 2 gives it back`,
           played > 0 && played < 10 && back);
-    // SHUFFLE: two steps held + KNOB 2 = the lane shown drawn anew (here CHANCE, black key 5); one step held + KNOB 2:
-    // nothing. The screen's lane changes with two, not with one
+    // v1.2.21 (Romain 28/11): KNOB 1 picks a step (its frame moves, round the circle), KNOB 2 sets its value (here CHANCE,
+    // black key 5); the SHUFFLE of two held steps is gone
     const scr = () => { render(4000); return Array.from(new Uint16Array(mem.buffer, ex.web_screen(), 240 * 240).slice(240 * 46, 240 * 157)).join(); };   // (the bars only: not the moving playhead under them)
     seqTap(FS * 0.7); K(1 << 5); render(1500); K(0); render(1500);
     const l0 = scr();
-    K(1 << 0); render(1500); enc(4, 1); K(0); render(1500);
-    const l1 = scr();
-    K((1 << 0) | (1 << 2)); render(1500); enc(4, 1); K(0); render(1500);
-    const l2 = scr();
+    enc(3, 3); const l1 = scr();
+    enc(4, -20); const l2 = scr();
+    enc(3, 16 - 3); const l1b = scr();                            // (round the circle: 16 more = the same step)
+    enc(3, -16);
     seqTap(2000);
-    check("SEQ SHUFFLE: KNOB 2 with one step held changes nothing, with two it draws the lane anew", l1 === l0 && l2 !== l1);
+    check("SEQ: KNOB 1 picks a step (the frame moves, round the circle), KNOB 2 sets its value", l1 !== l0 && l2 !== l1 && l1b !== l2);
     // FLAT: OCT- + OCT+ held + the CHANCE key (5): that lane back to flat (the bars as before the shuffle)
     seqTap(FS * 0.7);
     ex.web_buttons((1 << 12) | (1 << 13)); render(2000); K(1 << 5); render(1500); K(0); ex.web_buttons(0); render(2000);
@@ -240,7 +240,7 @@ check("DICE 1 held 0.7 s: clean (no mark), still 8 hits", !mark() && same(bar().
     check("SEQ FLAT: OCT- + OCT+ + the lane's black key puts it back flat", l3 === l0);
     // (the chances stay audible: 30 % and up; put back to 100 % for what follows)
     seqTap(FS * 0.7); K(1 << 5); render(1500); K(0); render(1500);
-    K(0x5ad5ad5); render(1500); enc(3, 20); K(0); render(1500); seqTap(2000);   // (all 16 step keys held)
+    K(0x5ad5ad5); render(1500); enc(4, 20); K(0); render(1500); seqTap(2000);   // (all 16 step keys held)
   }
 
   check(`let go: the pattern is back`, same(bar().steps, euclid(16, 8, 0)));

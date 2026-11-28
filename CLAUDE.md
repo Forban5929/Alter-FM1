@@ -159,6 +159,11 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
   nouveaux sons (vieux THUD/STAB par op 17, RING du KICK coupé pour compter, fx_test ramène le mix au niveau v1.2.19). Op 38 = son
   choisi à la main, peek 37 = mode d'un cercle. **Scènes d'usine pas rééquilibrées** (fix[] d'avant). **Pas écouté sur la FM-1** ;
   CPU : FREE peut faire sonner 3 voix par cercle (avant ~1).
+- **v1.2.21 (Romain 28/11) : menu SEQ (SEQ tenu)** : KNOB 1 = pas choisi (`au.cur`, fait le tour du LEN, une touche de pas le
+  choisit aussi), KNOB 2 = valeur du couloir, KNOB 3/4 = PLAGE bas/haut ; **mêmes knobs avec des touches tenues** (sur tous les pas
+  tenus, sinon le pas choisi) ; bas d'écran `alt_seq_foot` : flèches ◀ ▶ / ▲ ▼ (triangles `alt_tri`), LOW/HIGH en chiffres ; cadre
+  couleur du cercle = pas choisi, « STEP n » au-dessus. LEN HITS ROT PROB = SEQ tapé (page rapide). SHUFFLE (2 pas + KNOB 2) retiré
+  (`alt_lane_shuffle` gardée, inutilisée). emu_test/jump_test refaits. **Pas essayé sur la FM-1.**
 - **27/11 soir : onglet « Tests v1.2 » refait** pour la BETA v1.2.18 = 28 essais (16-27 = nouveautés v1.2.14-18, 28 = jam) ; Sheet #7 « En cours ».
 - `alt_sys[11]` (ancien THEME SPLIT, retiré v1.13) peut valoir 1 sur la FM-1 de Romain : le remettre à 0 avant de le reprendre.
 
@@ -190,7 +195,7 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** (Romain 25/11) : `FELUCCA_VERSION` (felucca.c) = « v1.2.20 » ; **les BETA portent le numéro de la version en cours + un chiffre** :
+4. **Version** (Romain 25/11) : `FELUCCA_VERSION` (felucca.c) = « v1.2.21 » ; **les BETA portent le numéro de la version en cours + un chiffre** :
    v1.2 → v1.21, v1.22 … v1.29, puis **v1.2.10, v1.2.11…** ; v1.3 → v1.31… ; à monter à CHAQUE envoi, avant le commit.
    Le journal ci-dessus est déjà renommé (v1.21-v1.27 = anciennement v1.34-v1.40 dans le code et les commits) (les « v1.02-v1.33 » plus bas/dans HISTORIQUE = BETA de la v1.1).
    Release : le site public réécrit FELUCCA_VERSION avec le tag (site_build.sh) → la machine affiche « v1.2 » (v1.1 affichait v1.33). Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.

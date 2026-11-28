@@ -21,12 +21,12 @@ const kp = () => ex.web_alter_knobp(0, 0);
 const e0 = kp(); turn(K1, 1); const e1 = kp();
 ex.web_buttons(1 << OCTDN); ms(100); turn(K1, 1); const emax = kp(); turn(K1, -1); const emin = kp(); ex.web_buttons(0); ms(100);
 check(`PLAY view, the sound's KNOB 1: alone ${e0} -> ${e1}, OCT- right ${emax}, left ${emin}`, e1 > e0 && emax === 127 && emin === 0);
-ex.web_buttons(1 << SEQ); ms(300);                                // RHYTHM (SEQ held): KNOB 2 = HITS
+ex.web_buttons(1 << SEQ); ms(100); ex.web_buttons(0); ms(300);     // RHYTHM (SEQ tapped: the quick page stays): KNOB 2 = HITS
 const h0 = hits(); turn(K2, 1); const ha = hits();
-ex.web_buttons(1 << SEQ | 1 << OCTDN); ms(100); turn(K2, 1); const hmax = hits(); turn(K2, -1); const hmin = hits();
-ex.web_buttons(1 << SEQ | 1 << OCTDN | 1 << OCTUP); ms(100); turn(K2, 1); const hboth = hits();
+ex.web_buttons(1 << OCTDN); ms(100); turn(K2, 1); const hmax = hits(); turn(K2, -1); const hmin = hits();
+ex.web_buttons(1 << OCTDN | 1 << OCTUP); ms(100); turn(K2, 1); const hboth = hits();
 ex.web_buttons(0); ms(300);
-check(`SEQ held, HITS: alone ${h0} -> ${ha}, OCT- right ${hmax}, left ${hmin}, OCT- + OCT+ ${hboth}`,
+check(`SEQ tapped, HITS: alone ${h0} -> ${ha}, OCT- right ${hmax}, left ${hmin}, OCT- + OCT+ ${hboth}`,
       ha === h0 + 1 && hmax === 16 && hmin === 0 && hboth === 1);
 ex.web_buttons(1 << FX); ms(300);                                 // the FX page (DIST tab), FX held
 const d0 = peek(0, 100 + P_DIST); turn(K1, 1); const d1 = peek(0, 100 + P_DIST);
