@@ -1427,7 +1427,7 @@ static void alt_dens_press(uint32_t c, int32_t d)
     const as_circ_t *sc = &alt_seq.c[c % AS_NCIRC];
     c %= AS_NCIRC;
     alt_dens_tot[c] += d;
-    if (d < 0 && ((sc->die && sc->dhits > 0) || (sc->add & as_lenmask(sc->cfg.len))))
+    if (d < 0 && ((sc->die && as_dh(sc) > 0) || (sc->add & as_lenmask(sc->cfg.len))))
         return;
     au.cfg[c].hits = (uint8_t)clamp((int32_t)au.cfg[c].hits + d, 0, au.cfg[c].len);
 }

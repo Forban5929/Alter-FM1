@@ -245,6 +245,7 @@ static uint32_t as_bits(uint32_t m) { uint32_t n = 0; for (; m; m &= m - 1u) n++
  * dice, each its own): AS_DW_RHY the pattern (HITS, ROT, flams, a ratchet) · AS_DW_VC the velocities and chances ·
  * AS_DW_PDR the pitches and throws into the delay and reverb · AS_DW_SND (CHAOS's full draw only) glide, length,
  * envelope, timbre. What it does not draw stays as the last draw left it (a fresh draw: as the clean pattern) */
+#define AS_D0 64                                 /* (v1.2.25) dhits >= AS_D0: hits the die drew on HITS 0 (as_dh) */
 enum { AS_DW_RHY = 1, AS_DW_VC = 2, AS_DW_PDR = 4, AS_DW_SND = 8, AS_DW_ALL = 15, AS_DW_NOTHR = 0x40 };   /* (NOTHR, v0.71: no throw
                                                   * into the delay or reverb: CHAOS) */
 static void as_draw_w(as_seq_t *q, uint32_t i, uint32_t w)
@@ -268,6 +269,10 @@ static void as_draw_w(as_seq_t *q, uint32_t i, uint32_t w)
                 if (as_coin(s, d * 2))
                     c->flam[k] = 1;
             /* (v1.11, Romain 22/11: no more ratchet drawn: RATCH taken out) */
+            if (!c->cfg.hits && c->cfg.len)      /* (v1.2.25, Romain 28/11: "pas de note de base, le dé ne rajoute plus
+                                                  * rien"): HITS 0, the die draws hits of its own (1 .. half the circle),
+                                                  * marked AS_D0 so that they play (as_repat) */
+                c->dhits = (int8_t)(AS_D0 + 1 + (int32_t)(as_rand(s) % ((c->cfg.len + 1u) / 2u)));
         }
     }
     hits = as_bits(c->pat & (c->cfg.len >= 32u ? 0xFFFFFFFFu : (1u << c->cfg.len) - 1u));
@@ -333,6 +338,10 @@ static uint32_t as_rot(uint32_t m, uint32_t n, uint32_t r)
 
 static uint32_t as_lenmask(uint32_t len) { return len >= 32u ? 0xFFFFFFFFu : (1u << len) - 1u; }
 /* circle c's pattern as it plays: its settings, the draw's HITS and ROT on top (TURING: its register) */
+static int32_t as_dh(const as_circ_t *c)        /* the die's HITS move (AS_D0 marks hits it drew on HITS 0) */
+{
+    return c->dhits >= AS_D0 ? c->dhits - AS_D0 : c->dhits;
+}
 static void as_repat(as_circ_t *c)
 {
     int32_t h = c->cfg.hits, r = c->cfg.rot;
@@ -341,12 +350,13 @@ static void as_repat(as_circ_t *c)
         return;
     }
     if (c->die) {
-        h = h + c->dhits;
+        h = h + as_dh(c);
         h = h < 0 ? 0 : h > c->cfg.len ? c->cfg.len : h;
         if (c->cfg.hits && !h)
             h = 1;                                      /* (a circle that plays keeps a hit) */
-        if (!c->cfg.hits)
-            h = 0;                                      /* (v0.71: HITS 0 is silence, whatever the die drew) */
+        if (!c->cfg.hits && c->dhits < AS_D0)
+            h = 0;                                      /* (v0.71: HITS 0 is silence, whatever the die drew; v1.2.25: unless
+                                                         * the die was rolled on HITS 0: its own hits, AS_D0) */
         r += c->drot;
     }
     c->pat = as_euclid(c->cfg.len, (uint32_t)h, (uint32_t)r % c->cfg.len) | as_rot(c->add, c->cfg.len, 0);
@@ -425,8 +435,8 @@ static void as_density(as_seq_t *q, uint32_t i, int32_t d)
     c = &q->c[i];
     /* (v0.71, Romain 11/11: "phantom" hits at 0 HITS) DENSITY - takes away what plays on top of HITS first: the die's
      * extra hits, then the steps TRIGGER + REC added (a hit like the others now: counted, taken away); then HITS */
-    while (d < 0 && ((c->die && c->dhits > 0) || (c->add & as_lenmask(c->cfg.len)))) {
-        if (c->die && c->dhits > 0)
+    while (d < 0 && ((c->die && as_dh(c) > 0) || (c->add & as_lenmask(c->cfg.len)))) {
+        if (c->die && as_dh(c) > 0)
             c->dhits--;
         else {
             uint32_t a = c->add & as_lenmask(c->cfg.len), k = 31u;

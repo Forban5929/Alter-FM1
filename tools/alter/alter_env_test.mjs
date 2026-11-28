@@ -59,6 +59,17 @@ for (const [snd, mode] of [["STAB", 2], ["KICK", 1]]) {
   check(`picked by hand: PAD triad + DLY/REV 127 (${pad.join(",")}), KICK DIST 30 PERC (${kick.join(",")}), GRIND CHORUS 50 STAB (${grind.join(",")}); a scene's load: none (${kick0})`,
         pad[0] === 1 && pad[1] === 127 && pad[2] === 127 && pad[3] === 0 && kick[0] === 30 && kick[1] === 1 && grind[0] === 50 && grind[1] === 2 && kick0 === 0);
 }
+{                                                                // (v1.2.25) DICE on HITS 0: hits of its own; DENSITY - takes them away
+  const { ex, render } = await boot();
+  const bits = () => { let m = ex.web_alter_pat(0) >>> 0, n = 0; for (; m; m >>>= 1) n += m & 1; return n; };
+  ex.web_buttons(1 << 10); render(128); ex.web_buttons(0); render(FS / 2);
+  const z = bits();
+  ex.web_keys(1 << 7); render(FS / 10); ex.web_keys(0); render(FS);
+  const d = bits();
+  for (let i = 0; i < 16; i++) { ex.web_keys(1 << 8); render(FS / 20); ex.web_keys(0); render(FS / 10); }
+  render(FS);
+  check(`DICE on HITS 0: ${z} -> ${d} hits; DENSITY - x16: ${bits()}`, z === 0 && d >= 1 && d <= 8 && bits() === 0);
+}
 {                                                                // (v1.2.24) the page's list of factory scenes = ALT_SCENE's
   const src = fs.readFileSync(new URL("../../firmware/src/alter_sounds.c", import.meta.url), "utf8");
   const fw = [...src.slice(src.indexOf("ALT_SCENE[] = {")).matchAll(/^\s{4}\{"([A-Z0-9 .+-]+)", "/gm)].map((m) => m[1]);
