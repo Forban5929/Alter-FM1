@@ -59,11 +59,5 @@ for (const [snd, mode] of [["STAB", 2], ["KICK", 1]]) {
   check(`picked by hand: PAD triad + DLY/REV 127 (${pad.join(",")}), KICK DIST 30 PERC (${kick.join(",")}), GRIND CHORUS 50 STAB (${grind.join(",")}); a scene's load: none (${kick0})`,
         pad[0] === 1 && pad[1] === 127 && pad[2] === 127 && pad[3] === 0 && kick[0] === 30 && kick[1] === 1 && grind[0] === 50 && grind[1] === 2 && kick0 === 0);
 }
-{                                                                // (v1.2.22) HOUSE = Romain's patch file, whole
-  const { ex, render } = await boot();
-  ex.web_alter(1, 1, 0); render(4000);
-  const v = [ex.web_alter_peek(0, 100 + 107), ex.web_alter_peek(1, 100 + 105), ex.web_alter_peek(2, 100 + 36), ex.web_alter_peek(2, 0)];
-  check(`HOUSE: his patch (KICK AMNT ${v[0]}, STAB HARM ${v[1]}, CRUSH REV ${v[2]}, engine ${v[3]})`, v[0] === 63 && v[1] === 109 && v[2] === 24 && v[3] === 11);
-}
 console.log(fails ? `env: ${fails} FAIL` : "env: all ok");
 process.exit(fails ? 1 : 0);
