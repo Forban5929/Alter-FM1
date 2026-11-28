@@ -50,6 +50,7 @@ static int32_t alt_free_left[AS_NCIRC];
 #define ALT_FLAM_SAMPLES 1100u                   /* ~25 ms */
 
 static as_seq_t alt_seq;
+static volatile uint32_t alt_seed_in;           /* (v1.2.26) the UI's stir for alt_seq.rng (a key's time), 0: none */
 static uint32_t alt_free_steps(uint32_t c)        /* the steps a FREE note may last on circle c (v1.2.20, Romain 28/11 "pas de
                                                   * règle": until its next hit, a whole turn at most, then its RELEASE) */
 {
@@ -905,6 +906,12 @@ static void alter_tick_(uint32_t n)
     if (!alt_ready) {
         as_init(&alt_seq, 0xA17E5u);
         alt_ready = 1;
+    }
+    if (alt_seed_in) {                           /* (v1.2.26, Romain 28/11: "les ranges ... résultats toujours similaires": the
+                                                  * draws of RANGE, CHANCE, PROB, TURING ran the same sequence from every
+                                                  * power-on; the player's timing stirs it, alter_ui_input) */
+        alt_seq.rng = (alt_seq.rng ^ alt_seed_in) | 1u;
+        alt_seed_in = 0;
     }
     alt_take();
     alt_trig_now(n);                             /* (TRIGGER: at once) */

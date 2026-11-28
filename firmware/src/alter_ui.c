@@ -1947,6 +1947,13 @@ static int alter_ui_input(uint32_t pressed)
     alm_poll();                                  /* MIDI LEARN: the settings moved, the keys and buttons held */
     pressed |= alm_bdown;
     keys = ALT_NOTES;
+    {                                            /* (v1.2.26) a key or a button moved: its time stirs the audio side's draws */
+        static uint32_t ek;
+        if (keys != ek || pressed) {
+            alt_seed_in = (fm1_ms * 2654435761u) ^ (keys * 40503u) ^ (pressed << 7) ^ 0x5Au;
+            ek = keys;
+        }
+    }
     both = (1u << panel.btn[B_OCTDN]) | (1u << panel.btn[B_OCTUP]);
     octs = (ALT_BTNS & both) == both;
     panel_jump = (uint8_t)((ALT_BTNS & both) == (1u << panel.btn[B_OCTDN]));   /* (v1.2.19) OCT- alone + a knob: 0 / MAX */

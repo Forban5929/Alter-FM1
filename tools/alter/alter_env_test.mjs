@@ -70,6 +70,20 @@ for (const [snd, mode] of [["STAB", 2], ["KICK", 1]]) {
   render(FS);
   check(`DICE on HITS 0: ${z} -> ${d} hits; DENSITY - x16: ${bits()}`, z === 0 && d >= 1 && d <= 8 && bits() === 0);
 }
+{                                                                // (v1.2.26) the RANGE draws: new each pass, and not the same
+  const runr = async (wait) => {                                 // sequence when PLAY comes at another time (the player's timing)
+    const { ex, render } = await boot();
+    ex.web_alter(0, 0, idx("SNARE")); ex.web_alter(3, 0, 1); ex.web_alter(2, 1, 1); ex.web_alter(2, 2, 1);
+    ex.web_alter(29, 0, 1); ex.web_alter(19, 0, 1 | (10 << 16) | (127 << 24));
+    render(FS / 2 + wait); ex.web_buttons(1 << 10); render(128); ex.web_buttons(0);
+    const L = render(STEP * 16 * 8, true), pk = [];
+    for (let b = 0; b < 8; b++) { let m = 0; for (let i = Math.round(b * STEP * 16); i < b * STEP * 16 + FS * 0.05; i++) m = Math.max(m, Math.abs(L[i] || 0)); pk.push(m.toFixed(3)); }
+    return pk;
+  };
+  const a = await runr(0), b = await runr(5000);
+  check(`RANGE 10..127 on VELO: each pass its own (${a.join(" ")}), another sequence from another PLAY (${b.join(" ")})`,
+        new Set(a).size >= 5 && a.join() !== b.join());
+}
 {                                                                // (v1.2.24) the page's list of factory scenes = ALT_SCENE's
   const src = fs.readFileSync(new URL("../../firmware/src/alter_sounds.c", import.meta.url), "utf8");
   const fw = [...src.slice(src.indexOf("ALT_SCENE[] = {")).matchAll(/^\s{4}\{"([A-Z0-9 .+-]+)", "/gm)].map((m) => m[1]);
