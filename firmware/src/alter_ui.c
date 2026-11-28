@@ -107,7 +107,7 @@ static struct {
     uint8_t mn, mhold;           /* the ENV / EDIT / SCL menu open (QP_*, 0: none); the page buttons whose hold opened
                                  * their menu (bit QP_*: its release keeps it) */
     uint8_t set_row;             /* SETTINGS (EDIT held): the row */
-    uint8_t scene_open, tab, row[4], save_done;   /* the SAVE page open; its tab (0 SCENES 1 PATTERNS), each tab's row;
+    uint8_t scene_open, tab, row[5], save_done;   /* the SAVE page open; its tab (0 SCENES 1 PATTERNS), each tab's row;
                                                  * a long hold has stored (its release loads nothing) */
     uint32_t save_t0;            /* SAVE's press on the page (fm1_ms), 0 = up */
     uint8_t pre[AS_NCIRC];       /* each circle's sound (ALT_PRE) */
@@ -296,14 +296,14 @@ static void amc_zero(void);
 static void amc_input(uint32_t keys);
 #include "alter_store.c"
 
-/* the SAVE page's tabs (10/11: the patterns gone, Romain): SCENES A, B, C. A: NEW, the factory ones, USER A01..A16;
- * B: B01..B16; C: C01..C16. A tab's row r as a row of alt_row_* */
-#define ALT_ROWS_A (1u + ALT_NFACT + 16u)
-#define ALT_NTAB (ALT_NUSER / 16u)
-#define ALT_TAB_SND ALT_NTAB                     /* (v1.26) the 4th tab: the USER sounds */
+/* the SAVE page's tabs (v1.2.24, Romain 28/11: the factory ones apart): FACTORY (NEW and the 8 factory places), A, B, C
+ * (USER A01..C16), SOUNDS. A tab's row r as a row of alt_row_* (0 NEW, 1..ALT_NFACT the factory ones, then the USER ones) */
+#define ALT_ROWS_F (1u + ALT_NFACT)
+#define ALT_NTAB (1u + ALT_NUSER / 16u)
+#define ALT_TAB_SND ALT_NTAB                     /* (v1.26) the last tab: the USER sounds */
 #define ALT_NTAB_ALL (ALT_NTAB + 1u)
-static uint32_t alt_tab_n(uint32_t tab) { return tab == ALT_TAB_SND ? ALT_NUSND : tab ? 16u : ALT_ROWS_A; }
-static uint32_t alt_tab_row(uint32_t tab, uint32_t r) { return tab ? ALT_ROWS_A + (tab - 1u) * 16u + r : r; }
+static uint32_t alt_tab_n(uint32_t tab) { return tab == ALT_TAB_SND ? ALT_NUSND : tab ? 16u : ALT_ROWS_F; }
+static uint32_t alt_tab_row(uint32_t tab, uint32_t r) { return tab ? ALT_ROWS_F + (tab - 1u) * 16u + r : r; }
 /* the NAME page (Romain 05/11): SAVE held on a USER row opens it; KNOB 1 2 3 the three characters, SAVE stores, HOME
  * leaves (nothing stored) */
 static const char ALT_NM_CH[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-";
@@ -2166,7 +2166,7 @@ static int alter_ui_input(uint32_t pressed)
         if ((s = panel_enc(EN_SELECT)) != 0)
             au.row[au.tab] = (uint8_t)clamp((int32_t)au.row[au.tab] + s, 0, (int32_t)alt_tab_n(au.tab) - 1);
         if ((s = panel_enc(EN_ALGO)) != 0)
-            au.tab = (uint8_t)clamp((int32_t)au.tab + (s > 0 ? 1 : -1), 0, (int32_t)ALT_NTAB_ALL - 1);   /* (SCENES A B C, SOUNDS) */
+            au.tab = (uint8_t)clamp((int32_t)au.tab + (s > 0 ? 1 : -1), 0, (int32_t)ALT_NTAB_ALL - 1);   /* (FACTORY, A B C, SOUNDS) */
         for (i = 0; i < 4u; i++)
             (void)panel_enc(EN_K1 + i);
         (void)panel_enc(EN_PRESET);
@@ -2870,7 +2870,7 @@ static void alt_locks_scene(void)
 
 static void alt_scenes_scene(void)
 {
-    static const char *const TAB[ALT_NTAB_ALL] = {"SCENES A", "B", "C", "SOUNDS"};
+    static const char *const TAB[ALT_NTAB_ALL] = {"FACTORY", "A", "B", "C", "SOUNDS"};
     uint32_t t = 0, r = au.row[au.tab % ALT_NTAB_ALL], i, top, n = alt_tab_n(au.tab);
     char nb[12];
     alt_card("SAVE", "XX");

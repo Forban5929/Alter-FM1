@@ -134,7 +134,7 @@ const dip = () => {
 }
 // a USER scene keeps the effects: MASTER PUMP 1/4 stored in USER 01, FLAT, USER 01 loaded: it pumps as before
 {
-  const row = (n) => { enc(0, -25); enc(0, n); };
+  const row = (n) => { ex.web_enc(1, -9); render(1300); if (n >= 5) { enc(1, 1); n -= 5; } enc(0, -25); enc(0, n); };   // (v1.2.24: the FACTORY tab, then A: the old row 5 = USER A01)
   W(7, 5, 4); W(8, 4, 127); render(FS);                          // MASTER: PUMP 1/4, DUCK 127
   const ref = dip();
   B(SAVEB); row(5); B(SAVEB, FS * 1.2); B(SAVEB); B(6);                   // USER 01: SAVE held 1.2 s; HOME
@@ -188,7 +188,7 @@ const dip = () => {
   check(`FILTER RES 127 on silence: stable, it does not oscillate (${db(rms(osc)).toFixed(1)} dB)`, db(rms(osc)) < -80);
   solo(-1);
   W(13, 0, 2); F(22, 0); render(FS);                             // TAPE into A (B too: it was off)
-  const row = (n) => { enc(0, -25); enc(0, n); };
+  const row = (n) => { ex.web_enc(1, -9); render(1300); if (n >= 5) { enc(1, 1); n -= 5; } enc(0, -25); enc(0, n); };   // (v1.2.24: the FACTORY tab, then A: the old row 5 = USER A01)
   B(SAVEB); row(6); B(SAVEB, FS * 1.2); B(SAVEB); B(6);                   // USER 02: SAVE held 1.2 s; HOME
   W(1, 0, 0); render(FS);
   const fac = ex.web_alter_flt(1);                               // a factory scene: none (-1)
@@ -233,7 +233,7 @@ const dip = () => {
   W(17, 0, lv0c);
   solo(-1);
   // a USER scene keeps it; a factory scene loads flat
-  const row = (n) => { enc(0, -25); enc(0, n); };
+  const row = (n) => { ex.web_enc(1, -9); render(1300); if (n >= 5) { enc(1, 1); n -= 5; } enc(0, -25); enc(0, n); };   // (v1.2.24: the FACTORY tab, then A: the old row 5 = USER A01)
   C(0, 0, 10); C(1, 2, 100); C(2, 3, 90);
   B(SAVEB); row(7); B(SAVEB, FS * 1.2); B(SAVEB); B(6);             // USER 03 stored
   W(1, 0, 0); render(FS);

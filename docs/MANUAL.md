@@ -223,8 +223,10 @@ A slot is a snapshot: what you change while it plays does not go into it; hold i
 
 ## 12. Scenes (save and load)
 
-**SAVE** opens the SAVE page: three tabs (ALGORITHM) — SCENES A, B, C — of 16 slots each, **48 scenes**. Tab A also has
-NEW and the four factory scenes (locked).
+**SAVE** opens the SAVE page; ALGORITHM picks its tab: **FACTORY** (NEW and up to 8 factory scenes, locked; the empty places
+say EMPTY), **A, B, C** (16 USER slots each, **48 scenes**) and SOUNDS. On the BETA companion page, **Propose scene…** sends
+the whole scene playing (sounds, rhythms, lanes, LFOs, REC's moves, effects, MASTER, CONSOLE, MACRO, SONG) to ALTER's author:
+it may become one of the factory scenes, as it is.
 
 A **scene** is everything: sounds, rhythms, effects, CONSOLE, REC's moves, ranges, what the dice, CHAOS and CHAOS TOTAL
 drew, the chord PROG. A TURING circle comes back frozen as it was saved.

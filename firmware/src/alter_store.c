@@ -16,7 +16,9 @@
 
 #define ALT_NUSER 48                             /* (05/11: banks A B of 16; 10/11: C, the patterns gone) */
 #define ALT_NOLD 16                              /* the old banks' slots (moved into bank A once) */
-#define ALT_NFACT 4
+#define ALT_NFACT 8                              /* (v1.2.24, Romain 28/11: 8 factory places, their own tab FACTORY; those
+                                                  * ALT_SCENE has not filled yet: EMPTY, loading nothing) */
+#define ALT_FACT_OK(i) ((i) >= 1u && (i) <= ALT_NFACT && (i) - 1u < ALT_NSCENE)
 #define ALT_NLIST (1 + ALT_NFACT + ALT_NUSER)   /* NEW, the factory ones, the USER slots */
 #define ALT_OBJ_SCENES 3u                        /* storage.c OBJ_PROJECT0 + 2 (OBJ_PROJECT0 = 1) */
 #define ALT_OBJ_PATS 4u                          /* OBJ_PROJECT0 + 3 */
@@ -878,7 +880,7 @@ static const char *alt_row_name(uint32_t t, uint32_t i, char *buf)
     if (i == 0)
         return "NEW SCENE";
     if (i <= ALT_NFACT)
-        return ALT_SCENE[i - 1u].name;
+        return ALT_FACT_OK(i) ? ALT_SCENE[i - 1u].name : "EMPTY";
     {
         uint32_t u = (i - 1u - ALT_NFACT) % ALT_NUSER, used = alt_used_s[u], n = 0, k;
         const char *nm = alt_nm_s[u];
@@ -904,7 +906,7 @@ static const char *alt_row_about(uint32_t t, uint32_t i)
     if (i == 0)
         return "A BLANK START. LOAD ONLY";
     if (i <= ALT_NFACT)
-        return ALT_SCENE[i - 1u].about;
+        return ALT_FACT_OK(i) ? ALT_SCENE[i - 1u].about : "A FACTORY SCENE TO COME";
     return alt_used_s[(i - 1u - ALT_NFACT) % ALT_NUSER] ? "YOURS" : "HOLD SAVE: STORE HERE";
 }
 
@@ -1169,6 +1171,8 @@ static int alt_row_load(uint32_t t, uint32_t i)
         amc_zero();                              /* (v0.77) */
         sg_rec_clear();                          /* (v1.36: no slot, no chain) */
     } else if (i <= ALT_NFACT) {
+        if (!ALT_FACT_OK(i))
+            return 0;
         alt_load_scene(i - 1u);
         sg_rec_clear();
     } else if (alt_ub_load_s(u) && alt_ub.s.r[u % ALT_US_PER].used) {

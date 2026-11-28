@@ -59,5 +59,11 @@ for (const [snd, mode] of [["STAB", 2], ["KICK", 1]]) {
   check(`picked by hand: PAD triad + DLY/REV 127 (${pad.join(",")}), KICK DIST 30 PERC (${kick.join(",")}), GRIND CHORUS 50 STAB (${grind.join(",")}); a scene's load: none (${kick0})`,
         pad[0] === 1 && pad[1] === 127 && pad[2] === 127 && pad[3] === 0 && kick[0] === 30 && kick[1] === 1 && grind[0] === 50 && grind[1] === 2 && kick0 === 0);
 }
+{                                                                // (v1.2.24) the page's list of factory scenes = ALT_SCENE's
+  const src = fs.readFileSync(new URL("../../firmware/src/alter_sounds.c", import.meta.url), "utf8");
+  const fw = [...src.slice(src.indexOf("ALT_SCENE[] = {")).matchAll(/^\s{4}\{"([A-Z0-9 .+-]+)", "/gm)].map((m) => m[1]);
+  const page = JSON.parse(fs.readFileSync(new URL("../../web/alter/editor.html", import.meta.url), "utf8").match(/const FACTORY_SCENES = (\[[^\]]*\])/)[1]);
+  check(`factory scenes: the page's list (${page.join(" ")}) = the firmware's (${fw.join(" ")}), 8 at most`, page.join() === fw.join() && fw.length <= 8);
+}
 console.log(fails ? `env: ${fails} FAIL` : "env: all ok");
 process.exit(fails ? 1 : 0);

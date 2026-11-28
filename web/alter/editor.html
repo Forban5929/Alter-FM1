@@ -148,10 +148,12 @@ select:hover { border-color: var(--gold); }
 .btn.sm { padding: 3px 8px; font-size: 12px; white-space: nowrap; }
 .sndRow { display: flex; gap: 6px; align-items: center; }
 .sndRow .sound { flex: 1; min-width: 0; }
-#ppDlg { max-width: 520px; }
-#ppDlg .col { flex-direction: column; align-items: stretch; }
-#ppNote { width: 100%; box-sizing: border-box; font: inherit; }
-#ppName { text-transform: uppercase; }
+#ppDlg, #psDlg { max-width: 520px; }
+#ppDlg .col, #psDlg .col { flex-direction: column; align-items: stretch; }
+#ppNote, #psNote { width: 100%; box-sizing: border-box; font: inherit; }
+#ppName, #psName, #psAbout { text-transform: uppercase; }
+#ppDlg .bakList input[type=text], #ppDlg .bakList input:not([type]), #psDlg .bakList input:not([type]) {
+  border: 1px solid var(--rim); padding: 4px 8px; background: var(--bg); }
 .ppMsg { min-height: 1.2em; color: var(--gold); margin: 0 0 8px; }
 #usName { width: 6em; text-transform: uppercase; letter-spacing: .2em; }
 fieldset { border: 0; border-top: 1px solid var(--dark); margin: 14px 0 0; padding: 10px 0 0; }
@@ -429,6 +431,7 @@ body.jam #alter-beta { display: none !important; }   /* (the BETA bar of the bet
     <div class="grp"><span>Patch file</span>
       <button class="btn" id="bOpen">Open…</button>
       <button class="btn" id="bSave">Save</button>
+      <button class="btn" id="bPropScene" hidden title="Send the whole scene playing to ALTER's author: it may become a factory scene">Propose scene…</button>
       <input type="file" id="file" accept=".json,application/json" hidden>
     </div>
     <div class="grp"><span>Backup</span>
@@ -514,6 +517,17 @@ body.jam #alter-beta { display: none !important; }   /* (the BETA bar of the bet
   </div>
   <p id="ppMsg" class="ppMsg" role="status"></p>
   <div class="dlgBtns"><button class="btn" id="ppNo">Cancel</button><button class="btn main" id="ppOk">Send</button></div>
+</dialog>
+<dialog id="psDlg">
+  <p id="psText">Propose the scene playing as a factory scene:</p>
+  <div class="bakList">
+    <label>Name <input id="psName" maxlength="10" size="12" autocomplete="off" spellcheck="false"></label>
+    <label>Subtitle <input id="psAbout" maxlength="28" size="30" autocomplete="off" spellcheck="false" placeholder="KICK . STAB . TEXTURE"></label>
+    <label>It is <select id="psRep"></select></label>
+    <label class="col">Note (optional) <textarea id="psNote" maxlength="300" rows="3" placeholder="What it shows, how to play it…"></textarea></label>
+  </div>
+  <p id="psMsg" class="ppMsg" role="status"></p>
+  <div class="dlgBtns"><button class="btn" id="psNo">Cancel</button><button class="btn main" id="psOk">Send</button></div>
 </dialog>
 <dialog id="usDlg">
   <p id="usText">Store this sound as a USER sound:</p>
@@ -816,6 +830,49 @@ function proposeSound(c) {
       else $("ppMsg").textContent = r.status === 429 ? "Too many sends in a short time: try again in a few minutes." : `Could not send it (${a.error || r.status}).`;
     } catch { $("ppMsg").textContent = "No connection to the feedback service. Check your internet."; }
     busy = false; $("ppOk").disabled = false;
+  };
+  d.showModal();
+}
+/* (v1.2.24, BETA only, Romain 28/11: "les base presets doivent être des vitrines") "Propose scene…": the WHOLE scene playing
+ * (the BLOB, as a patch file keeps it: sounds, rhythms, lanes, LFOs, REC, effects, MASTER, CONSOLE, MACRO, SONG) sent through
+ * the Feedback relay as a GitHub Issue ([son] SCENE PROPOSED ...); ALTER's author puts it among the 8 factory scenes as it is
+ * (tools/alter/alter_scene_intake.py). FACTORY_SCENES: alter_sounds.c ALT_SCENE's names, in order (alter_env_test checks) */
+const FACTORY_SCENES = ["TECHNO", "HOUSE", "AMBIENT", "INDUS"];
+const FACTORY_N = 8;
+async function proposeScene() {
+  if (!port) return say("Connect the FM-1 (or the simulator) first.", true);
+  const d = $("psDlg"), rep = $("psRep");
+  rep.innerHTML = "";
+  if (FACTORY_SCENES.length < FACTORY_N) rep.append(new Option("— a new factory scene —", ""));
+  FACTORY_SCENES.forEach((n) => rep.append(new Option(`replace ${n}`, n)));
+  $("psName").value = ""; $("psAbout").value = ""; $("psNote").value = ""; $("psMsg").textContent = "";
+  let busy = false;
+  const close = () => { d.close(); $("psOk").onclick = $("psNo").onclick = null; };
+  $("psNo").onclick = close;
+  $("psOk").onclick = async () => {
+    if (busy) return;
+    const clean = (s, n) => s.toUpperCase().replace(/[^A-Z0-9 .+-]/g, "").trim().slice(0, n);
+    const name = clean($("psName").value, 10), about = clean($("psAbout").value, 28);
+    if (!name) { $("psMsg").textContent = "Give it a name first."; return; }
+    busy = true; $("psOk").disabled = true; $("psMsg").textContent = "Reading the scene from the synth…";
+    const bytes = await sceneBytes();
+    if (!bytes) { $("psMsg").textContent = "Could not read the whole scene (update the synth to the BETA)."; busy = false; $("psOk").disabled = false; return; }
+    let fw = "?";
+    try { const v = (await (await fetch("../version.txt", { cache: "no-store" })).text()).trim(); if (/^v\d/.test(v)) fw = v.split(/\s+/)[0]; } catch {}
+    const j = { alterScene: 1, version: fw, name, about, replaces: rep.value || null, size: bytes.length, scene: toB64(bytes),
+      sounds: circ.map((C) => info.sounds[C.state?.sound]?.name ?? "?"), note: $("psNote").value.trim().slice(0, 300) };
+    const text = `SCENE PROPOSED: ${name} — ${j.replaces ? "replaces " + j.replaces : "new factory scene"} (${j.sounds.join(" . ")})\n\n` +
+      (j.note ? j.note + "\n\n" : "") + "```json\n" + JSON.stringify(j) + "\n```";
+    $("psMsg").textContent = "Sending…";
+    try {
+      const r = await fetch(RELAY, { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, cat: "sound", version: fw, site: "beta", link: ($("stateTxt")?.textContent || "").trim(),
+          engines: j.sounds.join(" "), ua: navigator.userAgent }) });
+      const a = await r.json().catch(() => ({}));
+      if (r.ok && a.ok) { close(); say(`Scene “${name}” sent (#${a.n}): it will be checked at the next session.`); }
+      else $("psMsg").textContent = r.status === 429 ? "Too many sends in a short time: try again in a few minutes." : `Could not send it (${a.error || r.status}).`;
+    } catch { $("psMsg").textContent = "No connection to the feedback service. Check your internet."; }
+    busy = false; $("psOk").disabled = false;
   };
   d.showModal();
 }
@@ -2282,6 +2339,8 @@ $("bMidi").onclick = connectMidi;
 $("bDemo").onclick = connectDemo;
 $("bEmu").onclick = connectEmu;
 $("bSave").onclick = savePatch;
+$("bPropScene").hidden = !PROPOSE_ON;
+$("bPropScene").onclick = proposeScene;
 $("bOpen").onclick = () => $("file").click();
 $("file").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) openPatch(f); };
 $("bStore").onclick = store;

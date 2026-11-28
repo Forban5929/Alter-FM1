@@ -435,7 +435,7 @@ tap(4);
 }
 // SAVE page: SELECT picks (NEW, TECHNO, HOUSE ..), a tap of SAVE loads: HOUSE = a kick on the four beats
 const B = (n) => { ex.web_buttons(1 << n); render(2000); ex.web_buttons(0); render(2000); };
-const row = (n) => { enc(0, -25); enc(0, n); };                // (the page keeps its last row: from the top)
+const row = (n) => { enc(1, -9); if (n >= 5) { enc(1, 1); n -= 5; } enc(0, -25); enc(0, n); };   // (v1.2.24: the FACTORY tab, then A: the old row 5 = USER A01)                // (the page keeps its last row: from the top)
 const holdSave = () => { ex.web_buttons(1 << 7); render(FS * 1.2); ex.web_buttons(0); render(2000); B(7); };   // (held: the NAME page; tapped: stored, 05/11)
 {
   B(7); row(1); B(7);                                           // (v1.2.22: TECHNO; HOUSE is Romain's whole patch now)
@@ -481,7 +481,7 @@ const holdSave = () => { ex.web_buttons(1 << 7); render(FS * 1.2); ex.web_button
   const r2 = (n) => { for (let k = 0; k < n; k += 128) e2.web_render(Math.min(128, n - k)); };
   r2(FS * 2);
   const B2 = (n) => { e2.web_buttons(1 << n); r2(2000); e2.web_buttons(0); r2(2000); };
-  B2(7); for (let k = 0; k < 5; k++) { e2.web_enc(0, 1); r2(1300); }
+  B2(7); e2.web_enc(1, 1); r2(1300);   // (v1.2.24: tab A, its first row: USER A01)
   r2(4000);
   const fb = new Uint16Array(e2.memory.buffer, e2.web_screen(), 240 * 240);
   // (row USER 01 chosen: its line says YOURS, drawn in circle 2's colour; EMPTY slots say HOLD SAVE: STORE HERE)
@@ -689,7 +689,7 @@ play();
   ex.web_alter(1, 0, 0); render(FS / 2);
   const REC = 11, W = (op, a, b) => ex.web_alter(op, a, b);
   const Bt = (b, hold = 2000) => { ex.web_buttons(1 << b); render(hold); ex.web_buttons(0); render(2000); };
-  const urow = (n) => { enc(1, -3); enc(0, -25); enc(0, n); };   // (the SCENES tab, from the top)
+  const urow = (n) => { enc(1, -9); if (n >= 5) { enc(1, 1); n -= 5; } enc(0, -25); enc(0, n); };   // (the SCENES tab, from the top)
   Bt(6); if (!ex.web_playing()) play(); render(BAR);
   if ((ex.web_lit_buttons() >> REC) & 1) Bt(REC);
   Bt(REC); for (let i = 0; i < 6; i++) { ex.web_enc(3, i < 3 ? 6 : -6); render(STEP); } render(BAR); Bt(REC);
@@ -710,7 +710,7 @@ play();
   for (let k = 0; k < FS * 2; k += 128) e3.web_render(128);
   const B3 = (b, hold = 2000) => { e3.web_buttons(1 << b); for (let k = 0; k < hold; k += 128) e3.web_render(128); e3.web_buttons(0); for (let k = 0; k < 2000; k += 128) e3.web_render(128); };
   const enc3 = (role, n) => { for (let i = 0; i < Math.abs(n); i++) { e3.web_enc(role, Math.sign(n)); for (let k = 0; k < 1300; k += 128) e3.web_render(128); } };
-  B3(7); enc3(1, -3); enc3(0, -25); enc3(0, 9); B3(7); for (let k = 0; k < FS; k += 128) e3.web_render(128);
+  B3(7); enc3(1, -9); enc3(1, 1); enc3(0, -25); enc3(0, 4); B3(7); for (let k = 0; k < FS; k += 128) e3.web_render(128);
   check(`after power-off: USER 05's moves (${e3.web_alter_rec(0)}) and RANGE (mask ${e3.web_alter_rng(0, 0) & 0xFFFF}) from the flash`,
         e3.web_alter_rec(0) === n0 && (e3.web_alter_rng(0, 0) & 0xFFFF) === 5);
 }
@@ -721,7 +721,7 @@ play();
   const store = () => { ex.web_buttons(1 << 7); render(FS * 1.2); ex.web_buttons(0); render(2000); B(7); B(6); };
   ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
   W(15, 0, 16 | 5 << 8); render(FS);
-  B(7); enc(1, -3); enc(1, 1); enc(0, -25); enc(0, 4); store();             // SCENES B, B05
+  B(7); enc(1, -9); enc(1, 2); enc(0, -25); enc(0, 4); store();             // SCENES B, B05 (v1.2.24: FACTORY A B C)
   W(15, 0, 16 | 10 << 8); render(FS);
   B(7); enc(1, 1); enc(0, -25); enc(0, 1); store();                          // PATTERNS B, B02
   W(15, 0, 16 | 2 << 8); render(FS);
@@ -733,7 +733,7 @@ play();
   const B5 = (b) => { e5.web_buttons(1 << b); r5(2000); e5.web_buttons(0); r5(2000); };
   const enc5 = (role, n) => { for (let i = 0; i < Math.abs(n); i++) { e5.web_enc(role, Math.sign(n)); r5(1300); } };
   r5(FS * 2);
-  B5(7); enc5(1, -3); enc5(1, 1); enc5(0, -25); enc5(0, 4); B5(7); r5(FS);
+  B5(7); enc5(1, -9); enc5(1, 2); enc5(0, -25); enc5(0, 4); B5(7); r5(FS);
   const sc = bits(e5.web_alter_pat(0));
   B5(7); enc5(1, 1); enc5(0, -25); enc5(0, 1); B5(7); r5(FS);
   const pt = bits(e5.web_alter_pat(0));
@@ -746,13 +746,13 @@ play();
 {
   const nm = (e, t, u) => { const v = e.web_alter_name(t, u); return String.fromCharCode(v & 255, (v >> 8) & 255, (v >> 16) & 255).replace(/\0/g, ""); };
   ex.web_nor_erase(); ex.web_boot(); render(FS * 2);
-  B(7); enc(1, -3); enc(0, -25); enc(0, 6);                      // SCENES A, A02
+  B(7); enc(1, -9); enc(1, 1); enc(0, -25); enc(0, 1);           // tab A (v1.2.24), A02
   ex.web_buttons(1 << 7); render(FS * 1.2); ex.web_buttons(0); render(2000);   // held: NAME
   enc(3, 1); enc(5, -1);                                         // KNOB 1 +1, KNOB 3 -1
   const shown = nm(ex, 0, 1);
   B(7); B(6);
   const named = nm(ex, 0, 1);
-  B(7); enc(0, -25); enc(0, 7); ex.web_buttons(1 << 7); render(FS * 1.2); ex.web_buttons(0); render(2000); B(6);   // A03: HOME
+  B(7); enc(0, -25); enc(0, 2); ex.web_buttons(1 << 7); render(FS * 1.2); ex.web_buttons(0); render(2000); B(6);   // A03: HOME
   const nor = new Uint8Array(mem.buffer, ex.web_nor(), ex.web_nor_size()).slice();
   const { instance: i6 } = await WebAssembly.instantiate(wasm, {}); const e6 = i6.exports;
   e6._initialize(); e6.web_nor_erase(); new Uint8Array(e6.memory.buffer, e6.web_nor(), e6.web_nor_size()).set(nor); e6.web_boot();
@@ -857,7 +857,7 @@ if (wavPath) {                                                  // 4 bars from a
   }
   // a USER scene keeps the added step: saved in USER 03, a factory scene (none), USER 03 again (it is back)
   const Bt = (b, hold = 2000) => { ex.web_buttons(1 << b); render(hold); ex.web_buttons(0); render(2000); };
-  const urow = (n) => { enc(1, -3); enc(0, -25); enc(0, n); };   // (the SCENES tab, from the top)
+  const urow = (n) => { enc(1, -9); if (n >= 5) { enc(1, 1); n -= 5; } enc(0, -25); enc(0, n); };   // (the SCENES tab, from the top)
   Bt(7); urow(7); Bt(7, FS * 1.2); Bt(7); Bt(6);                         // SAVE held 1.2 s on USER 03; HOME
   W(1, 0, 0); render(FS);
   const fac = bits(ex.web_alter_pat(0) >>> 0);
@@ -893,7 +893,7 @@ if (wavPath) {                                                  // 4 bars from a
   for (let i = 0; i < 64; i++) { render(STEP / 2); const s = ex.web_alter_send(0); if (s === 127) up++; else down++; }
   check(`REC + ROLL 1/16 adds steps (${p0} -> ${p1}), ROLL 1/8 doubles none (${r32}), DUB DELAY writes ${dly} that replay (send up ${up}/64)`,
         p1 >= Math.min(32, p0 + 2) && r32 === 0 && dly >= 2 && up > 0 && down > 0);
-  const urow = (n) => { enc(1, -3); enc(0, -25); enc(0, n); };
+  const urow = (n) => { enc(1, -9); if (n >= 5) { enc(1, 1); n -= 5; } enc(0, -25); enc(0, n); };
   const kept = fx(15);
   Bt(7); urow(8); Bt(7, FS * 1.2); Bt(7); Bt(6);                         // USER 04 saved
   W(1, 0, 0); render(FS);

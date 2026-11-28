@@ -288,7 +288,7 @@ static int aper_row_ok(uint32_t r)               /* a scene to go to: a factory 
 {
     if (r == 0u || r > ALT_NFACT + ALT_NUSER)
         return 0;
-    return r <= ALT_NFACT || alt_used_s[(r - 1u - ALT_NFACT) % ALT_NUSER];
+    return r <= ALT_NFACT ? ALT_FACT_OK(r) : alt_used_s[(r - 1u - ALT_NFACT) % ALT_NUSER];
 }
 static void aper_scene_step(int32_t d)           /* PREV / NEXT SC: the one before / after (the one waiting, else the one
                                                   * loaded last), at the next 1 */

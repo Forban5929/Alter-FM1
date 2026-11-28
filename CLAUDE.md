@@ -47,7 +47,7 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
 - **Feedback** : `web/alter/feedback.js` → relais Vercel `https://alter-feedback.vercel.app/api/feedback` (`tools/alter/feedback-relay/`,
   projet alter-feedback, équipe rominou1) → Issue `a-trier` + `feedback` + `cat-…` + `v-…`. Redéployer = nouveau déploiement
   avec le fichier. **En début de session** : `gh api 'repos/Forban5929/alter-fm1/issues?labels=a-trier'`, résumer à Romain,
-  ajouter au Sheet ce qu'il accepte, retirer `a-trier` ; sons proposés : `python3 tools/alter/alter_sound_intake.py` → montrer,
+  ajouter au Sheet ce qu'il accepte, retirer `a-trier` ; scènes proposées : `alter_scene_intake.py` ; sons proposés : `python3 tools/alter/alter_sound_intake.py` → montrer,
   intégrer tel quel (remplacer : garder fx[] et la place ; nouveau : fin d'ALT_PRE), tests, fermer l'Issue.
 - Outils de mesure du son : `alter_knob_audit.mjs` + `alter_knob_report.mjs` (audit), `alter_param_probe.mjs`, `alter_balance.py`
   (LUFS), `alter_scene_fix.mjs`, `alter_upgrade_test.mjs OLD.wasm NEW.wasm` (la mise à jour garde tout), `alter_midiout_test.mjs`.
@@ -169,6 +169,14 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
   couloirs, pas ajoutés, REC, CONSOLE, MACRO, SONG ; pas de fix[]). Refaire une scène d'usine depuis un fichier patch = même
   chose (base64 « scene » → tableau C). emu_test charge TECHNO à la place de HOUSE. **v1.2.23 : HOUSE remise comme avant (Romain : « pas la
   scène house »)** ; le mécanisme `.blob` reste, sans scène qui s'en sert ; le patch est dans l'historique git (alter_blob_house.h, v1.2.22).
+- **v1.2.24 (Romain 28/11 : « les scènes d'usine = des vitrines », 8 places dans un onglet à part, intégrées TELLES QUELLES)** :
+  SAVE = onglets **FACTORY** (NEW + `ALT_NFACT` 8 places ; vides = « EMPTY », rien chargé, `ALT_FACT_OK`) | A | B | C | SOUNDS
+  (`alt_tab_row/alt_tab_n`, `au.row[5]`) ; numérotation des lignes inchangée (0 NEW, 1..8 usine, puis USER). Page BETA :
+  **« Propose scene… »** (à côté de Save, `proposeScene`) = BLOB entier + nom (10) + sous-titre (28) + remplace/nouvelle + note
+  → relais → Issue « SCENE PROPOSED ». **Intégrer** : `python3 tools/alter/alter_scene_intake.py N` → `firmware/src/alter_fs_<nom>.h`
+  + la ligne ALT_SCENE (`.blob`), #include, **FACTORY_SCENES** de web/alter/editor.html = noms dans l'ordre (alter_env_test le
+  vérifie), tests, fermer l'Issue. Vérifié : un 5e scène .blob se charge à l'identique (66/66). emu_test/fx_test : `row()` passe
+  par l'onglet A (l'ancien row 5 = A01). **Pas essayé sur la FM-1.**
 - **27/11 soir : onglet « Tests v1.2 » refait** pour la BETA v1.2.18 = 28 essais (16-27 = nouveautés v1.2.14-18, 28 = jam) ; Sheet #7 « En cours ».
 - `alt_sys[11]` (ancien THEME SPLIT, retiré v1.13) peut valoir 1 sur la FM-1 de Romain : le remettre à 0 avant de le reprendre.
 
@@ -200,7 +208,7 @@ essais FM-1 de ce que la v1.1 n'a eu que dans l'émulateur (mise à jour v1.01�
    **34** = copie/reprise de plantage, **17** = un réglage de piste (a = cercle | P_id<<8, 255<<8 = RUMBLE), **18** = RUMBLE coupé (les tests comptent les coups à l'audio), **19** = une PLAGE, **21** LEN, **22** CHAOS TOTAL, **23** SAVE scène a, **24** LOAD (b&1 patt, b&2 NEW), **25** save ancien format, **26** PROG, **27** LFO.
    Peek 13 = empreinte tirage/pas d'un cercle, 14 = treg|tfreeze<<16|dé<<17|prog<<24, 15 = note. `alter_save_test.mjs` (sauver/rappeler), `alter_fxcost.mjs` (coût par effet, bruité).
    `web_alter_peek` : 11 CONSOLE, 12 mute/hits/sel/playing/REC, 100+P un param, 400+i un lien MIDI LEARN ; `web_midi(st,d1,d2)` = MIDI USB.
-4. **Version** (Romain 25/11) : `FELUCCA_VERSION` (felucca.c) = « v1.2.23 » ; **les BETA portent le numéro de la version en cours + un chiffre** :
+4. **Version** (Romain 25/11) : `FELUCCA_VERSION` (felucca.c) = « v1.2.24 » ; **les BETA portent le numéro de la version en cours + un chiffre** :
    v1.2 → v1.21, v1.22 … v1.29, puis **v1.2.10, v1.2.11…** ; v1.3 → v1.31… ; à monter à CHAQUE envoi, avant le commit.
    Le journal ci-dessus est déjà renommé (v1.21-v1.27 = anciennement v1.34-v1.40 dans le code et les commits) (les « v1.02-v1.33 » plus bas/dans HISTORIQUE = BETA de la v1.1).
    Release : le site public réécrit FELUCCA_VERSION avec le tag (site_build.sh) → la machine affiche « v1.2 » (v1.1 affichait v1.33). Affichée : démarrage, SYSTEM > ABOUT (en gros + date/heure de build, UTC), page émulateur, /version.txt.
